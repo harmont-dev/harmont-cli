@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harmont"
+version = "0.0.0-dev"
+description = "Python DSL for Harmont CI pipelines — emits v0 IR JSON"
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "croniter>=1.4,<3",
+]
+
+[project.urls]
+Repository = "https://github.com/harmont-dev/harmont-py"
+Homepage = "https://harmont.dev"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "mypy>=1.8",
+    "ruff>=0.2",
+]
+
+[tool.setuptools.packages.find]
+include = ["harmont*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error"]
+markers = []
+
+[tool.mypy]
+strict = true
+packages = ["harmont"]
+
+[[tool.mypy.overrides]]
+module = "croniter.*"
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 99
+
+[tool.ruff.lint]
+ignore = []
+select = [
+  "E",      # pycodestyle errors
+  "F",      # pyflakes
+  "I",      # isort
+  "N",      # pep8-naming
+  "UP",     # pyupgrade
+  "B",      # flake8-bugbear
+  "SIM",    # flake8-simplify
+  "RUF",    # ruff-specific rules
+  "S",      # flake8-bandit (security)
+  "A",      # flake8-builtins
+  "C4",     # flake8-comprehensions
+  "PIE",    # flake8-pie
+  "PT",     # flake8-pytest-style
+  "RET",    # flake8-return
+  "ARG",    # flake8-unused-arguments
+  "T20",    # flake8-print
+  "TID",    # flake8-tidy-imports
+  "ERA",    # eradicate (commented-out code)
+  "TRY",    # tryceratops (exception anti-patterns)
+  "PERF",   # perflint
+  "FBT",    # flake8-boolean-trap (boolean positional args)
+  "DTZ",    # flake8-datetimez (timezone-aware datetimes)
+  "EM",     # flake8-errmsg (exception message extracted to var)
+  "G",      # flake8-logging-format (logging f-strings forbidden)
+  "Q",      # flake8-quotes (consistent quote style)
+  "SLF",    # flake8-self (no private member access from outside)
+  "TCH",    # flake8-type-checking (TYPE_CHECKING blocks)
+  "LOG",    # flake8-logging (logger usage)
+  "RSE",    # flake8-raise (no extra parens around raise)
+  "ISC",    # flake8-implicit-str-concat
+  "PYI",    # flake8-pyi (.pyi stubs; harmless if absent)
+  "INT",    # flake8-gettext
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files are allowed to use `assert` (S101) and don't need docstrings.
+"tests/**" = ["S101", "ARG001"]
