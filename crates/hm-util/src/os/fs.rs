@@ -1,4 +1,4 @@
-//! Atomic, permission-restricted filesystem helpers.
+//! Filesystem helpers.
 //!
 //! The main entry point is [`write_atomic_restricted`]. A synchronous
 //! wrapper is available at [`blocking::write_atomic_restricted`] for
