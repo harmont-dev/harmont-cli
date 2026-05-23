@@ -1,7 +1,7 @@
 //! File-backed credential store at `~/.harmont/credentials.toml`.
 //!
 //! Replaces the OS keyring as the sole backend. The file is written with
-//! mode 0o600 (parent dir 0o700) via [`crate::fs_util::write_atomic_restricted`].
+//! mode 0o600 (parent dir 0o700) via [`hm_util::os::fs::blocking::write_atomic_restricted`].
 //! Keyed by `(service, account)` to match the host-fn ABI plugins use.
 
 use anyhow::{Context, Result};
@@ -32,7 +32,7 @@ fn load() -> CredentialFile {
 fn save(file: &CredentialFile) -> Result<()> {
     let p = path()?;
     let serialized = toml::to_string_pretty(file).context("serializing credentials")?;
-    crate::fs_util::write_atomic_restricted(&p, serialized.as_bytes(), 0o600, 0o700)
+    hm_util::os::fs::blocking::write_atomic_restricted(&p, serialized.as_bytes(), 0o600, 0o700)
         .with_context(|| format!("writing {}", p.display()))?;
     Ok(())
 }
@@ -92,8 +92,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn round_trip() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn round_trip() {
         with_home(|| {
             assert_eq!(get("svc", "acct"), None);
             set("svc", "acct", "shh");

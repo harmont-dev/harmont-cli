@@ -160,14 +160,8 @@ pub(crate) async fn exec_impl(args: DockerExecArgs) -> Result<i32> {
     i32::try_from(rc).context("docker exit code out of i32 range")
 }
 
-async fn wait_cancel(cancel: &crate::orchestrator::cancel::CancellationToken) {
-    // Poll the atomic every 50ms. Cheap; never wakes a thread early.
-    loop {
-        if cancel.is_cancelled() {
-            return;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    }
+async fn wait_cancel(cancel: &tokio_util::sync::CancellationToken) {
+    cancel.cancelled().await;
 }
 
 pub(crate) async fn commit_impl(args: DockerCommitArgs) -> Result<String> {

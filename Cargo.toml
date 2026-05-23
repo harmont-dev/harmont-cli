@@ -10,12 +10,14 @@ members = [
     "crates/hm-plugin-output-json",
     "crates/hm-plugin-cloud",
     "crates/hm-fixtures",
+    "crates/hm-util",
 ]
 default-members = [
     "crates/hm",
     "crates/hm-plugin-protocol",
     "crates/hm-pipeline-ir",
     "crates/hm-plugin-sdk",
+    "crates/hm-util",
 ]
 
 [workspace.package]
@@ -27,6 +29,7 @@ repository = "https://github.com/harmont-dev/harmont-cli"
 hm-plugin-protocol = { path = "crates/hm-plugin-protocol", version = "0.0.0-dev" }
 hm-pipeline-ir     = { path = "crates/hm-pipeline-ir",     version = "0.0.0-dev" }
 hm-plugin-sdk      = { path = "crates/hm-plugin-sdk",      version = "0.0.0-dev" }
+hm-util            = { path = "crates/hm-util",            version = "0.0.0-dev" }
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
 schemars    = { version = "0.8", features = ["preserve_order", "semver", "uuid1", "chrono"] }
@@ -57,6 +60,9 @@ cargo_common_metadata = "allow"
 # schemars 0.8 pulls older indexmap / wit-bindgen transitively; we
 # can't fix without bumping schemars.
 multiple_crate_versions = "allow"
+# `pub(crate)` inside a non-pub module triggers this, but `unreachable_pub`
+# already enforces the same invariant from the rustc side.
+redundant_pub_crate = "allow"
 dbg_macro = "deny"
 todo = "deny"
 unimplemented = "deny"
