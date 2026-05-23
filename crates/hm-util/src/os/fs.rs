@@ -29,9 +29,11 @@ pub async fn write_atomic_restricted(
     file_mode: u32,
     dir_mode: u32,
 ) -> io::Result<()> {
-    let path = path.as_ref().to_owned();
+    let dest = path.as_ref().to_owned();
     let contents = contents.as_ref().to_vec();
-    tokio::task::spawn_blocking(move || {
+    let path = dest.clone();
+
+    let tmp_path = tokio::task::spawn_blocking(move || {
         let parent = path.parent().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -56,21 +58,23 @@ pub async fn write_atomic_restricted(
 
         write_file_with_mode(&tmp_path, &contents, file_mode)?;
 
-        let persist_result = atomic_rename_over_impl(&tmp_path, &path);
-        if persist_result.is_err() {
-            let _ = std::fs::remove_file(&tmp_path);
-        }
-        persist_result
+        io::Result::Ok(tmp_path)
     })
     .await
-    .map_err(io::Error::other)?
+    .map_err(io::Error::other)??;
+
+    let rename_result = atomic_rename_over(&tmp_path, &dest).await;
+    if rename_result.is_err() {
+        let _ = tokio::fs::remove_file(&tmp_path).await;
+    }
+    rename_result
 }
 
 /// Atomically replace `to` with `from`.
 ///
-/// On Unix this is a single `rename(2)` call — atomic by POSIX
-/// guarantee. On Windows this uses `ReplaceFileW` (preserves ACLs
-/// and alternate data streams) when the target exists, falling back
+/// On Unix this delegates to [`tokio::fs::rename`] (`rename(2)` — atomic
+/// by POSIX guarantee). On Windows this uses `ReplaceFileW` (preserves
+/// ACLs and alternate data streams) when the target exists, falling back
 /// to `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING` for first-write.
 ///
 /// # Errors
@@ -81,11 +85,18 @@ pub async fn atomic_rename_over(
     from: impl AsRef<Path>,
     to: impl AsRef<Path>,
 ) -> io::Result<()> {
-    let from = from.as_ref().to_owned();
-    let to = to.as_ref().to_owned();
-    tokio::task::spawn_blocking(move || atomic_rename_over_impl(&from, &to))
-        .await
-        .map_err(io::Error::other)?
+    #[cfg(unix)]
+    {
+        tokio::fs::rename(from.as_ref(), to.as_ref()).await
+    }
+    #[cfg(windows)]
+    {
+        let from = from.as_ref().to_owned();
+        let to = to.as_ref().to_owned();
+        tokio::task::spawn_blocking(move || atomic_rename_over_impl(&from, &to))
+            .await
+            .map_err(io::Error::other)?
+    }
 }
 
 /// Remove a file if it exists; silently return `Ok(())` if it does not.
@@ -146,11 +157,6 @@ fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Result<(
 #[cfg(not(unix))]
 fn write_file_with_mode(path: &Path, contents: &[u8], _mode: u32) -> io::Result<()> {
     std::fs::write(path, contents)
-}
-
-#[cfg(unix)]
-fn atomic_rename_over_impl(from: &Path, to: &Path) -> io::Result<()> {
-    std::fs::rename(from, to)
 }
 
 #[cfg(windows)]
