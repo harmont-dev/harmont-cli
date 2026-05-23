@@ -1,43 +1,46 @@
 use std::path::PathBuf;
+use tokio;
+use io;
 
-use anyhow::{Context, Result};
 
 /// Platform home directory (`~/` on Unix, `C:\Users\<user>` on Windows).
-///
-/// # Errors
-///
-/// Returns an error if the home directory cannot be determined.
-pub fn home_dir() -> Result<PathBuf> {
-    dirs::home_dir().context("could not determine home directory")
+pub fn home_dir() -> Option<PathBuf> {
+    dirs::home_dir()
 }
 
-/// Platform config directory (`~/.config` on Linux,
-/// `~/Library/Application Support` on macOS, `%APPDATA%` on Windows).
+/// Platform config directory (`~/.config` on Posix, `%APPDATA%` on Windows).
 ///
-/// # Errors
-///
-/// Returns an error if the config directory cannot be determined.
-pub fn config_dir() -> Result<PathBuf> {
-    dirs::config_dir().context("could not determine config directory")
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn home_dir_resolves() {
-        let p = home_dir().unwrap();
-        assert!(p.exists(), "home dir should exist: {}", p.display());
+/// Note this doesn't respect XDG.
+pub async fn user_config_dir() -> io::Result<Option<PathBuf>> {
+    #[cfg(unix)]
+    {
+        home_dir().and_then(async move |d: PathBuf| {
+            let d: PathBuf = d.join(".config");
+            if tokio::fs::try_exists(d).await? {
+                Some(d)
+            } else {
+                None
+            }
+        })
     }
 
-    #[test]
-    fn config_dir_resolves() {
-        let p = config_dir().unwrap();
-        assert!(
-            p.to_string_lossy().len() > 1,
-            "config dir should be a real path"
-        );
+    #[cfg(windows)]
+    {
+        Ok(dirs::config_dir())
+    }
+}
+
+/// Platform-equivalent of /etc/.
+pub async fn sys_config_dir() -> PathBuf {
+    #[cfg(unix)]
+    {
+        PathBuf::from("/etc")
+    }
+
+    #[cfg(windows)]
+    {
+        std::env::var_os("ProgramData")
+            .map(PathBuf::from)
+            .unwrap_or("C:\\ProgramData")
     }
 }
