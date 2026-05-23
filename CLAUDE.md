@@ -12,3 +12,8 @@ Run `cargo build` from the workspace root. Plugin fixtures need the
 `wasm32-wasip1` target; install with `rustup target add wasm32-wasip1`.
 
 For cross-cutting doctrine see [PRINCIPLES.md](../PRINCIPLES.md).
+
+## Python DSL
+
+`dsls/harmont-py/` — the `harmont` Python package (pipeline DSL).
+See `dsls/harmont-py/CLAUDE.md` for DSL-specific context.
