@@ -24,7 +24,7 @@ use uuid::Uuid;
 use crate::orchestrator::docker_client::DockerClient;
 
 use super::archive::ArchiveStore;
-use super::cancel::CancellationToken;
+use tokio_util::sync::CancellationToken;
 use super::events::EventBus;
 
 /// Live state visible to every host fn while an orchestrator run is

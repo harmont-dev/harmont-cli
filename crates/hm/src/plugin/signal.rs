@@ -15,7 +15,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::orchestrator::cancel::CancellationToken;
+use tokio_util::sync::CancellationToken;
 
 /// Spawn a tokio task that listens for SIGINT (Ctrl-C) and flips
 /// the token. Returns a handle; aborting the handle is sufficient

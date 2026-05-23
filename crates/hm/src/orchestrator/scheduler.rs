@@ -44,7 +44,7 @@ use crate::plugin::{PluginRegistry, RegistryConfig};
 
 use super::archive::ArchiveStore;
 use super::cache;
-use super::cancel::CancellationToken;
+use tokio_util::sync::CancellationToken;
 use super::events::EventBus;
 use super::state::{self, OrchestratorState};
 
