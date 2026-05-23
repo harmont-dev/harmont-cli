@@ -33,13 +33,19 @@ pub enum KvScope {
 
 /// Opaque socket handle returned by `hm_unix_socket_connect`. Bound
 /// to the plugin instance that opened it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema,
+    derive_more::From, derive_more::Deref, derive_more::Display,
+)]
 #[serde(transparent)]
 pub struct SocketHandle(pub u64);
 
 /// Opaque handle returned by `hm_spawn_loopback`. Bound to the plugin
 /// instance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema,
+    derive_more::From, derive_more::Deref, derive_more::Display,
+)]
 #[serde(transparent)]
 pub struct LoopbackHandle(pub u64);
 
