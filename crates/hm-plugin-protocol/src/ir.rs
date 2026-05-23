@@ -24,7 +24,7 @@ pub struct Pipeline {
     pub steps: Vec<Step>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Step {
     Command(Box<CommandStep>),

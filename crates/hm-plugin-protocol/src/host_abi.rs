@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::executor::ArchiveId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(rename_all = "snake_case")]
 pub enum Level {
     Trace,
@@ -19,7 +19,7 @@ pub enum Level {
     Error,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(rename_all = "snake_case")]
 pub enum KvScope {
     /// Per-plugin, persistent across builds. Stored in

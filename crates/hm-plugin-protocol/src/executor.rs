@@ -36,7 +36,7 @@ pub struct ArtifactRef {
 
 /// Host-decided cache outcome. The executor honours this; it does
 /// not re-decide.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CacheDecision {
     /// Boot from `tag`; skip running `cmd`.
