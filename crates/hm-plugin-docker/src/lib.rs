@@ -134,7 +134,7 @@ fn run_step(input: ExecutorInput) -> Result<StepResult, PluginError> {
         });
         match host::commit(DockerCommitArgs {
             container_id: cid.clone(),
-            tag: target_tag.0.clone(),
+            tag: target_tag.to_string(),
         }) {
             Ok(_) => Some(target_tag),
             Err(e) => {
