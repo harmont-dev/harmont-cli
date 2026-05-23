@@ -1701,6 +1701,7 @@ name = "hm-plugin-protocol"
 version = "0.0.0-dev"
 dependencies = [
  "chrono",
+ "hm-pipeline-ir",
  "insta",
  "schemars 0.8.22",
  "semver",

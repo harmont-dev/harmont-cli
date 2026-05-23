@@ -7,6 +7,7 @@ repository.workspace = true
 description = "Wire-level data types shared between the hm binary and hm plugins."
 
 [dependencies]
+hm-pipeline-ir = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 schemars   = { workspace = true }
