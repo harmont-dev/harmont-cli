@@ -60,11 +60,11 @@ pub async fn decide(docker: &DockerClient, step: &CommandStep) -> Result<CacheDe
     };
     if docker.image_exists(&tag).await? {
         Ok(CacheDecision::Hit {
-            tag: SnapshotRef(tag),
+            tag: SnapshotRef::from(tag),
         })
     } else {
         Ok(CacheDecision::MissBuildAs {
-            tag: SnapshotRef(tag),
+            tag: SnapshotRef::from(tag),
         })
     }
 }

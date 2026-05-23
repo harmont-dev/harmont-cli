@@ -85,7 +85,7 @@ pub(crate) async fn extract_workspace_impl(args: DockerExtractArgs) -> Result<()
     let s = current().context("no orchestrator state")?;
     let archive = s.archives.read(args.archive_id, 0, u64::MAX);
     if archive.is_empty() {
-        anyhow::bail!("archive {} is empty or unknown", args.archive_id.0);
+        anyhow::bail!("archive {} is empty or unknown", args.archive_id);
     }
     let cancel = s.cancel.clone();
     let docker = s.docker.clone();

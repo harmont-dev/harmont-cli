@@ -26,7 +26,7 @@ impl ArchiveStore {
 
     /// Register a new archive. Returns the freshly-minted ID.
     pub fn register(&self, bytes: Vec<u8>) -> ArchiveId {
-        let id = ArchiveId(Uuid::new_v4());
+        let id = ArchiveId::from(Uuid::new_v4());
         let _ = self.archives.lock().map(|mut m| m.insert(id, bytes));
         id
     }

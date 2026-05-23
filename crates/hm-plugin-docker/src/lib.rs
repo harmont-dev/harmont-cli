@@ -127,7 +127,7 @@ fn run_step(input: ExecutorInput) -> Result<StepResult, PluginError> {
                     }
                 })
                 .collect();
-            hm_plugin_protocol::SnapshotRef(format!(
+            hm_plugin_protocol::SnapshotRef::from(format!(
                 "harmont-local-ephemeral/{safe}:run-{}",
                 input.step_id.simple()
             ))
