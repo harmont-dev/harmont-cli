@@ -7,6 +7,8 @@ repository.workspace = true
 description = "Pipeline IR — the v0 wire-format schema consumed by hm."
 
 [dependencies]
+anyhow     = { workspace = true }
+daggy      = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 schemars   = { workspace = true }
