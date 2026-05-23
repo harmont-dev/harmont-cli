@@ -39,7 +39,7 @@ fn write_atomic_restricted_sync(
 
     write_file_with_mode_sync(&tmp_path, contents, file_mode)?;
 
-    let persist_result = std::fs::rename(&tmp_path, path);
+    let persist_result = atomic_rename_over_sync(&tmp_path, path);
     if persist_result.is_err() {
         let _ = std::fs::remove_file(&tmp_path);
     }
