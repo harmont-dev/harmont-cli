@@ -15,8 +15,6 @@ use std::path::Path;
 /// Write `contents` to `path` atomically with `file_mode`, ensuring the
 /// parent directory exists and is set to `dir_mode`.
 ///
-/// Internally offloads blocking I/O to [`tokio::task::spawn_blocking`].
-///
 /// # Errors
 ///
 /// Returns an error if `path` has no parent or no file-name component,
@@ -29,41 +27,37 @@ pub async fn write_atomic_restricted(
     file_mode: u32,
     dir_mode: u32,
 ) -> io::Result<()> {
-    let dest = path.as_ref().to_owned();
+    let path = path.as_ref().to_owned();
     let contents = contents.as_ref().to_vec();
-    let path = dest.clone();
 
-    let tmp_path = tokio::task::spawn_blocking(move || {
-        let parent = path.parent().ok_or_else(|| {
+    let parent = path
+        .parent()
+        .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("{} has no parent directory", path.display()),
             )
-        })?;
+        })?
+        .to_owned();
 
-        create_dir_with_mode(parent, dir_mode)?;
+    create_dir_with_mode(&parent, dir_mode).await?;
 
-        let file_name = path
-            .file_name()
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!("{} has no file name", path.display()),
-                )
-            })?
-            .to_os_string();
-        let mut tmp_name = file_name;
-        tmp_name.push(format!(".tmp.{}", std::process::id()));
-        let tmp_path = parent.join(&tmp_name);
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{} has no file name", path.display()),
+            )
+        })?
+        .to_os_string();
+    let mut tmp_name = file_name;
+    tmp_name.push(format!(".tmp.{}", std::process::id()));
+    let tmp_path = parent.join(&tmp_name);
 
-        write_file_with_mode(&tmp_path, &contents, file_mode)?;
+    write_file_with_mode(&tmp_path, &contents, file_mode).await?;
 
-        io::Result::Ok(tmp_path)
-    })
-    .await
-    .map_err(io::Error::other)??;
-
-    let rename_result = atomic_rename_over(&tmp_path, &dest).await;
+    let rename_result = atomic_rename_over(&tmp_path, &path).await;
     if rename_result.is_err() {
         let _ = tokio::fs::remove_file(&tmp_path).await;
     }
@@ -118,45 +112,44 @@ pub async fn remove_file_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
 // ---------------------------------------------------------------------------
 
 #[cfg(unix)]
-fn create_dir_with_mode(dir: &Path, mode: u32) -> io::Result<()> {
-    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
-    if dir.exists() {
-        let current = std::fs::metadata(dir)?.permissions().mode() & 0o777;
-        if current != mode {
-            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))?;
+async fn create_dir_with_mode(dir: &Path, mode: u32) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    match tokio::fs::metadata(dir).await {
+        Ok(meta) => {
+            let current = meta.permissions().mode() & 0o777;
+            if current != mode {
+                tokio::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode)).await?;
+            }
         }
-    } else {
-        std::fs::DirBuilder::new()
-            .recursive(true)
-            .mode(mode)
-            .create(dir)?;
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            let mut builder = tokio::fs::DirBuilder::new();
+            builder.recursive(true).mode(mode);
+            builder.create(dir).await?;
+        }
+        Err(e) => return Err(e),
     }
     Ok(())
 }
 
 #[cfg(not(unix))]
-fn create_dir_with_mode(dir: &Path, _mode: u32) -> io::Result<()> {
-    std::fs::create_dir_all(dir)
+async fn create_dir_with_mode(dir: &Path, _mode: u32) -> io::Result<()> {
+    tokio::fs::create_dir_all(dir).await
 }
 
 #[cfg(unix)]
-fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Result<()> {
-    use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(mode)
-        .open(path)?;
-    f.write_all(contents)?;
-    f.sync_all()?;
+async fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    let mut opts = tokio::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true).mode(mode);
+    let mut f = opts.open(path).await?;
+    f.write_all(contents).await?;
+    f.sync_all().await?;
     Ok(())
 }
 
 #[cfg(not(unix))]
-fn write_file_with_mode(path: &Path, contents: &[u8], _mode: u32) -> io::Result<()> {
-    std::fs::write(path, contents)
+async fn write_file_with_mode(path: &Path, contents: &[u8], _mode: u32) -> io::Result<()> {
+    tokio::fs::write(path, contents).await
 }
 
 #[cfg(windows)]
