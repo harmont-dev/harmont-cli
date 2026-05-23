@@ -57,6 +57,9 @@ cargo_common_metadata = "allow"
 # schemars 0.8 pulls older indexmap / wit-bindgen transitively; we
 # can't fix without bumping schemars.
 multiple_crate_versions = "allow"
+# `pub(crate)` inside a non-pub module triggers this, but `unreachable_pub`
+# already enforces the same invariant from the rustc side.
+redundant_pub_crate = "allow"
 dbg_macro = "deny"
 todo = "deny"
 unimplemented = "deny"
