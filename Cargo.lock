@@ -1542,7 +1542,6 @@ dependencies = [
  "comfy-table",
  "console 0.15.11",
  "dialoguer",
- "dirs",
  "extism",
  "flate2",
  "fs2",
@@ -1550,6 +1549,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hm-plugin-protocol",
+ "hm-util",
  "ignore",
  "indicatif",
  "nix",
@@ -1715,7 +1715,6 @@ dependencies = [
 name = "hm-util"
 version = "0.0.0-dev"
 dependencies = [
- "anyhow",
  "dirs",
  "tempfile",
  "tokio",

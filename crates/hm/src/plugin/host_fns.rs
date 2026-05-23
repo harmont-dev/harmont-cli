@@ -652,7 +652,7 @@ pub fn kv_set_impl(scope: KvScope, key: &str, val: Vec<u8>) {
 // is not a practical concern.
 
 fn plugin_state_path() -> Option<std::path::PathBuf> {
-    let dir = hm_util::os::dirs::config_dir()?.join("harmont").join("state");
+    let dir = hm_util::dirs::config_dir()?.join("harmont").join("state");
     let plugin = current_plugin_name()?;
     Some(dir.join(format!("{plugin}.kv")))
 }
@@ -991,7 +991,7 @@ mod plugin_kv_tests {
     use super::*;
 
     // Both tests mutate the process-wide `XDG_CONFIG_HOME` env var,
-    // which `dirs::config_dir()` reads. Serialize them so parallel
+    // which `hm_util::dirs::config_dir()` reads. Serialize them so parallel
     // test threads don't race on that global.
     static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

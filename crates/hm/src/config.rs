@@ -12,7 +12,7 @@ const DEFAULT_API_URL: &str = "https://api.harmont.dev";
 /// (the `dirs` crate's platform-specific lookup fails — typically only
 /// happens in restrictive sandboxes with no `HOME` / passwd entry).
 pub fn user_config_dir() -> Result<PathBuf> {
-    let home = hm_util::os::dirs::home_dir()
+    let home = hm_util::dirs::home_dir()
         .context("could not determine home directory")?;
     Ok(home.join(".harmont"))
 }
