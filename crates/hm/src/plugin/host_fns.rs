@@ -652,7 +652,7 @@ pub fn kv_set_impl(scope: KvScope, key: &str, val: Vec<u8>) {
 // is not a practical concern.
 
 fn plugin_state_path() -> Option<std::path::PathBuf> {
-    let dir = hm_util::os::dirs::config_dir().ok()?.join("harmont").join("state");
+    let dir = hm_util::os::dirs::config_dir()?.join("harmont").join("state");
     let plugin = current_plugin_name()?;
     Some(dir.join(format!("{plugin}.kv")))
 }

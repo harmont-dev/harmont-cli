@@ -6,9 +6,8 @@
 //! contents — never a truncated file — and that Unix file/directory
 //! modes are set atomically with creation.
 
+use std::io;
 use std::path::Path;
-
-use anyhow::{Context, Result};
 
 // ---------------------------------------------------------------------------
 // Private sync core
@@ -19,46 +18,48 @@ fn write_atomic_restricted_sync(
     contents: &[u8],
     file_mode: u32,
     dir_mode: u32,
-) -> Result<()> {
-    let parent = path
-        .parent()
-        .with_context(|| format!("{} has no parent directory", path.display()))?;
+) -> io::Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{} has no parent directory", path.display()),
+        )
+    })?;
 
-    create_dir_with_mode_sync(parent, dir_mode)
-        .with_context(|| format!("creating {}", parent.display()))?;
+    create_dir_with_mode_sync(parent, dir_mode)?;
 
     let file_name = path
         .file_name()
-        .with_context(|| format!("{} has no file name", path.display()))?
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{} has no file name", path.display()),
+            )
+        })?
         .to_os_string();
     let mut tmp_name = file_name;
     tmp_name.push(format!(".tmp.{}", std::process::id()));
     let tmp_path = parent.join(&tmp_name);
 
-    write_file_with_mode_sync(&tmp_path, contents, file_mode)
-        .with_context(|| format!("writing {}", tmp_path.display()))?;
+    write_file_with_mode_sync(&tmp_path, contents, file_mode)?;
 
-    let persist_result = std::fs::rename(&tmp_path, path)
-        .with_context(|| format!("renaming {} -> {}", tmp_path.display(), path.display()));
-
+    let persist_result = std::fs::rename(&tmp_path, path);
     if persist_result.is_err() {
         let _ = std::fs::remove_file(&tmp_path);
     }
-    persist_result?;
-
-    Ok(())
+    persist_result
 }
 
-fn remove_if_exists_sync(path: &Path) -> Result<()> {
+fn remove_if_exists_sync(path: &Path) -> io::Result<()> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e).with_context(|| format!("removing {}", path.display())),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
     }
 }
 
 #[cfg(unix)]
-fn create_dir_with_mode_sync(dir: &Path, mode: u32) -> std::io::Result<()> {
+fn create_dir_with_mode_sync(dir: &Path, mode: u32) -> io::Result<()> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
     if dir.exists() {
         let current = std::fs::metadata(dir)?.permissions().mode() & 0o777;
@@ -75,12 +76,12 @@ fn create_dir_with_mode_sync(dir: &Path, mode: u32) -> std::io::Result<()> {
 }
 
 #[cfg(not(unix))]
-fn create_dir_with_mode_sync(dir: &Path, _mode: u32) -> std::io::Result<()> {
+fn create_dir_with_mode_sync(dir: &Path, _mode: u32) -> io::Result<()> {
     std::fs::create_dir_all(dir)
 }
 
 #[cfg(unix)]
-fn write_file_with_mode_sync(path: &Path, contents: &[u8], mode: u32) -> std::io::Result<()> {
+fn write_file_with_mode_sync(path: &Path, contents: &[u8], mode: u32) -> io::Result<()> {
     use std::io::Write;
     use std::os::unix::fs::OpenOptionsExt;
     let mut f = std::fs::OpenOptions::new()
@@ -95,7 +96,7 @@ fn write_file_with_mode_sync(path: &Path, contents: &[u8], mode: u32) -> std::io
 }
 
 #[cfg(not(unix))]
-fn write_file_with_mode_sync(path: &Path, contents: &[u8], _mode: u32) -> std::io::Result<()> {
+fn write_file_with_mode_sync(path: &Path, contents: &[u8], _mode: u32) -> io::Result<()> {
     std::fs::write(path, contents)
 }
 
@@ -120,14 +121,14 @@ pub async fn write_atomic_restricted(
     contents: impl AsRef<[u8]>,
     file_mode: u32,
     dir_mode: u32,
-) -> Result<()> {
+) -> io::Result<()> {
     let path = path.as_ref().to_owned();
     let contents = contents.as_ref().to_vec();
     tokio::task::spawn_blocking(move || {
         write_atomic_restricted_sync(&path, &contents, file_mode, dir_mode)
     })
     .await
-    .context("write_atomic_restricted task panicked")?
+    .map_err(io::Error::other)?
 }
 
 /// Remove a file if it exists; silently return `Ok(())` if it does not.
@@ -139,11 +140,11 @@ pub async fn write_atomic_restricted(
 ///
 /// Returns an error if `remove_file` fails for any reason other than
 /// `NotFound`.
-pub async fn remove_if_exists(path: impl AsRef<Path>) -> Result<()> {
+pub async fn remove_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
     let path = path.as_ref().to_owned();
     tokio::task::spawn_blocking(move || remove_if_exists_sync(&path))
         .await
-        .context("remove_if_exists task panicked")?
+        .map_err(io::Error::other)?
 }
 
 // ---------------------------------------------------------------------------
@@ -153,9 +154,8 @@ pub async fn remove_if_exists(path: impl AsRef<Path>) -> Result<()> {
 /// Synchronous (blocking) wrappers for callers that cannot use async,
 /// such as extism `host_fn` callbacks.
 pub mod blocking {
+    use std::io;
     use std::path::Path;
-
-    use anyhow::Result;
 
     /// Write `contents` to `path` atomically with `file_mode`, ensuring the
     /// parent directory exists and is set to `dir_mode`.
@@ -173,7 +173,7 @@ pub mod blocking {
         contents: impl AsRef<[u8]>,
         file_mode: u32,
         dir_mode: u32,
-    ) -> Result<()> {
+    ) -> io::Result<()> {
         super::write_atomic_restricted_sync(path.as_ref(), contents.as_ref(), file_mode, dir_mode)
     }
 
@@ -183,7 +183,7 @@ pub mod blocking {
     ///
     /// Returns an error if `remove_file` fails for any reason other than
     /// `NotFound`.
-    pub fn remove_if_exists(path: impl AsRef<Path>) -> Result<()> {
+    pub fn remove_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
         super::remove_if_exists_sync(path.as_ref())
     }
 }

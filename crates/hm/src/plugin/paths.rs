@@ -14,7 +14,6 @@ use std::path::PathBuf;
 /// User-global plugins live here.
 pub fn user_plugins_dir() -> Option<PathBuf> {
     hm_util::os::dirs::config_dir()
-        .ok()
         .map(|p| p.join("harmont").join("plugins"))
 }
 
