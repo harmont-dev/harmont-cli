@@ -1634,6 +1634,7 @@ dependencies = [
 name = "hm-pipeline-ir"
 version = "0.0.0-dev"
 dependencies = [
+ "insta",
  "schemars 0.8.22",
  "serde",
  "serde_json",
