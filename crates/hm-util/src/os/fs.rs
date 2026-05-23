@@ -85,6 +85,41 @@ pub async fn atomic_rename_over(
     }
     #[cfg(windows)]
     {
+        fn atomic_rename_over_impl(from: &Path, to: &Path) -> io::Result<()> {
+            use windows::core::HSTRING;
+            use windows::Win32::Storage::FileSystem::{
+                MoveFileExW, ReplaceFileW,
+                MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+                REPLACEFILE_IGNORE_MERGE_ERRORS,
+            };
+
+            let from_w = HSTRING::from(from.as_os_str());
+            let to_w = HSTRING::from(to.as_os_str());
+
+            if to.exists() {
+                let result = unsafe {
+                    ReplaceFileW(
+                        &to_w,
+                        &from_w,
+                        windows::core::PCWSTR::null(),
+                        REPLACEFILE_IGNORE_MERGE_ERRORS,
+                        None,
+                        None,
+                    )
+                };
+                return result.map_err(|e| io::Error::new(io::ErrorKind::Other, e));
+            }
+
+            let result = unsafe {
+                MoveFileExW(
+                    &from_w,
+                    &to_w,
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+                )
+            };
+            result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        }
+
         let from = from.as_ref().to_owned();
         let to = to.as_ref().to_owned();
         tokio::task::spawn_blocking(move || atomic_rename_over_impl(&from, &to))
@@ -154,41 +189,6 @@ async fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Re
     Ok(())
 }
 
-#[cfg(windows)]
-fn atomic_rename_over_impl(from: &Path, to: &Path) -> io::Result<()> {
-    use windows::core::HSTRING;
-    use windows::Win32::Storage::FileSystem::{
-        MoveFileExW, ReplaceFileW,
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
-        REPLACEFILE_IGNORE_MERGE_ERRORS,
-    };
-
-    let from_w = HSTRING::from(from.as_os_str());
-    let to_w = HSTRING::from(to.as_os_str());
-
-    if to.exists() {
-        let result = unsafe {
-            ReplaceFileW(
-                &to_w,
-                &from_w,
-                windows::core::PCWSTR::null(),
-                REPLACEFILE_IGNORE_MERGE_ERRORS,
-                None,
-                None,
-            )
-        };
-        return result.map_err(|e| io::Error::new(io::ErrorKind::Other, e));
-    }
-
-    let result = unsafe {
-        MoveFileExW(
-            &from_w,
-            &to_w,
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-}
 
 /// Synchronous wrappers that shell out to the async API via
 /// `tokio::task::block_in_place`. Safe to call from sync contexts
