@@ -27,10 +27,11 @@ use super::manifest::{ManifestError, validate_standalone};
 use super::paths;
 use crate::error::HmError;
 
-#[derive(Debug, Default)]
+#[derive(Debug, smart_default::SmartDefault)]
 pub struct RegistryConfig {
     /// If `false`, skip discovery and only registers explicitly added
     /// plugins. Used by integration tests.
+    #[default = true]
     pub auto_discover: bool,
     /// Extra plugin paths to load (in addition to discovery). Used by
     /// tests to load fixture plugins.

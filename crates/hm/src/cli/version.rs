@@ -10,10 +10,7 @@ use crate::plugin::{PluginRegistry, RegistryConfig};
 ///
 /// Returns an error if the plugin registry cannot be loaded.
 pub async fn run() -> Result<()> {
-    let reg = PluginRegistry::load(RegistryConfig {
-        auto_discover: true,
-        ..Default::default()
-    })?;
+    let reg = PluginRegistry::load(RegistryConfig::default())?;
     println!("hm {}", env!("CARGO_PKG_VERSION"));
     println!("plugin api version: {HM_PLUGIN_API_VERSION}");
     let count = reg.manifests().count();

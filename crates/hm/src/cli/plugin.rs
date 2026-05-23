@@ -50,10 +50,7 @@ pub async fn run(cmd: PluginCommand) -> Result<()> {
 
 #[allow(clippy::unused_async)]
 async fn list() -> Result<()> {
-    let reg = PluginRegistry::load(RegistryConfig {
-        auto_discover: true,
-        ..Default::default()
-    })?;
+    let reg = PluginRegistry::load(RegistryConfig::default())?;
     if reg.manifests().count() == 0 {
         println!("No plugins installed.");
         println!();
@@ -78,10 +75,7 @@ async fn list() -> Result<()> {
 
 #[allow(clippy::unused_async)]
 async fn info(name: &str) -> Result<()> {
-    let reg = PluginRegistry::load(RegistryConfig {
-        auto_discover: true,
-        ..Default::default()
-    })?;
+    let reg = PluginRegistry::load(RegistryConfig::default())?;
     let m = reg
         .manifests()
         .find(|m| m.name == name)

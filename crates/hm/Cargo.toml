@@ -71,6 +71,7 @@ hm-plugin-protocol = { workspace = true }
 hm-util = { workspace = true }
 schemars = { workspace = true }
 semver = { workspace = true }
+smart-default = { workspace = true }
 once_cell = "1"
 hex = "0.4"
 
