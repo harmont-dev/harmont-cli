@@ -109,8 +109,7 @@ jobs:
       # externally-managed marker requires --break-system-packages.
       - name: Install harmont-py into system Python
         run: |
-          git clone --depth 1 https://github.com/harmont-dev/harmont-py /tmp/harmont-py
-          sudo /usr/bin/python3 -m pip install --break-system-packages /tmp/harmont-py
+          sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
           /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
 
       - name: Download hm binary
