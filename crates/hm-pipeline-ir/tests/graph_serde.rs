@@ -18,7 +18,6 @@ fn node_weight_round_trips() {
             key: "a".into(),
             label: Some("step A".into()),
             cmd: "echo a".into(),
-            builds_in: None,
             image: Some("ubuntu:24.04".into()),
             env: None,
             timeout_seconds: None,
@@ -49,19 +48,23 @@ fn edge_kind_round_trips() {
 }
 
 use hm_pipeline_ir::graph::PipelineGraph;
-use hm_pipeline_ir::Pipeline;
 
 fn build_test_graph() -> PipelineGraph {
-    let p: Pipeline = serde_json::from_value(serde_json::json!({
+    serde_json::from_value(serde_json::json!({
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
-            {"type": "command", "key": "c", "cmd": "echo c"}
-        ]
-    })).unwrap();
-    PipelineGraph::build(&p).unwrap()
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c", "image": "ubuntu:24.04"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"]
+            ]
+        }
+    })).unwrap()
 }
 
 #[test]

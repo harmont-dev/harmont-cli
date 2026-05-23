@@ -29,7 +29,7 @@ pub use host_abi::{
     DockerStartArgs, KeyringArgs, KeyringSetArgs, KvScope, Level, LoopbackHandle, LoopbackRecvArgs,
     SocketHandle, SocketReadArgs, SocketWriteArgs, TtyConfirmArgs, TtyPromptArgs,
 };
-pub use ir::{Cache, CommandStep, Pipeline, Step, WaitStep};
+pub use ir::{Cache, CommandStep};
 pub use manifest::{
     Capability, ClapJson, JsonSchema, LifecycleHookSpec, OutputFormatterSpec, PluginManifest,
     StepExecutorSpec, SubcommandSpec,

@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result};
 use daggy::petgraph::visit::IntoNodeReferences;
 use daggy::{Dag, NodeIndex, Walker};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{CommandStep, Pipeline, Step};
+use crate::CommandStep;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeWeight {
@@ -35,85 +34,7 @@ fn default_version() -> String {
     "0".to_string()
 }
 
-struct FlatStep {
-    step: CommandStep,
-    extra_deps: Vec<String>,
-}
-
 impl PipelineGraph {
-    pub fn build(pipeline: &Pipeline) -> Result<Self> {
-        let flat = flatten_steps(&pipeline.steps);
-        let pipeline_env = pipeline.env.clone().unwrap_or_default();
-
-        let mut dag: Dag<NodeWeight, EdgeKind> = Dag::new();
-        let mut key_to_idx: BTreeMap<String, NodeIndex> = BTreeMap::new();
-
-        for f in &flat {
-            let mut env = pipeline_env.clone();
-            if let Some(e) = &f.step.env {
-                env.extend(e.clone());
-            }
-            let idx = dag.add_node(NodeWeight {
-                step: f.step.clone(),
-                env,
-            });
-            key_to_idx.insert(f.step.key.clone(), idx);
-        }
-
-        for f in &flat {
-            let child = key_to_idx[&f.step.key];
-
-            if let Some(parent_key) = &f.step.builds_in {
-                let parent = *key_to_idx.get(parent_key).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "step '{}' builds_in references unknown step '{}'",
-                        f.step.key,
-                        parent_key
-                    )
-                })?;
-                dag.add_edge(parent, child, EdgeKind::BuildsIn)
-                    .context("cycle detected adding builds_in edge")?;
-            }
-
-            for dep_key in &f.extra_deps {
-                let parent = *key_to_idx.get(dep_key).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "step '{}' has wait-barrier dep on unknown step '{}'",
-                        f.step.key,
-                        dep_key
-                    )
-                })?;
-                if f.step.builds_in.as_deref() == Some(dep_key) {
-                    continue;
-                }
-                dag.add_edge(parent, child, EdgeKind::DependsOn)
-                    .context("cycle detected adding wait-barrier edge")?;
-            }
-        }
-
-        if let Some(default_img) = pipeline.default_image.as_deref() {
-            for idx in dag.graph().node_indices() {
-                let has_builds_in_parent = dag
-                    .parents(idx)
-                    .iter(&dag)
-                    .any(|(e, _)| dag.edge_weight(e).copied() == Some(EdgeKind::BuildsIn));
-                if !has_builds_in_parent {
-                    if let Some(w) = dag.node_weight_mut(idx) {
-                        if w.step.image.is_none() {
-                            w.step.image = Some(default_img.to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(Self {
-            version: "0".to_string(),
-            dag,
-            default_image: pipeline.default_image.clone(),
-        })
-    }
-
     #[must_use]
     pub fn node_count(&self) -> usize {
         self.dag.node_count()
@@ -236,23 +157,4 @@ impl PipelineGraph {
     pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
         self.dag.graph().node_indices()
     }
-}
-
-fn flatten_steps(steps: &[Step]) -> Vec<FlatStep> {
-    let mut out: Vec<FlatStep> = Vec::new();
-    let mut implicit_wait_targets: Vec<String> = Vec::new();
-    for s in steps {
-        match s {
-            Step::Command(c) => {
-                out.push(FlatStep {
-                    step: (**c).clone(),
-                    extra_deps: implicit_wait_targets.clone(),
-                });
-            }
-            Step::Wait(_) => {
-                implicit_wait_targets = out.iter().map(|f| f.step.key.clone()).collect();
-            }
-        }
-    }
-    out
 }

@@ -50,7 +50,6 @@ fn executor_input_round_trip() {
             key: "build".into(),
             label: None,
             cmd: "cargo build".into(),
-            builds_in: None,
             image: Some("rust:1.82".into()),
             env: None,
             timeout_seconds: None,

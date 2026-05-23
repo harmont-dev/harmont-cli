@@ -60,13 +60,11 @@ use super::state::{self, OrchestratorState};
 /// scheduler-level failure occurs. Non-zero step exit codes are
 /// surfaced via the returned `i32`, not as an Err.
 pub async fn run(
-    pipeline: hm_plugin_protocol::Pipeline,
+    graph: crate::orchestrator::graph::Graph,
     repo_root: PathBuf,
     parallelism: usize,
     format_name: String,
 ) -> Result<i32> {
-    // Build graph + chains directly from the wire-typed pipeline.
-    let graph = Graph::build(&pipeline).context("build graph")?;
     let chains = graph.chains();
     let chain_deps = graph.chain_deps(&chains);
 

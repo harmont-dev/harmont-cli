@@ -80,7 +80,6 @@ mod tests {
             key: "build".into(),
             label: None,
             cmd: "true".into(),
-            builds_in: None,
             image: None,
             env: None,
             timeout_seconds: None,

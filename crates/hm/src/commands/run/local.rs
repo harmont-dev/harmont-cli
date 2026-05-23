@@ -46,7 +46,7 @@ pub async fn run_pipeline_v0_one_shot(
     ))
 }
 
-fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_plugin_protocol::Pipeline> {
+fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::graph::PipelineGraph> {
     serde_json::from_slice(bytes).map_err(|e| anyhow::anyhow!("decode pipeline JSON: {e}"))
 }
 
@@ -91,12 +91,12 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
     }
 
     let json = render_pipeline_json(&tools, &repo_root, &slug).await?;
-    let pipeline_wire = decode_plan_to_wire(&json)?;
+    let graph = decode_plan_to_wire(&json)?;
     let parallelism = args.parallelism.unwrap_or_else(|| {
         std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
     });
     let exit_code =
-        crate::orchestrator::run(pipeline_wire, repo_root, parallelism, args.format.clone())
+        crate::orchestrator::run(graph, repo_root, parallelism, args.format.clone())
             .await?;
     Ok(exit_code)
 }

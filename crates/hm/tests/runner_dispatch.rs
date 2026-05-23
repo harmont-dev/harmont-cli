@@ -39,19 +39,25 @@ use std::collections::BTreeMap;
 use common::fixtures;
 use harmont_cli::orchestrator::graph::Graph;
 use harmont_cli::plugin::{PluginRegistry, RegistryConfig};
-use hm_plugin_protocol::{ArchiveId, CacheDecision, ExecutorInput, Pipeline, StepResult};
+use hm_plugin_protocol::{ArchiveId, CacheDecision, ExecutorInput, StepResult};
 use uuid::Uuid;
 
 const PIPELINE_JSON: &[u8] = br#"{
     "version": "0",
-    "steps": [
-        {
-            "type": "command",
-            "key": "fs-step",
-            "cmd": "irrelevant; fixture ignores cmd",
-            "runner": "freestyle"
-        }
-    ]
+    "graph": {
+        "nodes": [
+            {
+                "step": {
+                    "key": "fs-step",
+                    "cmd": "irrelevant; fixture ignores cmd",
+                    "runner": "freestyle"
+                },
+                "env": {}
+            }
+        ],
+        "edge_property": "directed",
+        "edges": []
+    }
 }"#;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -76,9 +82,8 @@ async fn runner_field_dispatches_to_named_plugin() {
     })
     .expect("load registry");
 
-    // 2. Parse the IR and build the graph — the conversion under test.
-    let pipeline: Pipeline = serde_json::from_slice(PIPELINE_JSON).expect("parse pipeline");
-    let graph = Graph::build(&pipeline).expect("build graph");
+    // 2. Deserialize the graph directly from JSON — the new wire format.
+    let graph: Graph = serde_json::from_slice(PIPELINE_JSON).expect("parse graph");
 
     // Sanity check: the graph must preserve `runner` from the IR.
     // This is the cheap fast-fail; the dispatch check below is the

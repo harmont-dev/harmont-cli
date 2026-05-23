@@ -45,7 +45,6 @@ mod tests {
             key: "k".into(),
             label: None,
             cmd: "true".into(),
-            builds_in: None,
             image: image.map(String::from),
             env: None,
             timeout_seconds: None,
