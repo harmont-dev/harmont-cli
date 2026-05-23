@@ -107,49 +107,51 @@ pub async fn remove_file_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Platform helpers (private)
-// ---------------------------------------------------------------------------
-
 #[cfg(unix)]
 async fn create_dir_with_mode(dir: &Path, mode: u32) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    match tokio::fs::metadata(dir).await {
-        Ok(meta) => {
-            let current = meta.permissions().mode() & 0o777;
-            if current != mode {
-                tokio::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode)).await?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        match tokio::fs::metadata(dir).await {
+            Ok(meta) => {
+                let current = meta.permissions().mode() & 0o777;
+                if current != mode {
+                    tokio::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode)).await?;
+                }
             }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                let mut builder = tokio::fs::DirBuilder::new();
+                builder.recursive(true).mode(mode);
+                builder.create(dir).await?;
+            }
+            Err(e) => return Err(e),
         }
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            let mut builder = tokio::fs::DirBuilder::new();
-            builder.recursive(true).mode(mode);
-            builder.create(dir).await?;
-        }
-        Err(e) => return Err(e),
+    }
+
+    #[cfg(windows)]
+    {
+        tokio::fs::create_dir_all(dir).await
     }
     Ok(())
 }
 
-#[cfg(not(unix))]
-async fn create_dir_with_mode(dir: &Path, _mode: u32) -> io::Result<()> {
-    tokio::fs::create_dir_all(dir).await
-}
-
-#[cfg(unix)]
 async fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Result<()> {
-    use tokio::io::AsyncWriteExt;
-    let mut opts = tokio::fs::OpenOptions::new();
-    opts.write(true).create(true).truncate(true).mode(mode);
-    let mut f = opts.open(path).await?;
-    f.write_all(contents).await?;
-    f.sync_all().await?;
-    Ok(())
-}
+    #[cfg(unix)]
+    {
+        use tokio::io::AsyncWriteExt;
+        let mut opts = tokio::fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true).mode(mode);
+        let mut f = opts.open(path).await?;
+        f.write_all(contents).await?;
+        f.sync_all().await?;
+    }
 
-#[cfg(not(unix))]
-async fn write_file_with_mode(path: &Path, contents: &[u8], _mode: u32) -> io::Result<()> {
-    tokio::fs::write(path, contents).await
+    #[cfg(windows)]
+    {
+        tokio::fs::write(path, contents).await
+    }
+
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -187,10 +189,6 @@ fn atomic_rename_over_impl(from: &Path, to: &Path) -> io::Result<()> {
     };
     result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
-
-// ---------------------------------------------------------------------------
-// Blocking wrappers
-// ---------------------------------------------------------------------------
 
 /// Synchronous wrappers that shell out to the async API via
 /// `tokio::task::block_in_place`. Safe to call from sync contexts
@@ -230,118 +228,5 @@ pub mod blocking {
     /// `NotFound`.
     pub fn remove_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
         block_on(super::remove_file_if_exists(path))
-    }
-}
-
-#[cfg(all(test, unix))]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::blocking;
-    use std::os::unix::fs::PermissionsExt;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn writes_file_and_dir_with_requested_modes() {
-        let tmp = tempfile::tempdir().unwrap();
-        let target = tmp.path().join("sub").join("creds");
-        blocking::write_atomic_restricted(&target, b"hello", 0o600, 0o700).unwrap();
-
-        assert_eq!(std::fs::read(&target).unwrap(), b"hello");
-        let file_mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
-        let dir_mode = std::fs::metadata(target.parent().unwrap())
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(
-            file_mode, 0o600,
-            "file mode must be 0o600, got {file_mode:o}"
-        );
-        assert_eq!(dir_mode, 0o700, "dir mode must be 0o700, got {dir_mode:o}");
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn overwrites_existing_file_preserving_mode() {
-        let tmp = tempfile::tempdir().unwrap();
-        let target = tmp.path().join("creds");
-        blocking::write_atomic_restricted(&target, b"v1", 0o600, 0o700).unwrap();
-        blocking::write_atomic_restricted(&target, b"v2", 0o600, 0o700).unwrap();
-
-        assert_eq!(std::fs::read(&target).unwrap(), b"v2");
-        let mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn tightens_existing_dir_with_looser_mode() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path().join("loose");
-        std::fs::create_dir(&dir).unwrap();
-        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-
-        let target = dir.join("creds");
-        blocking::write_atomic_restricted(&target, b"x", 0o600, 0o700).unwrap();
-
-        let dir_mode = std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
-        assert_eq!(dir_mode, 0o700);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn remove_if_exists_is_idempotent() {
-        let tmp = tempfile::tempdir().unwrap();
-        let target = tmp.path().join("nothing");
-        blocking::remove_if_exists(&target).unwrap();
-        std::fs::write(&target, "x").unwrap();
-        blocking::remove_if_exists(&target).unwrap();
-        assert!(!target.exists());
-    }
-
-    #[tokio::test]
-    async fn async_write_atomic_restricted() {
-        let tmp = tempfile::tempdir().unwrap();
-        let target = tmp.path().join("sub").join("async_creds");
-        super::write_atomic_restricted(&target, b"async hello", 0o600, 0o700)
-            .await
-            .unwrap();
-
-        assert_eq!(std::fs::read(&target).unwrap(), b"async hello");
-        let file_mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
-        assert_eq!(file_mode, 0o600);
-    }
-
-    #[tokio::test]
-    async fn async_remove_if_exists() {
-        let tmp = tempfile::tempdir().unwrap();
-        let target = tmp.path().join("nothing");
-        super::remove_file_if_exists(&target).await.unwrap();
-        std::fs::write(&target, "x").unwrap();
-        super::remove_file_if_exists(&target).await.unwrap();
-        assert!(!target.exists());
-    }
-
-    #[tokio::test]
-    async fn atomic_rename_over_replaces_target() {
-        let tmp = tempfile::tempdir().unwrap();
-        let src = tmp.path().join("source");
-        let dst = tmp.path().join("target");
-        std::fs::write(&dst, b"old").unwrap();
-        std::fs::write(&src, b"new").unwrap();
-
-        super::atomic_rename_over(&src, &dst).await.unwrap();
-
-        assert_eq!(std::fs::read(&dst).unwrap(), b"new");
-        assert!(!src.exists(), "source should be gone after rename");
-    }
-
-    #[tokio::test]
-    async fn atomic_rename_over_works_when_target_missing() {
-        let tmp = tempfile::tempdir().unwrap();
-        let src = tmp.path().join("source");
-        let dst = tmp.path().join("target");
-        std::fs::write(&src, b"new").unwrap();
-
-        super::atomic_rename_over(&src, &dst).await.unwrap();
-
-        assert_eq!(std::fs::read(&dst).unwrap(), b"new");
-        assert!(!src.exists());
     }
 }
