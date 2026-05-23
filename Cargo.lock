@@ -1712,6 +1712,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hm-util"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "home"
 version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"

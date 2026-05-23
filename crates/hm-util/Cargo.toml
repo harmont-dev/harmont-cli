@@ -1,0 +1,19 @@
+[package]
+name = "hm-util"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared OS and filesystem utilities for Harmont crates."
+
+[dependencies]
+anyhow = { workspace = true }
+dirs = "6"
+tokio = { version = "1", features = ["rt"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[lints]
+workspace = true
