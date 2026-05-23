@@ -1,0 +1,186 @@
+"""Envelope JSON shape — what api/cli consume."""
+
+import json
+
+import pytest
+
+import harmont as hm
+from harmont._deps import clear_target_names
+from harmont._registry import clear_registry
+from harmont._target import clear_target_cache
+
+
+@pytest.fixture(autouse=True)
+def _reset_registry():
+    clear_registry()
+    clear_target_cache()
+    clear_target_names()
+    yield
+    clear_registry()
+    clear_target_cache()
+    clear_target_names()
+
+
+def test_empty_registry_emits_empty_pipelines_list():
+    out = json.loads(hm.dump_registry_json())
+    assert out == {"schema_version": "1", "pipelines": []}
+
+
+def test_single_pipeline_no_triggers():
+    @hm.pipeline("ci")
+    def ci() -> hm.Step:
+        return hm.scratch().sh("echo hi", label="hi")
+
+    out = json.loads(hm.dump_registry_json())
+    assert out["schema_version"] == "1"
+    assert len(out["pipelines"]) == 1
+    p = out["pipelines"][0]
+    assert p["slug"] == "ci"
+    assert p["name"] == "ci"
+    assert p["allow_manual"] is True
+    assert p["triggers"] == []
+    definition = p["definition"]
+    assert definition["version"] == "0"
+    steps = definition["steps"]
+    assert len(steps) == 1
+    assert steps[0]["type"] == "command"
+    assert steps[0]["cmd"] == "echo hi"
+    assert steps[0]["label"] == "hi"
+
+
+def test_pipeline_with_triggers():
+    @hm.pipeline(
+        "ci",
+        triggers=[
+            hm.push(branch="main"),
+            hm.pull_request(branches="main"),
+            hm.schedule(cron="0 4 * * *"),
+        ],
+    )
+    def ci() -> hm.Step:
+        return hm.scratch().sh("echo")
+
+    out = json.loads(hm.dump_registry_json())
+    p = out["pipelines"][0]
+    assert p["triggers"] == [
+        {"event": "push", "branches": ["main"]},
+        {
+            "event": "pull_request",
+            "branches": ["main"],
+            "types": ["opened", "synchronize", "reopened"],
+        },
+        {"event": "schedule", "cron": "0 4 * * *"},
+    ]
+
+
+def test_pipeline_with_tuple_leaves():
+    @hm.pipeline("ci")
+    def ci() -> hm.Pipeline:
+        fork = hm.scratch().fork()
+        return (fork.sh("a"), fork.sh("b"))
+
+    out = json.loads(hm.dump_registry_json())
+    p = out["pipelines"][0]
+    cmds = sorted(s["cmd"] for s in p["definition"]["steps"] if s["type"] == "command")
+    assert cmds == ["a", "b"]
+
+
+def test_pipeline_forwards_env_and_default_image_to_assemble():
+    @hm.pipeline("ci", env={"CI": "true"}, default_image="alpine:3.20")
+    def ci() -> hm.Step:
+        return hm.scratch().sh("echo")
+
+    out = json.loads(hm.dump_registry_json())
+    definition = out["pipelines"][0]["definition"]
+    assert definition["default_image"] == "alpine:3.20"
+    assert definition["env"] == {"CI": "true"}
+
+
+def test_envelope_resolves_cache_keys(tmp_path):
+    @hm.pipeline("ci")
+    def ci() -> hm.Step:
+        return hm.scratch().sh("echo", label="run", cache=hm.forever())
+
+    out = json.loads(
+        hm.dump_registry_json(
+            pipeline_org="acme",
+            now=1700000000,
+            base_path=tmp_path,
+            env={},
+        )
+    )
+    step = out["pipelines"][0]["definition"]["steps"][0]
+    assert step["cache"]["policy"] == "forever"
+    assert "key" in step["cache"]
+    assert len(step["cache"]["key"]) == 64
+
+
+def test_envelope_auto_unwraps_haskell_package(tmp_path, monkeypatch):
+    """A pipeline returning a HaskellPackage emits the build leaf."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "api").mkdir()
+
+    @hm.pipeline("ci")
+    def ci():
+        return hm.haskell(ghc="9.6.7").cabal(path="api")
+
+    out = json.loads(hm.dump_registry_json())
+    steps = out["pipelines"][0]["definition"]["steps"]
+    cmds = [s.get("cmd") for s in steps if s.get("type") == "command"]
+    assert any("cabal build all" in (c or "") for c in cmds)
+
+
+def test_envelope_composes_targets_with_dedup(tmp_path, monkeypatch):
+    """Two pipelines depending on the same target share the target step."""
+    from harmont._target import clear_target_cache
+
+    clear_target_cache()
+
+    @hm.target()
+    def apt_base() -> hm.Step:
+        return hm.sh("apt-get update")
+
+    @hm.pipeline("ci")
+    def ci() -> tuple[hm.Step, ...]:
+        return (
+            apt_base().sh("cabal build"),
+            apt_base().sh("pytest"),
+        )
+
+    out = json.loads(hm.dump_registry_json())
+    steps = out["pipelines"][0]["definition"]["steps"]
+    apt_steps = [s for s in steps if s.get("cmd") == "apt-get update"]
+    assert len(apt_steps) == 1  # deduplicated via target memoization
+    children = [s for s in steps if s.get("builds_in") == apt_steps[0]["key"]]
+    assert len(children) == 2
+    child_cmds = sorted(s["cmd"] for s in children)
+    assert child_cmds == ["cabal build", "pytest"]
+
+
+def test_envelope_clears_target_cache_between_renders():
+    """Two consecutive dump_registry_json calls must not share target state."""
+    @hm.target()
+    def apt_base() -> hm.Step:
+        return hm.sh("apt-get update")
+
+    @hm.pipeline("ci")
+    def ci() -> hm.Step:
+        return apt_base()
+
+    hm.dump_registry_json()
+    # After render, cache has one entry from the in-flight render. Trigger
+    # a second render and verify the cache is cleared at render start
+    # by re-running and confirming success (would TypeError otherwise if
+    # the first render's cached Step somehow propagated through dataclass
+    # frozen-equality into the second render's IR).
+    hm.dump_registry_json()
+
+
+def test_envelope_wraps_typeerror_with_pipeline_slug():
+    """Bad return from pipeline fn surfaces as TypeError naming the slug."""
+    @hm.pipeline("broken")
+    def broken():
+        return 42  # not a Step / tuple / toolchain wrapper
+
+    with pytest.raises(TypeError, match=r"pipeline 'broken': invalid return value"):
+        hm.dump_registry_json()

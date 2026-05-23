@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  pypi-publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      # PyPI Trusted Publisher is scoped to this environment. Configure
+      # the matching publisher on https://pypi.org/manage/account/publishing/
+      # before the first tag push (see RELEASING.md).
+      name: release
+      url: https://pypi.org/project/harmont/
+    permissions:
+      # `id-token: write` is the OIDC switch that pypa/gh-action-pypi-publish
+      # uses to mint a short-lived token PyPI accepts in lieu of an API token.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          # Sed only the first match so this is a no-op if pyproject is
+          # already at the tagged version (a re-run with a corrected tag,
+          # for instance, shouldn't double-edit).
+          sed -i '0,/version = "0.0.0-dev"/s//version = "'"$VERSION"'"/' pyproject.toml
+          grep -n "^version" pyproject.toml
+
+      - name: Install build
+        run: python -m pip install --upgrade build
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Inspect dist
+        run: |
+          ls -la dist/
+          # Fail fast if either artifact is missing.
+          test -f dist/harmont-${VERSION}.tar.gz
+          test -f dist/harmont-${VERSION}-py3-none-any.whl
+
+      - name: Publish to PyPI via Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No `with:` block needed — the action defaults to using OIDC
+        # against the project's configured Trusted Publisher when
+        # `id-token: write` is granted (above). It picks up dist/* by
+        # default.
