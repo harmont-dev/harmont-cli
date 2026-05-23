@@ -122,7 +122,7 @@ pub(crate) async fn exec_impl(args: DockerExecArgs) -> Result<i32> {
     // Emit StepLog events for each line written; the writer below
     // forwards bytes into the event bus tagged with the current
     // thread-local step_id set by the scheduler.
-    let mut writer = StepLogWriter::new();
+    let mut writer = StepLogWriter::default();
 
     // Future doing the exec; we race it against cancellation.
     let cancel = s.cancel.clone();
@@ -184,17 +184,13 @@ pub(crate) async fn stop_remove_impl(container_id: String) {
 
 /// Streams bytes from a Docker exec into per-line `StepLog` events on
 /// the event bus. Buffers partial lines until a `\n` arrives.
+#[derive(smart_default::SmartDefault)]
 struct StepLogWriter {
+    #[default(Vec::with_capacity(8192))]
     buf: Vec<u8>,
 }
 
 impl StepLogWriter {
-    fn new() -> Self {
-        Self {
-            buf: Vec::with_capacity(8192),
-        }
-    }
-
     fn flush_line(line: &[u8]) {
         let Some(state) = current() else { return };
         let Some(step_id) = crate::plugin::host_fns::current_step_id() else {
