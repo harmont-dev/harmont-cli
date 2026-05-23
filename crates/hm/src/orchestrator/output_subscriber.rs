@@ -29,7 +29,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use hm_plugin_protocol::BuildEvent;
 use tokio::sync::Mutex;
 use tokio::sync::broadcast::error::RecvError;
 
@@ -63,20 +62,20 @@ pub fn spawn(
                         let Some(&idx) = reg.output_formatter_index.get(&format_name) else {
                             // No plugin for this format; CLI parser
                             // should have caught this. Drain silently.
-                            if matches!(event, BuildEvent::BuildEnd { .. }) {
+                            if event.is_build_end() {
                                 return Ok(());
                             }
                             continue;
                         };
                         let Some(p) = reg.get(idx) else {
-                            if matches!(event, BuildEvent::BuildEnd { .. }) {
+                            if event.is_build_end() {
                                 return Ok(());
                             }
                             continue;
                         };
                         p
                     };
-                    let is_end = matches!(event, BuildEvent::BuildEnd { .. });
+                    let is_end = event.is_build_end();
                     // Log-and-continue on formatter failures: a broken
                     // output plugin shouldn't fail the build.
                     let _: Result<()> = plugin.call_capability("hm_output_on_event", &event).await;
