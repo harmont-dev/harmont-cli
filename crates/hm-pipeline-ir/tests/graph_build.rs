@@ -90,3 +90,125 @@ fn wait_inserts_implicit_deps() {
     assert!(parents.contains(&"a".to_string()));
     assert!(parents.contains(&"b".to_string()));
 }
+
+#[test]
+fn chain_detection() {
+    let p = decode(br#"{
+        "version": "0",
+        "default_image": "ubuntu:24.04",
+        "steps": [
+            {"type": "command", "key": "a", "cmd": "echo a"},
+            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
+            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "b"}
+        ]
+    }"#);
+    let g = PipelineGraph::build(&p).unwrap();
+    let a = g.node_index_by_key("a").unwrap();
+    let b = g.node_index_by_key("b").unwrap();
+    let c = g.node_index_by_key("c").unwrap();
+    assert!(!g.is_chain_step(a));
+    assert!(g.is_chain_step(b));
+    assert!(g.is_chain_step(c));
+}
+
+#[test]
+fn fork_breaks_chain() {
+    let p = decode(br#"{
+        "version": "0",
+        "default_image": "ubuntu:24.04",
+        "steps": [
+            {"type": "command", "key": "a", "cmd": "echo a"},
+            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
+            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "a"}
+        ]
+    }"#);
+    let g = PipelineGraph::build(&p).unwrap();
+    let b = g.node_index_by_key("b").unwrap();
+    let c = g.node_index_by_key("c").unwrap();
+    assert!(!g.is_chain_step(b));
+    assert!(!g.is_chain_step(c));
+}
+
+#[test]
+fn chains_partition_includes_every_node_once() {
+    let p = decode(br#"{
+        "version": "0",
+        "default_image": "ubuntu:24.04",
+        "steps": [
+            {"type": "command", "key": "a", "cmd": "echo a"},
+            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
+            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "b"},
+            {"type": "command", "key": "d", "cmd": "echo d", "builds_in": "a"},
+            {"type": "command", "key": "e", "cmd": "echo e"}
+        ]
+    }"#);
+    let g = PipelineGraph::build(&p).unwrap();
+    let chains = g.chains();
+    let mut all_nodes: Vec<_> = chains.iter().flatten().copied().collect();
+    all_nodes.sort();
+    assert_eq!(all_nodes.len(), 5, "every node in exactly one chain");
+
+    let b = g.node_index_by_key("b").unwrap();
+    let c = g.node_index_by_key("c").unwrap();
+    let bc_chain = chains.iter().find(|ch| ch.contains(&b)).unwrap();
+    assert_eq!(*bc_chain, vec![b, c]);
+}
+
+#[test]
+fn chain_deps_cross_chain() {
+    let p = decode(br#"{
+        "version": "0",
+        "steps": [
+            {"type": "command", "key": "a", "cmd": "echo a"},
+            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
+            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "b"},
+            {"type": "command", "key": "d", "cmd": "echo d", "builds_in": "a"},
+            {"type": "command", "key": "e", "cmd": "echo e"}
+        ]
+    }"#);
+    let g = PipelineGraph::build(&p).unwrap();
+    let chains = g.chains();
+    let deps = g.chain_deps(&chains);
+
+    let find_chain = |key: &str| -> usize {
+        let idx = g.node_index_by_key(key).unwrap();
+        chains.iter().position(|ch| ch.contains(&idx)).unwrap()
+    };
+    let a_ci = find_chain("a");
+    let bc_ci = find_chain("b");
+    let d_ci = find_chain("d");
+    let e_ci = find_chain("e");
+
+    assert!(deps[a_ci].is_empty());
+    assert_eq!(deps[bc_ci], vec![a_ci]);
+    assert_eq!(deps[d_ci], vec![a_ci]);
+    assert!(deps[e_ci].is_empty());
+}
+
+#[test]
+fn chain_deps_subsumes_wait_barriers() {
+    let p = decode(br#"{
+        "version": "0",
+        "steps": [
+            {"type": "command", "key": "a", "cmd": "echo a"},
+            {"type": "command", "key": "b", "cmd": "echo b"},
+            {"type": "wait"},
+            {"type": "command", "key": "c", "cmd": "echo c"}
+        ]
+    }"#);
+    let g = PipelineGraph::build(&p).unwrap();
+    let chains = g.chains();
+    let deps = g.chain_deps(&chains);
+    let find_chain = |key: &str| -> usize {
+        let idx = g.node_index_by_key(key).unwrap();
+        chains.iter().position(|ch| ch.contains(&idx)).unwrap()
+    };
+    let a_ci = find_chain("a");
+    let b_ci = find_chain("b");
+    let c_ci = find_chain("c");
+    let mut c_deps = deps[c_ci].clone();
+    c_deps.sort_unstable();
+    let mut want = vec![a_ci, b_ci];
+    want.sort_unstable();
+    assert_eq!(c_deps, want);
+}
