@@ -81,7 +81,7 @@ impl Config {
     pub fn save(&self) -> Result<()> {
         let path = Self::path()?;
         let serialized = toml::to_string_pretty(self).context("serializing config")?;
-        crate::fs_util::write_atomic_restricted(&path, serialized.as_bytes(), 0o644, 0o700)
+        hm_util::os::fs::blocking::write_atomic_restricted(&path, serialized.as_bytes(), 0o644, 0o700)
             .with_context(|| format!("writing {}", path.display()))?;
         Ok(())
     }

@@ -69,6 +69,7 @@ bollard = "0.18"
 which = "6"
 extism = { workspace = true }
 hm-plugin-protocol = { workspace = true }
+hm-util = { workspace = true }
 schemars = { workspace = true }
 semver = { workspace = true }
 once_cell = "1"

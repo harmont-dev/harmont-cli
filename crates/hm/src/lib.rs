@@ -11,7 +11,6 @@ pub mod context;
 pub mod creds_store;
 pub mod dispatcher;
 pub mod error;
-pub mod fs_util;
 pub mod orchestrator;
 pub mod output;
 pub mod plugin;
