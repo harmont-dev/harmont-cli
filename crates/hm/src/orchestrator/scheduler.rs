@@ -29,6 +29,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use daggy::NodeIndex;
+
 use anyhow::{Context, Result};
 use hm_plugin_protocol::{
     ArchiveId, BuildEvent, ExecutorInput, PlanSummary, SnapshotRef, StepResult,
@@ -156,7 +158,7 @@ pub async fn run(
     // its `committed_snapshot` under its node index. A fork-child
     // chain looks up its `builds_in` parent here to know what base
     // image to boot from. Mirrors legacy `SharedState::node_image`.
-    let node_image: Arc<Mutex<HashMap<usize, SnapshotRef>>> = Arc::new(Mutex::new(HashMap::new()));
+    let node_image: Arc<Mutex<HashMap<NodeIndex, SnapshotRef>>> = Arc::new(Mutex::new(HashMap::new()));
 
     // Spawn the output subscriber. Dispatches every BuildEvent to the
     // selected output-formatter plugin (default: `human`).
@@ -166,7 +168,7 @@ pub async fn run(
     // Announce build start.
     let started_at = chrono::Utc::now();
     let plan_summary = PlanSummary {
-        step_count: graph.nodes.len(),
+        step_count: graph.node_count(),
         chain_count: chains.len(),
         default_runner: "docker".into(),
     };
@@ -287,13 +289,13 @@ pub async fn run(
 async fn run_chain(
     chain_idx: usize,
     graph: &Graph,
-    chain_nodes: &[usize],
+    chain_nodes: &[NodeIndex],
     archive_id: ArchiveId,
     run_id: Uuid,
     registry: &Arc<Mutex<PluginRegistry>>,
     bus: &Arc<EventBus>,
     cancel: &CancellationToken,
-    node_image: &Arc<Mutex<HashMap<usize, SnapshotRef>>>,
+    node_image: &Arc<Mutex<HashMap<NodeIndex, SnapshotRef>>>,
 ) -> Result<i32> {
     // Seed from the cross-chain lineage map: if this chain's root has
     // a `builds_in` parent that already committed a snapshot, boot
@@ -302,8 +304,7 @@ async fn run_chain(
     let chain_root = chain_nodes[0];
     let mut parent_snapshot: Option<SnapshotRef> = {
         let g = node_image.lock().await;
-        graph.nodes[chain_root]
-            .builds_in
+        graph.builds_in_parent(chain_root)
             .and_then(|p| g.get(&p).cloned())
     };
 
@@ -311,12 +312,12 @@ async fn run_chain(
         if cancel.is_cancelled() {
             return Ok(0);
         }
-        let step_wire = graph.nodes[i].step.clone();
+        let step_wire = graph.node_weight(i).step.clone();
         // Keep a copy of the step key for diagnostics — `step_wire` is
         // moved into `ExecutorInput` below.
         let step_key = step_wire.key.clone();
         let env_map: std::collections::BTreeMap<String, String> =
-            graph.nodes[i].env.clone().into_iter().collect();
+            graph.node_weight(i).env.clone();
         let step_id = Uuid::new_v4();
 
         bus.emit(BuildEvent::StepQueued {
