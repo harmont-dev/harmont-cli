@@ -1,21 +1,14 @@
-//! `hm version` — print version info, including the plugin API version
-//! and the count of loaded plugins.
-
 use anyhow::Result;
 use hm_plugin_protocol::HM_PLUGIN_API_VERSION;
 
 use crate::plugin::{PluginRegistry, RegistryConfig};
 
-// User-facing output. This is the singular purpose of this fn.
-#[allow(clippy::print_stdout)]
-// `async` is required by the dispatcher signature in `commands::dispatch`.
 #[allow(clippy::unused_async)]
-/// Run the `hm version` subcommand.
+/// Print version information to stdout.
 ///
 /// # Errors
 ///
-/// Returns an error if the plugin registry fails to load (e.g. an
-/// invalid manifest on disk).
+/// Returns an error if the plugin registry cannot be loaded.
 pub async fn run() -> Result<()> {
     let reg = PluginRegistry::load(RegistryConfig {
         auto_discover: true,

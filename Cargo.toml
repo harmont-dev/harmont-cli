@@ -34,9 +34,6 @@ semver      = { version = "1", features = ["serde"] }
 uuid        = { version = "1", features = ["serde", "v4"] }
 chrono      = { version = "0.4", features = ["serde"] }
 thiserror   = "2"
-anyhow      = "1"
-clap        = { version = "4", features = ["derive", "env", "color", "suggestions", "wrap_help"] }
-fs2         = "0.4"
 tokio       = { version = "1", features = ["full"] }
 tokio-util  = { version = "0.7", features = ["rt"] }
 extism      = "1"

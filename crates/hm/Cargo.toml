@@ -44,7 +44,7 @@ comfy-table = { version = "7", features = ["custom_styling"] }
 console = "0.15"
 tar = "0.4"
 flate2 = "1"
-fs2 = { workspace = true }
+fs2 = "0.4"
 ignore = "0.4"
 tempfile = "3"
 anyhow = "1"

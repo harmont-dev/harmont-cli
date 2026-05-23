@@ -1,15 +1,3 @@
-//! Subcommand-plugin dispatcher.
-//!
-//! Routes `hm <unknown-verb> <args...>` to the registered plugin
-//! whose manifest's `SubcommandSpec.verb` matches the first argv
-//! token. The plugin parses its own argv internally; the host
-//! forwards the raw args.
-
-#![allow(
-    clippy::print_stderr,
-    reason = "this is a top-level dispatch site; ExitInfo.message is user-facing output to stderr"
-)]
-
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
@@ -18,14 +6,11 @@ use hm_plugin_protocol::{ExitInfo, SubcommandInput};
 use crate::error::HmError;
 use crate::plugin::{PluginRegistry, RegistryConfig};
 
-/// Entry point: invoke a plugin-provided subcommand. `argv` is the
-/// captured `external_subcommand` args INCLUDING the verb itself (clap's
-/// convention). Returns the process exit code.
+/// Run a plugin-provided external subcommand.
 ///
 /// # Errors
-/// Returns an error if no plugin claims the verb, the plugin fails to
-/// load, or the plugin panics during dispatch. Non-zero `ExitInfo.exit_code`
-/// is surfaced as `Ok(i32)`, not as `Err`.
+///
+/// Returns an error if plugin lookup or invocation fails.
 pub async fn run(argv: Vec<String>) -> Result<i32> {
     let verb = argv
         .first()

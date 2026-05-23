@@ -990,12 +990,16 @@ pub(crate) fn current_step_id() -> Option<uuid::Uuid> {
 mod plugin_kv_tests {
     use super::*;
 
+    // Both tests mutate the process-wide `XDG_CONFIG_HOME` env var,
+    // which `dirs::config_dir()` reads. Serialize them so parallel
+    // test threads don't race on that global.
+    static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn plugin_kv_round_trip_through_disk() {
-        // Use a temp HOME so we don't stomp on the developer's
-        // real ~/.config/harmont/state.
+        let _lock = ENV_MUTEX.lock().unwrap();
         let temp = tempfile::tempdir().unwrap();
-        // SAFETY: in-process env var set; reset after.
+        // SAFETY: in-process env var set; serialized by ENV_MUTEX.
         unsafe {
             std::env::set_var("XDG_CONFIG_HOME", temp.path());
         }
@@ -1004,8 +1008,6 @@ mod plugin_kv_tests {
         kv_set_impl(KvScope::Plugin, "key", b"value".to_vec());
         assert_eq!(kv_get_impl(KvScope::Plugin, "key"), Some(b"value".to_vec()));
 
-        // Simulate a fresh process: the in-memory state is gone; only
-        // the on-disk file is authoritative. Re-read.
         let again = kv_get_impl(KvScope::Plugin, "key");
         assert_eq!(again, Some(b"value".to_vec()));
 
@@ -1014,8 +1016,9 @@ mod plugin_kv_tests {
 
     #[test]
     fn plugin_kv_isolated_per_plugin_name() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let temp = tempfile::tempdir().unwrap();
-        // SAFETY: in-process env var set; reset after.
+        // SAFETY: in-process env var set; serialized by ENV_MUTEX.
         unsafe {
             std::env::set_var("XDG_CONFIG_HOME", temp.path());
         }

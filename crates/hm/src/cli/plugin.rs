@@ -1,22 +1,44 @@
-//! Implementation of `hm plugin {list, info, install, remove}`.
-//!
-//! `list` and `info` read the real [`PluginRegistry`]; `install` and
-//! `remove` operate on the on-disk install dir via
-//! [`crate::plugin::install`] and [`crate::plugin::paths`].
-
 use anyhow::{Context, Result};
+use clap::Subcommand;
 
-use crate::cli::PluginCommand;
 use crate::plugin::{PluginRegistry, RegistryConfig, paths};
 
-/// Dispatch a parsed `hm plugin <subcommand>` to its handler.
+#[derive(Debug, Clone, Subcommand)]
+pub enum PluginCommand {
+    /// List installed plugins (embedded + user + project).
+    List,
+
+    /// Show one plugin's manifest in detail.
+    Info {
+        /// Plugin name (matches `name` field of the manifest).
+        name: String,
+    },
+
+    /// Install a plugin from a file path or HTTPS URL.
+    ///
+    /// HTTPS URLs require `--pin <sha256>` for integrity.
+    Install {
+        /// Plugin source: local path (`./foo.wasm`) or HTTPS URL.
+        source: String,
+
+        /// SHA-256 hex digest to verify against. Required for HTTPS
+        /// sources; optional for local paths.
+        #[arg(long, value_name = "SHA256_HEX")]
+        pin: Option<String>,
+    },
+
+    /// Remove an installed plugin by name.
+    Remove {
+        /// Plugin name.
+        name: String,
+    },
+}
+
+/// Run an `hm plugin` subcommand.
 ///
 /// # Errors
 ///
-/// Surfaces registry-load failures from [`PluginRegistry::load`] for
-/// `list`/`info`, "no such plugin" for `info <unknown>`, network/IO
-/// failures and SHA-256 mismatches for `install`, and "no plugin file"
-/// for `remove`.
+/// Returns an error if the plugin operation fails.
 pub async fn run(cmd: PluginCommand) -> Result<()> {
     match cmd {
         PluginCommand::List => list().await,
@@ -26,11 +48,6 @@ pub async fn run(cmd: PluginCommand) -> Result<()> {
     }
 }
 
-// `println!` is the user-facing output for `hm plugin list`; this is
-// the intended sink, not a debug-print left behind.
-#[allow(clippy::print_stdout)]
-// The dispatcher signature in `commands::dispatch` is `async`, but the
-// body is currently synchronous — the registry load is CPU-bound.
 #[allow(clippy::unused_async)]
 async fn list() -> Result<()> {
     let reg = PluginRegistry::load(RegistryConfig {
@@ -59,8 +76,6 @@ async fn list() -> Result<()> {
     Ok(())
 }
 
-// `println!` is the user-facing output for `hm plugin info`; intended.
-#[allow(clippy::print_stdout)]
 #[allow(clippy::unused_async)]
 async fn info(name: &str) -> Result<()> {
     let reg = PluginRegistry::load(RegistryConfig {
@@ -76,16 +91,12 @@ async fn info(name: &str) -> Result<()> {
     Ok(())
 }
 
-// `println!` is the user-facing success line for `hm plugin install`.
-#[allow(clippy::print_stdout)]
 async fn install_cmd(source: &str, pin: Option<&str>) -> Result<()> {
     let path = crate::plugin::install::install(source, pin).await?;
     println!("Installed plugin to {}", path.display());
     Ok(())
 }
 
-// `println!` is the user-facing success line for `hm plugin remove`.
-#[allow(clippy::print_stdout)]
 #[allow(clippy::unused_async)]
 async fn remove(name: &str) -> Result<()> {
     let dir = crate::plugin::paths::install_dir().context("no install dir")?;

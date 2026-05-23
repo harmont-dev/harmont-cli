@@ -20,8 +20,8 @@ serde_json         = { workspace = true }
 semver             = { workspace = true }
 chrono             = { workspace = true }
 uuid               = { workspace = true }
-clap               = { workspace = true, features = ["derive"] }
-anyhow             = { workspace = true }
+clap               = { version = "4", features = ["derive"] }
+anyhow             = "1"
 url                = "2"
 base64             = "0.22"
 sha2               = "0.10"
