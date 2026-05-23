@@ -1,0 +1,60 @@
+---
+source: crates/hm-pipeline-ir/tests/graph_serde.rs
+expression: json
+---
+{
+  "default_image": "ubuntu:24.04",
+  "graph": {
+    "edge_property": "directed",
+    "edges": [
+      [
+        0,
+        1,
+        "builds_in"
+      ]
+    ],
+    "node_holes": [],
+    "nodes": [
+      {
+        "env": {},
+        "step": {
+          "builds_in": null,
+          "cache": null,
+          "cmd": "echo a",
+          "env": null,
+          "image": "ubuntu:24.04",
+          "key": "a",
+          "label": null,
+          "timeout_seconds": null
+        }
+      },
+      {
+        "env": {},
+        "step": {
+          "builds_in": "a",
+          "cache": null,
+          "cmd": "echo b",
+          "env": null,
+          "image": null,
+          "key": "b",
+          "label": null,
+          "timeout_seconds": null
+        }
+      },
+      {
+        "env": {},
+        "step": {
+          "builds_in": null,
+          "cache": null,
+          "cmd": "echo c",
+          "env": null,
+          "image": "ubuntu:24.04",
+          "key": "c",
+          "label": null,
+          "timeout_seconds": null
+        }
+      }
+    ]
+  },
+  "version": "0"
+}

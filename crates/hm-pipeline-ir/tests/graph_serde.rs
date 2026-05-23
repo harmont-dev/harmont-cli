@@ -47,3 +47,39 @@ fn edge_kind_round_trips() {
     let dep: EdgeKind = serde_json::from_str("\"depends_on\"").unwrap();
     assert_eq!(dep, EdgeKind::DependsOn);
 }
+
+use hm_pipeline_ir::graph::PipelineGraph;
+use hm_pipeline_ir::Pipeline;
+
+fn build_test_graph() -> PipelineGraph {
+    let p: Pipeline = serde_json::from_value(serde_json::json!({
+        "version": "0",
+        "default_image": "ubuntu:24.04",
+        "steps": [
+            {"type": "command", "key": "a", "cmd": "echo a"},
+            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
+            {"type": "command", "key": "c", "cmd": "echo c"}
+        ]
+    })).unwrap();
+    PipelineGraph::build(&p).unwrap()
+}
+
+#[test]
+fn pipeline_graph_round_trips_through_json() {
+    let g = build_test_graph();
+    let json = serde_json::to_string_pretty(&g).unwrap();
+    let back: PipelineGraph = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.node_count(), 3);
+    assert_eq!(back.default_image(), Some("ubuntu:24.04"));
+    let a = back.node_index_by_key("a").unwrap();
+    assert_eq!(back.node_weight(a).step.image.as_deref(), Some("ubuntu:24.04"));
+    let b = back.node_index_by_key("b").unwrap();
+    assert!(back.builds_in_parent(b).is_some());
+}
+
+#[test]
+fn pipeline_graph_snapshot() {
+    let g = build_test_graph();
+    let json = serde_json::to_value(&g).unwrap();
+    insta::assert_json_snapshot!(json);
+}

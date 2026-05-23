@@ -21,10 +21,18 @@ pub enum EdgeKind {
     DependsOn,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineGraph {
-    dag: Dag<NodeWeight, EdgeKind>,
+    #[serde(default = "default_version")]
+    version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     default_image: Option<String>,
+    #[serde(rename = "graph")]
+    dag: Dag<NodeWeight, EdgeKind>,
+}
+
+fn default_version() -> String {
+    "0".to_string()
 }
 
 struct FlatStep {
@@ -100,6 +108,7 @@ impl PipelineGraph {
         }
 
         Ok(Self {
+            version: "0".to_string(),
             dag,
             default_image: pipeline.default_image.clone(),
         })
