@@ -4,15 +4,18 @@ use anyhow::{Context, Result};
 use daggy::petgraph::visit::IntoNodeReferences;
 use daggy::{Dag, NodeIndex, Walker};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{CommandStep, Pipeline, Step};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeWeight {
     pub step: CommandStep,
     pub env: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EdgeKind {
     BuildsIn,
     DependsOn,
