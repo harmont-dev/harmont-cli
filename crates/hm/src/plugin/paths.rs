@@ -13,7 +13,9 @@ use std::path::PathBuf;
 /// `~/.config/harmont/plugins/` (or the platform's XDG equivalent).
 /// User-global plugins live here.
 pub fn user_plugins_dir() -> Option<PathBuf> {
-    dirs::config_dir().map(|p| p.join("harmont").join("plugins"))
+    hm_util::os::dirs::config_dir()
+        .ok()
+        .map(|p| p.join("harmont").join("plugins"))
 }
 
 /// `<cwd>/.harmont/plugins/`. Project-local plugins live here.
