@@ -83,8 +83,9 @@ async fn runner_field_dispatches_to_named_plugin() {
     // Sanity check: the graph must preserve `runner` from the IR.
     // This is the cheap fast-fail; the dispatch check below is the
     // load-bearing one.
+    let first = graph.node_index_by_key("fs-step").unwrap();
     assert_eq!(
-        graph.nodes[0].step.runner.as_deref(),
+        graph.node_weight(first).step.runner.as_deref(),
         Some("freestyle"),
         "graph dropped `runner` field — A3's wire-type fix has regressed"
     );
@@ -92,7 +93,7 @@ async fn runner_field_dispatches_to_named_plugin() {
     // 3. Build the executor input exactly as the scheduler does
     //    (orchestrator/scheduler.rs::run_chain). Cloning the wire
     //    step preserves `runner` and `runner_args` verbatim.
-    let step_wire = graph.nodes[0].step.clone();
+    let step_wire = graph.node_weight(first).step.clone();
     let input = ExecutorInput {
         step: step_wire,
         workspace_archive_id: ArchiveId(Uuid::nil()),

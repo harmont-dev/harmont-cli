@@ -30,8 +30,9 @@ fn root_step_inherits_default_image() {
         ]
     }"#);
     let g = Graph::build(&p).expect("build graph");
+    let idx = g.node_index_by_key("apt-base").unwrap();
     assert_eq!(
-        g.nodes[0].step.image.as_deref(),
+        g.node_weight(idx).step.image.as_deref(),
         Some("ubuntu:24.04"),
         "root step must inherit pipeline default_image"
     );
@@ -48,8 +49,9 @@ fn root_step_explicit_image_wins() {
         ]
     }"#);
     let g = Graph::build(&p).expect("build graph");
+    let idx = g.node_index_by_key("rust").unwrap();
     assert_eq!(
-        g.nodes[0].step.image.as_deref(),
+        g.node_weight(idx).step.image.as_deref(),
         Some("rust:1.82"),
         "explicit per-step image must override default_image"
     );
@@ -70,9 +72,9 @@ fn child_step_unchanged_by_default_image() {
         ]
     }"#);
     let g = Graph::build(&p).expect("build graph");
-    let child = g.nodes.iter().find(|n| n.step.key == "child").unwrap();
+    let idx = g.node_index_by_key("child").unwrap();
     assert!(
-        child.step.image.is_none(),
+        g.node_weight(idx).step.image.is_none(),
         "child step must not inherit default_image — chain steps boot from parent snapshot",
     );
 }
@@ -86,8 +88,9 @@ fn no_default_image_leaves_root_alone() {
         ]
     }"#);
     let g = Graph::build(&p).expect("build graph");
+    let idx = g.node_index_by_key("k").unwrap();
     assert!(
-        g.nodes[0].step.image.is_none(),
+        g.node_weight(idx).step.image.is_none(),
         "absent default_image must not synthesize an image"
     );
 }
