@@ -1,97 +1,34 @@
-//! Directory resolution for Harmont.
+//! Harmont-specific directory resolution.
 //!
-//! Provides both platform-level primitives (`home_dir`, `config_dir`,
-//! `sys_config_dir`) and Harmont-specific config directory discovery
-//! (`harmont_config_dir`).
-//!
-//! This is the **only public directory API** in `hm-util`. The
-//! low-level `os::dirs` module is `pub(crate)` and must not be used
-//! outside this crate — consumers should use this module instead.
+//! Every directory accessor in this module returns a Harmont-namespaced
+//! path. Raw platform primitives (`home_dir`, `config_dir`) live in
+//! `os::dirs` and are **not** re-exported — callers outside `hm-util`
+//! should never need them.
 
-use std::io;
+#![allow(clippy::must_use_candidate)]
+
 use std::path::PathBuf;
 
-// ---------------------------------------------------------------------------
-// Platform primitives
-// ---------------------------------------------------------------------------
+use crate::os::dirs as platform;
 
-/// Platform home directory (`~/` on Unix, `C:\Users\<user>` on Windows).
-#[must_use]
-pub fn home_dir() -> Option<PathBuf> {
-    dirs::home_dir()
+/// `~/.harmont/` — CLI config home (config.toml, credentials.toml).
+pub fn harmont_config_dir() -> Option<PathBuf> {
+    platform::home_dir().map(|h| h.join(".harmont"))
 }
 
-/// Platform user config directory (`~/.config` on Linux,
-/// `~/Library/Application Support` on macOS, `%APPDATA%` on Windows).
-///
-/// Respects `$XDG_CONFIG_HOME` on Linux.
-#[must_use]
-pub fn config_dir() -> Option<PathBuf> {
-    dirs::config_dir()
+/// `<config_dir>/harmont/` — XDG-aware data root (plugins, state).
+pub fn harmont_data_dir() -> Option<PathBuf> {
+    platform::config_dir().map(|c| c.join("harmont"))
 }
 
-/// System-wide config directory (`/etc` on Unix, `C:\ProgramData` on
-/// Windows).
-#[must_use]
-pub fn sys_config_dir() -> PathBuf {
-    #[cfg(unix)]
-    {
-        PathBuf::from("/etc")
-    }
-
-    #[cfg(windows)]
-    {
-        std::env::var_os("ProgramData")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("C:\\ProgramData"))
-    }
+/// `<config_dir>/harmont/plugins/` — user-global plugin directory.
+pub fn harmont_plugins_dir() -> Option<PathBuf> {
+    harmont_data_dir().map(|d| d.join("plugins"))
 }
 
-// ---------------------------------------------------------------------------
-// Harmont-specific discovery
-// ---------------------------------------------------------------------------
-
-/// Find the best harmont config directory.
-///
-/// Searches for the first existing directory in order:
-/// 1. `~/.hm`
-/// 2. `/etc/hm` (or `C:\ProgramData\hm` on Windows)
-///
-/// The directory does not need to be well-formed — existence is
-/// sufficient. macOS uses `~/.hm` rather than
-/// `~/Library/Application Support` because that confuses everyone.
-///
-/// Returns `None` if no candidate directory exists.
-pub async fn harmont_config_dir() -> Option<PathBuf> {
-    let candidates = [
-        home_dir().map(|h| h.join(".hm")),
-        Some(sys_config_dir().join("hm")),
-    ];
-
-    for candidate in candidates.into_iter().flatten() {
-        if tokio::fs::try_exists(&candidate).await.unwrap_or(false) {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-/// Find the best harmont config directory, or return an error.
-///
-/// Same search as [`harmont_config_dir`], but returns an [`io::Error`]
-/// if no candidate directory is found.
-///
-/// # Errors
-///
-/// Returns [`io::ErrorKind::NotFound`] if neither `~/.hm` nor the
-/// system config directory exists.
-pub async fn harmont_config_dir_required() -> io::Result<PathBuf> {
-    harmont_config_dir().await.ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "no harmont config directory found (searched ~/.hm, /etc/hm)",
-        )
-    })
+/// `<config_dir>/harmont/state/` — per-plugin persistent KV state.
+pub fn harmont_plugin_state_dir() -> Option<PathBuf> {
+    harmont_data_dir().map(|d| d.join("state"))
 }
 
 #[cfg(test)]
@@ -100,37 +37,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn home_dir_resolves() {
-        let p = home_dir().unwrap();
-        assert!(p.exists(), "home dir should exist: {}", p.display());
+    fn harmont_config_dir_under_home() {
+        let p = harmont_config_dir().unwrap();
+        assert!(p.ends_with(".harmont"));
     }
 
     #[test]
-    fn config_dir_resolves() {
-        let p = config_dir().unwrap();
-        assert!(
-            p.to_string_lossy().len() > 1,
-            "config dir should be a real path"
-        );
+    fn harmont_data_dir_under_config() {
+        let p = harmont_data_dir().unwrap();
+        assert!(p.ends_with("harmont"));
     }
 
     #[test]
-    fn sys_config_dir_is_etc() {
-        let p = sys_config_dir();
-        #[cfg(unix)]
-        assert_eq!(p, PathBuf::from("/etc"));
+    fn harmont_plugins_dir_resolves() {
+        let p = harmont_plugins_dir().unwrap();
+        assert!(p.ends_with("harmont/plugins"));
     }
 
-    #[tokio::test]
-    async fn harmont_config_dir_does_not_panic() {
-        let _ = harmont_config_dir().await;
-    }
-
-    #[tokio::test]
-    async fn harmont_config_dir_required_gives_not_found_when_missing() {
-        let result = harmont_config_dir_required().await;
-        if let Err(e) = result {
-            assert_eq!(e.kind(), io::ErrorKind::NotFound);
-        }
+    #[test]
+    fn harmont_plugin_state_dir_resolves() {
+        let p = harmont_plugin_state_dir().unwrap();
+        assert!(p.ends_with("harmont/state"));
     }
 }
