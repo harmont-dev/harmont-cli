@@ -7,84 +7,87 @@
 )]
 
 use hm_pipeline_ir::graph::PipelineGraph;
-use hm_pipeline_ir::Pipeline;
 
-fn decode(json: &[u8]) -> Pipeline {
+fn graph(json: &[u8]) -> PipelineGraph {
     serde_json::from_slice(json).unwrap()
 }
 
 #[test]
 fn builds_simple_chain() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
-            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "b"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"],
+                [1, 2, "builds_in"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     assert_eq!(g.node_count(), 3);
     assert_eq!(g.default_image(), Some("ubuntu:24.04"));
 }
 
 #[test]
-fn rejects_unknown_builds_in() {
-    let p = decode(br#"{
-        "version": "0",
-        "steps": [
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "missing"}
-        ]
-    }"#);
-    let err = PipelineGraph::build(&p).unwrap_err();
-    assert!(
-        err.to_string().contains("missing") || err.to_string().contains("unknown"),
-        "error should mention the missing key: {err}"
-    );
-}
-
-#[test]
 fn root_inherits_default_image() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": []
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let node = g.node_weight(g.node_index_by_key("a").unwrap());
     assert_eq!(node.step.image.as_deref(), Some("ubuntu:24.04"));
 }
 
 #[test]
 fn child_does_not_inherit_default_image() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let b = g.node_weight(g.node_index_by_key("b").unwrap());
     assert!(b.step.image.is_none());
 }
 
 #[test]
 fn wait_inserts_implicit_deps() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b"},
-            {"type": "wait"},
-            {"type": "command", "key": "c", "cmd": "echo c"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 2, "depends_on"],
+                [1, 2, "depends_on"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let c = g.node_index_by_key("c").unwrap();
     let parents = g.parent_keys(c);
     assert!(parents.contains(&"a".to_string()));
@@ -93,16 +96,22 @@ fn wait_inserts_implicit_deps() {
 
 #[test]
 fn chain_detection() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
-            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "b"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"],
+                [1, 2, "builds_in"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let a = g.node_index_by_key("a").unwrap();
     let b = g.node_index_by_key("b").unwrap();
     let c = g.node_index_by_key("c").unwrap();
@@ -113,16 +122,22 @@ fn chain_detection() {
 
 #[test]
 fn fork_breaks_chain() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
-            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "a"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"],
+                [0, 2, "builds_in"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let b = g.node_index_by_key("b").unwrap();
     let c = g.node_index_by_key("c").unwrap();
     assert!(!g.is_chain_step(b));
@@ -131,18 +146,25 @@ fn fork_breaks_chain() {
 
 #[test]
 fn chains_partition_includes_every_node_once() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
-            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "b"},
-            {"type": "command", "key": "d", "cmd": "echo d", "builds_in": "a"},
-            {"type": "command", "key": "e", "cmd": "echo e"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c"}, "env": {}},
+                {"step": {"key": "d", "cmd": "echo d"}, "env": {}},
+                {"step": {"key": "e", "cmd": "echo e", "image": "ubuntu:24.04"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"],
+                [1, 2, "builds_in"],
+                [0, 3, "builds_in"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let chains = g.chains();
     let mut all_nodes: Vec<_> = chains.iter().flatten().copied().collect();
     all_nodes.sort();
@@ -156,17 +178,24 @@ fn chains_partition_includes_every_node_once() {
 
 #[test]
 fn chain_deps_cross_chain() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b", "builds_in": "a"},
-            {"type": "command", "key": "c", "cmd": "echo c", "builds_in": "b"},
-            {"type": "command", "key": "d", "cmd": "echo d", "builds_in": "a"},
-            {"type": "command", "key": "e", "cmd": "echo e"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c"}, "env": {}},
+                {"step": {"key": "d", "cmd": "echo d"}, "env": {}},
+                {"step": {"key": "e", "cmd": "echo e"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"],
+                [1, 2, "builds_in"],
+                [0, 3, "builds_in"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let chains = g.chains();
     let deps = g.chain_deps(&chains);
 
@@ -187,16 +216,21 @@ fn chain_deps_cross_chain() {
 
 #[test]
 fn chain_deps_subsumes_wait_barriers() {
-    let p = decode(br#"{
+    let g = graph(br#"{
         "version": "0",
-        "steps": [
-            {"type": "command", "key": "a", "cmd": "echo a"},
-            {"type": "command", "key": "b", "cmd": "echo b"},
-            {"type": "wait"},
-            {"type": "command", "key": "c", "cmd": "echo c"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "a", "cmd": "echo a"}, "env": {}},
+                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
+                {"step": {"key": "c", "cmd": "echo c"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 2, "depends_on"],
+                [1, 2, "depends_on"]
+            ]
+        }
     }"#);
-    let g = PipelineGraph::build(&p).unwrap();
     let chains = g.chains();
     let deps = g.chain_deps(&chains);
     let find_chain = |key: &str| -> usize {

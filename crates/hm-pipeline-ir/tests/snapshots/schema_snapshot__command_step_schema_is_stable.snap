@@ -1,0 +1,93 @@
+---
+source: crates/hm-pipeline-ir/tests/schema_snapshot.rs
+assertion_line: 6
+expression: schema
+---
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CommandStep",
+  "type": "object",
+  "required": [
+    "cmd",
+    "key"
+  ],
+  "properties": {
+    "key": {
+      "type": "string"
+    },
+    "label": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cmd": {
+      "type": "string"
+    },
+    "image": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "env": {
+      "default": null,
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "timeout_seconds": {
+      "default": null,
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "cache": {
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Cache"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runner_args": true
+  },
+  "definitions": {
+    "Cache": {
+      "type": "object",
+      "required": [
+        "policy"
+      ],
+      "properties": {
+        "policy": {
+          "type": "string"
+        },
+        "key": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

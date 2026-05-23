@@ -1,5 +1,6 @@
 ---
 source: crates/hm-pipeline-ir/tests/graph_serde.rs
+assertion_line: 88
 expression: json
 ---
 {
@@ -18,7 +19,6 @@ expression: json
       {
         "env": {},
         "step": {
-          "builds_in": null,
           "cache": null,
           "cmd": "echo a",
           "env": null,
@@ -31,7 +31,6 @@ expression: json
       {
         "env": {},
         "step": {
-          "builds_in": "a",
           "cache": null,
           "cmd": "echo b",
           "env": null,
@@ -44,7 +43,6 @@ expression: json
       {
         "env": {},
         "step": {
-          "builds_in": null,
           "cache": null,
           "cmd": "echo c",
           "env": null,

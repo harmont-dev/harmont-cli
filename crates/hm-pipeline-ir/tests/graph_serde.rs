@@ -59,6 +59,7 @@ fn build_test_graph() -> PipelineGraph {
                 {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
                 {"step": {"key": "c", "cmd": "echo c", "image": "ubuntu:24.04"}, "env": {}}
             ],
+            "node_holes": [],
             "edge_property": "directed",
             "edges": [
                 [0, 1, "builds_in"]
