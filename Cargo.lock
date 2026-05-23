@@ -897,6 +897,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "804169db156b21258a2545757336922d93dfa229892c75911a0ad141aa0ff241"
 dependencies = [
  "petgraph 0.8.3",
+ "serde",
 ]
 
 [[package]]
@@ -2659,6 +2660,8 @@ dependencies = [
  "fixedbitset 0.5.7",
  "hashbrown 0.15.5",
  "indexmap 2.14.0",
+ "serde",
+ "serde_derive",
 ]
 
 [[package]]
