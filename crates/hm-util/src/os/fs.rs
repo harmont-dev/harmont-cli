@@ -39,19 +39,11 @@ fn write_atomic_restricted_sync(
 
     write_file_with_mode_sync(&tmp_path, contents, file_mode)?;
 
-    let persist_result = atomic_rename_over_sync(&tmp_path, path);
+    let persist_result = atomic_rename_over_impl(&tmp_path, path);
     if persist_result.is_err() {
         let _ = std::fs::remove_file(&tmp_path);
     }
     persist_result
-}
-
-fn remove_if_exists_sync(path: &Path) -> io::Result<()> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e),
-    }
 }
 
 #[cfg(unix)]
@@ -94,56 +86,6 @@ fn write_file_with_mode_sync(path: &Path, contents: &[u8], mode: u32) -> io::Res
 #[cfg(not(unix))]
 fn write_file_with_mode_sync(path: &Path, contents: &[u8], _mode: u32) -> io::Result<()> {
     std::fs::write(path, contents)
-}
-
-// ---------------------------------------------------------------------------
-// Cross-platform atomic rename
-// ---------------------------------------------------------------------------
-
-#[cfg(unix)]
-fn atomic_rename_over_sync(from: &Path, to: &Path) -> io::Result<()> {
-    std::fs::rename(from, to)
-}
-
-#[cfg(windows)]
-fn atomic_rename_over_sync(from: &Path, to: &Path) -> io::Result<()> {
-    use windows::core::HSTRING;
-    use windows::Win32::Storage::FileSystem::{
-        MoveFileExW, ReplaceFileW,
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
-        REPLACEFILE_IGNORE_MERGE_ERRORS,
-    };
-
-    let from_w = HSTRING::from(from.as_os_str());
-    let to_w = HSTRING::from(to.as_os_str());
-
-    // ReplaceFileW preserves ACLs and alternate data streams on the
-    // target, but requires the target to already exist.
-    if to.exists() {
-        let result = unsafe {
-            ReplaceFileW(
-                &to_w,
-                &from_w,
-                windows::core::PCWSTR::null(),
-                REPLACEFILE_IGNORE_MERGE_ERRORS,
-                None,
-                None,
-            )
-        };
-        return result.map_err(|e| io::Error::new(io::ErrorKind::Other, e));
-    }
-
-    // Target doesn't exist yet — fall back to MoveFileExW which handles
-    // both cases but doesn't preserve target metadata (irrelevant here
-    // since there is no target).
-    let result = unsafe {
-        MoveFileExW(
-            &from_w,
-            &to_w,
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 /// Write `contents` to `path` atomically with `file_mode`, ensuring the
@@ -190,9 +132,50 @@ pub async fn atomic_rename_over(
 ) -> io::Result<()> {
     let from = from.as_ref().to_owned();
     let to = to.as_ref().to_owned();
-    tokio::task::spawn_blocking(move || atomic_rename_over_sync(&from, &to))
+    tokio::task::spawn_blocking(move || atomic_rename_over_impl(&from, &to))
         .await
         .map_err(io::Error::other)?
+}
+
+#[cfg(unix)]
+fn atomic_rename_over_impl(from: &Path, to: &Path) -> io::Result<()> {
+    std::fs::rename(from, to)
+}
+
+#[cfg(windows)]
+fn atomic_rename_over_impl(from: &Path, to: &Path) -> io::Result<()> {
+    use windows::core::HSTRING;
+    use windows::Win32::Storage::FileSystem::{
+        MoveFileExW, ReplaceFileW,
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+        REPLACEFILE_IGNORE_MERGE_ERRORS,
+    };
+
+    let from_w = HSTRING::from(from.as_os_str());
+    let to_w = HSTRING::from(to.as_os_str());
+
+    if to.exists() {
+        let result = unsafe {
+            ReplaceFileW(
+                &to_w,
+                &from_w,
+                windows::core::PCWSTR::null(),
+                REPLACEFILE_IGNORE_MERGE_ERRORS,
+                None,
+                None,
+            )
+        };
+        return result.map_err(|e| io::Error::new(io::ErrorKind::Other, e));
+    }
+
+    let result = unsafe {
+        MoveFileExW(
+            &from_w,
+            &to_w,
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 /// Remove a file if it exists; silently return `Ok(())` if it does not.
@@ -212,11 +195,16 @@ pub async fn remove_file_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
     }
 }
 
-/// Synchronous (blocking) wrappers for callers that cannot use async,
-/// such as extism `host_fn` callbacks.
+/// Synchronous (blocking) wrappers that shell out to the async API
+/// via `tokio::task::block_in_place`. Safe to call from sync contexts
+/// that run inside a tokio runtime (e.g. extism `host_fn` callbacks).
 pub mod blocking {
     use std::io;
     use std::path::Path;
+
+    fn block_on<F: std::future::Future<Output = io::Result<()>>>(f: F) -> io::Result<()> {
+        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(f))
+    }
 
     /// Write `contents` to `path` atomically with `file_mode`, ensuring the
     /// parent directory exists and is set to `dir_mode`.
@@ -235,7 +223,7 @@ pub mod blocking {
         file_mode: u32,
         dir_mode: u32,
     ) -> io::Result<()> {
-        super::write_atomic_restricted_sync(path.as_ref(), contents.as_ref(), file_mode, dir_mode)
+        block_on(super::write_atomic_restricted(path, contents, file_mode, dir_mode))
     }
 
     /// Remove a file if it exists; silently return `Ok(())` if it does not.
@@ -245,7 +233,7 @@ pub mod blocking {
     /// Returns an error if `remove_file` fails for any reason other than
     /// `NotFound`.
     pub fn remove_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
-        super::remove_if_exists_sync(path.as_ref())
+        block_on(super::remove_file_if_exists(path))
     }
 }
 
@@ -255,8 +243,8 @@ mod tests {
     use super::blocking;
     use std::os::unix::fs::PermissionsExt;
 
-    #[test]
-    fn writes_file_and_dir_with_requested_modes() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn writes_file_and_dir_with_requested_modes() {
         let tmp = tempfile::tempdir().unwrap();
         let target = tmp.path().join("sub").join("creds");
         blocking::write_atomic_restricted(&target, b"hello", 0o600, 0o700).unwrap();
@@ -275,8 +263,8 @@ mod tests {
         assert_eq!(dir_mode, 0o700, "dir mode must be 0o700, got {dir_mode:o}");
     }
 
-    #[test]
-    fn overwrites_existing_file_preserving_mode() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn overwrites_existing_file_preserving_mode() {
         let tmp = tempfile::tempdir().unwrap();
         let target = tmp.path().join("creds");
         blocking::write_atomic_restricted(&target, b"v1", 0o600, 0o700).unwrap();
@@ -287,8 +275,8 @@ mod tests {
         assert_eq!(mode, 0o600);
     }
 
-    #[test]
-    fn tightens_existing_dir_with_looser_mode() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn tightens_existing_dir_with_looser_mode() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("loose");
         std::fs::create_dir(&dir).unwrap();
@@ -301,8 +289,8 @@ mod tests {
         assert_eq!(dir_mode, 0o700);
     }
 
-    #[test]
-    fn remove_if_exists_is_idempotent() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn remove_if_exists_is_idempotent() {
         let tmp = tempfile::tempdir().unwrap();
         let target = tmp.path().join("nothing");
         blocking::remove_if_exists(&target).unwrap();

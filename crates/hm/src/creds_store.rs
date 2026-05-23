@@ -92,8 +92,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn round_trip() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn round_trip() {
         with_home(|| {
             assert_eq!(get("svc", "acct"), None);
             set("svc", "acct", "shh");
