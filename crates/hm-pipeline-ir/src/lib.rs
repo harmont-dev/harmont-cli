@@ -73,3 +73,5 @@ pub struct Cache {
     #[serde(default)]
     pub key: Option<String>,
 }
+
+pub mod graph;
