@@ -5,10 +5,10 @@
 
 use clap::Parser;
 use owo_colors::OwoColorize;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer as _;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 use harmont_cli::cli::{self, Cli};
 use harmont_cli::context::RunContext;
@@ -26,8 +26,7 @@ async fn main() {
     let cli_layer = CliLayer::real();
 
     let fmt_layer = if args.verbose {
-        let filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("debug"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
         Some(
             tracing_subscriber::fmt::layer()
                 .with_target(false)

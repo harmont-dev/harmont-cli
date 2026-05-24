@@ -3,8 +3,8 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use tracing::Subscriber;
-use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context;
 
 #[derive(Debug, Clone)]
 pub struct CliLayer<O, E> {
