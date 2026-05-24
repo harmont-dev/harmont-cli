@@ -13,7 +13,7 @@ path = "src/lib.rs"
 [features]
 default = ["embedded-python", "embedded-typescript"]
 embedded-python     = ["dep:wasmtime", "dep:wasmtime-wasi", "dep:include_dir"]
-embedded-typescript = ["dep:wasmtime", "dep:wasmtime-wasi", "dep:oxc_transformer", "dep:oxc_allocator", "dep:oxc_parser", "dep:oxc_span"]
+embedded-typescript = ["dep:wasmtime", "dep:wasmtime-wasi", "dep:oxc_transformer", "dep:oxc_allocator", "dep:oxc_parser", "dep:oxc_span", "dep:oxc_codegen", "dep:oxc_semantic"]
 
 [dependencies]
 # Always-on
@@ -36,6 +36,8 @@ oxc_transformer = { version = "0.100", optional = true }
 oxc_allocator   = { version = "0.100", optional = true }
 oxc_parser      = { version = "0.100", optional = true }
 oxc_span        = { version = "0.100", optional = true }
+oxc_codegen     = { version = "0.100", optional = true }
+oxc_semantic    = { version = "0.100", optional = true }
 include_dir     = { version = "0.7", optional = true }
 
 [dev-dependencies]

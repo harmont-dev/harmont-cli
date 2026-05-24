@@ -10,7 +10,9 @@ pub mod detect;
 // Feature-gated modules — added as engines are implemented:
 // mod python_engine;  (embedded-python)
 // mod js_engine;      (embedded-typescript)
-// mod ts_preprocess;  (embedded-typescript)
+
+#[cfg(feature = "embedded-typescript")]
+pub mod ts_preprocess;
 
 #[cfg(feature = "embedded-python")]
 pub mod embedded_sources;
