@@ -6,13 +6,7 @@
 // Pedantic-bucket nags accepted at module scope:
 // - `needless_pass_by_value` on `bus`: the owned `Arc<EventBus>` makes
 //   the bus->subscriber handoff explicit at the call site.
-// - `print_stderr`: the Lagged arm intentionally bypasses the event
-//   bus (which is the source of the lag) to surface a user-visible
-//   drop signal, so an `eprintln!` direct to stderr is correct.
-#![allow(
-    clippy::needless_pass_by_value,
-    clippy::print_stderr
-)]
+#![allow(clippy::needless_pass_by_value)]
 
 use std::sync::Arc;
 
@@ -42,7 +36,6 @@ pub fn spawn(
                 Err(RecvError::Closed) => return,
                 Err(RecvError::Lagged(n)) => {
                     tracing::warn!("output: dropped {n} events");
-                    eprintln!("[output] dropped {n} build events");
                 }
             }
         }
