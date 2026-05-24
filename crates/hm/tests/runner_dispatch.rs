@@ -36,6 +36,8 @@ pub mod common;
 
 use std::collections::BTreeMap;
 
+use daggy::petgraph::visit::IntoNodeReferences;
+
 use common::fixtures;
 use harmont_cli::orchestrator::graph::Graph;
 use harmont_cli::plugin::{PluginRegistry, RegistryConfig};
@@ -88,7 +90,6 @@ async fn runner_field_dispatches_to_named_plugin() {
     // Sanity check: the graph must preserve `runner` from the IR.
     // This is the cheap fast-fail; the dispatch check below is the
     // load-bearing one.
-    use daggy::petgraph::visit::IntoNodeReferences;
     let (_, first_transition) = graph.dag().graph().node_references()
         .find(|(_, t)| t.step.key == "fs-step")
         .unwrap();
