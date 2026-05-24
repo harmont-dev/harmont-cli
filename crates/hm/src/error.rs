@@ -43,6 +43,9 @@ pub enum HmError {
     #[error("docker error: {0}\n  → check that the Docker daemon is running (`docker version`)")]
     Docker(String),
 
+    #[error("DSL engine error: {0}")]
+    DslEngine(String),
+
     #[error("pipeline render error: {0}")]
     PipelineRender(String),
 
@@ -99,6 +102,7 @@ impl HmError {
             Self::NoOrganization
             | Self::ArchiveTooLarge { .. }
             | Self::Config(_)
+            | Self::DslEngine(_)
             | Self::PipelineRender(_) => ErrorCategory::Usage,
             Self::Api { .. }
             | Self::PipelineNotFound { .. }

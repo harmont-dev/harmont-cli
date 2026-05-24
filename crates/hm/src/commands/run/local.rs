@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
-use super::render::{ToolPaths, list_pipelines, render_pipeline_json};
+use hm_dsl_engine::detect;
+
 use crate::cli::RunArgs;
 use crate::context::RunContext;
 use crate::output::format::banner;
@@ -69,12 +70,19 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
-    let tools = ToolPaths::discover()?;
+    let lang = detect::detect_language(&repo_root)
+        .map_err(|e| crate::error::HmError::DslEngine(e.to_string()))?;
+    let engine = hm_dsl_engine::engine_for(lang)
+        .await
+        .map_err(|e| crate::error::HmError::DslEngine(e.to_string()))?;
 
     let slug = if let Some(s) = &args.pipeline {
         s.clone()
     } else {
-        let metas = list_pipelines(&tools, &repo_root).await?;
+        let metas: Vec<hm_dsl_engine::PipelineMeta> = engine
+            .list_pipelines(&repo_root)
+            .await
+            .map_err(|e| crate::error::HmError::PipelineRender(e.to_string()))?;
         let slugs: Vec<String> = metas.into_iter().map(|m| m.slug).collect();
         match slugs.as_slice() {
             [only] => only.clone(),
@@ -93,7 +101,11 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         banner("run --local", &format!("slug={slug}"));
     }
 
-    let json = render_pipeline_json(&tools, &repo_root, &slug).await?;
+    let json_str = engine
+        .render_pipeline_json(&repo_root, &slug)
+        .await
+        .map_err(|e| crate::error::HmError::PipelineRender(e.to_string()))?;
+    let json = json_str.into_bytes();
     let graph = decode_plan_to_wire(&json)?;
     let parallelism = args.parallelism.unwrap_or_else(|| {
         std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
