@@ -40,6 +40,13 @@ oxc_codegen     = { version = "0.100", optional = true }
 oxc_semantic    = { version = "0.100", optional = true }
 include_dir     = { version = "0.7", optional = true }
 
+[build-dependencies]
+reqwest  = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+sha2     = "0.10"
+hex      = "0.4"
+flate2   = "1"
+tar      = "0.4"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
