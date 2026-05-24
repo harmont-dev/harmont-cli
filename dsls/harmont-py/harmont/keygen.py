@@ -33,27 +33,36 @@ NUL = "\x00"
 
 
 def resolve_pipeline_keys(
-    steps: list[dict[str, Any]],
+    graph: dict[str, Any],
     *,
     pipeline_org: str,
     pipeline_slug: str,
     now: int,
     base_path: Path,
     env: Mapping[str, str],
-) -> list[dict[str, Any]]:
-    """Walk `steps` in order. For every step whose cache policy is not
+) -> dict[str, Any]:
+    """Walk graph nodes in order. For every node whose cache policy is not
     'none', compute a deterministic sha256 cache key and inject it into
-    that step's `cache` dict as `cache["key"]`. Returns the same list
-    (mutated in place — callers may rely on identity)."""
+    that node's step ``cache`` dict as ``cache["key"]``. Returns the
+    same graph dict (mutated in place -- callers may rely on identity)."""
+    nodes = graph.get("nodes", [])
+    edges = graph.get("edges", [])
+
+    # Build parent key map from builds_in edges.
+    key_by_idx: dict[int, str] = {i: n["step"]["key"] for i, n in enumerate(nodes)}
+    parent_key_map: dict[str, str] = {}
+    for src, dst, kind in edges:
+        if kind == "builds_in":
+            parent_key_map[key_by_idx[dst]] = key_by_idx[src]
+
     resolved: dict[str, str] = {}
-    for step in steps:
-        if step.get("type") != "command":
-            continue
+    for node in nodes:
+        step = node["step"]
         cache = step.get("cache")
         if not cache or cache["policy"] == "none":
             continue
         cmd = step.get("cmd", "")
-        parent = step.get("builds_in")  # str or None
+        parent = parent_key_map.get(step["key"])
         parent_resolved = _lookup_parent(parent, resolved)
         policy_res = _resolve_policy(cache, cmd, now, base_path, env)
         key = _sha256_hex(
@@ -69,7 +78,7 @@ def resolve_pipeline_keys(
         )
         cache["key"] = key
         resolved[step["key"]] = key
-    return steps
+    return graph
 
 
 def _lookup_parent(parent: str | None, resolved: dict[str, str]) -> str:

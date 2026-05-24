@@ -3,8 +3,8 @@
 The factory walks back from each leaf via `Step.parent`, collects every
 unique step (keyed by `id`, since structurally-equal forks must keep
 distinct keys), topo-sorts by parent edges with a stable
-leaf-then-DFS-pre tiebreaker, and lowers each step to a JSON-shaped
-dict matching the v0 IR schema.
+leaf-then-DFS-pre tiebreaker, and lowers each step to the petgraph-serde
+graph format matching the v0 IR schema.
 
 Use `pipeline_to_json` from `json_emit` to emit the wire-format string.
 """
@@ -36,7 +36,7 @@ def pipeline(
 
     ``default_image`` is the local-mode fallback Docker image: it
     applies to every command step that lacks both a ``builds_in``
-    parent and a per-step ``image`` override.
+    parent edge and a per-step ``image`` override.
     """
     if not leaves:
         msg = (
@@ -45,56 +45,130 @@ def pipeline(
         )
         raise ValueError(msg)
     out: dict[str, Any] = {"version": "0"}
-    if env is not None:
-        out["env"] = env
     if default_image is not None:
         out["default_image"] = default_image
-    out["steps"] = _lower_to_dicts(list(leaves))
+    out["graph"] = _lower_to_graph(
+        list(leaves), env=env, default_image=default_image,
+    )
     return out
 
 
-def _lower_to_dicts(leaves: list[Step]) -> list[dict[str, Any]]:
-    """Walk back via `parent`, topo-sort, emit one dict per emitted step.
+def _lower_to_graph(
+    leaves: list[Step],
+    *,
+    env: dict[str, str] | None = None,
+    default_image: str | None = None,
+) -> dict[str, Any]:
+    """Walk back via `parent`, topo-sort, emit petgraph-serde graph dict.
 
     `scratch` and `fork` nodes carry no command and are not emitted as
-    JSON steps; they exist only to set the `parent` of their children.
+    graph nodes; they exist only to set the `parent` of their children.
+    Wait steps are not emitted as nodes — they are translated into
+    explicit ``depends_on`` edges.
     """
     ordered = _topo_collect(leaves)
-    keys = resolve_keys([s for s in ordered if s.cmd is not None and not s.is_wait])
-    out: list[dict[str, Any]] = []
+    command_steps = [s for s in ordered if s.cmd is not None and not s.is_wait]
+    keys = resolve_keys(command_steps)
+
+    # Assign integer node indices (dense, in emission order).
+    idx_by_id: dict[int, int] = {}
+    for i, s in enumerate(command_steps):
+        idx_by_id[id(s)] = i
+
+    # Track which node indices have a builds_in parent (for default_image).
+    has_builds_in_parent: set[int] = set()
+
+    nodes: list[dict[str, Any]] = []
+    edges: list[list[Any]] = []
+
+    # Collect all command-step indices emitted before each wait barrier.
+    # When we encounter a wait, every step after the wait gets a
+    # depends_on edge from every step before the wait.
+    pre_wait_indices: list[int] = []
+    # Pending depends_on sources (from the most recent wait barrier).
+    pending_depends_on: list[int] = []
+
     for s in ordered:
         if s.is_wait:
-            d: dict[str, Any] = {"type": "wait"}
-            if s.continue_on_failure:
-                d["continue_on_failure"] = True
-            out.append(d)
+            # All command-step indices emitted so far (after the last wait)
+            # become sources for depends_on edges to subsequent steps.
+            pending_depends_on = list(pre_wait_indices)
+            pre_wait_indices = []
             continue
+
         if s.cmd is None:
-            # scratch or fork — passthrough, not emitted
+            # scratch or fork — passthrough, not emitted.
             continue
-        parent_key = _resolved_parent_key(s, keys)
-        d = {
-            "type": "command",
-            "key": keys[id(s)],
+
+        node_idx = idx_by_id[id(s)]
+        step_key = keys[id(s)]
+
+        # Build the CommandStep dict (no "type" or "builds_in" fields).
+        step_dict: dict[str, Any] = {
+            "key": step_key,
             "cmd": s.cmd,
-            "builds_in": parent_key,
         }
         if s.label is not None:
-            d["label"] = s.label
+            step_dict["label"] = s.label
         if s.cache is not None:
-            d["cache"] = _cache_to_dict(s.cache)
-        if s.env is not None:
-            d["env"] = s.env
+            step_dict["cache"] = _cache_to_dict(s.cache)
         if s.timeout_seconds is not None:
-            d["timeout_seconds"] = s.timeout_seconds
+            step_dict["timeout_seconds"] = s.timeout_seconds
         if s.image is not None:
-            d["image"] = s.image
+            step_dict["image"] = s.image
         if s.runner is not None:
-            d["runner"] = s.runner
+            step_dict["runner"] = s.runner
         if s.runner_args is not None:
-            d["runner_args"] = s.runner_args
-        out.append(d)
-    return out
+            step_dict["runner_args"] = s.runner_args
+
+        # Merge per-step env with pipeline-level env.
+        merged_env: dict[str, str] = {}
+        if env:
+            merged_env.update(env)
+        if s.env:
+            merged_env.update(s.env)
+
+        nodes.append({"step": step_dict, "env": merged_env})
+
+        # builds_in edge from parent.
+        parent_key = _resolved_parent_key(s, keys)
+        if parent_key is not None:
+            parent_idx = _find_idx_by_key(parent_key, command_steps, keys, idx_by_id)
+            edges.append([parent_idx, node_idx, "builds_in"])
+            has_builds_in_parent.add(node_idx)
+
+        # depends_on edges from pre-wait steps.
+        for dep_idx in pending_depends_on:
+            edges.append([dep_idx, node_idx, "depends_on"])
+
+        pre_wait_indices.append(node_idx)
+
+    # Apply default_image to root nodes (those without a builds_in parent).
+    if default_image is not None:
+        for i, node in enumerate(nodes):
+            if i not in has_builds_in_parent and "image" not in node["step"]:
+                node["step"]["image"] = default_image
+
+    return {
+        "nodes": nodes,
+        "node_holes": [],
+        "edge_property": "directed",
+        "edges": edges,
+    }
+
+
+def _find_idx_by_key(
+    key: str,
+    command_steps: list[Step],
+    keys: dict[int, str],
+    idx_by_id: dict[int, int],
+) -> int:
+    """Return the node index for the step with the given resolved key."""
+    for s in command_steps:
+        if keys[id(s)] == key:
+            return idx_by_id[id(s)]
+    msg = f"BUG: no step with key {key!r}"
+    raise KeyError(msg)
 
 
 def _topo_collect(leaves: list[Step]) -> list[Step]:

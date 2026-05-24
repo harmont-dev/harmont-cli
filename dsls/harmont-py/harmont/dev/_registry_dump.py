@@ -55,7 +55,7 @@ def _lower_from_step(step: Any) -> dict[str, Any]:
     """
     ir = _assemble(step)
     resolve_pipeline_keys(
-        ir.get("steps", []),
+        ir.get("graph", {}),
         pipeline_org="hm-dev",
         pipeline_slug="hm-dev-build",
         now=0,

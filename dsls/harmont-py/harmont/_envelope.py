@@ -45,7 +45,7 @@ def _render_one(
         raise TypeError(msg) from e
     ir = _assemble(*leaves, env=reg.env, default_image=reg.default_image)
     resolve_pipeline_keys(
-        ir.get("steps", []),
+        ir.get("graph", {}),
         pipeline_org=pipeline_org,
         pipeline_slug=reg.slug,
         now=now,

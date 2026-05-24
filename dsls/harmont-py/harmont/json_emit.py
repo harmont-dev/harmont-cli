@@ -1,12 +1,12 @@
 """Render a chain-DSL pipeline dict to the v0 IR JSON string.
 
-The wire format mirrors harmont-pipeline/src/Harmont/Pipeline/Schema.hs
-exactly. Optional fields are omitted (not null); the only field that
-emits JSON null is `builds_in` for scratch-rooted steps.
+The wire format uses petgraph-serde graph encoding: nodes carry
+CommandStep dicts and edges encode ``builds_in`` / ``depends_on``
+relationships.
 
 Cache keys are resolved in keygen.resolve_pipeline_keys before
 serialization, so the emitted JSON includes `cache.key` for every
-step whose policy is not 'none'.
+node whose policy is not 'none'.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def pipeline_to_json(
 
     body = copy.deepcopy(p)
     resolve_pipeline_keys(
-        body.get("steps", []),
+        body.get("graph", {}),
         pipeline_org=org,
         pipeline_slug=slug,
         now=render_now,
