@@ -1591,6 +1591,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "dirs",
+ "hex",
  "oxc_allocator",
  "oxc_parser",
  "oxc_span",

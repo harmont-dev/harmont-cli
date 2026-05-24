@@ -9,10 +9,12 @@ pub mod detect;
 
 // Feature-gated modules — added as engines are implemented:
 // mod wasm_runtime;   (embedded-python | embedded-typescript)
-// mod runtime_cache;  (embedded-python | embedded-typescript)
 // mod python_engine;  (embedded-python)
 // mod js_engine;      (embedded-typescript)
 // mod ts_preprocess;  (embedded-typescript)
+
+#[cfg(any(feature = "embedded-python", feature = "embedded-typescript"))]
+pub mod runtime_cache;
 
 /// The language a DSL pipeline is written in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
