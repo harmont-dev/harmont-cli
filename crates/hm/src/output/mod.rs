@@ -1,17 +1,3 @@
-/// Write a line to stdout via tracing. Equivalent to `println!`.
-macro_rules! ui_println {
-    () => { ::tracing::info!(target: "user::stdout", "") };
-    ($($arg:tt)*) => { ::tracing::info!(target: "user::stdout", $($arg)*) };
-}
-
-/// Write a line to stderr via tracing. Equivalent to `eprintln!`.
-macro_rules! ui_eprintln {
-    ($($arg:tt)*) => { ::tracing::info!(target: "user::stderr", $($arg)*) };
-}
-
-pub(crate) use ui_eprintln;
-pub(crate) use ui_println;
-
 pub mod cli_layer;
 pub mod format;
 pub mod human;

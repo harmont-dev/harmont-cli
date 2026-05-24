@@ -13,6 +13,7 @@ pub struct CliLayer<O, E> {
 }
 
 impl CliLayer<std::io::Stdout, std::io::Stderr> {
+    #[must_use]
     pub fn real() -> Self {
         Self {
             stdout_sink: Arc::new(Mutex::new(std::io::stdout())),
@@ -71,7 +72,7 @@ where
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::type_complexity)]
 mod tests {
     use super::*;
     use tracing_subscriber::layer::SubscriberExt;
