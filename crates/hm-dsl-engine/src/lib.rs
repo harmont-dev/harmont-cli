@@ -8,10 +8,12 @@ use serde::Deserialize;
 pub mod detect;
 
 // Feature-gated modules — added as engines are implemented:
-// mod wasm_runtime;   (embedded-python | embedded-typescript)
 // mod python_engine;  (embedded-python)
 // mod js_engine;      (embedded-typescript)
 // mod ts_preprocess;  (embedded-typescript)
+
+#[cfg(any(feature = "embedded-python", feature = "embedded-typescript"))]
+pub mod wasm_runtime;
 
 #[cfg(any(feature = "embedded-python", feature = "embedded-typescript"))]
 pub mod runtime_cache;
