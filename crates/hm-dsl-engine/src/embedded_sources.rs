@@ -17,7 +17,7 @@ pub static HARMONT_PY: Dir<'_> =
 ///
 /// Contains `croniter`, `dateutil` (python-dateutil), and `six` — everything
 /// the DSL needs at runtime.
-pub static VENDOR_PACKAGES: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/vendor");
+pub static VENDOR_PACKAGES: Dir<'_> = include_dir!("$VENDOR_DIR");
 
 /// Extract an embedded directory tree to disk.
 ///
