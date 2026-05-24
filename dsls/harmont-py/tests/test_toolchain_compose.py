@@ -10,7 +10,7 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [s["cmd"] for s in p["steps"] if s["type"] == "command"]
+    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def test_stack_npm_on_spec_step():
@@ -79,4 +79,4 @@ def test_mixed_pipeline_compiles():
         default_image="ubuntu:24.04",
     )
     assert p["version"] == "0"
-    assert len(p["steps"]) > 0
+    assert len(p["graph"]["nodes"]) > 0

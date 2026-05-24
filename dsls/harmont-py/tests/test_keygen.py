@@ -1,4 +1,4 @@
-"""Cache-key resolver — direct ports of the Scheme algorithm in
+"""Cache-key resolver -- direct ports of the Scheme algorithm in
 harmont_macros.scm. Keys must be byte-identical to what harmont-eval
 produced pre-removal, so existing cached snapshots remain reachable."""
 
@@ -20,39 +20,47 @@ def _sha256_hex(s: str) -> str:
 NUL = "\x00"
 
 
+def _make_graph(nodes, edges=None):
+    """Build a minimal graph dict for keygen tests."""
+    return {
+        "nodes": nodes,
+        "node_holes": [],
+        "edge_property": "directed",
+        "edges": edges or [],
+    }
+
+
 def test_none_policy_emits_no_key():
-    steps = [
+    graph = _make_graph([
         {
-            "type": "command",
-            "key": "a",
-            "cmd": "echo",
-            "builds_in": None,
-            "cache": {"policy": "none"},
+            "step": {"key": "a", "cmd": "echo", "cache": {"policy": "none"}},
+            "env": {},
         },
-    ]
+    ])
     out = resolve_pipeline_keys(
-        steps,
+        graph,
         pipeline_org="default",
         pipeline_slug="default",
         now=0,
         base_path=Path("/tmp"),  # noqa: S108
         env={},
     )
-    assert "key" not in out[0]["cache"]
+    assert "key" not in out["nodes"][0]["step"]["cache"]
 
 
 def test_forever_policy_key_matches_scheme_formula():
-    steps = [
+    graph = _make_graph([
         {
-            "type": "command",
-            "key": "a",
-            "cmd": "echo hi",
-            "builds_in": None,
-            "cache": {"policy": "forever", "env_keys": []},
+            "step": {
+                "key": "a",
+                "cmd": "echo hi",
+                "cache": {"policy": "forever", "env_keys": []},
+            },
+            "env": {},
         },
-    ]
+    ])
     out = resolve_pipeline_keys(
-        steps,
+        graph,
         pipeline_org="default",
         pipeline_slug="default",
         now=0,
@@ -64,21 +72,22 @@ def test_forever_policy_key_matches_scheme_formula():
     expected = _sha256_hex(
         "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
     )
-    assert out[0]["cache"]["key"] == expected
+    assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
 
 def test_ttl_policy_key_includes_bucket():
-    steps = [
+    graph = _make_graph([
         {
-            "type": "command",
-            "key": "a",
-            "cmd": "x",
-            "builds_in": None,
-            "cache": {"policy": "ttl", "duration_seconds": 3600, "env_keys": []},
+            "step": {
+                "key": "a",
+                "cmd": "x",
+                "cache": {"policy": "ttl", "duration_seconds": 3600, "env_keys": []},
+            },
+            "env": {},
         },
-    ]
+    ])
     out = resolve_pipeline_keys(
-        steps,
+        graph,
         pipeline_org="default",
         pipeline_slug="default",
         now=7200,
@@ -90,24 +99,25 @@ def test_ttl_policy_key_includes_bucket():
     expected = _sha256_hex(
         "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
     )
-    assert out[0]["cache"]["key"] == expected
+    assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
 
 def test_on_change_reads_file_contents():
     with tempfile.TemporaryDirectory() as d:
         f = Path(d) / "file.txt"
         f.write_bytes(b"hello")
-        steps = [
+        graph = _make_graph([
             {
-                "type": "command",
-                "key": "a",
-                "cmd": "make",
-                "builds_in": None,
-                "cache": {"policy": "on_change", "paths": ["file.txt"]},
+                "step": {
+                    "key": "a",
+                    "cmd": "make",
+                    "cache": {"policy": "on_change", "paths": ["file.txt"]},
+                },
+                "env": {},
             },
-        ]
+        ])
         out = resolve_pipeline_keys(
-            steps,
+            graph,
             pipeline_org="default",
             pipeline_slug="default",
             now=0,
@@ -120,7 +130,7 @@ def test_on_change_reads_file_contents():
         expected = _sha256_hex(
             "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
         )
-        assert out[0]["cache"]["key"] == expected
+        assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
 
 def test_on_change_handles_directory_paths():
@@ -135,63 +145,85 @@ def test_on_change_handles_directory_paths():
         (sub / "a.txt").write_bytes(b"alpha")
         (sub / "b.txt").write_bytes(b"beta")
 
-        steps = [
+        graph = _make_graph([
             {
-                "type": "command",
-                "key": "s",
-                "cmd": "make",
-                "builds_in": None,
-                "cache": {"policy": "on_change", "paths": ["dir/"]},
+                "step": {
+                    "key": "s",
+                    "cmd": "make",
+                    "cache": {"policy": "on_change", "paths": ["dir/"]},
+                },
+                "env": {},
             },
-        ]
+        ])
         out1 = resolve_pipeline_keys(
-            list(steps),
+            graph,
             pipeline_org="default",
             pipeline_slug="default",
             now=0,
             base_path=root,
             env={},
         )
-        key1 = out1[0]["cache"]["key"]
+        key1 = out1["nodes"][0]["step"]["cache"]["key"]
 
-        # Same tree → same key.
+        # Same tree -> same key.
+        graph2 = _make_graph([
+            {
+                "step": {
+                    "key": "s",
+                    "cmd": "make",
+                    "cache": {"policy": "on_change", "paths": ["dir/"]},
+                },
+                "env": {},
+            },
+        ])
         out_again = resolve_pipeline_keys(
-            [dict(s, cache=dict(s["cache"])) for s in steps],
+            graph2,
             pipeline_org="default",
             pipeline_slug="default",
             now=0,
             base_path=root,
             env={},
         )
-        assert out_again[0]["cache"]["key"] == key1
+        assert out_again["nodes"][0]["step"]["cache"]["key"] == key1
 
-        # Modify a file → key changes.
+        # Modify a file -> key changes.
         (sub / "a.txt").write_bytes(b"alpha2")
+        graph3 = _make_graph([
+            {
+                "step": {
+                    "key": "s",
+                    "cmd": "make",
+                    "cache": {"policy": "on_change", "paths": ["dir/"]},
+                },
+                "env": {},
+            },
+        ])
         out2 = resolve_pipeline_keys(
-            [dict(s, cache=dict(s["cache"])) for s in steps],
+            graph3,
             pipeline_org="default",
             pipeline_slug="default",
             now=0,
             base_path=root,
             env={},
         )
-        assert out2[0]["cache"]["key"] != key1
+        assert out2["nodes"][0]["step"]["cache"]["key"] != key1
 
 
 def test_on_change_missing_path_raises():
     with tempfile.TemporaryDirectory() as d:
-        steps = [
+        graph = _make_graph([
             {
-                "type": "command",
-                "key": "s",
-                "cmd": "make",
-                "builds_in": None,
-                "cache": {"policy": "on_change", "paths": ["nope/"]},
+                "step": {
+                    "key": "s",
+                    "cmd": "make",
+                    "cache": {"policy": "on_change", "paths": ["nope/"]},
+                },
+                "env": {},
             },
-        ]
+        ])
         with pytest.raises(FileNotFoundError, match="on_change path does not exist"):
             resolve_pipeline_keys(
-                steps,
+                graph,
                 pipeline_org="default",
                 pipeline_slug="default",
                 now=0,
@@ -201,17 +233,18 @@ def test_on_change_missing_path_raises():
 
 
 def test_env_keys_are_sorted_and_picked_up():
-    steps = [
+    graph = _make_graph([
         {
-            "type": "command",
-            "key": "a",
-            "cmd": "echo",
-            "builds_in": None,
-            "cache": {"policy": "forever", "env_keys": ["BAR", "FOO"]},
+            "step": {
+                "key": "a",
+                "cmd": "echo",
+                "cache": {"policy": "forever", "env_keys": ["BAR", "FOO"]},
+            },
+            "env": {},
         },
-    ]
+    ])
     out = resolve_pipeline_keys(
-        steps,
+        graph,
         pipeline_org="default",
         pipeline_slug="default",
         now=0,
@@ -224,61 +257,67 @@ def test_env_keys_are_sorted_and_picked_up():
     expected = _sha256_hex(
         "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
     )
-    assert out[0]["cache"]["key"] == expected
+    assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
 
 def test_parent_key_chains_through_resolved_cache_keys():
-    steps = [
-        {
-            "type": "command",
-            "key": "a",
-            "cmd": "x",
-            "builds_in": None,
-            "cache": {"policy": "forever", "env_keys": []},
-        },
-        {
-            "type": "command",
-            "key": "b",
-            "cmd": "y",
-            "builds_in": "a",
-            "cache": {"policy": "forever", "env_keys": []},
-        },
-    ]
+    graph = _make_graph(
+        [
+            {
+                "step": {
+                    "key": "a",
+                    "cmd": "x",
+                    "cache": {"policy": "forever", "env_keys": []},
+                },
+                "env": {},
+            },
+            {
+                "step": {
+                    "key": "b",
+                    "cmd": "y",
+                    "cache": {"policy": "forever", "env_keys": []},
+                },
+                "env": {},
+            },
+        ],
+        edges=[[0, 1, "builds_in"]],
+    )
     out = resolve_pipeline_keys(
-        steps,
+        graph,
         pipeline_org="default",
         pipeline_slug="default",
         now=0,
         base_path=Path("/tmp"),  # noqa: S108
         env={},
     )
-    parent_key = out[0]["cache"]["key"]
+    parent_key = out["nodes"][0]["step"]["cache"]["key"]
     inner_b = _sha256_hex("y" + NUL + "")
     policy_res = "forever-" + inner_b
     expected_b = _sha256_hex(
         "default" + NUL + "default" + NUL + "b" + NUL + parent_key + NUL + policy_res
     )
-    assert out[1]["cache"]["key"] == expected_b
+    assert out["nodes"][1]["step"]["cache"]["key"] == expected_b
 
 
 def test_compose_concatenates_subpolicies():
-    steps = [
+    graph = _make_graph([
         {
-            "type": "command",
-            "key": "a",
-            "cmd": "z",
-            "builds_in": None,
-            "cache": {
-                "policy": "compose",
-                "sub_policies": [
-                    {"policy": "forever", "env_keys": []},
-                    {"policy": "none"},
-                ],
+            "step": {
+                "key": "a",
+                "cmd": "z",
+                "cache": {
+                    "policy": "compose",
+                    "sub_policies": [
+                        {"policy": "forever", "env_keys": []},
+                        {"policy": "none"},
+                    ],
+                },
             },
+            "env": {},
         },
-    ]
+    ])
     out = resolve_pipeline_keys(
-        steps,
+        graph,
         pipeline_org="default",
         pipeline_slug="default",
         now=0,
@@ -293,23 +332,30 @@ def test_compose_concatenates_subpolicies():
     expected = _sha256_hex(
         "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
     )
-    assert out[0]["cache"]["key"] == expected
+    assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
 
 def test_parent_without_cache_is_planerror():
-    steps = [
-        {"type": "command", "key": "a", "cmd": "x", "builds_in": None},
-        {
-            "type": "command",
-            "key": "b",
-            "cmd": "y",
-            "builds_in": "a",
-            "cache": {"policy": "forever", "env_keys": []},
-        },
-    ]
+    graph = _make_graph(
+        [
+            {
+                "step": {"key": "a", "cmd": "x"},
+                "env": {},
+            },
+            {
+                "step": {
+                    "key": "b",
+                    "cmd": "y",
+                    "cache": {"policy": "forever", "env_keys": []},
+                },
+                "env": {},
+            },
+        ],
+        edges=[[0, 1, "builds_in"]],
+    )
     with pytest.raises(ValueError, match="builds_in 'a' which has no cached key"):
         resolve_pipeline_keys(
-            steps,
+            graph,
             pipeline_org="default",
             pipeline_slug="default",
             now=0,

@@ -19,14 +19,18 @@ def _reset():
     clear_target_cache()
 
 
+def _graph_nodes(definition):
+    return definition["graph"]["nodes"]
+
+
 def test_zero_param_pipeline_still_works():
     @hm.pipeline("ci")
     def ci() -> hm.Step:
         return hm.sh("echo hi")
 
     out = json.loads(hm.dump_registry_json())
-    steps = out["pipelines"][0]["definition"]["steps"]
-    assert any(s.get("cmd") == "echo hi" for s in steps)
+    nodes = _graph_nodes(out["pipelines"][0]["definition"])
+    assert any(n["step"].get("cmd") == "echo hi" for n in nodes)
 
 
 def test_pipeline_receives_target_as_param():
@@ -39,8 +43,8 @@ def test_pipeline_receives_target_as_param():
         return apt_base.sh("smoke")
 
     out = json.loads(hm.dump_registry_json())
-    steps = out["pipelines"][0]["definition"]["steps"]
-    cmds = [s.get("cmd") for s in steps]
+    nodes = _graph_nodes(out["pipelines"][0]["definition"])
+    cmds = [n["step"].get("cmd") for n in nodes]
     assert "apt-get update" in cmds
     assert "smoke" in cmds
 
@@ -66,10 +70,10 @@ def test_pipeline_multi_param_composes_targets():
         return (api, py_test)
 
     out = json.loads(hm.dump_registry_json())
-    steps = out["pipelines"][0]["definition"]["steps"]
-    apt = [s for s in steps if s.get("cmd") == "apt-get update"]
+    nodes = _graph_nodes(out["pipelines"][0]["definition"])
+    apt = [n for n in nodes if n["step"].get("cmd") == "apt-get update"]
     assert len(apt) == 1  # apt_base deduped via target memoization
-    cmds = sorted(s.get("cmd") for s in steps if s.get("type") == "command")
+    cmds = sorted(n["step"].get("cmd") for n in nodes)
     assert "cabal build" in cmds
     assert "pytest" in cmds
 

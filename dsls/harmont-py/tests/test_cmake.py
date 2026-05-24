@@ -7,7 +7,7 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [s["cmd"] for s in p["steps"] if s["type"] == "command"]
+    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def test_cmake_object_form_full_chain():

@@ -81,7 +81,7 @@ def test_dump_step_chain_emits_pipeline_v0_ir():
     f = out["deployments"]["api"]["from"]
     assert f["type"] == "step_chain"
     assert f["pipeline_v0"]["version"] == "0"
-    assert f["pipeline_v0"]["steps"][0]["cmd"] == "echo build"
+    assert f["pipeline_v0"]["graph"]["nodes"][0]["step"]["cmd"] == "echo build"
 
 
 def test_dump_non_local_driver_is_marked_unhandled():

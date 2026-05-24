@@ -1,4 +1,4 @@
-"""Envelope JSON shape — what api/cli consume."""
+"""Envelope JSON shape -- what api/cli consume."""
 
 import json
 
@@ -21,6 +21,36 @@ def _reset_registry():
     clear_target_names()
 
 
+def _graph_nodes(definition):
+    return definition["graph"]["nodes"]
+
+
+def _graph_edges(definition):
+    return definition["graph"]["edges"]
+
+
+def _step_cmds(definition):
+    return [n["step"].get("cmd") for n in _graph_nodes(definition)]
+
+
+def _builds_in_children(definition, parent_key):
+    """Return nodes whose builds_in parent is parent_key."""
+    nodes = _graph_nodes(definition)
+    key_by_idx = {i: n["step"]["key"] for i, n in enumerate(nodes)}
+    parent_idx = None
+    for i, n in enumerate(nodes):
+        if n["step"]["key"] == parent_key:
+            parent_idx = i
+            break
+    if parent_idx is None:
+        return []
+    children = []
+    for src, dst, kind in _graph_edges(definition):
+        if kind == "builds_in" and src == parent_idx:
+            children.append(nodes[dst])
+    return children
+
+
 def test_empty_registry_emits_empty_pipelines_list():
     out = json.loads(hm.dump_registry_json())
     assert out == {"schema_version": "1", "pipelines": []}
@@ -41,11 +71,10 @@ def test_single_pipeline_no_triggers():
     assert p["triggers"] == []
     definition = p["definition"]
     assert definition["version"] == "0"
-    steps = definition["steps"]
-    assert len(steps) == 1
-    assert steps[0]["type"] == "command"
-    assert steps[0]["cmd"] == "echo hi"
-    assert steps[0]["label"] == "hi"
+    nodes = _graph_nodes(definition)
+    assert len(nodes) == 1
+    assert nodes[0]["step"]["cmd"] == "echo hi"
+    assert nodes[0]["step"]["label"] == "hi"
 
 
 def test_pipeline_with_triggers():
@@ -81,7 +110,7 @@ def test_pipeline_with_tuple_leaves():
 
     out = json.loads(hm.dump_registry_json())
     p = out["pipelines"][0]
-    cmds = sorted(s["cmd"] for s in p["definition"]["steps"] if s["type"] == "command")
+    cmds = sorted(n["step"]["cmd"] for n in _graph_nodes(p["definition"]))
     assert cmds == ["a", "b"]
 
 
@@ -93,7 +122,9 @@ def test_pipeline_forwards_env_and_default_image_to_assemble():
     out = json.loads(hm.dump_registry_json())
     definition = out["pipelines"][0]["definition"]
     assert definition["default_image"] == "alpine:3.20"
-    assert definition["env"] == {"CI": "true"}
+    # Pipeline-level env is merged into node env dicts.
+    for node in _graph_nodes(definition):
+        assert node["env"].get("CI") == "true"
 
 
 def test_envelope_resolves_cache_keys(tmp_path):
@@ -109,7 +140,7 @@ def test_envelope_resolves_cache_keys(tmp_path):
             env={},
         )
     )
-    step = out["pipelines"][0]["definition"]["steps"][0]
+    step = _graph_nodes(out["pipelines"][0]["definition"])[0]["step"]
     assert step["cache"]["policy"] == "forever"
     assert "key" in step["cache"]
     assert len(step["cache"]["key"]) == 64
@@ -125,8 +156,8 @@ def test_envelope_auto_unwraps_haskell_package(tmp_path, monkeypatch):
         return hm.haskell(ghc="9.6.7").cabal(path="api")
 
     out = json.loads(hm.dump_registry_json())
-    steps = out["pipelines"][0]["definition"]["steps"]
-    cmds = [s.get("cmd") for s in steps if s.get("type") == "command"]
+    nodes = _graph_nodes(out["pipelines"][0]["definition"])
+    cmds = [n["step"].get("cmd") for n in nodes]
     assert any("cabal build all" in (c or "") for c in cmds)
 
 
@@ -148,12 +179,13 @@ def test_envelope_composes_targets_with_dedup(tmp_path, monkeypatch):
         )
 
     out = json.loads(hm.dump_registry_json())
-    steps = out["pipelines"][0]["definition"]["steps"]
-    apt_steps = [s for s in steps if s.get("cmd") == "apt-get update"]
-    assert len(apt_steps) == 1  # deduplicated via target memoization
-    children = [s for s in steps if s.get("builds_in") == apt_steps[0]["key"]]
+    definition = out["pipelines"][0]["definition"]
+    nodes = _graph_nodes(definition)
+    apt_nodes = [n for n in nodes if n["step"].get("cmd") == "apt-get update"]
+    assert len(apt_nodes) == 1  # deduplicated via target memoization
+    children = _builds_in_children(definition, apt_nodes[0]["step"]["key"])
     assert len(children) == 2
-    child_cmds = sorted(s["cmd"] for s in children)
+    child_cmds = sorted(n["step"]["cmd"] for n in children)
     assert child_cmds == ["cabal build", "pytest"]
 
 

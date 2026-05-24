@@ -1,9 +1,8 @@
-"""Lowering: walk leaves back to scratch, topo-sort, emit JSON-shaped dicts.
+"""Lowering: walk leaves back to scratch, topo-sort, emit graph-format dicts.
 
-The lowering pass returns intermediate Python dicts (the same shape
-the JSON IR will have, before the codegen pass produces Scheme). This
-test asserts on that intermediate, not on Scheme strings — Scheme
-output is covered by test_codegen.py.
+The lowering pass returns an intermediate Python dict (the petgraph-serde
+graph shape the JSON IR will have). This test asserts on that
+intermediate graph structure.
 """
 
 from __future__ import annotations
@@ -11,28 +10,61 @@ from __future__ import annotations
 import pytest
 
 from harmont._step import scratch, wait
-from harmont.pipeline import _lower_to_dicts, pipeline
+from harmont.pipeline import _lower_to_graph, pipeline
 
 
-def test_single_chain_emits_three_command_dicts_in_parent_order():
+def _nodes(graph: dict) -> list[dict]:
+    return graph["nodes"]
+
+
+def _edges(graph: dict) -> list[list]:
+    return graph["edges"]
+
+
+def _step_keys(graph: dict) -> list[str]:
+    return [n["step"]["key"] for n in graph["nodes"]]
+
+
+def _builds_in_edges(graph: dict) -> list[tuple[int, int]]:
+    return [(src, dst) for src, dst, kind in graph["edges"] if kind == "builds_in"]
+
+
+def _depends_on_edges(graph: dict) -> list[tuple[int, int]]:
+    return [(src, dst) for src, dst, kind in graph["edges"] if kind == "depends_on"]
+
+
+def _parent_key_map(graph: dict) -> dict[str, str | None]:
+    """Return {child_key: parent_key} for builds_in edges."""
+    key_by_idx = {i: n["step"]["key"] for i, n in enumerate(graph["nodes"])}
+    result: dict[str, str | None] = {}
+    # Start with all keys having no parent.
+    for n in graph["nodes"]:
+        result[n["step"]["key"]] = None
+    for src, dst, kind in graph["edges"]:
+        if kind == "builds_in":
+            result[key_by_idx[dst]] = key_by_idx[src]
+    return result
+
+
+def test_single_chain_emits_three_command_nodes_in_parent_order():
     a = scratch().sh("step a", label="a")
     b = a.sh("step b", label="b")
     c = b.sh("step c", label="c")
-    dicts = _lower_to_dicts([c])
-    assert [d["type"] for d in dicts] == ["command", "command", "command"]
-    assert [d["key"] for d in dicts] == ["a", "b", "c"]
-    assert dicts[0]["builds_in"] is None
-    assert dicts[1]["builds_in"] == "a"
-    assert dicts[2]["builds_in"] == "b"
+    graph = _lower_to_graph([c])
+    assert _step_keys(graph) == ["a", "b", "c"]
+    parents = _parent_key_map(graph)
+    assert parents["a"] is None
+    assert parents["b"] == "a"
+    assert parents["c"] == "b"
 
 
 def test_fork_node_is_not_emitted_children_inherit_grandparent():
     base = scratch().sh("install", label="install")
     branch = base.fork(label="branch-a")
     leaf = branch.sh("test", label="test")
-    dicts = _lower_to_dicts([leaf])
-    keys = [d["key"] for d in dicts]
-    parents = {d["key"]: d["builds_in"] for d in dicts}
+    graph = _lower_to_graph([leaf])
+    keys = _step_keys(graph)
+    parents = _parent_key_map(graph)
     assert keys == ["install", "test"]
     assert parents["install"] is None
     assert parents["test"] == "install"
@@ -42,32 +74,28 @@ def test_two_branches_share_parent_key():
     base = scratch().sh("install", label="install")
     a = base.fork(label="a").sh("test-a", label="test-a")
     b = base.fork(label="b").sh("test-b", label="test-b")
-    dicts = _lower_to_dicts([a, b])
-    parents = {d["key"]: d["builds_in"] for d in dicts}
+    graph = _lower_to_graph([a, b])
+    parents = _parent_key_map(graph)
     assert parents["test-a"] == "install"
     assert parents["test-b"] == "install"
 
 
-def test_wait_step_emitted_in_position():
+def test_wait_step_emitted_as_depends_on_edges():
     a = scratch().sh("a", label="a")
     b = scratch().sh("b", label="b")
     c = scratch().sh("c", label="c")
-    dicts = _lower_to_dicts([a, b, wait(), c])
-    types = [d["type"] for d in dicts]
-    assert "wait" in types
-    wait_idx = types.index("wait")
-    keys_before = [d["key"] for d in dicts[:wait_idx]]
-    keys_after = [d["key"] for d in dicts[wait_idx + 1 :]]
-    assert "a" in keys_before
-    assert "b" in keys_before
-    assert "c" in keys_after
-
-
-def test_wait_continue_on_failure_carried_through():
-    a = scratch().sh("a", label="a")
-    dicts = _lower_to_dicts([a, wait(continue_on_failure=True)])
-    wait_dict = next(d for d in dicts if d["type"] == "wait")
-    assert wait_dict["continue_on_failure"] is True
+    graph = _lower_to_graph([a, b, wait(), c])
+    keys = _step_keys(graph)
+    assert "a" in keys
+    assert "b" in keys
+    assert "c" in keys
+    # c should have depends_on edges from a and b.
+    depends_on = _depends_on_edges(graph)
+    idx_a = keys.index("a")
+    idx_b = keys.index("b")
+    idx_c = keys.index("c")
+    assert (idx_a, idx_c) in depends_on
+    assert (idx_b, idx_c) in depends_on
 
 
 def test_command_includes_label_env_timeout_when_set():
@@ -77,25 +105,27 @@ def test_command_includes_label_env_timeout_when_set():
         env={"CI": "true"},
         timeout_seconds=600,
     )
-    dicts = _lower_to_dicts([s])
-    assert dicts[0]["label"] == "build"
-    assert dicts[0]["env"] == {"CI": "true"}
-    assert dicts[0]["timeout_seconds"] == 600
+    graph = _lower_to_graph([s])
+    node = graph["nodes"][0]
+    assert node["step"]["label"] == "build"
+    assert node["env"] == {"CI": "true"}
+    assert node["step"]["timeout_seconds"] == 600
 
 
 def test_command_omits_optional_fields_when_unset():
     s = scratch().sh("make")
-    d = _lower_to_dicts([s])[0]
+    graph = _lower_to_graph([s])
+    step = graph["nodes"][0]["step"]
     # Required fields present.
-    assert d["type"] == "command"
-    assert "key" in d
-    assert "cmd" in d
-    assert "builds_in" in d
+    assert "key" in step
+    assert "cmd" in step
+    # No "type" or "builds_in" fields in the new format.
+    assert "type" not in step
+    assert "builds_in" not in step
     # Optional fields omitted (not None) when unset.
-    assert "label" not in d
-    assert "env" not in d
-    assert "timeout_seconds" not in d
-    assert "cache" not in d
+    assert "label" not in step
+    assert "timeout_seconds" not in step
+    assert "cache" not in step
 
 
 def test_pipeline_factory_collects_reachable_via_parent():
@@ -103,9 +133,11 @@ def test_pipeline_factory_collects_reachable_via_parent():
     leaf_a = base.fork(label="a").sh("test-a", label="test-a")
     leaf_b = base.fork(label="b").sh("test-b", label="test-b")
     p = pipeline(leaf_a, leaf_b, env={"CI": "true"})
-    keys = [s["key"] for s in p["steps"]]
+    keys = _step_keys(p["graph"])
     assert set(keys) == {"install", "test-a", "test-b"}
-    assert p["env"] == {"CI": "true"}
+    # Pipeline-level env is merged into every node.
+    for node in p["graph"]["nodes"]:
+        assert "CI" in node["env"]
     assert p["version"] == "0"
 
 
@@ -119,6 +151,6 @@ def test_dedup_when_step_reachable_from_multiple_leaves():
     a = base.sh("a", label="a")
     b = base.sh("b", label="b")
     p = pipeline(a, b)
-    keys = [s["key"] for s in p["steps"]]
+    keys = _step_keys(p["graph"])
     # `install` appears once even though it's reachable from both leaves.
     assert keys.count("install") == 1

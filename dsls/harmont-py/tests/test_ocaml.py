@@ -7,13 +7,13 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [s["cmd"] for s in p["steps"] if s["type"] == "command"]
+    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
-    for s in p["steps"]:
-        if s.get("type") == "command" and needle in (s.get("cmd") or ""):
-            return s
+    for n in p["graph"]["nodes"]:
+        if needle in (n["step"].get("cmd") or ""):
+            return n["step"]
     raise AssertionError(needle)
 
 

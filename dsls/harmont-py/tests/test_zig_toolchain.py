@@ -8,7 +8,7 @@ from harmont.zig import ZigProject, ZigToolchain
 
 
 def test_zig_no_path_returns_toolchain() -> None:
-    """hm.zig() (without path=) returns a ZigToolchain — not a ZigProject."""
+    """hm.zig() (without path=) returns a ZigToolchain -- not a ZigProject."""
     tc = hm.zig()
     assert isinstance(tc, ZigToolchain)
 
@@ -64,18 +64,31 @@ def test_pipeline_with_shared_toolchain_emits_one_install() -> None:
         return (lib_a.build(), lib_b.build())
 
     envelope = json.loads(hm.dump_registry_json())
-    steps = envelope["pipelines"][0]["definition"]["steps"]
-    zig_installs = [s for s in steps if s.get("label") == ":zig: install"]
+    definition = envelope["pipelines"][0]["definition"]
+    nodes = definition["graph"]["nodes"]
+    edges = definition["graph"]["edges"]
+
+    zig_installs = [n for n in nodes if n["step"].get("label") == ":zig: install"]
     assert len(zig_installs) == 1, (
-        f"expected exactly one :zig: install step, got "
-        f"{[s['key'] for s in zig_installs]}"
+        f"expected exactly one :zig: install node, got "
+        f"{[n['step']['key'] for n in zig_installs]}"
     )
 
-    install_key = zig_installs[0]["key"]
-    lib_a_build = next(s for s in steps if "lib-a" in (s.get("label") or ""))
-    lib_b_build = next(s for s in steps if "lib-b" in (s.get("label") or ""))
-    assert lib_a_build["builds_in"] == install_key
-    assert lib_b_build["builds_in"] == install_key
+    install_key = zig_installs[0]["step"]["key"]
+    lib_a_build = next(n for n in nodes if "lib-a" in (n["step"].get("label") or ""))
+    lib_b_build = next(n for n in nodes if "lib-b" in (n["step"].get("label") or ""))
+
+    # Verify builds_in edges connect install to both builds.
+    key_by_idx = {i: n["step"]["key"] for i, n in enumerate(nodes)}
+    idx_by_key = {v: k for k, v in key_by_idx.items()}
+
+    install_idx = idx_by_key[install_key]
+    lib_a_idx = idx_by_key[lib_a_build["step"]["key"]]
+    lib_b_idx = idx_by_key[lib_b_build["step"]["key"]]
+
+    builds_in_edges = [(s, d) for s, d, k in edges if k == "builds_in"]
+    assert (install_idx, lib_a_idx) in builds_in_edges
+    assert (install_idx, lib_b_idx) in builds_in_edges
 
     reg.clear_registry()
     targets.clear_target_cache()

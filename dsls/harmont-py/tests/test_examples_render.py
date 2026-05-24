@@ -63,8 +63,8 @@ def test_example_renders_to_v0_ir(
     )
     definition = ci_pipeline["definition"]
     assert definition["version"] == "0"
-    assert definition.get("steps"), (
-        f"{example_dir.name}: ci pipeline has no steps"
+    assert definition.get("graph", {}).get("nodes"), (
+        f"{example_dir.name}: ci pipeline has no nodes"
     )
     assert definition.get("default_image"), (
         f"{example_dir.name}: ci pipeline missing default_image — local "
