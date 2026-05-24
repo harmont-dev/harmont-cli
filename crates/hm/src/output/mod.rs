@@ -1,4 +1,3 @@
-pub mod format;
 pub mod human;
 pub mod json;
 pub mod spinner;

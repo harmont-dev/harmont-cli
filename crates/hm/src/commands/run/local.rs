@@ -5,7 +5,6 @@ use anyhow::{Context, Result};
 use super::render::{ToolPaths, list_pipelines, render_pipeline_json};
 use crate::cli::RunArgs;
 use crate::context::RunContext;
-use crate::output::format::banner;
 use crate::runner::{RunnerRegistry, docker::DockerRunner};
 
 /// Execute a v0 IR pipeline locally; return the final container id.
@@ -88,10 +87,6 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
             ),
         }
     };
-
-    if args.format == "human" {
-        banner("run --local", &format!("slug={slug}"));
-    }
 
     let json = render_pipeline_json(&tools, &repo_root, &slug).await?;
     let graph = decode_plan_to_wire(&json)?;
