@@ -31,7 +31,7 @@ reqwest    = { version = "0.13", default-features = false, features = ["stream",
 
 # Feature-gated
 wasmtime      = { version = "33", default-features = false, features = ["cranelift", "cache"], optional = true }
-wasmtime-wasi = { version = "33", default-features = false, optional = true }
+wasmtime-wasi = { version = "33", default-features = false, features = ["preview1"], optional = true }
 oxc_transformer = { version = "0.100", optional = true }
 oxc_allocator   = { version = "0.100", optional = true }
 oxc_parser      = { version = "0.100", optional = true }
