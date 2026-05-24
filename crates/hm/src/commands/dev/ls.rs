@@ -18,14 +18,14 @@ use super::registry::{RegEntry, dump};
 ///
 /// Returns an error if the worktree root cannot be resolved or the
 /// registry subprocess fails.
-#[allow(clippy::print_stdout, reason = "`hm dev ls` is a table-printing command")]
 pub async fn handle(_ctx: RunContext) -> Result<i32> {
     let worktree_root = resolve_worktree_root()?;
     let wt_hash = worktree_hash(&worktree_root);
     let registry = dump(&worktree_root).await?;
     let docker = DockerClient::connect().ok();
 
-    println!(
+    tracing::info!(
+        target: "user::stdout",
         "{:<10} {:<8} {:<10} {:<10} PORTS",
         "SLUG", "DRIVER", "SESSION", "STATUS"
     );
@@ -59,21 +59,24 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
                     if s == slug {
                         matched = true;
                         let ports_s = format_ports(ports);
-                        println!(
+                        tracing::info!(
+                            target: "user::stdout",
                             "{slug:<10} {:<8} {:<10} {:<10} {ports_s}",
                             "local", sess, state
                         );
                     }
                 }
                 if !matched {
-                    println!(
+                    tracing::info!(
+                        target: "user::stdout",
                         "{slug:<10} {:<8} {:<10} {:<10} \u{2014}",
                         "local", "\u{2014}", "registered"
                     );
                 }
             }
             RegEntry::Unhandled => {
-                println!(
+                tracing::info!(
+                    target: "user::stdout",
                     "{slug:<10} {:<8} {:<10} {:<10} (no local driver)",
                     "?", "\u{2014}", "registered"
                 );

@@ -16,11 +16,6 @@ use super::naming::{
 ///
 /// Returns an error if Docker is unreachable or if the registry subprocess
 /// invocation fails.
-#[allow(
-    clippy::print_stderr,
-    reason = "user-facing error messages for a foreground CLI"
-)]
-#[allow(clippy::print_stdout, reason = "`hm dev port-of` prints the port to stdout for $() use")]
 pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
     let docker = DockerClient::connect()?;
     let worktree_root = resolve_worktree_root()?;
@@ -47,14 +42,16 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
         // Was the slug registered at all?
         match super::registry::dump(&worktree_root).await {
             Ok(reg) if reg.deployments.contains_key(&args.slug) => {
-                eprintln!(
+                tracing::info!(
+                    target: "user::stderr",
                     "hm: slug `{}` registered but not running in this worktree.\n  → run `hm dev up {}` first.",
                     args.slug, args.slug,
                 );
                 return Ok(4);
             }
             _ => {
-                eprintln!(
+                tracing::info!(
+                    target: "user::stderr",
                     "hm: slug `{}` not registered in this worktree's .harmont/.\n  → run `hm dev ls` to see registered slugs.",
                     args.slug,
                 );
@@ -63,24 +60,25 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
         }
     }
     if matches.len() > 1 {
-        eprintln!("hm: slug `{}` matches multiple live sessions in this worktree:", args.slug);
+        tracing::info!(target: "user::stderr", "hm: slug `{}` matches multiple live sessions in this worktree:", args.slug);
         for (_, sess, ports) in &matches {
             let p = format_ports(ports);
-            eprintln!("  {sess}  {p}");
+            tracing::info!(target: "user::stderr", "  {sess}  {p}");
         }
-        eprintln!("pass `--session <id>` or run `hm dev ls`.");
+        tracing::info!(target: "user::stderr", "pass `--session <id>` or run `hm dev ls`.");
         return Ok(5);
     }
 
     let (_, _, ports) = &matches[0];
     let Some(host_port) = ports.get(&args.container_port) else {
-        eprintln!(
+        tracing::info!(
+            target: "user::stderr",
             "hm: container port `{}` is not published by `{}`.\n  → check the deployment's port_mapping.",
             args.container_port, args.slug,
         );
         return Ok(5);
     };
-    println!("{host_port}");
+    tracing::info!(target: "user::stdout", "{host_port}");
     Ok(0)
 }
 

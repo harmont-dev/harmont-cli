@@ -19,10 +19,6 @@ use super::naming::{
 /// # Errors
 ///
 /// Returns an error if Docker is unreachable.
-#[allow(
-    clippy::print_stderr,
-    reason = "user-facing error messages for a foreground CLI"
-)]
 pub async fn handle(args: DevLogsArgs, _ctx: RunContext) -> Result<i32> {
     let docker = DockerClient::connect()?;
     let worktree_root = resolve_worktree_root()?;
@@ -45,14 +41,16 @@ pub async fn handle(args: DevLogsArgs, _ctx: RunContext) -> Result<i32> {
         }
     }
     if matches.is_empty() {
-        eprintln!(
+        tracing::info!(
+            target: "user::stderr",
             "hm: slug `{}` is not running in this worktree.\n  → run `hm dev up {}` first.",
             args.slug, args.slug,
         );
         return Ok(4);
     }
     if matches.len() > 1 {
-        eprintln!(
+        tracing::info!(
+            target: "user::stderr",
             "hm: slug `{}` matches multiple live sessions; pass --session <id>",
             args.slug
         );
