@@ -41,7 +41,6 @@ async fn list(client: &Client, org: &str, pipe: &str, build: i64) -> Result<()> 
         .await?;
     for j in &jobs.data {
         tracing::info!(
-            target: "user::stdout",
             "{}  {:<10}  {}",
             j.id,
             j.state,
@@ -58,7 +57,6 @@ async fn show(client: &Client, org: &str, pipe: &str, build: i64, jid: &str) -> 
         ))
         .await?;
     tracing::info!(
-        target: "user::stdout",
         "{}",
         serde_json::to_string_pretty(&j).unwrap_or_default()
     );
@@ -72,7 +70,7 @@ async fn log_cmd(client: &Client, org: &str, pipe: &str, build: i64, jid: &str) 
         ))
         .await?;
     for chunk in &log.data {
-        tracing::info!(target: "user::stdout", "{}", chunk.line);
+        tracing::info!("{}", chunk.line);
     }
     Ok(())
 }

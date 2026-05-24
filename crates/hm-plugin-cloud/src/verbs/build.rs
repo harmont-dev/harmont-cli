@@ -32,7 +32,6 @@ async fn list(client: &Client, org: &str, pipe: &str) -> Result<()> {
         .await?;
     for b in &builds.data {
         tracing::info!(
-            target: "user::stdout",
             "#{:<5} {:<10} {}",
             b.number,
             b.state,
@@ -49,7 +48,7 @@ async fn show(client: &Client, org: &str, pipe: &str, number: i64) -> Result<()>
         ))
         .await?;
     let json = serde_json::to_string_pretty(&b).unwrap_or_default();
-    tracing::info!(target: "user::stdout", "{json}");
+    tracing::info!("{json}");
     Ok(())
 }
 
@@ -60,7 +59,7 @@ async fn cancel(client: &Client, org: &str, pipe: &str, number: i64) -> Result<(
             &serde_json::json!({}),
         )
         .await?;
-    tracing::info!(target: "user::stderr", "build #{number} cancelled");
+    tracing::info!("build #{number} cancelled");
     Ok(())
 }
 
@@ -73,7 +72,7 @@ async fn watch(client: &Client, org: &str, pipe: &str, number: i64) -> Result<()
             ))
             .await?;
         if b.state != last_state {
-            tracing::info!(target: "user::stderr", "state: {last_state} -> {}", b.state);
+            tracing::info!("state: {last_state} -> {}", b.state);
             last_state = b.state.clone();
         }
         match b.state.as_str() {

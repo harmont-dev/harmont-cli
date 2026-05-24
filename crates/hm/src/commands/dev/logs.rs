@@ -43,16 +43,14 @@ pub async fn handle(args: DevLogsArgs, _ctx: RunContext) -> Result<i32> {
         }
     }
     if matches.is_empty() {
-        tracing::info!(
-            target: "user::stderr",
+        tracing::error!(
             "hm: slug `{}` is not running in this worktree.\n  → run `hm dev up {}` first.",
             args.slug, args.slug,
         );
         return Ok(4);
     }
     if matches.len() > 1 {
-        tracing::info!(
-            target: "user::stderr",
+        tracing::error!(
             "hm: slug `{}` matches multiple live sessions; pass --session <id>",
             args.slug
         );

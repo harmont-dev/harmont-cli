@@ -32,6 +32,6 @@ async fn switch(client: &Client, slug: &str) -> Result<()> {
     let mut state = CloudState::load();
     state.active_org = Some(found.slug.clone());
     state.save();
-    tracing::info!(target: "user::stderr", "active organization: {} ({})", found.name, found.slug);
+    tracing::info!("active organization: {} ({})", found.name, found.slug);
     Ok(())
 }

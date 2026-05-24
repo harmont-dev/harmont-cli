@@ -7,6 +7,6 @@ use anyhow::Result;
 ///
 /// Returns an error on I/O failure.
 pub async fn run() -> Result<()> {
-    tracing::info!(target: "user::stdout", "hm {}", env!("CARGO_PKG_VERSION"));
+    tracing::info!("hm {}", env!("CARGO_PKG_VERSION"));
     Ok(())
 }

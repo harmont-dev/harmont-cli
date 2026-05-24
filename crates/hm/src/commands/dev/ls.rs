@@ -25,7 +25,6 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
     let docker = DockerClient::connect().ok();
 
     tracing::info!(
-        target: "user::stdout",
         "{:<10} {:<8} {:<10} {:<10} PORTS",
         "SLUG", "DRIVER", "SESSION", "STATUS"
     );
@@ -59,7 +58,6 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
                         matched = true;
                         let ports_s = format_ports(ports);
                         tracing::info!(
-                            target: "user::stdout",
                             "{slug:<10} {:<8} {:<10} {:<10} {ports_s}",
                             "local", sess, state
                         );
@@ -67,7 +65,6 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
                 }
                 if !matched {
                     tracing::info!(
-                        target: "user::stdout",
                         "{slug:<10} {:<8} {:<10} {:<10} \u{2014}",
                         "local", "\u{2014}", "registered"
                     );
@@ -75,7 +72,6 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
             }
             RegEntry::Unhandled => {
                 tracing::info!(
-                    target: "user::stdout",
                     "{slug:<10} {:<8} {:<10} {:<10} (no local driver)",
                     "?", "\u{2014}", "registered"
                 );

@@ -28,10 +28,10 @@ pub fn install_ctrlc(token: CancellationToken) -> tokio::task::JoinHandle<()> {
             match tokio::signal::ctrl_c().await {
                 Ok(()) => {
                     if armed.swap(true, Ordering::SeqCst) {
-                        tracing::info!(target: "user::stderr", "\nforce-exit on second Ctrl-C");
+                        tracing::warn!("\nforce-exit on second Ctrl-C");
                         std::process::exit(130);
                     }
-                    tracing::info!(target: "user::stderr", "\ncancelling… (Ctrl-C again to force)");
+                    tracing::info!("\ncancelling… (Ctrl-C again to force)");
                     token.cancel();
                 }
                 Err(_) => return,

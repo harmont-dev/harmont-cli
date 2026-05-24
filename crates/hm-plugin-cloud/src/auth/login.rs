@@ -41,7 +41,7 @@ async fn login_loopback(
 
     tracing::info!("opening browser to {auth_url}");
     if webbrowser::open(&auth_url).is_err() {
-        tracing::info!(target: "user::stderr", "couldn't auto-open the browser. Open this URL manually:\n  {auth_url}");
+        tracing::warn!("couldn't auto-open the browser. Open this URL manually:\n  {auth_url}");
     }
 
     // Wait for a single connection with a 180-second timeout.
@@ -98,7 +98,7 @@ async fn login_paste(
         "{}/cli/login?challenge={}&redirect_uri=urn:ietf:wg:oauth:2.0:oob",
         cfg.api_base, challenge,
     );
-    tracing::info!(target: "user::stderr", "Open this URL in your browser, then paste the code:\n  {auth_url}");
+    tracing::info!("Open this URL in your browser, then paste the code:\n  {auth_url}");
     let _ = webbrowser::open(&auth_url);
 
     // Tests inject the code via `HARMONT_LOGIN_CODE` to avoid TTY.
@@ -133,7 +133,6 @@ async fn finalize(cfg: &Config, code: &str, verifier: &str) -> Result<()> {
     let auth_client = Client::new(cfg, Some(resp.token));
     let me: User = auth_client.get("/auth/me").await?;
     tracing::info!(
-        target: "user::stderr",
         "logged in as {} ({})",
         me.display_name.clone().unwrap_or_else(|| me.email.clone()),
         me.email,

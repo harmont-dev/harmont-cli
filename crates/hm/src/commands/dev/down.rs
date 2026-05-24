@@ -56,7 +56,7 @@ pub async fn handle(args: DevDownArgs, _ctx: RunContext) -> Result<i32> {
     }
 
     if to_remove.is_empty() {
-        tracing::info!(target: "user::stderr", "[hm] nothing to sweep");
+        tracing::info!("[hm] nothing to sweep");
         return Ok(0);
     }
 
@@ -64,7 +64,7 @@ pub async fn handle(args: DevDownArgs, _ctx: RunContext) -> Result<i32> {
     for (id, slug, session, name) in &to_remove {
         let _ = docker.stop_container(id).await;
         let _ = docker.remove_container(id).await;
-        tracing::info!(target: "user::stderr", "[hm] removed {name} (slug={slug}, session={session})");
+        tracing::info!("[hm] removed {name} (slug={slug}, session={session})");
         sessions_swept.insert(session.clone());
     }
 

@@ -195,7 +195,7 @@ pub async fn dispatch_command(command: CloudCommand, env: BTreeMap<String, Strin
     match result {
         Ok(()) => Ok(0),
         Err(e) => {
-            tracing::info!(target: "user::stderr", "{e:#}");
+            tracing::error!("{e:#}");
             Ok(1)
         }
     }

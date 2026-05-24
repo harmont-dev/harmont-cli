@@ -46,16 +46,14 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
         // Was the slug registered at all?
         match super::registry::dump(&worktree_root).await {
             Ok(reg) if reg.deployments.contains_key(&args.slug) => {
-                tracing::info!(
-                    target: "user::stderr",
+                tracing::error!(
                     "hm: slug `{}` registered but not running in this worktree.\n  → run `hm dev up {}` first.",
                     args.slug, args.slug,
                 );
                 return Ok(4);
             }
             _ => {
-                tracing::info!(
-                    target: "user::stderr",
+                tracing::error!(
                     "hm: slug `{}` not registered in this worktree's .harmont/.\n  → run `hm dev ls` to see registered slugs.",
                     args.slug,
                 );
@@ -64,25 +62,24 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
         }
     }
     if matches.len() > 1 {
-        tracing::info!(target: "user::stderr", "hm: slug `{}` matches multiple live sessions in this worktree:", args.slug);
+        tracing::error!("hm: slug `{}` matches multiple live sessions in this worktree:", args.slug);
         for (_, sess, ports) in &matches {
             let p = format_ports(ports);
-            tracing::info!(target: "user::stderr", "  {sess}  {p}");
+            tracing::error!("  {sess}  {p}");
         }
-        tracing::info!(target: "user::stderr", "pass `--session <id>` or run `hm dev ls`.");
+        tracing::error!("pass `--session <id>` or run `hm dev ls`.");
         return Ok(5);
     }
 
     let (_, _, ports) = &matches[0];
     let Some(host_port) = ports.get(&args.container_port) else {
-        tracing::info!(
-            target: "user::stderr",
+        tracing::error!(
             "hm: container port `{}` is not published by `{}`.\n  → check the deployment's port_mapping.",
             args.container_port, args.slug,
         );
         return Ok(5);
     };
-    tracing::info!(target: "user::stdout", "{host_port}");
+    tracing::info!("{host_port}");
     Ok(0)
 }
 

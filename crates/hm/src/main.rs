@@ -6,39 +6,23 @@
 use clap::Parser;
 use owo_colors::OwoColorize;
 use tracing_subscriber::EnvFilter;
-use tracing_subscriber::Layer as _;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 
 use harmont_cli::cli::{self, Cli};
 use harmont_cli::context::RunContext;
 use harmont_cli::error::{self, HmError};
-use harmont_cli::output::cli_layer::CliLayer;
 use harmont_cli::output::status;
 
 #[tokio::main]
 async fn main() {
     let args = Cli::parse();
 
-    // Build the layered subscriber:
-    // 1. CliLayer — always active, routes user::stdout / user::stderr
-    // 2. fmt layer — only active with --verbose, for diagnostic tracing
-    let cli_layer = CliLayer::real();
+    let default_level = if args.verbose { "debug" } else { "info" };
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
 
-    let fmt_layer = if args.verbose {
-        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
-        Some(
-            tracing_subscriber::fmt::layer()
-                .with_target(false)
-                .with_filter(filter),
-        )
-    } else {
-        None
-    };
-
-    tracing_subscriber::registry()
-        .with(cli_layer)
-        .with(fmt_layer)
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .without_time()
         .init();
 
     let color_enabled = !args.no_color
@@ -69,6 +53,6 @@ fn handle_error(err: &anyhow::Error) -> i32 {
     let msg = format!("{err:#}");
     let red = "error:".red();
     let prefix = red.bold();
-    tracing::info!(target: "user::stderr", "{prefix} {msg}");
+    tracing::error!("{prefix} {msg}");
     error::EXIT_BUILD_FAILED
 }

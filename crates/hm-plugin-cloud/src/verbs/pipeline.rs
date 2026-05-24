@@ -30,7 +30,6 @@ async fn list(client: &Client, org: &str) -> Result<()> {
         .await?;
     for p in &pipes.data {
         tracing::info!(
-            target: "user::stdout",
             "{:<24} {}",
             p.slug,
             p.label.as_deref().unwrap_or("(no label)")
@@ -50,7 +49,7 @@ async fn show(client: &Client, org: &str, slug: &str) -> Result<()> {
         "default_branch": p.default_branch,
     }))
     .unwrap_or_default();
-    tracing::info!(target: "user::stdout", "{json}");
+    tracing::info!("{json}");
     Ok(())
 }
 

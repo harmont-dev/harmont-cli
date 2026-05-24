@@ -153,9 +153,9 @@ pub fn hyperlink_with(url: &str, label: &str, enabled: bool) -> String {
 pub fn header(title: &str) {
     let rule_len = title.chars().count() + 4;
     let rule: String = "─".repeat(rule_len);
-    tracing::info!(target: "user::stdout", "");
-    tracing::info!(target: "user::stdout", "  {}", title.bold());
-    tracing::info!(target: "user::stdout", "  {}", rule.bright_black());
+    tracing::info!( "");
+    tracing::info!( "  {}", title.bold());
+    tracing::info!( "  {}", rule.bright_black());
 }
 
 /// Print a key/value row, aligned at column 12.
@@ -164,15 +164,15 @@ pub fn kv(label: &str, value: impl Display) {
     // Right-pad to width 10 so values line up at column 12 from start
     // of line (2 spaces + 10-wide label field = 12).
     let padded = format!("{label_with_colon:<10}");
-    tracing::info!(target: "user::stdout", "  {} {value}", padded.bright_black());
+    tracing::info!( "  {} {value}", padded.bright_black());
 }
 
 /// Print an empty-state message: blank line, bold title, dim hint, blank line.
 pub fn empty_state(title: &str, hint: &str) {
-    tracing::info!(target: "user::stdout", "");
-    tracing::info!(target: "user::stdout", "  {}", title.bold());
-    tracing::info!(target: "user::stdout", "  {}", hint.bright_black());
-    tracing::info!(target: "user::stdout", "");
+    tracing::info!( "");
+    tracing::info!( "  {}", title.bold());
+    tracing::info!( "  {}", hint.bright_black());
+    tracing::info!( "");
 }
 
 /// Print a command banner: `▌ hm <command> · <subtitle>`.
@@ -183,8 +183,8 @@ pub fn banner(command: &str, subtitle: &str) {
     let cmd = command.cyan();
     let sub_text = format!("· {subtitle}");
     let sub = sub_text.bright_black();
-    tracing::info!(target: "user::stdout", "{icon} {hm} {cmd} {sub}");
-    tracing::info!(target: "user::stdout", "");
+    tracing::info!( "{icon} {hm} {cmd} {sub}");
+    tracing::info!( "");
 }
 
 /// Print a single step line: `  ✓ <verb-dim> <result>`.
@@ -192,7 +192,7 @@ pub fn step(verb: &str, result: impl Display) {
     let check = "✓".green();
     let check = check.bold();
     let dim_verb = verb.bright_black();
-    tracing::info!(target: "user::stdout", "  {check} {dim_verb} {result}");
+    tracing::info!( "  {check} {dim_verb} {result}");
 }
 
 #[cfg(test)]
