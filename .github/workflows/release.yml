@@ -25,6 +25,10 @@ jobs:
           targets: wasm32-wasip1
       - uses: Swatinem/rust-cache@v2
 
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
+
       - name: Set version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"

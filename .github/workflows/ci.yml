@@ -24,6 +24,10 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
 
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
+
       - name: cargo build (all targets)
         run: cargo build -p harmont-cli --all-targets
 
@@ -105,12 +109,9 @@ jobs:
           targets: wasm32-wasip1
       - uses: Swatinem/rust-cache@v2
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install harmont-py (editable)
-        run: pip install -e dsls/harmont-py
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
 
       - name: cargo build --tests (with docker-integration feature)
         run: cargo build -p harmont-cli --tests --features docker-integration
@@ -119,8 +120,6 @@ jobs:
         run: docker pull python:3.12-alpine
 
       - name: cargo test --features docker-integration -- --ignored
-        env:
-          HARMONT_PYTHON: python3
         run: |
           cargo test -p harmont-cli \
             --features docker-integration \
