@@ -40,9 +40,9 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
     }
 
     match (has_py, has_ts) {
-        (true, true) => bail!("use one language per project: .harmont/ contains both .py and .ts files"),
+        // When both languages are present, prefer TypeScript.
+        (_, true) => Ok(DslLanguage::TypeScript),
         (true, false) => Ok(DslLanguage::Python),
-        (false, true) => Ok(DslLanguage::TypeScript),
         (false, false) => bail!(
             "no .py or .ts files found in {}",
             harmont_dir.display()
@@ -83,14 +83,10 @@ mod tests {
     }
 
     #[test]
-    fn mixed_languages_is_error() {
+    fn mixed_languages_prefers_typescript() {
         let tmp = setup(&["ci.py", "deploy.ts"]);
-        let err = detect_language(tmp.path()).unwrap_err();
-        let msg = err.to_string();
-        assert!(
-            msg.contains("use one language per project"),
-            "unexpected error: {msg}"
-        );
+        let lang = detect_language(tmp.path()).unwrap();
+        assert_eq!(lang, DslLanguage::TypeScript);
     }
 
     #[test]
