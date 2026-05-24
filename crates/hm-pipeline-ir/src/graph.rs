@@ -53,7 +53,7 @@ pub struct PipelineGraph {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     default_image: Option<String>,
     #[serde(rename = "graph")]
-    dag: Dag<Transition, EdgeKind>,
+    inner: Dag<Transition, EdgeKind>,
 }
 
 fn default_version() -> String {
@@ -62,8 +62,13 @@ fn default_version() -> String {
 
 impl PipelineGraph {
     #[must_use]
+    pub fn dag(&self) -> &Dag<Transition, EdgeKind> {
+        &self.inner
+    }
+
+    #[must_use]
     pub fn node_count(&self) -> usize {
-        self.dag.node_count()
+        self.inner.node_count()
     }
 
     #[must_use]
@@ -73,12 +78,12 @@ impl PipelineGraph {
 
     #[must_use]
     pub fn get_transition(&self, idx: NodeIndex) -> &Transition {
-        &self.dag[idx]
+        &self.inner[idx]
     }
 
     #[must_use]
     pub fn node_index_by_key(&self, key: &str) -> Option<NodeIndex> {
-        self.dag
+        self.inner
             .graph()
             .node_references()
             .find(|(_, w)| w.step.key == key)
@@ -87,37 +92,37 @@ impl PipelineGraph {
 
     #[must_use]
     pub fn parent_keys(&self, idx: NodeIndex) -> Vec<String> {
-        self.dag
+        self.inner
             .parents(idx)
-            .iter(&self.dag)
-            .map(|(_, parent_idx)| self.dag[parent_idx].step.key.clone())
+            .iter(&self.inner)
+            .map(|(_, parent_idx)| self.inner[parent_idx].step.key.clone())
             .collect()
     }
 
     #[must_use]
     pub fn builds_in_parent(&self, idx: NodeIndex) -> Option<NodeIndex> {
-        self.dag
+        self.inner
             .parents(idx)
-            .iter(&self.dag)
-            .find(|(e, _)| self.dag.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
+            .iter(&self.inner)
+            .find(|(e, _)| self.inner.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
             .map(|(_, parent_idx)| parent_idx)
     }
 
     #[must_use]
     pub fn builds_in_children(&self, idx: NodeIndex) -> Vec<NodeIndex> {
-        self.dag
+        self.inner
             .children(idx)
-            .iter(&self.dag)
-            .filter(|(e, _)| self.dag.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
+            .iter(&self.inner)
+            .filter(|(e, _)| self.inner.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
             .map(|(_, child_idx)| child_idx)
             .collect()
     }
 
     #[must_use]
     pub fn all_parents(&self, idx: NodeIndex) -> Vec<NodeIndex> {
-        self.dag
+        self.inner
             .parents(idx)
-            .iter(&self.dag)
+            .iter(&self.inner)
             .map(|(_, parent_idx)| parent_idx)
             .collect()
     }
@@ -131,7 +136,7 @@ impl PipelineGraph {
 
     #[must_use]
     pub fn chains(&self) -> Vec<Vec<NodeIndex>> {
-        let mut indices: Vec<NodeIndex> = self.dag.graph().node_indices().collect();
+        let mut indices: Vec<NodeIndex> = self.inner.graph().node_indices().collect();
         indices.sort();
         indices
             .into_iter()

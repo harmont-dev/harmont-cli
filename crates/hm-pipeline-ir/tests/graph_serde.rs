@@ -81,6 +81,12 @@ fn pipeline_graph_round_trips_through_json() {
 }
 
 #[test]
+fn dag_accessor_exposes_node_count() {
+    let g = build_test_graph();
+    assert_eq!(g.dag().node_count(), 3);
+}
+
+#[test]
 fn pipeline_graph_snapshot() {
     let g = build_test_graph();
     let json = serde_json::to_value(&g).unwrap();
