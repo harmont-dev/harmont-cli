@@ -9,8 +9,6 @@
     clippy::multiple_crate_versions,
     clippy::cargo_common_metadata,
     clippy::missing_errors_doc,
-    clippy::print_stdout,
-    clippy::print_stderr,
     reason = "quick migration from plugin crate; polish later"
 )]
 

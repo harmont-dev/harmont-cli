@@ -19,7 +19,8 @@ pub(crate) async fn run(env: &BTreeMap<String, String>) -> Result<()> {
     })?;
     let client = Client::new(&cfg, Some(token));
     let me: User = client.get("/auth/me").await?;
-    println!(
+    tracing::info!(
+        target: "user::stdout",
         "{} <{}> (id {})",
         me.display_name.clone().unwrap_or_else(|| me.email.clone()),
         me.email,

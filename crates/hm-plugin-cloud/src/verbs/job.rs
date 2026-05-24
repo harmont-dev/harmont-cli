@@ -40,7 +40,8 @@ async fn list(client: &Client, org: &str, pipe: &str, build: i64) -> Result<()> 
         ))
         .await?;
     for j in &jobs.data {
-        println!(
+        tracing::info!(
+            target: "user::stdout",
             "{}  {:<10}  {}",
             j.id,
             j.state,
@@ -62,7 +63,8 @@ async fn show(
             "/organizations/{org}/pipelines/{pipe}/builds/{build}/jobs/{jid}"
         ))
         .await?;
-    println!(
+    tracing::info!(
+        target: "user::stdout",
         "{}",
         serde_json::to_string_pretty(&j).unwrap_or_default()
     );
@@ -82,7 +84,7 @@ async fn log_cmd(
         ))
         .await?;
     for chunk in &log.data {
-        println!("{}", chunk.line);
+        tracing::info!(target: "user::stdout", "{}", chunk.line);
     }
     Ok(())
 }

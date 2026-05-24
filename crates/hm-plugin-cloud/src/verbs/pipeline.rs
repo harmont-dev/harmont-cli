@@ -27,7 +27,8 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: PipelineCommand) ->
 async fn list(client: &Client, org: &str) -> Result<()> {
     let pipes: PipelineList = client.get(&format!("/organizations/{org}/pipelines")).await?;
     for p in &pipes.data {
-        println!(
+        tracing::info!(
+            target: "user::stdout",
             "{:<24} {}",
             p.slug,
             p.label.as_deref().unwrap_or("(no label)")
@@ -47,7 +48,7 @@ async fn show(client: &Client, org: &str, slug: &str) -> Result<()> {
         "default_branch": p.default_branch,
     }))
     .unwrap_or_default();
-    println!("{json}");
+    tracing::info!(target: "user::stdout", "{json}");
     Ok(())
 }
 
