@@ -12,6 +12,9 @@ pub mod detect;
 // mod js_engine;      (embedded-typescript)
 // mod ts_preprocess;  (embedded-typescript)
 
+#[cfg(feature = "embedded-python")]
+pub mod embedded_sources;
+
 #[cfg(any(feature = "embedded-python", feature = "embedded-typescript"))]
 pub mod wasm_runtime;
 
