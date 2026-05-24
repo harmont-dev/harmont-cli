@@ -126,7 +126,7 @@ def _build_kitchen_sink() -> dict:
         c_project.build(),
         c_project.test(),
         c_project.fmt(),
-        env={"CI": "true", "STACK_ROOT": "/tmp/.stack"},
+        env={"CI": "true", "STACK_ROOT": "/tmp/.stack"},  # noqa: S108
         default_image="ubuntu:24.04",
     )
 
