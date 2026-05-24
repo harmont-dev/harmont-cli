@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 use daggy::petgraph::visit::IntoNodeReferences;
 
 use common::fixtures;
-use harmont_cli::orchestrator::graph::Graph;
+use hm_pipeline_ir::PipelineGraph;
 use harmont_cli::plugin::{PluginRegistry, RegistryConfig};
 use hm_plugin_protocol::{ArchiveId, CacheDecision, ExecutorInput, StepResult};
 use uuid::Uuid;
@@ -85,7 +85,7 @@ async fn runner_field_dispatches_to_named_plugin() {
     .expect("load registry");
 
     // 2. Deserialize the graph directly from JSON — the new wire format.
-    let graph: Graph = serde_json::from_slice(PIPELINE_JSON).expect("parse graph");
+    let graph: PipelineGraph = serde_json::from_slice(PIPELINE_JSON).expect("parse graph");
 
     // Sanity check: the graph must preserve `runner` from the IR.
     // This is the cheap fast-fail; the dispatch check below is the

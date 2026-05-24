@@ -11,7 +11,6 @@ pub mod cache;
 pub mod docker_client;
 pub mod docker_host_fns;
 pub mod events;
-pub mod graph;
 pub mod output_subscriber;
 pub mod scheduler;
 pub mod source;

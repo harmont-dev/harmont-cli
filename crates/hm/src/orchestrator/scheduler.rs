@@ -43,9 +43,10 @@ use hm_plugin_protocol::{
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
+
 use crate::error::HmError;
 use crate::orchestrator::docker_client::DockerClient;
-use crate::orchestrator::graph::{EdgeKind, Transition};
 use crate::orchestrator::source::build_archive_bytes;
 use crate::plugin::{PluginRegistry, RegistryConfig};
 
@@ -73,7 +74,7 @@ type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 /// scheduler-level failure occurs. Non-zero step exit codes are
 /// surfaced via the returned `i32`, not as an Err.
 pub async fn run(
-    graph: crate::orchestrator::graph::Graph,
+    graph: PipelineGraph,
     repo_root: PathBuf,
     parallelism: usize,
     format_name: String,

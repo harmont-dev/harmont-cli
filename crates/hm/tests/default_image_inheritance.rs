@@ -14,13 +14,13 @@
 )]
 
 use daggy::petgraph::visit::IntoNodeReferences;
-use harmont_cli::orchestrator::graph::Graph;
+use hm_pipeline_ir::PipelineGraph;
 
-fn decode(json: &[u8]) -> Graph {
-    serde_json::from_slice::<Graph>(json).unwrap()
+fn decode(json: &[u8]) -> PipelineGraph {
+    serde_json::from_slice::<PipelineGraph>(json).unwrap()
 }
 
-fn find_step<'a>(g: &'a Graph, key: &str) -> &'a hm_pipeline_ir::CommandStep {
+fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::CommandStep {
     let dag = g.dag();
     let (_, t) = dag.graph().node_references()
         .find(|(_, t)| t.step.key == key)
