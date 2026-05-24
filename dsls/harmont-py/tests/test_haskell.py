@@ -80,7 +80,7 @@ def test_haskell_package_deps_cache_default():
     p = hm.pipeline(api.test())
     deps = _step_by_substring(p, "cabal build all --only-dependencies")
     assert deps["cache"]["policy"] == "on_change"
-    assert deps["cache"]["paths"] == ["api/harmont-api.cabal", "api/cabal.project"]
+    assert deps["cache"]["paths"] == ["api/*.cabal", "api/cabal.project"]
 
 
 def test_haskell_package_deps_cache_default_no_cabal_project():
@@ -89,7 +89,7 @@ def test_haskell_package_deps_cache_default_no_cabal_project():
     p = hm.pipeline(fs.test())
     deps = _step_by_substring(p, "cabal build all --only-dependencies")
     assert deps["cache"]["policy"] == "on_change"
-    assert deps["cache"]["paths"] == ["freestyle/freestyle.cabal"]
+    assert deps["cache"]["paths"] == ["freestyle/*.cabal", "freestyle/cabal.project"]
 
 
 def test_haskell_package_deps_cache_explicit_paths():

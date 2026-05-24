@@ -209,7 +209,7 @@ def test_on_change_handles_directory_paths():
         assert out2["nodes"][0]["step"]["cache"]["key"] != key1
 
 
-def test_on_change_missing_path_raises():
+def test_on_change_missing_path_skipped():
     with tempfile.TemporaryDirectory() as d:
         graph = _make_graph([
             {
@@ -221,15 +221,15 @@ def test_on_change_missing_path_raises():
                 "env": {},
             },
         ])
-        with pytest.raises(FileNotFoundError, match="on_change path does not exist"):
-            resolve_pipeline_keys(
-                graph,
-                pipeline_org="default",
-                pipeline_slug="default",
-                now=0,
-                base_path=Path(d),
-                env={},
-            )
+        resolve_pipeline_keys(
+            graph,
+            pipeline_org="default",
+            pipeline_slug="default",
+            now=0,
+            base_path=Path(d),
+            env={},
+        )
+        assert graph["nodes"][0]["step"]["cache"]["key"] is not None
 
 
 def test_env_keys_are_sorted_and_picked_up():
