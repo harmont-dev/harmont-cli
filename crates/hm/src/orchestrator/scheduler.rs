@@ -167,8 +167,6 @@ pub async fn run(
     let sink_handle =
         super::output_subscriber::spawn(bus.clone(), registry.clone(), format_name.clone());
 
-    // ── dataflow scheduling ──────────────────────────────────────
-
     let dag = graph.dag();
     let chain_info = compute_chain_info(dag);
 
