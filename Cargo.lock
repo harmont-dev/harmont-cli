@@ -1601,6 +1601,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "dirs",
+ "flate2",
  "hex",
  "include_dir",
  "oxc_allocator",
@@ -1613,6 +1614,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tar",
  "tempfile",
  "tokio",
  "tracing",
@@ -3349,6 +3351,7 @@ checksum = "62e0021ea2c22aed41653bc7e1419abb2c97e038ff2c33d0e1309e49a97deec0"
 dependencies = [
  "base64",
  "bytes",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
