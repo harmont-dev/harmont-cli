@@ -1,3 +1,6 @@
+#[path = "build_fetch.rs"]
+mod build_fetch;
+
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
