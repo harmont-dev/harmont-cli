@@ -1,5 +1,7 @@
-//! Chain-bounded scheduler. Dispatches each step to its registered
-//! step-executor plugin (Docker by default) via the plugin host.
+//! Dataflow scheduler. Walks the pipeline DAG in topological order,
+//! spawning a shared future per step. Each future awaits its
+//! predecessors, acquires a parallelism permit, and dispatches the
+//! step to its registered executor plugin (Docker by default).
 
 // Pedantic-bucket nags accepted at module scope:
 // - `cast_possible_truncation`: every `as u64` here is a millisecond
@@ -208,8 +210,10 @@ pub async fn run(
             let pred_outcomes: Vec<StepOutcome> =
                 join_all(preds.iter().map(|(_, f)| f.clone())).await;
 
-            // Early exit on cancellation or predecessor failure.
-            if cancel.is_cancelled() {
+            // Early exit if any predecessor failed or the build was cancelled.
+            if cancel.is_cancelled()
+                || pred_outcomes.iter().any(|o| o.exit_code != 0)
+            {
                 return StepOutcome { exit_code: 0, snapshot: None };
             }
 
@@ -241,7 +245,10 @@ pub async fn run(
             .await
             {
                 Ok(outcome) => outcome,
-                Err(_) => StepOutcome { exit_code: 1, snapshot: None },
+                Err(e) => {
+                    tracing::error!(%e, "step execution failed");
+                    StepOutcome { exit_code: 1, snapshot: None }
+                }
             }
         }
         .boxed()
@@ -272,11 +279,6 @@ pub async fn run(
 }
 
 /// Execute a single step, returning its outcome (exit code + snapshot).
-///
-/// This is the single-step analogue of the per-iteration body inside
-/// [`run_chain`]. The upcoming dataflow scheduler (which dispatches
-/// nodes in topological order rather than chain order) will call this
-/// once per node.
 ///
 /// On cache hit the function returns early with exit code 0 and the
 /// cached snapshot so downstream nodes receive the correct
