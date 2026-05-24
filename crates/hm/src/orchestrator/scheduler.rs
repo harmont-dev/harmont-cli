@@ -310,12 +310,10 @@ async fn run_chain(
         if cancel.is_cancelled() {
             return Ok(0);
         }
-        let step_wire = graph.node_weight(i).step.clone();
-        // Keep a copy of the step key for diagnostics — `step_wire` is
-        // moved into `ExecutorInput` below.
+        let t = graph.get_transition(i);
+        let step_wire = t.step.clone();
         let step_key = step_wire.key.clone();
-        let env_map: std::collections::BTreeMap<String, String> =
-            graph.node_weight(i).env.clone();
+        let env_map: std::collections::BTreeMap<String, String> = t.env.clone();
         let step_id = Uuid::new_v4();
 
         bus.emit(BuildEvent::StepQueued {

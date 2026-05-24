@@ -1,1 +1,1 @@
-pub use hm_pipeline_ir::{EdgeKind, NodeWeight, PipelineGraph as Graph};
+pub use hm_pipeline_ir::{EdgeKind, PipelineGraph as Graph, Transition};

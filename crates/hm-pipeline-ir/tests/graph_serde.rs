@@ -8,11 +8,11 @@
 
 use std::collections::BTreeMap;
 
-use hm_pipeline_ir::{CommandStep, EdgeKind, NodeWeight};
+use hm_pipeline_ir::{CommandStep, EdgeKind, Transition};
 
 #[test]
-fn node_weight_round_trips() {
-    let nw = NodeWeight {
+fn transition_round_trips() {
+    let nw = Transition {
         step: CommandStep {
             key: "a".into(),
             label: Some("step A".into()),
@@ -27,7 +27,7 @@ fn node_weight_round_trips() {
         env: BTreeMap::from([("FOO".into(), "bar".into())]),
     };
     let json = serde_json::to_string(&nw).unwrap();
-    let back: NodeWeight = serde_json::from_str(&json).unwrap();
+    let back: Transition = serde_json::from_str(&json).unwrap();
     assert_eq!(back.step.key, "a");
     assert_eq!(back.env.get("FOO").unwrap(), "bar");
 }
@@ -75,7 +75,7 @@ fn pipeline_graph_round_trips_through_json() {
     assert_eq!(back.node_count(), 3);
     assert_eq!(back.default_image(), Some("ubuntu:24.04"));
     let a = back.node_index_by_key("a").unwrap();
-    assert_eq!(back.node_weight(a).step.image.as_deref(), Some("ubuntu:24.04"));
+    assert_eq!(back.get_transition(a).step.image.as_deref(), Some("ubuntu:24.04"));
     let b = back.node_index_by_key("b").unwrap();
     assert!(back.builds_in_parent(b).is_some());
 }

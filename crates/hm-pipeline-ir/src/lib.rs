@@ -9,4 +9,4 @@
 
 mod graph;
 
-pub use graph::{Cache, CommandStep, EdgeKind, NodeWeight, PipelineGraph};
+pub use graph::{Cache, CommandStep, EdgeKind, PipelineGraph, Transition};

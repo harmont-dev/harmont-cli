@@ -34,7 +34,7 @@ pub struct Cache {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeWeight {
+pub struct Transition {
     pub step: CommandStep,
     pub env: BTreeMap<String, String>,
 }
@@ -53,7 +53,7 @@ pub struct PipelineGraph {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     default_image: Option<String>,
     #[serde(rename = "graph")]
-    dag: Dag<NodeWeight, EdgeKind>,
+    dag: Dag<Transition, EdgeKind>,
 }
 
 fn default_version() -> String {
@@ -72,7 +72,7 @@ impl PipelineGraph {
     }
 
     #[must_use]
-    pub fn node_weight(&self, idx: NodeIndex) -> &NodeWeight {
+    pub fn get_transition(&self, idx: NodeIndex) -> &Transition {
         &self.dag[idx]
     }
 
@@ -131,29 +131,20 @@ impl PipelineGraph {
 
     #[must_use]
     pub fn chains(&self) -> Vec<Vec<NodeIndex>> {
-        let mut placed: BTreeMap<NodeIndex, bool> = BTreeMap::new();
-        let mut out: Vec<Vec<NodeIndex>> = Vec::new();
         let mut indices: Vec<NodeIndex> = self.dag.graph().node_indices().collect();
         indices.sort();
-        for root in &indices {
-            if *placed.get(root).unwrap_or(&false) || self.is_chain_step(*root) {
-                continue;
-            }
-            let mut chain = vec![*root];
-            placed.insert(*root, true);
-            let mut cur = *root;
-            while let Some(next) = self
-                .builds_in_children(cur)
-                .into_iter()
-                .find(|&c| self.is_chain_step(c))
-            {
-                chain.push(next);
-                placed.insert(next, true);
-                cur = next;
-            }
-            out.push(chain);
-        }
-        out
+        indices
+            .into_iter()
+            .filter(|&n| !self.is_chain_step(n))
+            .map(|root| {
+                std::iter::successors(Some(root), |&cur| {
+                    self.builds_in_children(cur)
+                        .into_iter()
+                        .find(|&c| self.is_chain_step(c))
+                })
+                .collect()
+            })
+            .collect()
     }
 
     #[must_use]

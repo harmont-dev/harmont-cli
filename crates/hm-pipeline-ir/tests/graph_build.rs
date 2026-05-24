@@ -47,7 +47,7 @@ fn root_inherits_default_image() {
             "edges": []
         }
     }"#);
-    let node = g.node_weight(g.node_index_by_key("a").unwrap());
+    let node = g.get_transition(g.node_index_by_key("a").unwrap());
     assert_eq!(node.step.image.as_deref(), Some("ubuntu:24.04"));
 }
 
@@ -67,7 +67,7 @@ fn child_does_not_inherit_default_image() {
             ]
         }
     }"#);
-    let b = g.node_weight(g.node_index_by_key("b").unwrap());
+    let b = g.get_transition(g.node_index_by_key("b").unwrap());
     assert!(b.step.image.is_none());
 }
 
