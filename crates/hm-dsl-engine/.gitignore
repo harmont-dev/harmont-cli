@@ -1,0 +1,3 @@
+# Fetched at build time by build.rs
+embedded/quickjs.wasm
+vendor/
