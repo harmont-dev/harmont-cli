@@ -5,8 +5,9 @@ use std::path::Path;
 use async_trait::async_trait;
 use serde::Deserialize;
 
+pub mod detect;
+
 // Feature-gated modules — added as engines are implemented:
-// mod detect;         (embedded-python | embedded-typescript)
 // mod wasm_runtime;   (embedded-python | embedded-typescript)
 // mod runtime_cache;  (embedded-python | embedded-typescript)
 // mod python_engine;  (embedded-python)
