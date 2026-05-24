@@ -46,7 +46,7 @@ pub async fn run_pipeline_v0_one_shot(
     ))
 }
 
-fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::graph::PipelineGraph> {
+fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::PipelineGraph> {
     serde_json::from_slice(bytes).map_err(|e| anyhow::anyhow!("decode pipeline JSON: {e}"))
 }
 

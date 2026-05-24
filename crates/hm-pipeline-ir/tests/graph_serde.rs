@@ -8,8 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use hm_pipeline_ir::graph::{EdgeKind, NodeWeight};
-use hm_pipeline_ir::CommandStep;
+use hm_pipeline_ir::{CommandStep, EdgeKind, NodeWeight};
 
 #[test]
 fn node_weight_round_trips() {
@@ -47,7 +46,7 @@ fn edge_kind_round_trips() {
     assert_eq!(dep, EdgeKind::DependsOn);
 }
 
-use hm_pipeline_ir::graph::PipelineGraph;
+use hm_pipeline_ir::PipelineGraph;
 
 fn build_test_graph() -> PipelineGraph {
     serde_json::from_value(serde_json::json!({

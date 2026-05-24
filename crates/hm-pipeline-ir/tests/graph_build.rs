@@ -6,7 +6,7 @@
     clippy::panic
 )]
 
-use hm_pipeline_ir::graph::PipelineGraph;
+use hm_pipeline_ir::PipelineGraph;
 
 fn graph(json: &[u8]) -> PipelineGraph {
     serde_json::from_slice(json).unwrap()

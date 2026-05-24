@@ -3,9 +3,35 @@ use std::collections::BTreeMap;
 use daggy::petgraph::visit::IntoNodeReferences;
 use daggy::{Dag, NodeIndex, Walker};
 
+use schemars::JsonSchema as DeriveJsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::CommandStep;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+pub struct CommandStep {
+    pub key: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    pub cmd: String,
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub env: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    pub timeout_seconds: Option<u32>,
+    #[serde(default)]
+    pub cache: Option<Cache>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner_args: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+pub struct Cache {
+    pub policy: String,
+    #[serde(default)]
+    pub key: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeWeight {
