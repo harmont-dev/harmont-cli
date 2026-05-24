@@ -4,11 +4,6 @@
 //! These helpers are the foundation for the CLI's "beautiful, modern, fun"
 //! design language. Every command should funnel its visual output through
 //! this module rather than reaching for `owo_colors` directly.
-#![allow(
-    clippy::print_stdout,
-    reason = "output/format.rs is a first-class print module alongside output/status.rs"
-)]
-
 use chrono::{DateTime, Utc};
 use owo_colors::{OwoColorize, Style};
 use std::fmt::Display;
@@ -158,9 +153,9 @@ pub fn hyperlink_with(url: &str, label: &str, enabled: bool) -> String {
 pub fn header(title: &str) {
     let rule_len = title.chars().count() + 4;
     let rule: String = "─".repeat(rule_len);
-    println!();
-    println!("  {}", title.bold());
-    println!("  {}", rule.bright_black());
+    tracing::info!(target: "user::stdout", "");
+    tracing::info!(target: "user::stdout", "  {}", title.bold());
+    tracing::info!(target: "user::stdout", "  {}", rule.bright_black());
 }
 
 /// Print a key/value row, aligned at column 12.
@@ -169,37 +164,35 @@ pub fn kv(label: &str, value: impl Display) {
     // Right-pad to width 10 so values line up at column 12 from start
     // of line (2 spaces + 10-wide label field = 12).
     let padded = format!("{label_with_colon:<10}");
-    println!("  {} {value}", padded.bright_black());
+    tracing::info!(target: "user::stdout", "  {} {value}", padded.bright_black());
 }
 
 /// Print an empty-state message: blank line, bold title, dim hint, blank line.
 pub fn empty_state(title: &str, hint: &str) {
-    println!();
-    println!("  {}", title.bold());
-    println!("  {}", hint.bright_black());
-    println!();
+    tracing::info!(target: "user::stdout", "");
+    tracing::info!(target: "user::stdout", "  {}", title.bold());
+    tracing::info!(target: "user::stdout", "  {}", hint.bright_black());
+    tracing::info!(target: "user::stdout", "");
 }
 
 /// Print a command banner: `▌ hm <command> · <subtitle>`.
 pub fn banner(command: &str, subtitle: &str) {
-    println!(
-        "{} {} {} {}",
-        "▌".cyan().bold(),
-        "hm".bold(),
-        command.cyan(),
-        format!("· {subtitle}").bright_black()
-    );
-    println!();
+    let icon = "▌".cyan();
+    let icon = icon.bold();
+    let hm = "hm".bold();
+    let cmd = command.cyan();
+    let sub_text = format!("· {subtitle}");
+    let sub = sub_text.bright_black();
+    tracing::info!(target: "user::stdout", "{icon} {hm} {cmd} {sub}");
+    tracing::info!(target: "user::stdout", "");
 }
 
 /// Print a single step line: `  ✓ <verb-dim> <result>`.
 pub fn step(verb: &str, result: impl Display) {
-    println!(
-        "  {} {} {}",
-        "✓".green().bold(),
-        verb.bright_black(),
-        result
-    );
+    let check = "✓".green();
+    let check = check.bold();
+    let dim_verb = verb.bright_black();
+    tracing::info!(target: "user::stdout", "  {check} {dim_verb} {result}");
 }
 
 #[cfg(test)]
