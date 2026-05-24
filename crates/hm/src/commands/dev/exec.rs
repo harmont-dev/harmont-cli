@@ -42,7 +42,8 @@ pub async fn handle(args: DevExecArgs, _ctx: RunContext) -> Result<i32> {
     if matches.is_empty() {
         tracing::error!(
             "hm: slug `{}` is not running in this worktree.\n  → run `hm dev up {}` first.",
-            args.slug, args.slug,
+            args.slug,
+            args.slug,
         );
         return Ok(4);
     }

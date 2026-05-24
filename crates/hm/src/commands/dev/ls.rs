@@ -26,7 +26,10 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
 
     tracing::info!(
         "{:<10} {:<8} {:<10} {:<10} PORTS",
-        "SLUG", "DRIVER", "SESSION", "STATUS"
+        "SLUG",
+        "DRIVER",
+        "SESSION",
+        "STATUS"
     );
 
     // Pre-load running containers by (slug, session) key.
@@ -59,21 +62,27 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
                         let ports_s = format_ports(ports);
                         tracing::info!(
                             "{slug:<10} {:<8} {:<10} {:<10} {ports_s}",
-                            "local", sess, state
+                            "local",
+                            sess,
+                            state
                         );
                     }
                 }
                 if !matched {
                     tracing::info!(
                         "{slug:<10} {:<8} {:<10} {:<10} \u{2014}",
-                        "local", "\u{2014}", "registered"
+                        "local",
+                        "\u{2014}",
+                        "registered"
                     );
                 }
             }
             RegEntry::Unhandled => {
                 tracing::info!(
                     "{slug:<10} {:<8} {:<10} {:<10} (no local driver)",
-                    "?", "\u{2014}", "registered"
+                    "?",
+                    "\u{2014}",
+                    "registered"
                 );
             }
         }

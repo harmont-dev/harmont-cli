@@ -48,7 +48,8 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
             Ok(reg) if reg.deployments.contains_key(&args.slug) => {
                 tracing::error!(
                     "hm: slug `{}` registered but not running in this worktree.\n  → run `hm dev up {}` first.",
-                    args.slug, args.slug,
+                    args.slug,
+                    args.slug,
                 );
                 return Ok(4);
             }
@@ -62,7 +63,10 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
         }
     }
     if matches.len() > 1 {
-        tracing::error!("hm: slug `{}` matches multiple live sessions in this worktree:", args.slug);
+        tracing::error!(
+            "hm: slug `{}` matches multiple live sessions in this worktree:",
+            args.slug
+        );
         for (_, sess, ports) in &matches {
             let p = format_ports(ports);
             tracing::error!("  {sess}  {p}");
@@ -75,7 +79,8 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
     let Some(host_port) = ports.get(&args.container_port) else {
         tracing::error!(
             "hm: container port `{}` is not published by `{}`.\n  → check the deployment's port_mapping.",
-            args.container_port, args.slug,
+            args.container_port,
+            args.slug,
         );
         return Ok(5);
     };

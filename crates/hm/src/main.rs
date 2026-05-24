@@ -17,7 +17,8 @@ async fn main() {
     let args = Cli::parse();
 
     let default_level = if args.verbose { "debug" } else { "info" };
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
 
     tracing_subscriber::fmt()
         .with_env_filter(filter)
