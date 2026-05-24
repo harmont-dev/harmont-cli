@@ -138,8 +138,7 @@ def _lower_to_graph(
             has_builds_in_parent.add(node_idx)
 
         # depends_on edges from pre-wait steps.
-        for dep_idx in pending_depends_on:
-            edges.append([dep_idx, node_idx, "depends_on"])
+        edges.extend([dep_idx, node_idx, "depends_on"] for dep_idx in pending_depends_on)
 
         pre_wait_indices.append(node_idx)
 

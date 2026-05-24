@@ -36,7 +36,6 @@ def _step_cmds(definition):
 def _builds_in_children(definition, parent_key):
     """Return nodes whose builds_in parent is parent_key."""
     nodes = _graph_nodes(definition)
-    key_by_idx = {i: n["step"]["key"] for i, n in enumerate(nodes)}
     parent_idx = None
     for i, n in enumerate(nodes):
         if n["step"]["key"] == parent_key:
