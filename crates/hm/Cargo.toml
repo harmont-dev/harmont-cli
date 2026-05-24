@@ -43,8 +43,8 @@ tempfile = "3"
 anyhow = "1"
 thiserror = "2"
 backon = "1"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
 url = "2"
 base64 = "0.22"
