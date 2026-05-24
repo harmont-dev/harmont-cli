@@ -1,19 +1,20 @@
-//! Dataflow scheduler. Walks the pipeline DAG in topological order,
-//! spawning a shared future per step. Each future awaits its
-//! predecessors, acquires a parallelism permit, and dispatches the
-//! step to its registered executor plugin (Docker by default).
+//! Dataflow scheduler.
+//!
+//! Walks the pipeline DAG in topological order, spawning a shared
+//! future per step. Each future awaits its predecessors, acquires a
+//! parallelism permit, and dispatches the step to its registered
+//! executor plugin (Docker by default).
 
 // Pedantic-bucket nags accepted at module scope:
 // - `cast_possible_truncation`: every `as u64` here is a millisecond
 //   wall-clock duration; `u128 -> u64` cannot overflow for any
 //   conceivable build runtime (584 million years).
-// - `expect_used` on the semaphore: `acquire_owned` only errors if the
-//   semaphore is closed, which we never close.
-// - `too_many_lines` on `run`: the scheduler body is one cohesive
-//   loop; splitting it would obscure the spawn/join symmetry.
-// - `missing_panics_doc`: the only panic path is the semaphore expect
-//   described above; the function docstring already explains its
-//   error surface.
+// - `expect_used`: semaphore acquire and DAG edge-weight lookups on
+//   edges that are guaranteed to exist by construction.
+// - `too_many_lines` on `run`: setup + dataflow loop form one
+//   cohesive unit; splitting would obscure the spawn/join symmetry.
+// - `missing_panics_doc`: the only panic paths are the semaphore and
+//   edge-weight expects described above.
 #![allow(
     clippy::cast_possible_truncation,
     clippy::expect_used,
@@ -54,13 +55,13 @@ use tokio_util::sync::CancellationToken;
 use super::events::EventBus;
 use super::state::{self, OrchestratorState};
 
-/// Outcome of a single step execution, used by the upcoming dataflow
-/// scheduler to propagate exit codes and snapshot lineage.
 #[derive(Clone)]
 struct StepOutcome {
     exit_code: i32,
     snapshot: Option<SnapshotRef>,
 }
+
+type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 
 /// Entry point: run a parsed pipeline locally end-to-end. Returns
 /// the overall exit code (0 = success, [`crate::error::EXIT_BUILD_FAILED`]
@@ -187,14 +188,13 @@ pub async fn run(
 
     let started_total = Instant::now();
 
-    type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
     let mut done: HashMap<NodeIndex, StepFuture> = HashMap::new();
 
     for &n in &order {
         let preds: Vec<(EdgeKind, StepFuture)> = dag
             .parents(n)
             .iter(dag)
-            .map(|(e, p)| (*dag.edge_weight(e).unwrap(), done[&p].clone()))
+            .map(|(e, p)| (*dag.edge_weight(e).expect("edge in DAG"), done[&p].clone()))
             .collect();
 
         let transition = dag[n].clone();
@@ -421,7 +421,7 @@ async fn execute_step(
 }
 
 /// Per-node chain membership used for event enrichment. Maps every
-/// node in the DAG to (chain_id, position_within_chain).
+/// node in the DAG to (`chain_id`, `position_within_chain`).
 struct ChainInfo {
     chain_count: usize,
     node_chain_id: HashMap<NodeIndex, usize>,

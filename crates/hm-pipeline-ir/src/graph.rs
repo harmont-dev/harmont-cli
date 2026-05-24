@@ -71,7 +71,7 @@ impl PipelineGraph {
     }
 
     #[must_use]
-    pub fn dag(&self) -> &Dag<Transition, EdgeKind> {
+    pub const fn dag(&self) -> &Dag<Transition, EdgeKind> {
         &self.inner
     }
 }
