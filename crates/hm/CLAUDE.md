@@ -32,3 +32,11 @@ The registry is constructed in `commands/run/local.rs` and passed to
 crate (direct dependency, no FFI). HTTP goes through `reqwest`,
 credentials are file-backed at `~/.harmont/credentials.toml`, and
 organization state lives in `~/.harmont/cloud-state.json`.
+
+## Feature flags
+
+- `embedded-python` — wasmtime + CPython WASI for Python DSL evaluation (no system python3 needed)
+- `embedded-typescript` — wasmtime + QuickJS WASI + oxc for TS DSL evaluation (no system node needed)
+- `py-env` — test-only: assumes `harmont` Python package is on PATH
+
+Without embedded features, falls back to system interpreters (python3/node subprocess).
