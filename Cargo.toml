@@ -6,6 +6,7 @@ members = [
     "crates/hm-pipeline-ir",
     "crates/hm-util",
     "crates/hm-plugin-cloud",
+    "crates/hm-dsl-engine",
 ]
 default-members = [
     "crates/hm",
@@ -13,6 +14,7 @@ default-members = [
     "crates/hm-pipeline-ir",
     "crates/hm-util",
     "crates/hm-plugin-cloud",
+    "crates/hm-dsl-engine",
 ]
 
 [workspace.package]
@@ -24,7 +26,10 @@ repository = "https://github.com/harmont-dev/harmont-cli"
 hm-plugin-protocol = { path = "crates/hm-plugin-protocol", version = "0.0.0-dev" }
 hm-pipeline-ir     = { path = "crates/hm-pipeline-ir",     version = "0.0.0-dev" }
 hm-util            = { path = "crates/hm-util",            version = "0.0.0-dev" }
+hm-dsl-engine      = { path = "crates/hm-dsl-engine",     version = "0.0.0-dev" }
 anyhow      = "1"
+async-trait = "0.1"
+dirs        = "6"
 daggy       = { version = "0.9", features = ["serde-1"] }
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"

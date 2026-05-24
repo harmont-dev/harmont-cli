@@ -63,6 +63,7 @@ hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 hm-util = { workspace = true }
 hm-plugin-cloud = { path = "../hm-plugin-cloud" }
+hm-dsl-engine   = { workspace = true }
 daggy          = { workspace = true }
 schemars = { workspace = true }
 semver = { workspace = true }
@@ -74,6 +75,8 @@ hex = "0.4"
 default = []
 py-env = []
 docker-integration = []
+embedded-python     = ["hm-dsl-engine/embedded-python"]
+embedded-typescript = ["hm-dsl-engine/embedded-typescript"]
 
 [dev-dependencies]
 wiremock = "0.6"

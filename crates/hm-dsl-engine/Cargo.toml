@@ -1,0 +1,43 @@
+[package]
+name = "hm-dsl-engine"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Embedded DSL engine: run Python/TypeScript pipelines via Wasmtime."
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["embedded-python", "embedded-typescript"]
+embedded-python     = ["dep:wasmtime", "dep:wasmtime-wasi"]
+embedded-typescript = ["dep:wasmtime", "dep:wasmtime-wasi", "dep:oxc_transformer", "dep:oxc_allocator", "dep:oxc_parser", "dep:oxc_span"]
+
+[dependencies]
+# Always-on
+anyhow     = { workspace = true }
+async-trait = { workspace = true }
+dirs       = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+sha2       = "0.10"
+tempfile   = "3"
+tokio      = { version = "1", features = ["process", "fs"] }
+tracing    = "0.1"
+reqwest    = { version = "0.13", default-features = false, features = ["stream", "rustls"] }
+
+# Feature-gated
+wasmtime      = { version = "33", default-features = false, features = ["cranelift", "cache"], optional = true }
+wasmtime-wasi = { version = "33", default-features = false, optional = true }
+oxc_transformer = { version = "0.100", optional = true }
+oxc_allocator   = { version = "0.100", optional = true }
+oxc_parser      = { version = "0.100", optional = true }
+oxc_span        = { version = "0.100", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true
