@@ -67,6 +67,30 @@ jobs:
             --deselect tests/test_gradle.py \
             --deselect tests/test_haskell.py
 
+  ts-dsl:
+    name: harmont-ts (vitest + tsc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dsls/harmont-ts/package-lock.json
+
+      - name: Install
+        working-directory: dsls/harmont-ts
+        run: npm ci
+
+      - name: Type check
+        working-directory: dsls/harmont-ts
+        run: npx tsc --noEmit
+
+      - name: Test
+        working-directory: dsls/harmont-ts
+        run: npm test
+
   integration:
     name: docker-gated integration test
     runs-on: ubuntu-latest

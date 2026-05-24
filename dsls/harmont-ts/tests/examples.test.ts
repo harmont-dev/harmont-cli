@@ -44,6 +44,7 @@ describe("examples render to v0 IR", () => {
       expect(ci.ir.version).toBe("0");
       expect(ci.ir.graph.nodes.length).toBeGreaterThan(0);
       expect(ci.ir.graph.edge_property).toBe("directed");
+      expect(ci.ir.default_image).toBeTruthy();
 
       // Verify all nodes have required fields
       for (const node of ci.ir.graph.nodes) {
