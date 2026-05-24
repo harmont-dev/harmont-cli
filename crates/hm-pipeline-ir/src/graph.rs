@@ -179,8 +179,4 @@ impl PipelineGraph {
         }
         out
     }
-
-    pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
-        self.dag.graph().node_indices()
-    }
 }
