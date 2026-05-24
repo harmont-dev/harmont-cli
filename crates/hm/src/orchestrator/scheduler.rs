@@ -446,6 +446,153 @@ async fn run_chain(
     Ok(0)
 }
 
+/// Execute a single step, returning its outcome (exit code + snapshot).
+///
+/// This is the single-step analogue of the per-iteration body inside
+/// [`run_chain`]. The upcoming dataflow scheduler (which dispatches
+/// nodes in topological order rather than chain order) will call this
+/// once per node.
+///
+/// On cache hit the function returns early with exit code 0 and the
+/// cached snapshot so downstream nodes receive the correct
+/// `parent_snapshot` without running the plugin at all.
+///
+/// On non-zero exit the cancellation token is cancelled so sibling
+/// tasks observe the failure promptly.
+#[allow(dead_code, clippy::too_many_arguments)]
+async fn execute_step(
+    node_idx: NodeIndex,
+    transition: Transition,
+    parent_snapshot: Option<SnapshotRef>,
+    chain_id: usize,
+    chain_pos: usize,
+    archive_id: ArchiveId,
+    run_id: Uuid,
+    registry: Arc<Mutex<PluginRegistry>>,
+    bus: Arc<EventBus>,
+    cancel: CancellationToken,
+) -> Result<StepOutcome> {
+    let step_wire = transition.step;
+    let step_key = step_wire.key.clone();
+    let env_map = transition.env;
+    let step_id = Uuid::new_v4();
+
+    bus.emit(BuildEvent::StepQueued {
+        step_id,
+        key: step_key.clone(),
+        chain_idx: chain_pos,
+    });
+
+    // Decide cache outcome host-side.
+    let decision = {
+        let s = state::current().context("no orchestrator state")?;
+        cache::decide(&s.docker, &step_wire).await?
+    };
+    if let hm_plugin_protocol::CacheDecision::Hit { tag } = &decision {
+        bus.emit(BuildEvent::StepCacheHit {
+            step_id,
+            key: step_wire
+                .cache
+                .as_ref()
+                .and_then(|c| c.key.clone())
+                .unwrap_or_default(),
+            tag: tag.0.clone(),
+        });
+        // Short-circuit: the cached image already exists locally, so
+        // there is nothing for the executor plugin to do. Return the
+        // snapshot so downstream nodes can use it as their parent.
+        return Ok(StepOutcome {
+            exit_code: 0,
+            snapshot: Some(tag.clone()),
+        });
+    }
+
+    let input = ExecutorInput {
+        step: step_wire,
+        workspace_archive_id: archive_id,
+        env: env_map,
+        workdir: "/workspace".to_string(),
+        run_id,
+        step_id,
+        cache_lookup: decision,
+        parent_snapshot,
+    };
+
+    // Resolve the runner plugin name. Steps that didn't declare a
+    // runner fall back to whichever plugin registered as
+    // `default: true` (docker, in the embedded binary).
+    let runner = if let Some(name) = input.step.runner.clone() {
+        name
+    } else {
+        let reg = registry.lock().await;
+        reg.default_runner_name()
+            .map_or_else(|| "docker".into(), str::to_string)
+    };
+    let started = Instant::now();
+    bus.emit(BuildEvent::StepStart {
+        step_id,
+        runner: runner.clone(),
+        image: input.step.image.clone(),
+    });
+
+    // Dispatch to the runner-named plugin. Look up the Arc under the
+    // registry lock, drop the lock BEFORE awaiting so other tasks can
+    // dispatch concurrently.
+    let plugin = {
+        let reg = registry.lock().await;
+        let idx = reg
+            .runner_index
+            .get(&runner)
+            .copied()
+            .or(reg.default_runner)
+            .ok_or_else(|| HmError::UnknownRunner {
+                step_key: input.step.key.clone(),
+                runner: runner.clone(),
+                available: reg.runner_index.keys().cloned().collect(),
+            })?;
+        reg.get(idx).context("plugin moved away under us")?
+    };
+    crate::plugin::host_fns::set_current_step_id(step_id);
+    let result: Result<StepResult> = plugin.call_capability("hm_executor_run", &input).await;
+    crate::plugin::host_fns::clear_current_step_id();
+
+    let dur_ms = started.elapsed().as_millis() as u64;
+    match result {
+        Ok(sr) => {
+            bus.emit(BuildEvent::StepEnd {
+                step_id,
+                exit_code: sr.exit_code,
+                duration_ms: dur_ms,
+                snapshot: sr.committed_snapshot.clone(),
+            });
+            if sr.exit_code != 0 {
+                bus.emit(BuildEvent::ChainFailed {
+                    chain_idx: chain_id,
+                    failed_step_id: step_id,
+                    failed_step_key: step_key.clone(),
+                    exit_code: sr.exit_code,
+                    message: format!("step '{}' exited with code {}", step_key, sr.exit_code),
+                    ts: chrono::Utc::now(),
+                });
+                cancel.cancel();
+            }
+            Ok(StepOutcome {
+                exit_code: sr.exit_code,
+                snapshot: sr.committed_snapshot,
+            })
+        }
+        Err(e) => {
+            bus.emit(BuildEvent::StepEnd {
+                step_id,
+                exit_code: 1,
+                duration_ms: dur_ms,
+                snapshot: None,
+            });
+            Err(e)
+        }
+    }
+}
+
 /// Per-node chain membership used for event enrichment. Maps every
 /// node in the DAG to (chain_id, position_within_chain).
 #[allow(dead_code)]
