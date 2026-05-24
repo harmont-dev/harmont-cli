@@ -40,3 +40,5 @@ organization state lives in `~/.harmont/cloud-state.json`.
 - `py-env` — test-only: assumes `harmont` Python package is on PATH
 
 Without embedded features, falls back to system interpreters (python3/node subprocess).
+
+Build-time asset fetching: when `embedded-python` or `embedded-typescript` features are enabled, `build.rs` downloads pinned assets (QuickJS WASM, Python vendor packages) from the internet on first build. Subsequent builds use the cached copies in `$OUT_DIR`.

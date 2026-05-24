@@ -10,6 +10,9 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=build_fetch.rs");
+
     let ts_enabled = env::var("CARGO_FEATURE_EMBEDDED_TYPESCRIPT").is_ok();
     let py_enabled = env::var("CARGO_FEATURE_EMBEDDED_PYTHON").is_ok();
 
