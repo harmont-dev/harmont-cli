@@ -110,7 +110,10 @@
         },
         "step": {
           "cache": {
-            "paths": [],
+            "paths": [
+              "pkg-a/*.cabal",
+              "pkg-a/cabal.project"
+            ],
             "policy": "on_change"
           },
           "cmd": "cabal update && cd pkg-a && cabal build all --only-dependencies",
@@ -147,7 +150,10 @@
         },
         "step": {
           "cache": {
-            "paths": [],
+            "paths": [
+              "pkg-b/*.cabal",
+              "pkg-b/cabal.project"
+            ],
             "policy": "on_change"
           },
           "cmd": "cabal update && cd pkg-b && cabal build all --only-dependencies",

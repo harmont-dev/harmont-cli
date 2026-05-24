@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, overload
 
 from ._toolchain import make_install_chain
@@ -130,10 +129,7 @@ class HaskellToolchain:
         if cache_paths is not None:
             paths = cache_paths
         else:
-            paths = (
-                tuple(sorted(p.as_posix() for p in Path(path).glob("*.cabal")))
-                + ((f"{path}/cabal.project",) if Path(path, "cabal.project").exists() else ())
-            )
+            paths = (f"{path}/*.cabal", f"{path}/cabal.project")
         deps = self.installed.sh(
             f"cabal update && cd {path} && cabal build all --only-dependencies",
             label=f":haskell: {path} deps",
