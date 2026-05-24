@@ -1,4 +1,5 @@
 """Cross-module target deps via global registry (HAR-28 follow-up)."""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +24,7 @@ def test_target_in_module_a_consumed_by_target_in_module_b():
     """Simulate two .harmont/*.py files registering targets in one
     envelope render. Module A defines apt_base; module B's target
     depends on it by parameter name."""
+
     # Module A — defines apt_base.
     @hm.target()
     def apt_base() -> hm.Step:
@@ -48,11 +50,13 @@ def test_target_in_module_a_consumed_by_target_in_module_b():
 def test_duplicate_name_across_modules_raises():
     """Same target name registered twice (e.g. two modules both define
     apt_base) raises at decoration time."""
+
     @hm.target()
     def apt_base() -> hm.Step:
         return hm.sh("first")
 
     with pytest.raises(ValueError, match="duplicate target name 'apt_base'"):
+
         @hm.target()
         def apt_base() -> hm.Step:
             return hm.sh("second")
@@ -60,6 +64,7 @@ def test_duplicate_name_across_modules_raises():
 
 def test_disambiguate_via_explicit_name():
     """Two modules with same fn name can coexist via name=."""
+
     @hm.target(name="apt_base_a")
     def apt_base() -> hm.Step:
         return hm.sh("first")
@@ -69,5 +74,6 @@ def test_disambiguate_via_explicit_name():
         return hm.sh("second")
 
     from harmont._deps import _TARGETS_BY_NAME
+
     assert "apt_base_a" in _TARGETS_BY_NAME
     assert "apt_base_b" in _TARGETS_BY_NAME

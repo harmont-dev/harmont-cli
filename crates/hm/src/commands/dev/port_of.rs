@@ -20,13 +20,17 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
     let docker = DockerClient::connect()?;
     let worktree_root = resolve_worktree_root()?;
     let wt_hash = worktree_hash(&worktree_root);
-    let containers = docker.list_containers_by_label(LABEL_WORKTREE, &wt_hash).await?;
+    let containers = docker
+        .list_containers_by_label(LABEL_WORKTREE, &wt_hash)
+        .await?;
     let mut matches: Vec<(String, String, std::collections::HashMap<u16, u16>)> = Vec::new();
     for c in &containers {
         let labels = c.labels.clone().unwrap_or_default();
         let slug = labels.get(LABEL_SLUG).cloned().unwrap_or_default();
         let session = labels.get(LABEL_SESSION).cloned().unwrap_or_default();
-        if slug != args.slug { continue; }
+        if slug != args.slug {
+            continue;
+        }
         if let Some(s) = &args.session
             && &session != s
         {
@@ -85,7 +89,8 @@ pub async fn handle(args: DevPortOfArgs, _ctx: RunContext) -> Result<i32> {
 fn format_ports(ports: &std::collections::HashMap<u16, u16>) -> String {
     let mut entries: Vec<(u16, u16)> = ports.iter().map(|(c, h)| (*c, *h)).collect();
     entries.sort_unstable();
-    entries.iter()
+    entries
+        .iter()
         .map(|(c, h)| format!("localhost:{h} → :{c}"))
         .collect::<Vec<_>>()
         .join(", ")

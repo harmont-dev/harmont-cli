@@ -1,11 +1,11 @@
 ---
 source: crates/hm-pipeline-ir/tests/schema_snapshot.rs
-assertion_line: 6
 expression: schema
 ---
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "CommandStep",
+  "description": "A single build command within a pipeline.\n\nSerialized as a JSON object inside each graph node's `step` field. The `key` is the unique identifier used to reference this step in edges and log output.",
   "type": "object",
   "required": [
     "cmd",
@@ -13,9 +13,11 @@ expression: schema
   ],
   "properties": {
     "key": {
+      "description": "Unique identifier for this step within the pipeline.",
       "type": "string"
     },
     "label": {
+      "description": "Human-readable label shown in build output.",
       "default": null,
       "type": [
         "string",
@@ -23,9 +25,11 @@ expression: schema
       ]
     },
     "cmd": {
+      "description": "Shell command to execute inside the container.",
       "type": "string"
     },
     "image": {
+      "description": "Docker image to boot from. Root steps without an image inherit `PipelineGraph::default_image`; child steps boot from their parent's committed snapshot.",
       "default": null,
       "type": [
         "string",
@@ -33,6 +37,7 @@ expression: schema
       ]
     },
     "env": {
+      "description": "Per-step environment variables merged on top of the pipeline env.",
       "default": null,
       "type": [
         "object",
@@ -43,6 +48,7 @@ expression: schema
       }
     },
     "timeout_seconds": {
+      "description": "Maximum wall-clock seconds before the step is killed.",
       "default": null,
       "type": [
         "integer",
@@ -52,6 +58,7 @@ expression: schema
       "minimum": 0.0
     },
     "cache": {
+      "description": "Cache configuration for this step's committed snapshot.",
       "default": null,
       "anyOf": [
         {
@@ -63,24 +70,30 @@ expression: schema
       ]
     },
     "runner": {
+      "description": "Step-executor plugin name. `None` falls back to the default runner (Docker in the shipped configuration).",
       "type": [
         "string",
         "null"
       ]
     },
-    "runner_args": true
+    "runner_args": {
+      "description": "Plugin-specific extra fields passed verbatim to the runner."
+    }
   },
   "definitions": {
     "Cache": {
+      "description": "Snapshot cache configuration for a step.",
       "type": "object",
       "required": [
         "policy"
       ],
       "properties": {
         "policy": {
+          "description": "Cache policy name (e.g. `\"content-hash\"`).",
           "type": "string"
         },
         "key": {
+          "description": "Explicit cache key override; derived from the step if absent.",
           "default": null,
           "type": [
             "string",

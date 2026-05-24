@@ -12,8 +12,7 @@ const DEFAULT_API_URL: &str = "https://api.harmont.dev";
 /// (the `dirs` crate's platform-specific lookup fails — typically only
 /// happens in restrictive sandboxes with no `HOME` / passwd entry).
 pub fn user_config_dir() -> Result<PathBuf> {
-    hm_util::dirs::harmont_config_dir()
-        .context("could not determine home directory")
+    hm_util::dirs::harmont_config_dir().context("could not determine home directory")
 }
 
 /// User preferences stored alongside the config.
@@ -81,8 +80,13 @@ impl Config {
     pub fn save(&self) -> Result<()> {
         let path = Self::path()?;
         let serialized = toml::to_string_pretty(self).context("serializing config")?;
-        hm_util::os::fs::blocking::write_atomic_restricted(&path, serialized.as_bytes(), 0o644, 0o700)
-            .with_context(|| format!("writing {}", path.display()))?;
+        hm_util::os::fs::blocking::write_atomic_restricted(
+            &path,
+            serialized.as_bytes(),
+            0o644,
+            0o700,
+        )
+        .with_context(|| format!("writing {}", path.display()))?;
         Ok(())
     }
 

@@ -67,6 +67,56 @@ jobs:
             --deselect tests/test_gradle.py \
             --deselect tests/test_haskell.py
 
+  ts-dsl:
+    name: harmont-ts (vitest + tsc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dsls/harmont-ts/package-lock.json
+
+      - name: Install
+        working-directory: dsls/harmont-ts
+        run: npm ci
+
+      - name: Type check
+        working-directory: dsls/harmont-ts
+        run: npx tsc --noEmit
+
+      - name: Test
+        working-directory: dsls/harmont-ts
+        run: npm test
+
+  dogfood:
+    name: dogfood (hm run ci)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build hm
+        run: cargo build -p harmont-cli
+
+      - name: Install harmont-py into system Python
+        run: |
+          sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
+          /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
+
+      - name: hm run ci
+        env:
+          HM_NONINTERACTIVE: '1'
+        run: ./target/debug/hm run ci
+
   integration:
     name: docker-gated integration test
     runs-on: ubuntu-latest

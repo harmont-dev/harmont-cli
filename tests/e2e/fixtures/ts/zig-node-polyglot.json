@@ -1,0 +1,192 @@
+{
+  "default_image": "ubuntu:24.04",
+  "graph": {
+    "edge_property": "directed",
+    "edges": [
+      [
+        0,
+        1,
+        "builds_in"
+      ],
+      [
+        1,
+        2,
+        "builds_in"
+      ],
+      [
+        1,
+        3,
+        "builds_in"
+      ],
+      [
+        1,
+        4,
+        "builds_in"
+      ],
+      [
+        1,
+        5,
+        "builds_in"
+      ],
+      [
+        0,
+        6,
+        "builds_in"
+      ],
+      [
+        6,
+        7,
+        "builds_in"
+      ],
+      [
+        7,
+        8,
+        "builds_in"
+      ],
+      [
+        7,
+        9,
+        "builds_in"
+      ],
+      [
+        7,
+        10,
+        "builds_in"
+      ]
+    ],
+    "node_holes": [],
+    "nodes": [
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "duration_seconds": 86400,
+            "env_keys": [],
+            "policy": "ttl"
+          },
+          "cmd": "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates xz-utils",
+          "image": "ubuntu:24.04",
+          "key": "base",
+          "label": ":apt: base"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz -o /tmp/zig.tar.xz && rm -rf /usr/local/zig && mkdir -p /usr/local/zig && tar -xJf /tmp/zig.tar.xz -C /usr/local/zig --strip-components=1 && ln -sf /usr/local/zig/zig /usr/local/bin/zig && zig version",
+          "key": "b589fbff75ec",
+          "label": ":zig: install"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd zig-a && zig build",
+          "key": "zig-a-build",
+          "label": ":zig: zig-a build"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd zig-a && zig build test",
+          "key": "zig-a-test",
+          "label": ":zig: zig-a test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd zig-b && zig build",
+          "key": "zig-b-build",
+          "label": ":zig: zig-b build"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd zig-b && zig build test",
+          "key": "zig-b-test",
+          "label": ":zig: zig-b test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs",
+          "key": "e1242026cf31",
+          "label": ":node: install"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "paths": [
+              "web/package-lock.json"
+            ],
+            "policy": "on_change"
+          },
+          "cmd": "cd web && npm ci",
+          "key": "deps",
+          "label": ":node: deps"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd web && npm run build",
+          "key": "build",
+          "label": ":node: build"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd web && npm run test",
+          "key": "test",
+          "label": ":node: test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd web && npm run lint",
+          "key": "lint",
+          "label": ":node: lint"
+        }
+      }
+    ]
+  },
+  "version": "0"
+}

@@ -27,8 +27,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use daggy::{Dag, NodeIndex, Walker};
 use daggy::petgraph::algo::toposort;
+use daggy::{Dag, NodeIndex, Walker};
 use futures::future::{BoxFuture, FutureExt, join_all};
 
 use anyhow::{Context, Result};
@@ -46,8 +46,8 @@ use crate::runner::{OutputRenderer, RunContext, RunnerRegistry};
 
 use super::archive::ArchiveStore;
 use super::cache;
-use tokio_util::sync::CancellationToken;
 use super::events::EventBus;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 struct StepOutcome {
@@ -152,10 +152,11 @@ pub async fn run(
                 join_all(preds.iter().map(|(_, f)| f.clone())).await;
 
             // Early exit if any predecessor failed or the build was cancelled.
-            if cancel.is_cancelled()
-                || pred_outcomes.iter().any(|o| o.exit_code != 0)
-            {
-                return StepOutcome { exit_code: 0, snapshot: None };
+            if cancel.is_cancelled() || pred_outcomes.iter().any(|o| o.exit_code != 0) {
+                return StepOutcome {
+                    exit_code: 0,
+                    snapshot: None,
+                };
             }
 
             // Acquire parallelism permit.
@@ -189,7 +190,10 @@ pub async fn run(
                 Ok(outcome) => outcome,
                 Err(e) => {
                     tracing::error!(%e, "step execution failed");
-                    StepOutcome { exit_code: 1, snapshot: None }
+                    StepOutcome {
+                        exit_code: 1,
+                        snapshot: None,
+                    }
                 }
             }
         }

@@ -58,19 +58,22 @@ class ZigProject:
     def build(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && zig build",
-            f":zig: {self.path} build", **kw,
+            f":zig: {self.path} build",
+            **kw,
         )
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && zig build test",
-            f":zig: {self.path} test", **kw,
+            f":zig: {self.path} test",
+            **kw,
         )
 
     def fmt(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && zig fmt --check .",
-            f":zig: {self.path} fmt", **kw,
+            f":zig: {self.path} fmt",
+            **kw,
         )
 
 
@@ -98,10 +101,7 @@ def _make_toolchain(
     base: Step | None,
 ) -> ZigToolchain:
     if not _VERSION_RE.match(version):
-        msg = (
-            f"hm.zig: invalid version {version!r}\n"
-            '  → use a Zig version like "0.13.0"'
-        )
+        msg = f'hm.zig: invalid version {version!r}\n  → use a Zig version like "0.13.0"'
         raise ValueError(msg)
     installed = make_install_chain(
         apt_packages=APT_PACKAGES,

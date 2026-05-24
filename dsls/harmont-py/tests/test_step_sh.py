@@ -1,4 +1,5 @@
 """Step.sh chain method + cwd= kwarg (HAR-28)."""
+
 from __future__ import annotations
 
 from harmont._step import scratch
@@ -82,5 +83,3 @@ def test_sh_scratch_without_image_remains_none():
 
     s = scratch().sh("echo")
     assert s.image is None
-
-

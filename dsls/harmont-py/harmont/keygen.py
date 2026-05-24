@@ -113,8 +113,15 @@ def _resolve_policy(
         env_keys = policy.get("env_keys", [])
         return "ttl-" + str(bucket) + "-" + _sha256_hex(cmd + NUL + _env_subset(env_keys, env))
     if kind == "on_change":
-        paths = sorted(policy["paths"])
-        pre = "".join(_path_hash(base_path / p) + NUL for p in paths)
+        resolved: list[Path] = []
+        for p in sorted(policy["paths"]):
+            if any(c in p for c in ("*", "?", "[")):
+                resolved.extend(sorted(base_path.glob(p)))
+            else:
+                full = base_path / p
+                if full.exists():
+                    resolved.append(full)
+        pre = "".join(_path_hash(r) + NUL for r in resolved)
         return "sha-" + _sha256_hex(pre)
     if kind == "compose":
         subs = policy["sub_policies"]

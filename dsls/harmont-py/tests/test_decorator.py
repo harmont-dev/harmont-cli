@@ -1,4 +1,5 @@
 """@hm.pipeline decorator surface."""
+
 import pytest
 
 import harmont as hm
@@ -72,6 +73,7 @@ def test_decorator_returns_function_unchanged():
 
 def test_invalid_slug_uppercase():
     with pytest.raises(ValueError, match="invalid pipeline slug 'CI'"):
+
         @hm.pipeline("CI")
         def ci() -> hm.Step:
             return hm.scratch().sh("echo")
@@ -79,6 +81,7 @@ def test_invalid_slug_uppercase():
 
 def test_invalid_slug_starts_with_digit():
     with pytest.raises(ValueError, match="invalid pipeline slug '1ci'"):
+
         @hm.pipeline("1ci")
         def x() -> hm.Step:
             return hm.scratch().sh("echo")
@@ -87,6 +90,7 @@ def test_invalid_slug_starts_with_digit():
 def test_invalid_slug_too_long():
     long = "a" * 65
     with pytest.raises(ValueError, match="invalid pipeline slug"):
+
         @hm.pipeline(long)
         def x() -> hm.Step:
             return hm.scratch().sh("echo")
@@ -98,6 +102,7 @@ def test_duplicate_slug_raises():
         return hm.scratch().sh("echo")
 
     with pytest.raises(ValueError, match="duplicate pipeline slug"):
+
         @hm.pipeline("ci")
         def b() -> hm.Step:
             return hm.scratch().sh("echo")

@@ -1,4 +1,5 @@
 """Tests for ZigToolchain (the multi-project entry point for hm.zig)."""
+
 from __future__ import annotations
 
 import json
@@ -41,6 +42,7 @@ def test_pipeline_with_shared_toolchain_emits_one_install() -> None:
     ZigToolchain must emit exactly one :zig: install node in the IR."""
     import harmont._registry as reg
     import harmont._target as targets
+
     reg.clear_registry()
     targets.clear_target_cache()
 
@@ -70,8 +72,7 @@ def test_pipeline_with_shared_toolchain_emits_one_install() -> None:
 
     zig_installs = [n for n in nodes if n["step"].get("label") == ":zig: install"]
     assert len(zig_installs) == 1, (
-        f"expected exactly one :zig: install node, got "
-        f"{[n['step']['key'] for n in zig_installs]}"
+        f"expected exactly one :zig: install node, got {[n['step']['key'] for n in zig_installs]}"
     )
 
     install_key = zig_installs[0]["step"]["key"]

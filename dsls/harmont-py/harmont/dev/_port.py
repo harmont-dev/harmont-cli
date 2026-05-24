@@ -5,6 +5,7 @@ The sentinel is only meaningful as a value in
 Any other position (env value, cmd arg, …) is rejected at the call
 site that consumes it, with a fix-directed message per PRINCIPLES § 5.
 """
+
 from __future__ import annotations
 
 

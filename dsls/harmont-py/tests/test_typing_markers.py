@@ -1,4 +1,5 @@
 """Target[T] and BaseImage(X) annotation markers (HAR-28 follow-up)."""
+
 from __future__ import annotations
 
 import typing

@@ -6,6 +6,7 @@ which glob the filesystem at construction time
 (e.g. :func:`harmont.haskell.HaskellToolchain.package`) resolve real
 files in ``api/``, ``freestyle/``, ``app/``, etc.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

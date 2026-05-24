@@ -57,7 +57,8 @@ class GoToolchain:
     def fmt(self, **kw: Any) -> Step:
         return self._emit(
             f'cd {self.path} && test -z "$(gofmt -l .)"',
-            ":go: fmt", **kw,
+            ":go: fmt",
+            **kw,
         )
 
 
@@ -69,10 +70,7 @@ def _make_go(
     base: Step | None = None,
 ) -> GoToolchain:
     if not _VERSION_RE.match(version):
-        msg = (
-            f"hm.go: invalid version {version!r}\n"
-            '  → use a Go version like "1.23.2"'
-        )
+        msg = f'hm.go: invalid version {version!r}\n  → use a Go version like "1.23.2"'
         raise ValueError(msg)
     installed = make_install_chain(
         apt_packages=APT_PACKAGES,

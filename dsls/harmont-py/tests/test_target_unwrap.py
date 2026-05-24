@@ -1,4 +1,5 @@
 """as_leaves unwraps toolchain return values to (Step, ...) (HAR-28)."""
+
 from __future__ import annotations
 
 import pytest

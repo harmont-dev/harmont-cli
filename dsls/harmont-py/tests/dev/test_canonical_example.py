@@ -4,6 +4,7 @@ The deployments both use Python's stdlib `http.server` (no third-party
 image dependency), which is the smallest practical "native language
 facility" demonstration of an HTTP server in a harmont deployment.
 """
+
 from __future__ import annotations
 
 import json
@@ -40,7 +41,10 @@ def test_canonical_hello_greeter_dumps_expected_shape(tmp_path: Path) -> None:
     assert out["deployments"]["greeter"]["deps"] == ["hello"]
     assert out["deployments"]["hello"]["image"] == "python:3.12-alpine"
     assert out["deployments"]["hello"]["cmd"] == [
-        "python", "-m", "http.server", "5678",
+        "python",
+        "-m",
+        "http.server",
+        "5678",
     ]
     assert out["deployments"]["greeter"]["env"] == {"HELLO_HOST": "hello"}
     assert out["deployments"]["hello"]["from"] is None

@@ -12,11 +12,26 @@
 #![cfg(feature = "docker-integration")]
 // Integration tests intentionally use unwrap/expect/panic to fail loudly on
 // docker-state mismatches; that's the correct behaviour for test code.
-#![allow(clippy::unwrap_used, reason = "integration test helpers panic on docker-state mismatch")]
-#![allow(clippy::expect_used, reason = "integration test helpers panic on docker-state mismatch")]
-#![allow(clippy::panic, reason = "poll_http panics after timeout — correct for test code")]
-#![allow(clippy::cast_possible_wrap, reason = "pid fits in i32 on all platforms we target")]
-#![allow(clippy::ignore_without_reason, reason = "reason is in the test name and doc comment above")]
+#![allow(
+    clippy::unwrap_used,
+    reason = "integration test helpers panic on docker-state mismatch"
+)]
+#![allow(
+    clippy::expect_used,
+    reason = "integration test helpers panic on docker-state mismatch"
+)]
+#![allow(
+    clippy::panic,
+    reason = "poll_http panics after timeout — correct for test code"
+)]
+#![allow(
+    clippy::cast_possible_wrap,
+    reason = "pid fits in i32 on all platforms we target"
+)]
+#![allow(
+    clippy::ignore_without_reason,
+    reason = "reason is in the test name and doc comment above"
+)]
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -40,7 +55,9 @@ fn hm_bin() -> PathBuf {
 #[ignore]
 fn up_serves_http_and_tears_down() {
     let tmp = tempfile::tempdir().unwrap();
-    write_deploys_py(tmp.path(), r#"
+    write_deploys_py(
+        tmp.path(),
+        r#"
 import harmont as hm
 
 @hm.deploy("hello")
@@ -50,7 +67,8 @@ def hello():
         cmd=["python", "-m", "http.server", "5678"],
         port_mapping={5678: hm.dev.port()},
     )
-"#);
+"#,
+    );
 
     let mut up = Command::new(hm_bin())
         .args(["dev", "up"])
@@ -66,27 +84,38 @@ def hello():
     let started = std::time::Instant::now();
     while started.elapsed().as_secs() < 60 {
         let n = stderr.read(&mut chunk).unwrap_or(0);
-        if n == 0 { break; }
+        if n == 0 {
+            break;
+        }
         buf.push_str(&String::from_utf8_lossy(&chunk[..n]));
-        if buf.contains("all up.") { break; }
+        if buf.contains("all up.") {
+            break;
+        }
     }
-    assert!(buf.contains("all up."),
-        "up did not become ready; stderr:\n{buf}");
+    assert!(
+        buf.contains("all up."),
+        "up did not become ready; stderr:\n{buf}"
+    );
 
     let port_of = Command::new(hm_bin())
         .args(["dev", "port-of", "hello", "5678"])
         .current_dir(tmp.path())
         .output()
         .unwrap();
-    assert!(port_of.status.success(),
-        "port-of failed: {}", String::from_utf8_lossy(&port_of.stderr));
+    assert!(
+        port_of.status.success(),
+        "port-of failed: {}",
+        String::from_utf8_lossy(&port_of.stderr)
+    );
     let host_port: u16 = String::from_utf8(port_of.stdout)
         .unwrap()
         .trim()
         .parse()
         .unwrap();
-    assert!(host_port > 1024,
-        "expected ephemeral host port, got {host_port}");
+    assert!(
+        host_port > 1024,
+        "expected ephemeral host port, got {host_port}"
+    );
 
     // python -m http.server returns an HTML directory listing whose
     // body always contains the literal "Directory listing for /".
@@ -107,9 +136,12 @@ def hello():
         .current_dir(tmp.path())
         .output()
         .unwrap();
-    assert_eq!(port_of_after.status.code(), Some(4),
+    assert_eq!(
+        port_of_after.status.code(),
+        Some(4),
         "stopped slug should exit 4: {}",
-        String::from_utf8_lossy(&port_of_after.stderr));
+        String::from_utf8_lossy(&port_of_after.stderr)
+    );
 }
 
 fn poll_http(url: &str) -> String {

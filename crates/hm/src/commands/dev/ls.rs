@@ -31,8 +31,7 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
     );
 
     // Pre-load running containers by (slug, session) key.
-    let mut running: HashMap<(String, String), (String, HashMap<u16, u16>)> =
-        HashMap::new();
+    let mut running: HashMap<(String, String), (String, HashMap<u16, u16>)> = HashMap::new();
     if let Some(d) = &docker {
         let containers = d
             .list_containers_by_label(LABEL_WORKTREE, &wt_hash)

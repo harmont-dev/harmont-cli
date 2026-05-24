@@ -396,8 +396,7 @@ impl DockerClient {
         match self.inner.remove_network(name).await {
             Ok(())
             | Err(bollard::errors::Error::DockerResponseServerError {
-                status_code: 404,
-                ..
+                status_code: 404, ..
             }) => Ok(()),
             Err(e) => Err(HmError::Docker(format!("remove_network({name}): {e}")).into()),
         }
@@ -428,14 +427,20 @@ impl DockerClient {
 
         // Docker's exposed_ports type requires HashMap<String, HashMap<(), ()>>.
         // The unit-value inner map is the Docker API convention for "no options".
-        #[allow(clippy::zero_sized_map_values, reason = "Docker API requires this exact type")]
+        #[allow(
+            clippy::zero_sized_map_values,
+            reason = "Docker API requires this exact type"
+        )]
         let (mut exposed, mut port_bindings) = (
             HashMap::<String, HashMap<(), ()>>::new(),
             HashMap::<String, Option<Vec<PortBinding>>>::new(),
         );
         for cport in &spec.publish {
             let key = format!("{cport}/tcp");
-            #[allow(clippy::zero_sized_map_values, reason = "Docker API requires this exact type")]
+            #[allow(
+                clippy::zero_sized_map_values,
+                reason = "Docker API requires this exact type"
+            )]
             exposed.insert(key.clone(), HashMap::new());
             port_bindings.insert(
                 key,
@@ -559,8 +564,7 @@ impl DockerClient {
         {
             Ok(())
             | Err(bollard::errors::Error::DockerResponseServerError {
-                status_code: 404,
-                ..
+                status_code: 404, ..
             }) => Ok(()),
             Err(e) => Err(HmError::Docker(format!("stop_container({container_id}): {e}")).into()),
         }
@@ -585,12 +589,9 @@ impl DockerClient {
         {
             Ok(())
             | Err(bollard::errors::Error::DockerResponseServerError {
-                status_code: 404,
-                ..
+                status_code: 404, ..
             }) => Ok(()),
-            Err(e) => {
-                Err(HmError::Docker(format!("remove_container({container_id}): {e}")).into())
-            }
+            Err(e) => Err(HmError::Docker(format!("remove_container({container_id}): {e}")).into()),
         }
     }
 

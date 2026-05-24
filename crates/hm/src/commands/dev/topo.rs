@@ -34,7 +34,10 @@ pub fn plan(reg: &DevRegistry, requested: &[String], no_deps: bool) -> Result<Bo
     let mut deps: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for (slug, entry) in &reg.deployments {
         if let RegEntry::Local(spec) = entry {
-            deps.insert(slug.as_str(), spec.deps.iter().map(String::as_str).collect());
+            deps.insert(
+                slug.as_str(),
+                spec.deps.iter().map(String::as_str).collect(),
+            );
         }
     }
     for s in requested {
@@ -42,8 +45,11 @@ pub fn plan(reg: &DevRegistry, requested: &[String], no_deps: bool) -> Result<Bo
             let exists = reg.deployments.contains_key(s);
             return Err(anyhow!(
                 "hm: slug `{s}` {}",
-                if exists { "is not a local-driver deployment (use the matching driver's `up`)" }
-                else { "is not registered in this worktree's .harmont/" }
+                if exists {
+                    "is not a local-driver deployment (use the matching driver's `up`)"
+                } else {
+                    "is not registered in this worktree's .harmont/"
+                }
             ));
         }
     }
@@ -94,7 +100,10 @@ pub fn plan(reg: &DevRegistry, requested: &[String], no_deps: bool) -> Result<Bo
         }
         for (slug, count) in &mut indeg {
             if let Some(ds) = deps.get(slug.as_str()) {
-                let removed = ds.iter().filter(|d| ready.iter().any(|r| *r == **d)).count();
+                let removed = ds
+                    .iter()
+                    .filter(|d| ready.iter().any(|r| *r == **d))
+                    .count();
                 *count = count.saturating_sub(removed);
             }
         }
@@ -106,8 +115,8 @@ pub fn plan(reg: &DevRegistry, requested: &[String], no_deps: bool) -> Result<Bo
 #[cfg(test)]
 #[allow(clippy::unwrap_used, reason = "test code")]
 mod tests {
-    use super::*;
     use super::super::registry::{DevRegistry, LocalSpec, RegEntry};
+    use super::*;
     use std::collections::BTreeMap;
 
     fn reg(specs: &[(&str, &[&str])]) -> DevRegistry {
@@ -138,11 +147,14 @@ mod tests {
     fn empty_request_brings_up_everything() {
         let r = reg(&[("db", &[]), ("api", &["db"]), ("web", &["api"])]);
         let plan = plan(&r, &[], false).unwrap();
-        assert_eq!(plan.levels, vec![
-            vec!["db".to_string()],
-            vec!["api".to_string()],
-            vec!["web".to_string()],
-        ]);
+        assert_eq!(
+            plan.levels,
+            vec![
+                vec!["db".to_string()],
+                vec!["api".to_string()],
+                vec!["web".to_string()],
+            ]
+        );
     }
 
     #[test]

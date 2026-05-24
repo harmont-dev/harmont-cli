@@ -23,7 +23,9 @@ pub async fn handle(args: DevLogsArgs, _ctx: RunContext) -> Result<i32> {
     let docker = DockerClient::connect()?;
     let worktree_root = resolve_worktree_root()?;
     let wt_hash = worktree_hash(&worktree_root);
-    let containers = docker.list_containers_by_label(LABEL_WORKTREE, &wt_hash).await?;
+    let containers = docker
+        .list_containers_by_label(LABEL_WORKTREE, &wt_hash)
+        .await?;
     let mut matches: Vec<(String, String, String)> = Vec::new();
     for c in &containers {
         let labels = c.labels.clone().unwrap_or_default();

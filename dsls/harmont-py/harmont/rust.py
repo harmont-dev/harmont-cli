@@ -18,7 +18,11 @@ if TYPE_CHECKING:
     from ._step import Step
 
 APT_PACKAGES = (
-    "curl", "ca-certificates", "build-essential", "pkg-config", "libssl-dev",
+    "curl",
+    "ca-certificates",
+    "build-essential",
+    "pkg-config",
+    "libssl-dev",
 )
 
 _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
@@ -61,7 +65,9 @@ class RustToolchain:
 
     def clippy(self, **kw: Any) -> Step:
         return self._emit(
-            "cargo clippy --all-targets -- -D warnings", ":rust: clippy", **kw,
+            "cargo clippy --all-targets -- -D warnings",
+            ":rust: clippy",
+            **kw,
         )
 
     def fmt(self, **kw: Any) -> Step:
@@ -111,8 +117,11 @@ class _RustEntry:
         base: Step | None = None,
     ) -> RustToolchain:
         return _make_rust(
-            path=path, version=version, image=image,
-            components=components, base=base,
+            path=path,
+            version=version,
+            image=image,
+            components=components,
+            base=base,
         )
 
     def build(self, *, release: bool = False, **kw: Any) -> Step:

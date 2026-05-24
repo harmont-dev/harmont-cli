@@ -8,6 +8,7 @@ deployment registry JSON to stdout.
 Errors go to stderr with exit code 1 (DSL error) or 2 (argparse
 usage error), matching ``harmont``'s convention.
 """
+
 from __future__ import annotations
 
 import argparse

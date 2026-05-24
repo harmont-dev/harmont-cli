@@ -1,4 +1,5 @@
 """Rust toolchain abstraction tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -30,8 +31,14 @@ def test_rust_object_form_full_chain():
 
 def test_rust_actions_share_install_step():
     rust = hm.rust(path="cli")
-    p = hm.pipeline(rust.build(), rust.test(), rust.clippy(), rust.fmt(), rust.doc(),
-                    default_image="ubuntu:24.04")
+    p = hm.pipeline(
+        rust.build(),
+        rust.test(),
+        rust.clippy(),
+        rust.fmt(),
+        rust.doc(),
+        default_image="ubuntu:24.04",
+    )
     cmds = _cmds(p)
     assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
     assert len([c for c in cmds if "apt-get install" in c]) == 1
@@ -147,8 +154,9 @@ def test_rust_bare_form_build():
 
 
 def test_rust_bare_form_all_actions():
-    p = hm.pipeline(hm.rust.build(), hm.rust.test(), hm.rust.clippy(),
-                    hm.rust.fmt(), hm.rust.doc())
+    p = hm.pipeline(
+        hm.rust.build(), hm.rust.test(), hm.rust.clippy(), hm.rust.fmt(), hm.rust.doc()
+    )
     cmds = _cmds(p)
     assert any("cargo build" in c for c in cmds)
     assert any("cargo test" in c for c in cmds)

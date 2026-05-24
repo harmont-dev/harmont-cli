@@ -49,7 +49,9 @@ pub async fn handle(args: DevUpArgs, _ctx: RunContext) -> Result<i32> {
     let session_id = fresh_session_id();
     tracing::info!(target: "user::stderr", "[hm] session {session_id}. resolving deployments in .harmont/");
 
-    let registry = dump(&worktree_root).await.context("dump deployment registry")?;
+    let registry = dump(&worktree_root)
+        .await
+        .context("dump deployment registry")?;
     let boot_plan = plan(&registry, &args.slugs, args.no_deps)?;
     let docker = DockerClient::connect()?;
     docker.ping().await.context("docker daemon ping")?;
@@ -86,9 +88,7 @@ pub async fn handle(args: DevUpArgs, _ctx: RunContext) -> Result<i32> {
             let slug = slug.clone();
             let log_tx = log_tx.clone();
             let ctx = ctx.clone();
-            joinset.spawn(async move {
-                boot_one(docker, slug, spec, ctx, log_tx).await
-            });
+            joinset.spawn(async move { boot_one(docker, slug, spec, ctx, log_tx).await });
         }
         while let Some(res) = joinset.join_next().await {
             let b = res??;
@@ -119,8 +119,7 @@ async fn boot_one(
     log_tx: mpsc::UnboundedSender<LogLine>,
 ) -> Result<Booted> {
     // Resolve image: raw or build-from-step.
-    let image =
-        resolve_image(&docker, &slug, &spec, &ctx.worktree_hash, ctx.rebuild).await?;
+    let image = resolve_image(&docker, &slug, &spec, &ctx.worktree_hash, ctx.rebuild).await?;
     let resolved = build_spec(
         &slug,
         &spec,
@@ -170,8 +169,7 @@ async fn resolve_image(
         return Ok(tag.clone());
     }
     if let Some(FromSource::StepChain { pipeline_v0 }) = &spec.from {
-        let chain_key =
-            extract_terminal_key(pipeline_v0).unwrap_or_else(|| "nocache".to_string());
+        let chain_key = extract_terminal_key(pipeline_v0).unwrap_or_else(|| "nocache".to_string());
         let tag = format!("hm-build-{worktree_hash}-{slug}:{chain_key}");
         if rebuild || !docker.image_exists(&tag).await? {
             tracing::info!(target: "user::stderr", "[{slug}] building from Step chain...");
@@ -211,7 +209,13 @@ async fn stream_logs(
         match item {
             Ok(chunk) => {
                 let bytes = chunk.into_bytes().to_vec();
-                if tx.send(LogLine { slug: slug.clone(), bytes }).is_err() {
+                if tx
+                    .send(LogLine {
+                        slug: slug.clone(),
+                        bytes,
+                    })
+                    .is_err()
+                {
                     break;
                 }
             }

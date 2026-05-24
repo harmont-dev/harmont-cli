@@ -1,4 +1,5 @@
 """HaskellToolchain.cabal alias for .package (HAR-28)."""
+
 from __future__ import annotations
 
 import harmont as hm

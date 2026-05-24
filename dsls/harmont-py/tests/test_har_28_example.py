@@ -1,4 +1,5 @@
 """End-to-end: HAR-28 issue example renders to a valid envelope."""
+
 from __future__ import annotations
 
 import json

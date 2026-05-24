@@ -4,6 +4,7 @@ These tests render the pipeline definitions in harmont-cli/examples/
 to v0 IR JSON. They are gated behind HARMONT_CLI_PATH so they only
 run when a sibling harmont-cli checkout is available.
 """
+
 from __future__ import annotations
 
 import importlib.util

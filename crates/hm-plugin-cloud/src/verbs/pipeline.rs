@@ -25,7 +25,9 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: PipelineCommand) ->
 }
 
 async fn list(client: &Client, org: &str) -> Result<()> {
-    let pipes: PipelineList = client.get(&format!("/organizations/{org}/pipelines")).await?;
+    let pipes: PipelineList = client
+        .get(&format!("/organizations/{org}/pipelines"))
+        .await?;
     for p in &pipes.data {
         tracing::info!(
             target: "user::stdout",
@@ -53,7 +55,7 @@ async fn show(client: &Client, org: &str, slug: &str) -> Result<()> {
 }
 
 fn active_org() -> Result<String> {
-    CloudState::load().active_org.ok_or_else(|| {
-        anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`")
-    })
+    CloudState::load()
+        .active_org
+        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
 }

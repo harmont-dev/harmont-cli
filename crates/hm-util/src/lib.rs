@@ -1,2 +1,2 @@
-pub mod os;
 pub mod dirs;
+pub mod os;

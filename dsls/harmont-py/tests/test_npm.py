@@ -1,4 +1,5 @@
 """Npm project abstraction tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -30,7 +31,10 @@ def test_npm_full_chain():
 def test_npm_actions_share_install():
     node = hm.npm(path="app/codegen")
     p = hm.pipeline(
-        node.run("build"), node.test(), node.lint(), node.fmt(),
+        node.run("build"),
+        node.test(),
+        node.lint(),
+        node.fmt(),
         default_image="ubuntu:24.04",
     )
     cmds = _cmds(p)

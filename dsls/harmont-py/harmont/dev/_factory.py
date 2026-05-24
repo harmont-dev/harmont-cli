@@ -5,6 +5,7 @@ decorator only learns the slug at decoration time, so this factory
 emits LocalDeployment with name="" — the decorator stamps the slug
 in afterwards via dataclasses.replace.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -51,7 +52,7 @@ def deploy(
     workdir_resolved = _validate_workdir(workdir)
 
     return LocalDeployment(
-        name="",            # decorator stamps the slug in
+        name="",  # decorator stamps the slug in
         driver="local",
         image=image,
         from_step=from_,

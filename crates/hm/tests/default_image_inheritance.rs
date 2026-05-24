@@ -22,7 +22,9 @@ fn decode(json: &[u8]) -> PipelineGraph {
 
 fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::CommandStep {
     let dag = g.dag();
-    let (_, t) = dag.graph().node_references()
+    let (_, t) = dag
+        .graph()
+        .node_references()
         .find(|(_, t)| t.step.key == key)
         .unwrap();
     &t.step
@@ -51,7 +53,8 @@ fn root_step_inherits_default_image() {
 
 #[test]
 fn root_step_explicit_image_wins() {
-    let g = decode(br#"{
+    let g = decode(
+        br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
         "graph": {
@@ -61,7 +64,8 @@ fn root_step_explicit_image_wins() {
             "edge_property": "directed",
             "edges": []
         }
-    }"#);
+    }"#,
+    );
     let step = find_step(&g, "rust");
     assert_eq!(
         step.image.as_deref(),
@@ -75,7 +79,8 @@ fn child_step_unchanged_by_default_image() {
     // Children boot from the parent's committed snapshot at runtime,
     // not from an image tag — leaving their image=None is the correct
     // wire state for chain steps.
-    let g = decode(br#"{
+    let g = decode(
+        br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
         "graph": {
@@ -88,7 +93,8 @@ fn child_step_unchanged_by_default_image() {
                 [0, 1, "builds_in"]
             ]
         }
-    }"#);
+    }"#,
+    );
     let step = find_step(&g, "child");
     assert!(
         step.image.is_none(),
@@ -98,7 +104,8 @@ fn child_step_unchanged_by_default_image() {
 
 #[test]
 fn no_default_image_leaves_root_alone() {
-    let g = decode(br#"{
+    let g = decode(
+        br#"{
         "version": "0",
         "graph": {
             "nodes": [
@@ -107,7 +114,8 @@ fn no_default_image_leaves_root_alone() {
             "edge_property": "directed",
             "edges": []
         }
-    }"#);
+    }"#,
+    );
     let step = find_step(&g, "k");
     assert!(
         step.image.is_none(),

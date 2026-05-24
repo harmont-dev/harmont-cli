@@ -1,4 +1,5 @@
 """Cross-cutting toolchain composition tests (HAR-15)."""
+
 from __future__ import annotations
 
 import harmont as hm
@@ -57,10 +58,10 @@ def test_escape_hatch_consistent_across_toolchains():
 
 def test_deterministic_emission():
     """Two identical pipeline constructions emit equal IR dicts."""
+
     def build() -> dict:
         rust = hm.rust(path="cli")
-        return hm.pipeline(rust.build(), rust.test(),
-                           default_image="ubuntu:24.04")
+        return hm.pipeline(rust.build(), rust.test(), default_image="ubuntu:24.04")
 
     assert build() == build()
 
@@ -73,7 +74,8 @@ def test_mixed_pipeline_compiles():
     elm = hm.elm(path="app", base=node.installed)
     p = hm.pipeline(
         ghc.package("api").test(),
-        rust.test(), rust.clippy(),
+        rust.test(),
+        rust.clippy(),
         node.install(),
         elm.make("src/Main.elm"),
         default_image="ubuntu:24.04",

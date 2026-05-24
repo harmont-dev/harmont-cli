@@ -1,0 +1,122 @@
+{
+  "default_image": "ubuntu:24.04",
+  "graph": {
+    "edge_property": "directed",
+    "edges": [
+      [
+        0,
+        1,
+        "builds_in"
+      ],
+      [
+        1,
+        2,
+        "builds_in"
+      ],
+      [
+        1,
+        3,
+        "builds_in"
+      ],
+      [
+        1,
+        4,
+        "builds_in"
+      ],
+      [
+        1,
+        5,
+        "builds_in"
+      ],
+      [
+        1,
+        6,
+        "builds_in"
+      ]
+    ],
+    "node_holes": [],
+    "nodes": [
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "duration_seconds": 86400,
+            "env_keys": [],
+            "policy": "ttl"
+          },
+          "cmd": "apt-get update && apt-get install -y curl ca-certificates build-essential pkg-config libssl-dev",
+          "image": "ubuntu:24.04",
+          "key": "apt-base",
+          "label": ":rust: apt-base"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --component clippy,rustfmt && . $HOME/.cargo/env && rustc --version && cargo --version",
+          "key": "rustup",
+          "label": ":rust: rustup"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": ". $HOME/.cargo/env && cd . && cargo build",
+          "key": "build",
+          "label": ":rust: build"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": ". $HOME/.cargo/env && cd . && cargo test",
+          "key": "test",
+          "label": ":rust: test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": ". $HOME/.cargo/env && cd . && cargo clippy --all-targets -- -D warnings",
+          "key": "clippy",
+          "label": ":rust: clippy"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": ". $HOME/.cargo/env && cd . && cargo fmt --check",
+          "key": "fmt",
+          "label": ":rust: fmt"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": ". $HOME/.cargo/env && cd . && cargo doc --no-deps",
+          "key": "doc",
+          "label": ":rust: doc"
+        }
+      }
+    ]
+  },
+  "version": "0"
+}

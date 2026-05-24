@@ -21,12 +21,8 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: BuildCommand) -> Re
     match cmd {
         BuildCommand::List { pipeline } => list(&client, &org, &pipeline).await,
         BuildCommand::Show { pipeline, number } => show(&client, &org, &pipeline, number).await,
-        BuildCommand::Cancel { pipeline, number } => {
-            cancel(&client, &org, &pipeline, number).await
-        }
-        BuildCommand::Watch { pipeline, number } => {
-            watch(&client, &org, &pipeline, number).await
-        }
+        BuildCommand::Cancel { pipeline, number } => cancel(&client, &org, &pipeline, number).await,
+        BuildCommand::Watch { pipeline, number } => watch(&client, &org, &pipeline, number).await,
     }
 }
 
@@ -92,7 +88,7 @@ async fn watch(client: &Client, org: &str, pipe: &str, number: i64) -> Result<()
 }
 
 fn active_org() -> Result<String> {
-    CloudState::load().active_org.ok_or_else(|| {
-        anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`")
-    })
+    CloudState::load()
+        .active_org
+        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
 }

@@ -63,12 +63,7 @@ async fn transactions(client: &Client, org: &str, limit: u32) -> Result<()> {
     Ok(())
 }
 
-async fn usage(
-    client: &Client,
-    org: &str,
-    from: Option<&str>,
-    to: Option<&str>,
-) -> Result<()> {
+async fn usage(client: &Client, org: &str, from: Option<&str>, to: Option<&str>) -> Result<()> {
     let mut q = vec![];
     if let Some(f) = from {
         q.push(format!("from={f}"));
@@ -130,7 +125,7 @@ async fn redeem(client: &Client, org: &str, code: &str) -> Result<()> {
 }
 
 fn active_org() -> Result<String> {
-    CloudState::load().active_org.ok_or_else(|| {
-        anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`")
-    })
+    CloudState::load()
+        .active_org
+        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
 }

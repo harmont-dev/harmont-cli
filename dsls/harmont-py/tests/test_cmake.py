@@ -1,4 +1,5 @@
 """CMake (C/C++) toolchain tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -22,8 +23,7 @@ def test_cmake_object_form_full_chain():
 
 def test_cmake_actions_share_install():
     cm = hm.cmake(path="svc")
-    p = hm.pipeline(cm.configure(), cm.build(), cm.test(), cm.fmt(),
-                    default_image="ubuntu:24.04")
+    p = hm.pipeline(cm.configure(), cm.build(), cm.test(), cm.fmt(), default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert len([c for c in cmds if "cmake --version" in c]) == 1
     assert len([c for c in cmds if "apt-get install" in c]) == 1
@@ -51,8 +51,7 @@ def test_cmake_invalid_lang_rejected():
 
 
 def test_cmake_bare_form_actions():
-    p = hm.pipeline(hm.cmake.configure(), hm.cmake.build(),
-                    hm.cmake.test(), hm.cmake.fmt())
+    p = hm.pipeline(hm.cmake.configure(), hm.cmake.build(), hm.cmake.test(), hm.cmake.fmt())
     cmds = _cmds(p)
     assert any("cmake -S . -B build" in c for c in cmds)
     assert any("cmake --build build" in c for c in cmds)

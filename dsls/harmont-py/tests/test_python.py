@@ -1,4 +1,5 @@
 """Python (uv) toolchain abstraction tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -31,8 +32,7 @@ def test_python_object_form_full_chain():
 
 def test_python_actions_share_install_step():
     py = hm.python(path="svc")
-    p = hm.pipeline(py.test(), py.lint(), py.fmt(), py.typecheck(),
-                    default_image="ubuntu:24.04")
+    p = hm.pipeline(py.test(), py.lint(), py.fmt(), py.typecheck(), default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert len([c for c in cmds if "astral.sh/uv/install.sh" in c]) == 1
     assert len([c for c in cmds if "apt-get install" in c]) == 1
@@ -65,8 +65,7 @@ def test_python_bare_form_test():
 
 
 def test_python_bare_form_all_actions():
-    p = hm.pipeline(hm.python.test(), hm.python.lint(),
-                    hm.python.fmt(), hm.python.typecheck())
+    p = hm.pipeline(hm.python.test(), hm.python.lint(), hm.python.fmt(), hm.python.typecheck())
     cmds = _cmds(p)
     assert any("pytest" in c for c in cmds)
     assert any("ruff check" in c for c in cmds)
@@ -80,6 +79,24 @@ def test_python_action_labels_auto_generated():
     assert py.lint().label == ":python: lint"
     assert py.fmt().label == ":python: fmt"
     assert py.typecheck().label == ":python: typecheck"
+
+
+def test_python_typecheck_paths_string():
+    py = hm.python(path="myapp")
+    s = py.typecheck(paths="src")
+    assert "uv run mypy src" in s.cmd
+
+
+def test_python_typecheck_paths_list():
+    py = hm.python(path="myapp")
+    s = py.typecheck(paths=["src", "tests"])
+    assert "uv run mypy src tests" in s.cmd
+
+
+def test_python_typecheck_paths_default():
+    py = hm.python(path="myapp")
+    s = py.typecheck()
+    assert "uv run mypy ." in s.cmd
 
 
 def test_python_action_label_override():

@@ -3,6 +3,7 @@
 Gated: skipped when HARMONT_CLI_PATH is unset. CI sets it after
 cloning harmont-cli.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,7 +32,8 @@ def _example_dirs() -> list[pathlib.Path]:
     if EXAMPLES_ROOT is None:
         return []
     return sorted(
-        p for p in EXAMPLES_ROOT.iterdir()
+        p
+        for p in EXAMPLES_ROOT.iterdir()
         if p.is_dir() and (p / ".harmont" / "pipeline.py").is_file()
     )
 
@@ -54,9 +56,7 @@ def test_example_renders_to_v0_ir(
     assert envelope["schema_version"] == "1"
     assert envelope["pipelines"], f"{example_dir.name}: no pipelines registered"
 
-    ci_pipeline = next(
-        (p for p in envelope["pipelines"] if p["slug"] == "ci"), None
-    )
+    ci_pipeline = next((p for p in envelope["pipelines"] if p["slug"] == "ci"), None)
     assert ci_pipeline is not None, (
         f"{example_dir.name}: no 'ci' pipeline registered; "
         f"got slugs {[p['slug'] for p in envelope['pipelines']]}"

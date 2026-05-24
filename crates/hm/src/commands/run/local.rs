@@ -109,7 +109,6 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
     };
 
     let exit_code =
-        crate::orchestrator::run(graph, repo_root, parallelism, runner_registry, renderer)
-            .await?;
+        crate::orchestrator::run(graph, repo_root, parallelism, runner_registry, renderer).await?;
     Ok(exit_code)
 }

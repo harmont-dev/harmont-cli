@@ -49,18 +49,23 @@ class DotnetProject:
 
     def build(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && dotnet build", ":dotnet: build", **kw,
+            f"cd {self.path} && dotnet build",
+            ":dotnet: build",
+            **kw,
         )
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && dotnet test", ":dotnet: test", **kw,
+            f"cd {self.path} && dotnet test",
+            ":dotnet: test",
+            **kw,
         )
 
     def fmt(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && dotnet format --verify-no-changes",
-            ":dotnet: fmt", **kw,
+            ":dotnet: fmt",
+            **kw,
         )
 
 
@@ -72,10 +77,7 @@ def _make_dotnet(
     base: Step | None = None,
 ) -> DotnetProject:
     if not _CHANNEL_RE.match(channel):
-        msg = (
-            f"hm.dotnet: invalid channel {channel!r}\n"
-            '  → use "8.0", "LTS", or "STS"'
-        )
+        msg = f'hm.dotnet: invalid channel {channel!r}\n  → use "8.0", "LTS", or "STS"'
         raise ValueError(msg)
     installed = make_install_chain(
         apt_packages=APT_PACKAGES,

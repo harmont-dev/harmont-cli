@@ -5,6 +5,7 @@ Most behavioral coverage of the marker-driven resolver lives in
 signature-kind rejection (``*args`` / ``**kwargs`` / positional-only),
 default-value handling on plain params, and cycle detection.
 """
+
 from __future__ import annotations
 
 import pytest

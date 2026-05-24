@@ -62,7 +62,7 @@ class Step:
         if cwd == "":
             msg = (
                 "hm: cwd must be a non-empty path\n"
-                '  → omit cwd= to run in the workspace root, '
+                "  → omit cwd= to run in the workspace root, "
                 'or pass cwd="some/dir"'
             )
             raise ValueError(msg)
@@ -71,8 +71,8 @@ class Step:
         # passes it down to the first emitted command step. Once the
         # chain has a real cmd, inheritance stops — keeps wire format
         # identical for normal chains.
-        effective_image = image if image is not None else (
-            self.image if self.cmd is None else None
+        effective_image = (
+            image if image is not None else (self.image if self.cmd is None else None)
         )
         return Step(
             cmd=effective_cmd,

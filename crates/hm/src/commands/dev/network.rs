@@ -6,9 +6,7 @@ use anyhow::Result;
 
 use crate::orchestrator::docker_client::DockerClient;
 
-use super::naming::{
-    DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_WORKTREE, network_name,
-};
+use super::naming::{DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_WORKTREE, network_name};
 
 #[derive(Debug, Clone)]
 pub struct Network {
@@ -20,11 +18,7 @@ pub struct Network {
 /// # Errors
 ///
 /// Returns the docker error if the daemon rejects creation.
-pub async fn create(
-    docker: &DockerClient,
-    worktree_hash: &str,
-    session: &str,
-) -> Result<Network> {
+pub async fn create(docker: &DockerClient, worktree_hash: &str, session: &str) -> Result<Network> {
     let name = network_name(worktree_hash, session);
     let mut labels = HashMap::new();
     labels.insert(LABEL_WORKTREE.to_string(), worktree_hash.to_string());

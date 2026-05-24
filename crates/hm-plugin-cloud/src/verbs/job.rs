@@ -51,13 +51,7 @@ async fn list(client: &Client, org: &str, pipe: &str, build: i64) -> Result<()> 
     Ok(())
 }
 
-async fn show(
-    client: &Client,
-    org: &str,
-    pipe: &str,
-    build: i64,
-    jid: &str,
-) -> Result<()> {
+async fn show(client: &Client, org: &str, pipe: &str, build: i64, jid: &str) -> Result<()> {
     let j: Job = client
         .get(&format!(
             "/organizations/{org}/pipelines/{pipe}/builds/{build}/jobs/{jid}"
@@ -71,13 +65,7 @@ async fn show(
     Ok(())
 }
 
-async fn log_cmd(
-    client: &Client,
-    org: &str,
-    pipe: &str,
-    build: i64,
-    jid: &str,
-) -> Result<()> {
+async fn log_cmd(client: &Client, org: &str, pipe: &str, build: i64, jid: &str) -> Result<()> {
     let log: JobLog = client
         .get(&format!(
             "/organizations/{org}/pipelines/{pipe}/builds/{build}/jobs/{jid}/log"
@@ -90,7 +78,7 @@ async fn log_cmd(
 }
 
 fn active_org() -> Result<String> {
-    CloudState::load().active_org.ok_or_else(|| {
-        anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`")
-    })
+    CloudState::load()
+        .active_org
+        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
 }

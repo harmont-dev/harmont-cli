@@ -190,6 +190,7 @@ def test_envelope_composes_targets_with_dedup(tmp_path, monkeypatch):
 
 def test_envelope_clears_target_cache_between_renders():
     """Two consecutive dump_registry_json calls must not share target state."""
+
     @hm.target()
     def apt_base() -> hm.Step:
         return hm.sh("apt-get update")
@@ -209,6 +210,7 @@ def test_envelope_clears_target_cache_between_renders():
 
 def test_envelope_wraps_typeerror_with_pipeline_slug():
     """Bad return from pipeline fn surfaces as TypeError naming the slug."""
+
     @hm.pipeline("broken")
     def broken():
         return 42  # not a Step / tuple / toolchain wrapper

@@ -1,4 +1,5 @@
 """@hm.target fixture-style param resolution (HAR-28 follow-up)."""
+
 from __future__ import annotations
 
 import pytest
@@ -77,6 +78,7 @@ def test_duplicate_target_name_raises_at_decoration():
         return hm.sh("a")
 
     with pytest.raises(ValueError, match="duplicate target name 'apt_base'"):
+
         @hm.target()
         def apt_base() -> hm.Step:
             return hm.sh("b")
@@ -91,6 +93,7 @@ def test_explicit_name_override():
         return hm.sh("apt-get update")
 
     from harmont._deps import _TARGETS_BY_NAME
+
     assert "apt-base" in _TARGETS_BY_NAME
     assert "whatever" not in _TARGETS_BY_NAME
 

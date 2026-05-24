@@ -1,4 +1,5 @@
 """@hm.target() decorator — memoization + composition (HAR-28)."""
+
 from __future__ import annotations
 
 import pytest

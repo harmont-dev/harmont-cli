@@ -75,10 +75,7 @@ pub async fn write_atomic_restricted(
 ///
 /// Returns an error if the rename fails (permission denied, cross-device,
 /// source missing, etc.).
-pub async fn atomic_rename_over(
-    from: impl AsRef<Path>,
-    to: impl AsRef<Path>,
-) -> io::Result<()> {
+pub async fn atomic_rename_over(from: impl AsRef<Path>, to: impl AsRef<Path>) -> io::Result<()> {
     #[cfg(unix)]
     {
         tokio::fs::rename(from.as_ref(), to.as_ref()).await
@@ -86,12 +83,11 @@ pub async fn atomic_rename_over(
     #[cfg(windows)]
     {
         fn atomic_rename_over_impl(from: &Path, to: &Path) -> io::Result<()> {
-            use windows::core::HSTRING;
             use windows::Win32::Storage::FileSystem::{
-                MoveFileExW, ReplaceFileW,
-                MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
-                REPLACEFILE_IGNORE_MERGE_ERRORS,
+                MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+                REPLACEFILE_IGNORE_MERGE_ERRORS, ReplaceFileW,
             };
+            use windows::core::HSTRING;
 
             let from_w = HSTRING::from(from.as_os_str());
             let to_w = HSTRING::from(to.as_os_str());
@@ -189,7 +185,6 @@ async fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Re
     Ok(())
 }
 
-
 /// Synchronous wrappers that shell out to the async API via
 /// `tokio::task::block_in_place`. Safe to call from sync contexts
 /// that run inside a tokio runtime (e.g. extism `host_fn` callbacks).
@@ -217,7 +212,9 @@ pub mod blocking {
         file_mode: u32,
         dir_mode: u32,
     ) -> io::Result<()> {
-        block_on(super::write_atomic_restricted(path, contents, file_mode, dir_mode))
+        block_on(super::write_atomic_restricted(
+            path, contents, file_mode, dir_mode,
+        ))
     }
 
     /// Blocking counterpart of [`super::remove_file_if_exists`].

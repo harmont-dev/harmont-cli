@@ -5,6 +5,7 @@ returns a frozen dataclass with a ``to_dict()`` method that produces the
 wire-format JSON object documented in
 docs/superpowers/specs/2026-05-10-har-9-imperfect-dsl-design.md.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -65,9 +66,7 @@ def push(
     )
 
 
-_PR_TYPES = frozenset(
-    {"opened", "synchronize", "reopened", "closed", "ready_for_review"}
-)
+_PR_TYPES = frozenset({"opened", "synchronize", "reopened", "closed", "ready_for_review"})
 _DEFAULT_PR_TYPES = ("opened", "synchronize", "reopened")
 
 
@@ -101,10 +100,7 @@ def pull_request(
     bad = [t for t in resolved_types if t not in _PR_TYPES]
     if bad:
         valid = ", ".join(sorted(_PR_TYPES))
-        msg = (
-            f"unknown pull_request type {bad[0]!r}\n"
-            f"  → valid: {valid}"
-        )
+        msg = f"unknown pull_request type {bad[0]!r}\n  → valid: {valid}"
         raise ValueError(msg)
     return PullRequestTrigger(
         branches=_normalise_globs(branches),

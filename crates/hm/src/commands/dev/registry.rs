@@ -64,12 +64,7 @@ pub const PORT_SENTINEL: &str = "__hm_dev_port__";
 pub async fn dump(worktree_root: &Path) -> Result<DevRegistry> {
     let py = std::env::var("HARMONT_PYTHON").unwrap_or_else(|_| "python3".to_string());
     let output = Command::new(&py)
-        .args([
-            "-m",
-            "harmont.dev",
-            "--dump-registry",
-            "--worktree-root",
-        ])
+        .args(["-m", "harmont.dev", "--dump-registry", "--worktree-root"])
         .arg(worktree_root)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -113,7 +108,9 @@ mod tests {
         }"#;
         let reg: DevRegistry = serde_json::from_str(raw).unwrap();
         assert_eq!(reg.schema_version, "0");
-        let RegEntry::Local(spec) = &reg.deployments["db"] else { panic!("local expected") };
+        let RegEntry::Local(spec) = &reg.deployments["db"] else {
+            panic!("local expected")
+        };
         assert_eq!(spec.image.as_deref(), Some("postgres:16"));
         assert_eq!(spec.port_mapping["5432"], PORT_SENTINEL);
     }
@@ -138,7 +135,9 @@ mod tests {
           }
         }"#;
         let reg: DevRegistry = serde_json::from_str(raw).unwrap();
-        let RegEntry::Local(spec) = &reg.deployments["api"] else { panic!() };
+        let RegEntry::Local(spec) = &reg.deployments["api"] else {
+            panic!()
+        };
         assert!(matches!(spec.from, Some(FromSource::StepChain { .. })));
         assert_eq!(spec.deps, vec!["db"]);
     }

@@ -1,4 +1,5 @@
 """@hm.pipeline fixture-style param resolution (HAR-28 follow-up)."""
+
 from __future__ import annotations
 
 import json

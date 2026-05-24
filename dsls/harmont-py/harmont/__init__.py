@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from . import _decorator, dev
+from . import _decorator, dev, py
 from ._deploy import Deployment, deploy
 from ._envelope import dump_registry_json
 from ._step import Step, scratch, wait
@@ -160,6 +160,7 @@ __all__ = [
     "pipeline_to_json",
     "pull_request",
     "push",
+    "py",
     "python",
     "ruby",
     "rust",

@@ -48,7 +48,9 @@ def pipeline(
     if default_image is not None:
         out["default_image"] = default_image
     out["graph"] = _lower_to_graph(
-        list(leaves), env=env, default_image=default_image,
+        list(leaves),
+        env=env,
+        default_image=default_image,
     )
     return out
 

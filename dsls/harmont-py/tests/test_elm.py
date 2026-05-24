@@ -1,4 +1,5 @@
 """Elm project abstraction tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -103,7 +104,10 @@ def test_elm_action_labels():
 def test_elm_actions_share_install():
     elm = hm.elm(path="app")
     p = hm.pipeline(
-        elm.make("src/Main.elm"), elm.test(), elm.review(), elm.fmt(),
+        elm.make("src/Main.elm"),
+        elm.test(),
+        elm.review(),
+        elm.fmt(),
         default_image="ubuntu:24.04",
     )
     cmds = _cmds(p)

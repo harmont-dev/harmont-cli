@@ -34,8 +34,14 @@ fn transition_round_trips() {
 
 #[test]
 fn edge_kind_serializes_as_snake_case() {
-    assert_eq!(serde_json::to_string(&EdgeKind::BuildsIn).unwrap(), "\"builds_in\"");
-    assert_eq!(serde_json::to_string(&EdgeKind::DependsOn).unwrap(), "\"depends_on\"");
+    assert_eq!(
+        serde_json::to_string(&EdgeKind::BuildsIn).unwrap(),
+        "\"builds_in\""
+    );
+    assert_eq!(
+        serde_json::to_string(&EdgeKind::DependsOn).unwrap(),
+        "\"depends_on\""
+    );
 }
 
 #[test]
@@ -64,30 +70,43 @@ fn build_test_graph() -> PipelineGraph {
                 [0, 1, "builds_in"]
             ]
         }
-    })).unwrap()
+    }))
+    .unwrap()
 }
 
 #[test]
 fn pipeline_graph_round_trips_through_json() {
+    use daggy::{Walker, petgraph::visit::IntoNodeReferences};
+
     let g = build_test_graph();
     let json = serde_json::to_string_pretty(&g).unwrap();
     let back: PipelineGraph = serde_json::from_str(&json).unwrap();
     assert_eq!(back.node_count(), 3);
     assert_eq!(back.default_image(), Some("ubuntu:24.04"));
-    use daggy::Walker;
-    use daggy::petgraph::visit::IntoNodeReferences;
 
-    let a_idx = back.dag().graph().node_references()
+    let a_idx = back
+        .dag()
+        .graph()
+        .node_references()
         .find(|(_, t)| t.step.key == "a")
         .map(|(idx, _)| idx)
         .unwrap();
-    assert_eq!(back.dag()[a_idx].step.image.as_deref(), Some("ubuntu:24.04"));
+    assert_eq!(
+        back.dag()[a_idx].step.image.as_deref(),
+        Some("ubuntu:24.04")
+    );
 
-    let b_idx = back.dag().graph().node_references()
+    let b_idx = back
+        .dag()
+        .graph()
+        .node_references()
         .find(|(_, t)| t.step.key == "b")
         .map(|(idx, _)| idx)
         .unwrap();
-    let has_builds_in_parent = back.dag().parents(b_idx).iter(back.dag())
+    let has_builds_in_parent = back
+        .dag()
+        .parents(b_idx)
+        .iter(back.dag())
         .any(|(e, _)| *back.dag().edge_weight(e).unwrap() == EdgeKind::BuildsIn);
     assert!(has_builds_in_parent);
 }

@@ -9,6 +9,7 @@ Public surface:
     LocalDeployment                          (concrete subclass)
     dump_registry_json(*, worktree_root)    -> str
 """
+
 from __future__ import annotations
 
 from ._deployment import LocalDeployment

@@ -9,8 +9,8 @@ use crate::context::RunContext;
 use crate::orchestrator::docker_client::DockerClient;
 
 use super::naming::{
-    DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_SLUG, LABEL_WORKTREE,
-    network_name, resolve_worktree_root, worktree_hash,
+    DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_SLUG, LABEL_WORKTREE, network_name,
+    resolve_worktree_root, worktree_hash,
 };
 
 /// # Errors
@@ -22,9 +22,13 @@ pub async fn handle(args: DevDownArgs, _ctx: RunContext) -> Result<i32> {
     let wt_hash = worktree_hash(&worktree_root);
 
     let containers = if args.all {
-        docker.list_containers_by_label(LABEL_DRIVER, DRIVER_LOCAL).await?
+        docker
+            .list_containers_by_label(LABEL_DRIVER, DRIVER_LOCAL)
+            .await?
     } else {
-        docker.list_containers_by_label(LABEL_WORKTREE, &wt_hash).await?
+        docker
+            .list_containers_by_label(LABEL_WORKTREE, &wt_hash)
+            .await?
     };
 
     // (id, slug, session, name)
