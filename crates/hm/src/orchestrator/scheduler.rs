@@ -29,7 +29,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use daggy::NodeIndex;
+use daggy::{Dag, NodeIndex, Walker};
 
 use anyhow::{Context, Result};
 use hm_plugin_protocol::{
@@ -40,7 +40,7 @@ use uuid::Uuid;
 
 use crate::error::HmError;
 use crate::orchestrator::docker_client::DockerClient;
-use crate::orchestrator::graph::Graph;
+use crate::orchestrator::graph::{EdgeKind, Graph, Transition};
 use crate::orchestrator::source::build_archive_bytes;
 use crate::plugin::{PluginRegistry, RegistryConfig};
 
@@ -49,6 +49,15 @@ use super::cache;
 use tokio_util::sync::CancellationToken;
 use super::events::EventBus;
 use super::state::{self, OrchestratorState};
+
+/// Outcome of a single step execution, used by the upcoming dataflow
+/// scheduler to propagate exit codes and snapshot lineage.
+#[derive(Clone)]
+#[allow(dead_code)]
+struct StepOutcome {
+    exit_code: i32,
+    snapshot: Option<SnapshotRef>,
+}
 
 /// Entry point: run a parsed pipeline locally end-to-end. Returns
 /// the overall exit code (0 = success, [`crate::error::EXIT_BUILD_FAILED`]
@@ -435,4 +444,80 @@ async fn run_chain(
         }
     }
     Ok(0)
+}
+
+/// Per-node chain membership used for event enrichment. Maps every
+/// node in the DAG to (chain_id, position_within_chain).
+#[allow(dead_code)]
+struct ChainInfo {
+    chain_count: usize,
+    node_chain_id: HashMap<NodeIndex, usize>,
+    node_chain_pos: HashMap<NodeIndex, usize>,
+}
+
+/// Walk the DAG and assign each node to a linear chain. A chain starts
+/// at any node not yet assigned and extends forward through single
+/// `BuildsIn` children where the child has exactly one parent total.
+/// This mirrors `PipelineGraph::chains()` but lives as a free function
+/// operating on the raw `Dag`.
+#[allow(dead_code)]
+fn compute_chain_info(dag: &Dag<Transition, EdgeKind>) -> ChainInfo {
+    let mut node_chain_id: HashMap<NodeIndex, usize> = HashMap::new();
+    let mut node_chain_pos: HashMap<NodeIndex, usize> = HashMap::new();
+    let mut chain_count: usize = 0;
+
+    // Walk nodes in index order.
+    let mut indices: Vec<NodeIndex> = dag.graph().node_indices().collect();
+    indices.sort();
+
+    for idx in indices {
+        if node_chain_id.contains_key(&idx) {
+            continue;
+        }
+
+        // Start a new chain rooted at this unvisited node.
+        let chain_id = chain_count;
+        chain_count += 1;
+
+        let mut cur = idx;
+        let mut pos: usize = 0;
+        loop {
+            node_chain_id.insert(cur, chain_id);
+            node_chain_pos.insert(cur, pos);
+            pos += 1;
+
+            // Collect BuildsIn children of `cur`.
+            let builds_in_children: Vec<NodeIndex> = dag
+                .children(cur)
+                .iter(dag)
+                .filter(|(e, _)| dag.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
+                .map(|(_, child)| child)
+                .collect();
+
+            // Follow the chain only if there's exactly one BuildsIn child...
+            if builds_in_children.len() != 1 {
+                break;
+            }
+            let child = builds_in_children[0];
+
+            // ...that hasn't been assigned yet...
+            if node_chain_id.contains_key(&child) {
+                break;
+            }
+
+            // ...and that child has exactly one parent total.
+            let parent_count = dag.parents(child).iter(dag).count();
+            if parent_count != 1 {
+                break;
+            }
+
+            cur = child;
+        }
+    }
+
+    ChainInfo {
+        chain_count,
+        node_chain_id,
+        node_chain_pos,
+    }
 }
