@@ -61,4 +61,12 @@ describe("target", () => {
     expect(step._cmd).toBe("install app");
     expect(step._parent!._cmd).toBe("install base");
   });
+
+  it("memoizes non-Step values (generic)", () => {
+    const factory = target("my-obj", () => ({ value: Math.random() }));
+    const a = factory();
+    const b = factory();
+    expect(a).toBe(b);
+    expect(a.value).toBe(b.value);
+  });
 });
