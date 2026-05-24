@@ -74,10 +74,22 @@ fn pipeline_graph_round_trips_through_json() {
     let back: PipelineGraph = serde_json::from_str(&json).unwrap();
     assert_eq!(back.node_count(), 3);
     assert_eq!(back.default_image(), Some("ubuntu:24.04"));
-    let a = back.node_index_by_key("a").unwrap();
-    assert_eq!(back.get_transition(a).step.image.as_deref(), Some("ubuntu:24.04"));
-    let b = back.node_index_by_key("b").unwrap();
-    assert!(back.builds_in_parent(b).is_some());
+    use daggy::Walker;
+    use daggy::petgraph::visit::IntoNodeReferences;
+
+    let a_idx = back.dag().graph().node_references()
+        .find(|(_, t)| t.step.key == "a")
+        .map(|(idx, _)| idx)
+        .unwrap();
+    assert_eq!(back.dag()[a_idx].step.image.as_deref(), Some("ubuntu:24.04"));
+
+    let b_idx = back.dag().graph().node_references()
+        .find(|(_, t)| t.step.key == "b")
+        .map(|(idx, _)| idx)
+        .unwrap();
+    let has_builds_in_parent = back.dag().parents(b_idx).iter(back.dag())
+        .any(|(e, _)| *back.dag().edge_weight(e).unwrap() == EdgeKind::BuildsIn);
+    assert!(has_builds_in_parent);
 }
 
 #[test]

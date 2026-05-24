@@ -13,10 +13,19 @@
     reason = "integration test pinning a tiny invariant"
 )]
 
+use daggy::petgraph::visit::IntoNodeReferences;
 use harmont_cli::orchestrator::graph::Graph;
 
 fn decode(json: &[u8]) -> Graph {
     serde_json::from_slice::<Graph>(json).unwrap()
+}
+
+fn find_step<'a>(g: &'a Graph, key: &str) -> &'a hm_pipeline_ir::CommandStep {
+    let dag = g.dag();
+    let (_, t) = dag.graph().node_references()
+        .find(|(_, t)| t.step.key == key)
+        .unwrap();
+    &t.step
 }
 
 #[test]
@@ -32,9 +41,9 @@ fn root_step_inherits_default_image() {
             "edges": []
         }
     }"#);
-    let idx = g.node_index_by_key("apt-base").unwrap();
+    let step = find_step(&g, "apt-base");
     assert_eq!(
-        g.get_transition(idx).step.image.as_deref(),
+        step.image.as_deref(),
         Some("ubuntu:24.04"),
         "root step must inherit pipeline default_image"
     );
@@ -53,9 +62,9 @@ fn root_step_explicit_image_wins() {
             "edges": []
         }
     }"#);
-    let idx = g.node_index_by_key("rust").unwrap();
+    let step = find_step(&g, "rust");
     assert_eq!(
-        g.get_transition(idx).step.image.as_deref(),
+        step.image.as_deref(),
         Some("rust:1.82"),
         "explicit per-step image must override default_image"
     );
@@ -80,9 +89,9 @@ fn child_step_unchanged_by_default_image() {
             ]
         }
     }"#);
-    let idx = g.node_index_by_key("child").unwrap();
+    let step = find_step(&g, "child");
     assert!(
-        g.get_transition(idx).step.image.is_none(),
+        step.image.is_none(),
         "child step must not inherit default_image — chain steps boot from parent snapshot",
     );
 }
@@ -99,9 +108,9 @@ fn no_default_image_leaves_root_alone() {
             "edges": []
         }
     }"#);
-    let idx = g.node_index_by_key("k").unwrap();
+    let step = find_step(&g, "k");
     assert!(
-        g.get_transition(idx).step.image.is_none(),
+        step.image.is_none(),
         "absent default_image must not synthesize an image"
     );
 }
