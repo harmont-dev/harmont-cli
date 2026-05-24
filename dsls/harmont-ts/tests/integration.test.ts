@@ -127,8 +127,6 @@ describe("target memoization", () => {
 
 describe("envelope", () => {
   it("renders a complete envelope with triggers", () => {
-    const ir = pipeline(sh("echo hello", { label: "hello" }));
-
     const def: PipelineDefinition = {
       slug: "my-ci",
       name: "My CI Pipeline",
@@ -138,7 +136,7 @@ describe("envelope", () => {
         pullRequest({ branches: "develop" }),
         schedule("0 4 * * *"),
       ],
-      ir,
+      pipeline: pipeline(sh("echo hello", { label: "hello" })),
     };
 
     const json = renderEnvelope([def]);
@@ -199,7 +197,7 @@ describe("JSON snake_case output", () => {
     const def: PipelineDefinition = {
       slug: "ci",
       allowManual: true,
-      ir: pipeline(sh("echo")),
+      pipeline: pipeline(sh("echo")),
     };
     const json = renderEnvelope([def]);
 

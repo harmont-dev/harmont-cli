@@ -41,22 +41,22 @@ describe("examples render to v0 IR", () => {
 
       const ci = definitions.find((d: any) => d.slug === "ci");
       expect(ci).toBeDefined();
-      expect(ci.ir.version).toBe("0");
-      expect(ci.ir.graph.nodes.length).toBeGreaterThan(0);
-      expect(ci.ir.graph.edge_property).toBe("directed");
-      expect(ci.ir.default_image).toBeTruthy();
+      expect(ci.pipeline.version).toBe("0");
+      expect(ci.pipeline.graph.nodes.length).toBeGreaterThan(0);
+      expect(ci.pipeline.graph.edge_property).toBe("directed");
+      expect(ci.pipeline.default_image).toBeTruthy();
 
       // Verify all nodes have required fields
-      for (const node of ci.ir.graph.nodes) {
+      for (const node of ci.pipeline.graph.nodes) {
         expect(node.step.key).toBeDefined();
         expect(node.step.cmd).toBeDefined();
         expect(typeof node.env).toBe("object");
       }
 
       // Verify edges reference valid node indices
-      for (const [src, dst, kind] of ci.ir.graph.edges) {
-        expect(src).toBeLessThan(ci.ir.graph.nodes.length);
-        expect(dst).toBeLessThan(ci.ir.graph.nodes.length);
+      for (const [src, dst, kind] of ci.pipeline.graph.edges) {
+        expect(src).toBeLessThan(ci.pipeline.graph.nodes.length);
+        expect(dst).toBeLessThan(ci.pipeline.graph.nodes.length);
         expect(["builds_in", "depends_on"]).toContain(kind);
       }
     });

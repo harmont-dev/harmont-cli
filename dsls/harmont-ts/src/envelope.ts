@@ -6,7 +6,7 @@ export interface PipelineDefinition {
   readonly name?: string;
   readonly allowManual?: boolean;
   readonly triggers?: readonly Trigger[];
-  readonly ir: PipelineIR;
+  readonly pipeline: PipelineIR;
 }
 
 interface EnvelopeJSON {
@@ -30,7 +30,7 @@ export function renderEnvelope(definitions: readonly PipelineDefinition[]): stri
       name: def.name ?? def.slug,
       allow_manual: def.allowManual ?? true,
       triggers: (def.triggers ?? []).map((t) => t.toJSON()),
-      definition: def.ir,
+      definition: def.pipeline,
     })),
   };
   return JSON.stringify(envelope);

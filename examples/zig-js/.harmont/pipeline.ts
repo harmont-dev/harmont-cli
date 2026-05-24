@@ -17,7 +17,7 @@ const pipelines: PipelineDefinition[] = [
   {
     slug: "ci",
     triggers: [push({ branch: "main" })],
-    ir: pipeline(
+    pipeline: pipeline(
       zigLibA().build(),
       zigLibA().test(),
       zigLibB().build(),

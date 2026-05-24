@@ -7,7 +7,7 @@ const pipelines: PipelineDefinition[] = [
   {
     slug: "ci",
     triggers: [push({ branch: "main" })],
-    ir: pipeline(
+    pipeline: pipeline(
       project.build(),
       project.test(),
       project.vet(),
