@@ -9,10 +9,12 @@ pub mod detect;
 pub mod fallback;
 
 // Feature-gated modules — added as engines are implemented:
-// mod js_engine;      (embedded-typescript)
 
 #[cfg(feature = "embedded-python")]
 pub mod python_engine;
+
+#[cfg(feature = "embedded-typescript")]
+pub mod js_engine;
 
 #[cfg(feature = "embedded-typescript")]
 pub mod ts_preprocess;
@@ -83,8 +85,8 @@ pub async fn engine_for(lang: DslLanguage) -> anyhow::Result<Box<dyn DslEngine>>
         DslLanguage::TypeScript => {
             #[cfg(feature = "embedded-typescript")]
             {
-                let _ = lang;
-                anyhow::bail!("TypeScript engine not yet implemented");
+                let engine = js_engine::WasmJsEngine::new()?;
+                return Ok(Box::new(engine));
             }
             #[cfg(not(feature = "embedded-typescript"))]
             {
