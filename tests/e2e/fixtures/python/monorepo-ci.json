@@ -1,0 +1,295 @@
+{
+  "default_image": "ubuntu:24.04",
+  "graph": {
+    "edge_property": "directed",
+    "edges": [
+      [
+        0,
+        1,
+        "builds_in"
+      ],
+      [
+        1,
+        2,
+        "builds_in"
+      ],
+      [
+        1,
+        3,
+        "builds_in"
+      ],
+      [
+        1,
+        4,
+        "builds_in"
+      ],
+      [
+        5,
+        6,
+        "builds_in"
+      ],
+      [
+        6,
+        7,
+        "builds_in"
+      ],
+      [
+        7,
+        8,
+        "builds_in"
+      ],
+      [
+        7,
+        9,
+        "builds_in"
+      ],
+      [
+        7,
+        10,
+        "builds_in"
+      ],
+      [
+        11,
+        12,
+        "builds_in"
+      ],
+      [
+        12,
+        13,
+        "builds_in"
+      ],
+      [
+        13,
+        14,
+        "builds_in"
+      ],
+      [
+        13,
+        15,
+        "builds_in"
+      ],
+      [
+        13,
+        16,
+        "builds_in"
+      ]
+    ],
+    "node_holes": [],
+    "nodes": [
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "duration_seconds": 86400,
+            "env_keys": [],
+            "policy": "ttl"
+          },
+          "cmd": "apt-get update && apt-get install -y curl ca-certificates git",
+          "image": "ubuntu:24.04",
+          "key": "334b29e96b76",
+          "label": ":go: apt-base"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "curl -fsSL https://go.dev/dl/go1.23.2.linux-amd64.tar.gz -o /tmp/go.tgz && rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/go.tgz && ln -sf /usr/local/go/bin/go /usr/local/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt && go version",
+          "key": "e0b494124562",
+          "label": ":go: install"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/api && go build ./...",
+          "key": "6f9493b7219f",
+          "label": ":go: build"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/api && go test ./...",
+          "key": "1ad6d86b2c0a",
+          "label": ":go: test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/api && go vet ./...",
+          "key": "vet",
+          "label": ":go: vet"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "duration_seconds": 86400,
+            "env_keys": [],
+            "policy": "ttl"
+          },
+          "cmd": "apt-get update && apt-get install -y curl ca-certificates python3 python3-venv",
+          "image": "ubuntu:24.04",
+          "key": "c8d9fda86ff3",
+          "label": ":python: apt-base"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -sf /root/.local/bin/uv /usr/local/bin/uv && uv --version",
+          "key": "uv-install",
+          "label": ":python: uv-install"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "paths": [
+              "services/ml/uv.lock",
+              "services/ml/pyproject.toml"
+            ],
+            "policy": "on_change"
+          },
+          "cmd": "cd services/ml && uv sync --all-extras",
+          "key": "uv-sync",
+          "label": ":python: uv-sync"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/ml && uv run pytest",
+          "key": "847020e744bc",
+          "label": ":python: test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/ml && uv run ruff check .",
+          "key": "6c48498afb84",
+          "label": ":python: lint"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/ml && uv run mypy .",
+          "key": "typecheck",
+          "label": ":python: typecheck"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "duration_seconds": 86400,
+            "env_keys": [],
+            "policy": "ttl"
+          },
+          "cmd": "apt-get update && apt-get install -y curl ca-certificates",
+          "image": "ubuntu:24.04",
+          "key": "3c2cfedcad46",
+          "label": ":node: apt-base"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs",
+          "key": "6c25ac8f0830",
+          "label": ":node: install"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "paths": [
+              "web/package-lock.json"
+            ],
+            "policy": "on_change"
+          },
+          "cmd": "cd web && npm ci",
+          "key": "deps",
+          "label": ":node: deps"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd web && npm run build",
+          "key": "a94a0f84e711",
+          "label": ":node: build"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd web && npm run test",
+          "key": "d2438adde70d",
+          "label": ":node: test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd web && npm run lint",
+          "key": "74c52c9e5ef6",
+          "label": ":node: lint"
+        }
+      }
+    ]
+  },
+  "version": "0"
+}
