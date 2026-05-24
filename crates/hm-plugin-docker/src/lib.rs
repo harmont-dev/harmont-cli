@@ -127,14 +127,14 @@ fn run_step(input: ExecutorInput) -> Result<StepResult, PluginError> {
                     }
                 })
                 .collect();
-            hm_plugin_protocol::SnapshotRef(format!(
+            hm_plugin_protocol::SnapshotRef::from(format!(
                 "harmont-local-ephemeral/{safe}:run-{}",
                 input.step_id.simple()
             ))
         });
         match host::commit(DockerCommitArgs {
             container_id: cid.clone(),
-            tag: target_tag.0.clone(),
+            tag: target_tag.to_string(),
         }) {
             Ok(_) => Some(target_tag),
             Err(e) => {

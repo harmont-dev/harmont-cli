@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::executor::ArchiveId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(rename_all = "snake_case")]
 pub enum Level {
     Trace,
@@ -19,7 +19,7 @@ pub enum Level {
     Error,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(rename_all = "snake_case")]
 pub enum KvScope {
     /// Per-plugin, persistent across builds. Stored in
@@ -33,13 +33,19 @@ pub enum KvScope {
 
 /// Opaque socket handle returned by `hm_unix_socket_connect`. Bound
 /// to the plugin instance that opened it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema,
+    derive_more::From, derive_more::Deref, derive_more::Display,
+)]
 #[serde(transparent)]
 pub struct SocketHandle(pub u64);
 
 /// Opaque handle returned by `hm_spawn_loopback`. Bound to the plugin
 /// instance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema,
+    derive_more::From, derive_more::Deref, derive_more::Display,
+)]
 #[serde(transparent)]
 pub struct LoopbackHandle(pub u64);
 

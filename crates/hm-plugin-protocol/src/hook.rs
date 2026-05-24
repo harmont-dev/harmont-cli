@@ -14,7 +14,7 @@ pub struct HookEvent {
     pub phase: HookPhase,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(rename_all = "snake_case")]
 pub enum HookPhase {
     /// May return [`HookOutcome::Abort`] to fail the build.
@@ -23,7 +23,7 @@ pub enum HookPhase {
     After,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HookOutcome {
     /// Continue the build.
@@ -37,7 +37,7 @@ pub enum HookOutcome {
 ///
 /// The manifest declares *what* events the plugin wants, not the per-event
 /// payload. Kept in this file so plugin authors only import one module.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(rename_all = "snake_case")]
 pub enum HookEventKind {
     BuildStart,

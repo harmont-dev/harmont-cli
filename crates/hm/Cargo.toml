@@ -73,6 +73,7 @@ hm-util = { workspace = true }
 daggy          = { workspace = true }
 schemars = { workspace = true }
 semver = { workspace = true }
+smart-default = { workspace = true }
 once_cell = "1"
 hex = "0.4"
 

@@ -43,7 +43,7 @@ pub struct PluginManifest {
     pub allowed_hosts: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Capability {
     Subcommand(SubcommandSpec),

@@ -25,10 +25,10 @@ pub(crate) fn resolve_image(
     parent_snapshot: Option<&SnapshotRef>,
 ) -> String {
     if let Some(tag) = hit_tag {
-        return tag.0.clone();
+        return tag.to_string();
     }
     if let Some(snap) = parent_snapshot {
-        return snap.0.clone();
+        return snap.to_string();
     }
     if let Some(image) = &step.image {
         return image.clone();
