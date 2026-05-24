@@ -1,3 +1,15 @@
+// Build scripts legitimately panic on errors — no runtime to propagate to.
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stderr,
+    clippy::manual_assert,
+    clippy::items_after_statements,
+    clippy::collapsible_if,
+    clippy::doc_markdown
+)]
+
 #[path = "build_fetch.rs"]
 mod build_fetch;
 
