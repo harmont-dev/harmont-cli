@@ -26,7 +26,7 @@ use crate::{DslEngine, PipelineMeta};
 // ---------------------------------------------------------------------------
 
 /// QuickJS compiled to wasm32-wasi, bundled at build time.
-static QUICKJS_WASM: &[u8] = include_bytes!("../embedded/quickjs.wasm");
+static QUICKJS_WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/quickjs.wasm"));
 
 /// The `harmont-ts` IIFE bundle produced by esbuild during `build.rs`.
 /// Defines `globalThis.harmont` with `renderEnvelope`, `pipeline`, `sh`, etc.

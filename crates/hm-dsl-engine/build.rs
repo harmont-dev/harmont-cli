@@ -7,14 +7,25 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn main() {
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
     // Only run when embedded-typescript is enabled.
     let ts_enabled = env::var("CARGO_FEATURE_EMBEDDED_TYPESCRIPT").is_ok();
     if !ts_enabled {
         return;
     }
 
-    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    // ------------------------------------------------------------------
+    // QuickJS WASM binary
+    // ------------------------------------------------------------------
+    const QUICKJS: build_fetch::PinnedAsset = build_fetch::PinnedAsset {
+        name: "quickjs.wasm",
+        url: "https://github.com/harmont-dev/harmont-cli/releases/download/assets/quickjs-wasm-v1/quickjs.wasm",
+        sha256: "1ced88f9fc8e8b782814e4e01af1a4d7d38998c911a8f5914ca7a609923a2fe1",
+    };
+    build_fetch::ensure_asset(&QUICKJS, &out_dir);
+
     let workspace_root = manifest_dir.join("../..").canonicalize().unwrap();
 
     let ts_src_dir = workspace_root.join("dsls/harmont-ts/src");
