@@ -62,7 +62,7 @@ describe("examples render to v0 IR", () => {
     });
   }
 
-  it("discovered at least 4 example pipeline.ts files", () => {
-    expect(examples.length).toBeGreaterThanOrEqual(4);
+  it("discovered at least 18 example pipeline.ts files", () => {
+    expect(examples.length).toBeGreaterThanOrEqual(18);
   });
 });

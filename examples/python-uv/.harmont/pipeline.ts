@@ -1,17 +1,17 @@
 import { pipeline, push, type PipelineDefinition } from "harmont";
-import { go } from "harmont/toolchains";
+import { python } from "harmont/toolchains";
 
-const project = go({ path: "." });
+const project = python({ path: "." });
 
 const pipelines: PipelineDefinition[] = [
   {
     slug: "ci",
     triggers: [push({ branch: "main" })],
     ir: pipeline(
-      project.build(),
       project.test(),
-      project.vet(),
+      project.lint(),
       project.fmt(),
+      project.typecheck(),
       { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     ),
   },

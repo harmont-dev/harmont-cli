@@ -1,7 +1,7 @@
 import { pipeline, push, type PipelineDefinition } from "harmont";
-import { go } from "harmont/toolchains";
+import { rust } from "harmont/toolchains";
 
-const project = go({ path: "." });
+const project = rust({ path: "." });
 
 const pipelines: PipelineDefinition[] = [
   {
@@ -10,7 +10,7 @@ const pipelines: PipelineDefinition[] = [
     ir: pipeline(
       project.build(),
       project.test(),
-      project.vet(),
+      project.clippy(),
       project.fmt(),
       { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     ),
