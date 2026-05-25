@@ -102,18 +102,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
 
       - uses: Swatinem/rust-cache@v2
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dsls/harmont-ts/package-lock.json
+
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
+
       - name: Build hm
         run: cargo build -p harmont-cli
-
-      - name: Install harmont-py into system Python
-        run: |
-          sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
-          /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
 
       - name: Restore harmont Docker cache
         uses: actions/cache/restore@v4
