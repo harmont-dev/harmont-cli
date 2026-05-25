@@ -1,7 +1,7 @@
 pub mod human;
 pub mod json;
+pub mod progress;
 pub mod spinner;
-pub mod status;
 
 /// How to render output. Determined at startup from CLI flags and TTY detection.
 #[derive(Debug, Clone)]
