@@ -18,5 +18,3 @@ packages = ["src/example"]
 [tool.ruff]
 line-length = 100
 
-[tool.ty]
-src = ["src"]
