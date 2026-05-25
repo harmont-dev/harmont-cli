@@ -167,6 +167,8 @@ mod tests {
             step_id,
             key: "build".into(),
             chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
         });
 
         r.on_event(&BuildEvent::StepLog {

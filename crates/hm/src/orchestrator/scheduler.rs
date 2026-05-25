@@ -140,6 +140,11 @@ pub async fn run(
         let transition = dag[n].clone();
         let chain_id = chain_info.node_chain_id[&n];
         let chain_pos = chain_info.node_chain_pos[&n];
+        let parent_key: Option<String> = dag
+            .parents(n)
+            .iter(dag)
+            .find(|(e, _)| dag.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
+            .map(|(_, p)| dag[p].step.key.clone());
         let sem = semaphore.clone();
         let reg = runner_registry.clone();
         let bus = bus.clone();
@@ -178,6 +183,7 @@ pub async fn run(
                 parent_snapshot,
                 chain_id,
                 chain_pos,
+                parent_key,
                 archive_id,
                 run_id,
                 run_ctx,
@@ -237,6 +243,7 @@ async fn execute_step(
     parent_snapshot: Option<SnapshotRef>,
     chain_id: usize,
     chain_pos: usize,
+    parent_key: Option<String>,
     archive_id: ArchiveId,
     run_id: Uuid,
     run_ctx: RunContext,
@@ -246,6 +253,14 @@ async fn execute_step(
 ) -> Result<StepOutcome> {
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
+    let display_name = step_wire.label.clone().unwrap_or_else(|| {
+        let cmd = step_wire.cmd.trim();
+        if cmd.len() <= 40 {
+            cmd.to_owned()
+        } else {
+            format!("{}…", &cmd[..39])
+        }
+    });
     let env_map = transition.env;
     let step_id = Uuid::new_v4();
 
@@ -253,6 +268,8 @@ async fn execute_step(
         step_id,
         key: step_key.clone(),
         chain_idx: chain_pos,
+        parent_key,
+        display_name: display_name.clone(),
     });
 
     // Decide cache outcome host-side.

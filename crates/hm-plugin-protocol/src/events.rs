@@ -40,6 +40,12 @@ pub enum BuildEvent {
         step_id: Uuid,
         key: String,
         chain_idx: usize,
+        /// Key of this step's `BuildsIn` parent, if any. Lets renderers
+        /// nest progress bars to reflect the pipeline's DAG structure.
+        parent_key: Option<String>,
+        /// Human-readable name for display. Falls back to a truncated
+        /// command when no explicit label was set in the pipeline DSL.
+        display_name: String,
     },
     StepStart {
         step_id: Uuid,

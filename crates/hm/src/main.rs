@@ -17,10 +17,11 @@ use harmont_cli::error::{self, HmError};
 async fn main() {
     let args = Cli::parse();
 
-    let use_indicatif = matches!(
-        &args.command,
-        cli::Command::Run(r) if !r.logs && r.format == "human"
-    );
+    let use_indicatif = !is_ci::cached()
+        && matches!(
+            &args.command,
+            cli::Command::Run(r) if !r.logs && r.format == "human"
+        );
 
     let default_level = if args.verbose { "debug" } else { "info" };
     let filter =

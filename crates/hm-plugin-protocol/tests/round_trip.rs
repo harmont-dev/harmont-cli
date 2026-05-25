@@ -64,6 +64,8 @@ fn build_event_round_trip_all_variants() {
             step_id: Uuid::nil(),
             key: "a".into(),
             chain_idx: 0,
+            parent_key: None,
+            display_name: "a".into(),
         },
         BuildEvent::StepStart {
             step_id: Uuid::nil(),

@@ -1106,6 +1106,7 @@ dependencies = [
  "hm-util",
  "ignore",
  "indicatif",
+ "is_ci",
  "nix",
  "once_cell",
  "predicates",
@@ -1589,6 +1590,12 @@ dependencies = [
  "memchr",
  "serde",
 ]
+
+[[package]]
+name = "is_ci"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7655c9839580ee829dfacba1d1278c2b7883e50a277ff7541299489d6bdfdc45"
 
 [[package]]
 name = "is_terminal_polyfill"

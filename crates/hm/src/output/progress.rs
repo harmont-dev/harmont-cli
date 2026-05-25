@@ -3,8 +3,9 @@
 //! bars.
 //!
 //! Each pipeline step gets its own child span (and therefore its own
-//! progress bar). Logs are buffered silently and only replayed to the
-//! writer on failure, keeping the TUI clean during normal runs.
+//! progress bar). Completed steps stay visible with a ✓/✗ indicator;
+//! only actively running steps show a spinner. Logs are buffered
+//! silently and only replayed to the writer on failure.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -18,6 +19,35 @@ use uuid::Uuid;
 
 use crate::runner::OutputRenderer;
 
+fn active_style() -> ProgressStyle {
+    ProgressStyle::with_template("{span_child_prefix}{spinner} {wide_msg}  ({elapsed})")
+        .unwrap_or_else(|_| ProgressStyle::default_spinner())
+}
+
+fn completed_style() -> ProgressStyle {
+    ProgressStyle::with_template("{span_child_prefix}✓ {wide_msg}")
+        .unwrap_or_else(|_| ProgressStyle::default_spinner())
+}
+
+fn failed_style() -> ProgressStyle {
+    ProgressStyle::with_template("{span_child_prefix}✗ {wide_msg}")
+        .unwrap_or_else(|_| ProgressStyle::default_spinner())
+}
+
+fn format_duration(ms: u64) -> String {
+    if ms < 1000 {
+        format!("{ms}ms")
+    } else if ms < 60_000 {
+        let secs = ms / 1000;
+        let tenths = (ms % 1000) / 100;
+        format!("{secs}.{tenths}s")
+    } else {
+        let mins = ms / 60_000;
+        let secs = (ms % 60_000) / 1000;
+        format!("{mins}m{secs}s")
+    }
+}
+
 /// Progress-bar renderer.
 ///
 /// Generic over `W: Write` so tests can capture text output into a
@@ -27,6 +57,7 @@ pub struct ProgressRenderer<W> {
     root_span: Option<Span>,
     step_spans: HashMap<Uuid, Span>,
     step_keys: HashMap<Uuid, String>,
+    step_names: HashMap<Uuid, String>,
     log_buffer: HashMap<Uuid, Vec<String>>,
     failed_steps: Vec<(Uuid, i32)>,
 }
@@ -35,12 +66,11 @@ impl<W> fmt::Debug for ProgressRenderer<W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ProgressRenderer")
             .field("steps_tracked", &self.step_spans.len())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
 impl<W> ProgressRenderer<W> {
-    /// Create a new renderer writing failure reports to `out`.
     #[must_use]
     pub fn new(out: W) -> Self {
         Self {
@@ -48,6 +78,7 @@ impl<W> ProgressRenderer<W> {
             root_span: None,
             step_spans: HashMap::new(),
             step_keys: HashMap::new(),
+            step_names: HashMap::new(),
             log_buffer: HashMap::new(),
             failed_steps: Vec::new(),
         }
@@ -55,7 +86,6 @@ impl<W> ProgressRenderer<W> {
 }
 
 impl<W: Write> ProgressRenderer<W> {
-    /// Print buffered logs for every failed step.
     fn print_failure_report(&mut self) {
         for (step_id, exit_code) in &self.failed_steps {
             let key = self.step_keys.get(step_id).map_or("?", String::as_str);
@@ -90,38 +120,40 @@ where
                 self.root_span = Some(root);
             }
 
-            BuildEvent::StepQueued { step_id, key, .. } => {
+            BuildEvent::StepQueued {
+                step_id,
+                key,
+                parent_key,
+                display_name,
+                ..
+            } => {
                 self.step_keys.insert(*step_id, key.clone());
+                self.step_names.insert(*step_id, display_name.clone());
 
-                let span = if let Some(root) = &self.root_span {
-                    info_span!(parent: root, "step", name = %key)
-                } else {
-                    info_span!("step", name = %key)
-                };
+                let parent_span = parent_key
+                    .as_ref()
+                    .and_then(|pk| {
+                        self.step_keys
+                            .iter()
+                            .find(|(_, k)| *k == pk)
+                            .and_then(|(id, _)| self.step_spans.get(id))
+                    })
+                    .or(self.root_span.as_ref());
 
-                span.pb_set_style(
-                    &ProgressStyle::with_template(
-                        "{span_child_prefix}{spinner} {span_fields}  {wide_msg}  ({elapsed})",
-                    )
-                    .unwrap_or_else(|_| ProgressStyle::default_spinner()),
-                );
-                span.pb_set_message("queued");
+                let span = parent_span
+                    .map_or_else(|| info_span!("step"), |p| info_span!(parent: p, "step"));
+
+                span.pb_set_style(&active_style());
+                span.pb_set_message(display_name);
                 span.pb_start();
 
                 self.step_spans.insert(*step_id, span);
             }
 
-            BuildEvent::StepStart {
-                step_id,
-                runner,
-                image,
-            } => {
+            BuildEvent::StepStart { step_id, .. } => {
                 if let Some(span) = self.step_spans.get(step_id) {
-                    let msg = image.as_ref().map_or_else(
-                        || format!("running ({runner})"),
-                        |img| format!("running ({runner} {img})"),
-                    );
-                    span.pb_set_message(&msg);
+                    let name = self.step_names.get(step_id).map_or("?", String::as_str);
+                    span.pb_set_message(name);
                 }
             }
 
@@ -134,19 +166,41 @@ where
 
             BuildEvent::StepCacheHit { step_id, .. } => {
                 if let Some(span) = self.step_spans.get(step_id) {
-                    span.pb_set_message("cached");
+                    let name = self.step_names.get(step_id).map_or("?", String::as_str);
+                    span.pb_set_style(&completed_style());
+                    span.pb_set_message(&format!("{name}  (cached)"));
+                }
+                if let Some(root) = &self.root_span {
+                    root.pb_inc(1);
                 }
             }
 
             BuildEvent::StepEnd {
-                step_id, exit_code, ..
+                step_id,
+                exit_code,
+                duration_ms,
+                ..
             } => {
-                if *exit_code != 0 {
+                let cancelled = *exit_code == 130;
+                if *exit_code != 0 && !cancelled {
                     self.failed_steps.push((*step_id, *exit_code));
+                    if let Some(span) = self.step_spans.get(step_id) {
+                        let name = self.step_names.get(step_id).map_or("?", String::as_str);
+                        span.pb_set_style(&failed_style());
+                        span.pb_set_message(&format!("{name}  FAILED (exit {exit_code})"));
+                    }
+                } else if cancelled {
+                    if let Some(span) = self.step_spans.get(step_id) {
+                        let name = self.step_names.get(step_id).map_or("?", String::as_str);
+                        span.pb_set_style(&completed_style());
+                        span.pb_set_message(&format!("{name}  (cancelled)"));
+                    }
+                } else if let Some(span) = self.step_spans.get(step_id) {
+                    let name = self.step_names.get(step_id).map_or("?", String::as_str);
+                    let dur = format_duration(*duration_ms);
+                    span.pb_set_style(&completed_style());
+                    span.pb_set_message(&format!("{name}  ({dur})"));
                 }
-
-                // Dropping the span removes the progress bar.
-                self.step_spans.remove(step_id);
 
                 if let Some(root) = &self.root_span {
                     root.pb_inc(1);
@@ -156,7 +210,6 @@ where
             BuildEvent::ChainFailed { .. } => {}
 
             BuildEvent::BuildEnd { exit_code, .. } => {
-                // Clear all remaining spans (removes all progress bars).
                 self.step_spans.clear();
                 self.root_span.take();
 
@@ -178,12 +231,10 @@ mod tests {
     use super::*;
     use hm_plugin_protocol::{PlanSummary, StdStream};
 
-    /// Helper: create a renderer backed by an in-memory buffer.
     fn renderer() -> ProgressRenderer<Vec<u8>> {
         ProgressRenderer::new(Vec::new())
     }
 
-    /// Helper: drain the buffer as a UTF-8 string.
     fn output(r: &ProgressRenderer<Vec<u8>>) -> String {
         String::from_utf8(r.out.clone()).unwrap()
     }
@@ -197,6 +248,8 @@ mod tests {
             step_id,
             key: "compile".into(),
             chain_idx: 0,
+            parent_key: None,
+            display_name: "compile".into(),
         });
 
         r.on_event(&BuildEvent::StepLog {
@@ -206,10 +259,8 @@ mod tests {
             ts: chrono::Utc::now(),
         });
 
-        // No text output — progress bars handle display, logs are buffered.
         assert!(output(&r).is_empty(), "expected no text output");
 
-        // But the log line IS buffered internally.
         let buf = r.log_buffer.get(&step_id).expect("log_buffer entry");
         assert_eq!(buf.len(), 1);
         assert_eq!(buf[0], "compiling main.rs");
@@ -234,6 +285,8 @@ mod tests {
             step_id,
             key: "test".into(),
             chain_idx: 0,
+            parent_key: None,
+            display_name: "test".into(),
         });
 
         r.on_event(&BuildEvent::StepLog {
@@ -283,6 +336,8 @@ mod tests {
             step_id,
             key: "build".into(),
             chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
         });
 
         r.on_event(&BuildEvent::StepLog {
@@ -304,11 +359,45 @@ mod tests {
             duration_ms: 250,
         });
 
-        // Success path: no text output (progress bars handled display).
         assert!(
             output(&r).is_empty(),
             "expected no text output on success: {:?}",
             output(&r)
+        );
+    }
+
+    #[test]
+    fn cache_hit_increments_root() {
+        let mut r = renderer();
+        let step_id = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::BuildStart {
+            run_id: Uuid::nil(),
+            plan: PlanSummary {
+                step_count: 2,
+                chain_count: 1,
+                default_runner: "docker".into(),
+            },
+            started_at: chrono::Utc::now(),
+        });
+
+        r.on_event(&BuildEvent::StepQueued {
+            step_id,
+            key: "cached-step".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "cached-step".into(),
+        });
+
+        r.on_event(&BuildEvent::StepCacheHit {
+            step_id,
+            key: "cache-key".into(),
+            tag: "img:tag".into(),
+        });
+
+        assert!(
+            r.step_spans.contains_key(&step_id),
+            "cached step span should stay alive"
         );
     }
 }
