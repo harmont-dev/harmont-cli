@@ -1093,6 +1093,7 @@ dependencies = [
  "chrono",
  "clap",
  "comfy-table",
+ "console 0.16.3",
  "daggy",
  "dialoguer",
  "flate2",

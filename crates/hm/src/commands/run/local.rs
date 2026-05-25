@@ -62,7 +62,7 @@ fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::PipelineG
 /// the resulting plan does not decode, the Docker daemon is unreachable,
 /// or the orchestrator surfaces an internal scheduler error. Non-zero
 /// step exit codes are returned as the `i32`, not as an Err.
-pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
+pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let repo_root = match args.dir.clone() {
         Some(p) => p,
         None => std::env::current_dir().context("cannot determine current directory")?,
@@ -103,6 +103,7 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         }
         "human" => Box::new(crate::output::progress::ProgressRenderer::new(
             std::io::stderr(),
+            ctx.output.color_enabled(),
         )),
         other => anyhow::bail!("unknown --format '{other}'\n  available: human, json"),
     };

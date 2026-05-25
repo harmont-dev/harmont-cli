@@ -54,6 +54,8 @@ fn format_duration(ms: u64) -> String {
 /// `Vec<u8>` while production code writes to `std::io::Stderr`.
 pub struct ProgressRenderer<W> {
     out: W,
+    #[allow(dead_code, reason = "wired up for upcoming coloured output")]
+    pub(crate) color: bool,
     root_span: Option<Span>,
     step_spans: HashMap<Uuid, Span>,
     step_keys: HashMap<Uuid, String>,
@@ -72,9 +74,10 @@ impl<W> fmt::Debug for ProgressRenderer<W> {
 
 impl<W> ProgressRenderer<W> {
     #[must_use]
-    pub fn new(out: W) -> Self {
+    pub fn new(out: W, color: bool) -> Self {
         Self {
             out,
+            color,
             root_span: None,
             step_spans: HashMap::new(),
             step_keys: HashMap::new(),
@@ -232,7 +235,7 @@ mod tests {
     use hm_plugin_protocol::{PlanSummary, StdStream};
 
     fn renderer() -> ProgressRenderer<Vec<u8>> {
-        ProgressRenderer::new(Vec::new())
+        ProgressRenderer::new(Vec::new(), false)
     }
 
     fn output(r: &ProgressRenderer<Vec<u8>>) -> String {
@@ -364,6 +367,14 @@ mod tests {
             "expected no text output on success: {:?}",
             output(&r)
         );
+    }
+
+    #[test]
+    fn color_flag_stored() {
+        let r = ProgressRenderer::new(Vec::<u8>::new(), true);
+        assert!(r.color);
+        let r2 = ProgressRenderer::new(Vec::<u8>::new(), false);
+        assert!(!r2.color);
     }
 
     #[test]
