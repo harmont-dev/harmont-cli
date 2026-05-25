@@ -98,12 +98,10 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
     let renderer: Box<dyn crate::runner::OutputRenderer> = match args.format.as_str() {
         "json" => Box::new(crate::output::json::JsonRenderer::new(std::io::stdout())),
-        "human" if args.logs => {
-            Box::new(crate::output::human::HumanRenderer::new(
-                std::io::stderr(),
-                ctx.output.color_enabled(),
-            ))
-        }
+        "human" if args.logs => Box::new(crate::output::human::HumanRenderer::new(
+            std::io::stderr(),
+            ctx.output.color_enabled(),
+        )),
         "human" => Box::new(crate::output::progress::ProgressRenderer::new(
             std::io::stderr(),
             ctx.output.color_enabled(),

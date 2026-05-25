@@ -40,8 +40,7 @@ fn active_style(color: bool) -> ProgressStyle {
     } else {
         "{span_child_prefix}{spinner} {wide_msg}  ({elapsed})"
     };
-    ProgressStyle::with_template(tpl)
-        .unwrap_or_else(|_| ProgressStyle::default_spinner())
+    ProgressStyle::with_template(tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
 #[allow(clippy::literal_string_with_formatting_args)]
@@ -51,8 +50,7 @@ fn completed_style(color: bool) -> ProgressStyle {
     } else {
         "{span_child_prefix}✓ {wide_msg}"
     };
-    ProgressStyle::with_template(tpl)
-        .unwrap_or_else(|_| ProgressStyle::default_spinner())
+    ProgressStyle::with_template(tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
 #[allow(clippy::literal_string_with_formatting_args)]
@@ -62,8 +60,7 @@ fn failed_style(color: bool) -> ProgressStyle {
     } else {
         "{span_child_prefix}✗ {wide_msg}"
     };
-    ProgressStyle::with_template(tpl)
-        .unwrap_or_else(|_| ProgressStyle::default_spinner())
+    ProgressStyle::with_template(tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
 fn format_duration(ms: u64) -> String {
@@ -134,8 +131,8 @@ impl<W> ProgressRenderer<W> {
 impl<W: Write> ProgressRenderer<W> {
     fn print_failure_report(&mut self) {
         for (step_id, exit_code) in &self.failed_steps {
-            let key = self.step_keys.get(step_id).map_or("?", String::as_str);
-            let header = format!("--- {key} failed (exit {exit_code}) ---");
+            let name = self.step_names.get(step_id).map_or("?", String::as_str);
+            let header = format!("--- {name} failed (exit {exit_code}) ---");
             let _ = writeln!(self.out, "\n{}", ansi(&header, RED, self.color));
             if let Some(lines) = self.log_buffer.get(step_id) {
                 for line in lines {
@@ -146,7 +143,9 @@ impl<W: Write> ProgressRenderer<W> {
     }
 
     fn print_step_summary(&mut self) {
-        let max_name_len = self.step_order.iter()
+        let max_name_len = self
+            .step_order
+            .iter()
             .filter_map(|id| self.step_names.get(id))
             .map(String::len)
             .max()
@@ -160,22 +159,30 @@ impl<W: Write> ProgressRenderer<W> {
                     ansi("✓", GREEN, self.color),
                     ansi(&format_duration(*duration_ms), DIM, self.color),
                 ),
-                Some(StepOutcome::Failed { duration_ms, exit_code }) => (
+                Some(StepOutcome::Failed {
+                    duration_ms,
+                    exit_code,
+                }) => (
                     ansi("✗", RED, self.color),
-                    ansi(&format!("{}  exit {exit_code}", format_duration(*duration_ms)), RED, self.color),
+                    ansi(
+                        &format!("{}  exit {exit_code}", format_duration(*duration_ms)),
+                        RED,
+                        self.color,
+                    ),
                 ),
                 Some(StepOutcome::Cancelled { duration_ms }) => (
                     ansi("-", DIM, self.color),
-                    ansi(&format!("{}  cancelled", format_duration(*duration_ms)), DIM, self.color),
+                    ansi(
+                        &format!("{}  cancelled", format_duration(*duration_ms)),
+                        DIM,
+                        self.color,
+                    ),
                 ),
                 Some(StepOutcome::Cached) => (
                     ansi("✓", GREEN, self.color),
                     ansi("cached", DIM, self.color),
                 ),
-                None => (
-                    ansi("-", DIM, self.color),
-                    ansi("—", DIM, self.color),
-                ),
+                None => (ansi("-", DIM, self.color), ansi("—", DIM, self.color)),
             };
             let _ = writeln!(self.out, "  {indicator} {name:<max_name_len$}  {timing}");
         }
@@ -292,11 +299,18 @@ where
                 }
 
                 let outcome = if *exit_code == 0 {
-                    StepOutcome::Succeeded { duration_ms: *duration_ms }
+                    StepOutcome::Succeeded {
+                        duration_ms: *duration_ms,
+                    }
                 } else if cancelled {
-                    StepOutcome::Cancelled { duration_ms: *duration_ms }
+                    StepOutcome::Cancelled {
+                        duration_ms: *duration_ms,
+                    }
                 } else {
-                    StepOutcome::Failed { duration_ms: *duration_ms, exit_code: *exit_code }
+                    StepOutcome::Failed {
+                        duration_ms: *duration_ms,
+                        exit_code: *exit_code,
+                    }
                 };
                 self.step_outcomes.insert(*step_id, outcome);
 
@@ -320,11 +334,19 @@ where
                     self.print_failure_report();
                     let dur = format_duration(*duration_ms);
                     let msg = format!("✗ Build failed in {dur}");
-                    let _ = writeln!(self.out, "\n{}", ansi(&msg, &format!("{RED}{BOLD}"), self.color));
+                    let _ = writeln!(
+                        self.out,
+                        "\n{}",
+                        ansi(&msg, &format!("{RED}{BOLD}"), self.color)
+                    );
                 } else {
                     let dur = format_duration(*duration_ms);
                     let msg = format!("✓ Build succeeded in {dur}");
-                    let _ = writeln!(self.out, "\n{}", ansi(&msg, &format!("{GREEN}{BOLD}"), self.color));
+                    let _ = writeln!(
+                        self.out,
+                        "\n{}",
+                        ansi(&msg, &format!("{GREEN}{BOLD}"), self.color)
+                    );
                 }
             }
         }
@@ -564,20 +586,43 @@ mod tests {
 
         r.on_event(&BuildEvent::BuildStart {
             run_id: Uuid::nil(),
-            plan: PlanSummary { step_count: 2, chain_count: 1, default_runner: "docker".into() },
+            plan: PlanSummary {
+                step_count: 2,
+                chain_count: 1,
+                default_runner: "docker".into(),
+            },
             started_at: chrono::Utc::now(),
         });
         r.on_event(&BuildEvent::StepQueued {
-            step_id: s1, key: "build".into(), chain_idx: 0,
-            parent_key: None, display_name: "build".into(),
+            step_id: s1,
+            key: "build".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
         });
-        r.on_event(&BuildEvent::StepEnd { step_id: s1, exit_code: 0, duration_ms: 200, snapshot: None });
+        r.on_event(&BuildEvent::StepEnd {
+            step_id: s1,
+            exit_code: 0,
+            duration_ms: 200,
+            snapshot: None,
+        });
         r.on_event(&BuildEvent::StepQueued {
-            step_id: s2, key: "test".into(), chain_idx: 0,
-            parent_key: None, display_name: "test".into(),
+            step_id: s2,
+            key: "test".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "test".into(),
         });
-        r.on_event(&BuildEvent::StepEnd { step_id: s2, exit_code: 1, duration_ms: 300, snapshot: None });
-        r.on_event(&BuildEvent::BuildEnd { exit_code: 1, duration_ms: 600 });
+        r.on_event(&BuildEvent::StepEnd {
+            step_id: s2,
+            exit_code: 1,
+            duration_ms: 300,
+            snapshot: None,
+        });
+        r.on_event(&BuildEvent::BuildEnd {
+            exit_code: 1,
+            duration_ms: 600,
+        });
 
         let s = output(&r);
         assert!(s.contains("\x1b[32m✓\x1b[0m"), "expected green ✓: {s}");
@@ -592,15 +637,30 @@ mod tests {
 
         r.on_event(&BuildEvent::BuildStart {
             run_id: Uuid::nil(),
-            plan: PlanSummary { step_count: 1, chain_count: 1, default_runner: "docker".into() },
+            plan: PlanSummary {
+                step_count: 1,
+                chain_count: 1,
+                default_runner: "docker".into(),
+            },
             started_at: chrono::Utc::now(),
         });
         r.on_event(&BuildEvent::StepQueued {
-            step_id: s1, key: "build".into(), chain_idx: 0,
-            parent_key: None, display_name: "build".into(),
+            step_id: s1,
+            key: "build".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
         });
-        r.on_event(&BuildEvent::StepEnd { step_id: s1, exit_code: 0, duration_ms: 100, snapshot: None });
-        r.on_event(&BuildEvent::BuildEnd { exit_code: 0, duration_ms: 150 });
+        r.on_event(&BuildEvent::StepEnd {
+            step_id: s1,
+            exit_code: 0,
+            duration_ms: 100,
+            snapshot: None,
+        });
+        r.on_event(&BuildEvent::BuildEnd {
+            exit_code: 0,
+            duration_ms: 150,
+        });
 
         let s = output(&r);
         assert!(s.contains("\x1b[32m\x1b[1m"), "expected green bold: {s}");
