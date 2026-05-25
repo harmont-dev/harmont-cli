@@ -17,6 +17,10 @@ use harmont_cli::error::{self, HmError};
 async fn main() {
     let args = Cli::parse();
 
+    let color = !args.no_color
+        && std::env::var("NO_COLOR").is_err()
+        && std::io::IsTerminal::is_terminal(&std::io::stderr());
+
     let use_indicatif = !is_ci::cached()
         && matches!(
             &args.command,
@@ -39,7 +43,7 @@ async fn main() {
                     .with_writer(indicatif_layer.get_stderr_writer())
                     .with_target(false)
                     .without_time()
-                    .with_ansi(false)
+                    .with_ansi(color)
                     .with_filter(filter),
             )
             .with(indicatif_layer)
@@ -49,7 +53,7 @@ async fn main() {
             .with_env_filter(filter)
             .with_target(false)
             .without_time()
-            .with_ansi(false)
+            .with_ansi(color)
             .init();
     }
 
