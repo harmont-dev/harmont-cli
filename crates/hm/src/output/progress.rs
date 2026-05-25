@@ -19,6 +19,20 @@ use uuid::Uuid;
 
 use crate::runner::OutputRenderer;
 
+const GREEN: &str = "\x1b[32m";
+const RED: &str = "\x1b[31m";
+const BOLD: &str = "\x1b[1m";
+const DIM: &str = "\x1b[2m";
+const RESET: &str = "\x1b[0m";
+
+fn ansi(text: &str, codes: &str, color: bool) -> String {
+    if color {
+        format!("{codes}{text}{RESET}")
+    } else {
+        text.to_string()
+    }
+}
+
 #[allow(clippy::literal_string_with_formatting_args)]
 fn active_style(color: bool) -> ProgressStyle {
     let tpl = if color {
@@ -71,7 +85,6 @@ fn format_duration(ms: u64) -> String {
 /// Generic over `W: Write` so tests can capture text output into a
 /// `Vec<u8>` while production code writes to `std::io::Stderr`.
 #[derive(Debug)]
-#[allow(dead_code, reason = "fields read by upcoming coloured summary")]
 pub(crate) enum StepOutcome {
     Succeeded { duration_ms: u64 },
     Failed { duration_ms: u64, exit_code: i32 },
@@ -122,7 +135,8 @@ impl<W: Write> ProgressRenderer<W> {
     fn print_failure_report(&mut self) {
         for (step_id, exit_code) in &self.failed_steps {
             let key = self.step_keys.get(step_id).map_or("?", String::as_str);
-            let _ = writeln!(self.out, "\n--- {key} failed (exit {exit_code}) ---");
+            let header = format!("--- {key} failed (exit {exit_code}) ---");
+            let _ = writeln!(self.out, "\n{}", ansi(&header, RED, self.color));
             if let Some(lines) = self.log_buffer.get(step_id) {
                 for line in lines {
                     let _ = writeln!(self.out, "{line}");
@@ -132,19 +146,38 @@ impl<W: Write> ProgressRenderer<W> {
     }
 
     fn print_step_summary(&mut self) {
+        let max_name_len = self.step_order.iter()
+            .filter_map(|id| self.step_names.get(id))
+            .map(String::len)
+            .max()
+            .unwrap_or(0);
+
         let _ = writeln!(self.out);
         for step_id in &self.step_order {
             let name = self.step_names.get(step_id).map_or("?", String::as_str);
-            let timing = match self.step_outcomes.get(step_id) {
-                Some(
-                    StepOutcome::Succeeded { duration_ms }
-                    | StepOutcome::Failed { duration_ms, .. },
-                ) => format_duration(*duration_ms),
-                Some(StepOutcome::Cancelled { .. }) => "cancelled".into(),
-                Some(StepOutcome::Cached) => "cached".into(),
-                None => "\u{2014}".into(),
+            let (indicator, timing) = match self.step_outcomes.get(step_id) {
+                Some(StepOutcome::Succeeded { duration_ms }) => (
+                    ansi("✓", GREEN, self.color),
+                    ansi(&format_duration(*duration_ms), DIM, self.color),
+                ),
+                Some(StepOutcome::Failed { duration_ms, exit_code }) => (
+                    ansi("✗", RED, self.color),
+                    ansi(&format!("{}  exit {exit_code}", format_duration(*duration_ms)), RED, self.color),
+                ),
+                Some(StepOutcome::Cancelled { duration_ms }) => (
+                    ansi("-", DIM, self.color),
+                    ansi(&format!("{}  cancelled", format_duration(*duration_ms)), DIM, self.color),
+                ),
+                Some(StepOutcome::Cached) => (
+                    ansi("✓", GREEN, self.color),
+                    ansi("cached", DIM, self.color),
+                ),
+                None => (
+                    ansi("-", DIM, self.color),
+                    ansi("—", DIM, self.color),
+                ),
             };
-            let _ = writeln!(self.out, "  {name}  {timing}");
+            let _ = writeln!(self.out, "  {indicator} {name:<max_name_len$}  {timing}");
         }
     }
 }
@@ -183,6 +216,7 @@ where
             } => {
                 self.step_keys.insert(*step_id, key.clone());
                 self.step_names.insert(*step_id, display_name.clone());
+                self.step_order.push(*step_id);
 
                 let parent_span = parent_key
                     .as_ref()
@@ -273,12 +307,24 @@ where
 
             BuildEvent::ChainFailed { .. } => {}
 
-            BuildEvent::BuildEnd { exit_code, .. } => {
+            BuildEvent::BuildEnd {
+                exit_code,
+                duration_ms,
+            } => {
                 self.step_spans.clear();
                 self.root_span.take();
 
+                self.print_step_summary();
+
                 if *exit_code != 0 {
                     self.print_failure_report();
+                    let dur = format_duration(*duration_ms);
+                    let msg = format!("✗ Build failed in {dur}");
+                    let _ = writeln!(self.out, "\n{}", ansi(&msg, &format!("{RED}{BOLD}"), self.color));
+                } else {
+                    let dur = format_duration(*duration_ms);
+                    let msg = format!("✓ Build succeeded in {dur}");
+                    let _ = writeln!(self.out, "\n{}", ansi(&msg, &format!("{GREEN}{BOLD}"), self.color));
                 }
             }
         }
@@ -424,8 +470,8 @@ mod tests {
         });
 
         assert!(
-            output(&r).is_empty(),
-            "expected no text output on success: {:?}",
+            output(&r).contains("Build succeeded"),
+            "expected success message on success: {:?}",
             output(&r)
         );
     }
@@ -508,5 +554,56 @@ mod tests {
             ),
             "expected Failed outcome"
         );
+    }
+
+    #[test]
+    fn colored_summary_has_indicators() {
+        let mut r = ProgressRenderer::new(Vec::new(), true);
+        let s1 = Uuid::new_v4();
+        let s2 = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::BuildStart {
+            run_id: Uuid::nil(),
+            plan: PlanSummary { step_count: 2, chain_count: 1, default_runner: "docker".into() },
+            started_at: chrono::Utc::now(),
+        });
+        r.on_event(&BuildEvent::StepQueued {
+            step_id: s1, key: "build".into(), chain_idx: 0,
+            parent_key: None, display_name: "build".into(),
+        });
+        r.on_event(&BuildEvent::StepEnd { step_id: s1, exit_code: 0, duration_ms: 200, snapshot: None });
+        r.on_event(&BuildEvent::StepQueued {
+            step_id: s2, key: "test".into(), chain_idx: 0,
+            parent_key: None, display_name: "test".into(),
+        });
+        r.on_event(&BuildEvent::StepEnd { step_id: s2, exit_code: 1, duration_ms: 300, snapshot: None });
+        r.on_event(&BuildEvent::BuildEnd { exit_code: 1, duration_ms: 600 });
+
+        let s = output(&r);
+        assert!(s.contains("\x1b[32m✓\x1b[0m"), "expected green ✓: {s}");
+        assert!(s.contains("\x1b[31m✗\x1b[0m"), "expected red ✗: {s}");
+        assert!(s.contains("Build failed"), "expected failure banner: {s}");
+    }
+
+    #[test]
+    fn colored_success_banner() {
+        let mut r = ProgressRenderer::new(Vec::new(), true);
+        let s1 = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::BuildStart {
+            run_id: Uuid::nil(),
+            plan: PlanSummary { step_count: 1, chain_count: 1, default_runner: "docker".into() },
+            started_at: chrono::Utc::now(),
+        });
+        r.on_event(&BuildEvent::StepQueued {
+            step_id: s1, key: "build".into(), chain_idx: 0,
+            parent_key: None, display_name: "build".into(),
+        });
+        r.on_event(&BuildEvent::StepEnd { step_id: s1, exit_code: 0, duration_ms: 100, snapshot: None });
+        r.on_event(&BuildEvent::BuildEnd { exit_code: 0, duration_ms: 150 });
+
+        let s = output(&r);
+        assert!(s.contains("\x1b[32m\x1b[1m"), "expected green bold: {s}");
+        assert!(s.contains("Build succeeded"), "expected success: {s}");
     }
 }
