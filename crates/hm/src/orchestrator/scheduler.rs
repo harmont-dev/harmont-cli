@@ -215,10 +215,10 @@ pub async fn run(
 
     // Clean up ephemeral images created during this run.
     for outcome in &outcomes {
-        if let Some(snap) = &outcome.snapshot {
-            if snap.0.starts_with("harmont-local-ephemeral/") {
-                let _ = docker.remove_image(&snap.0).await;
-            }
+        if let Some(snap) = &outcome.snapshot
+            && snap.0.starts_with("harmont-local-ephemeral/")
+        {
+            let _ = docker.remove_image(&snap.0).await;
         }
     }
 
