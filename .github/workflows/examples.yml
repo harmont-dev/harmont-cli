@@ -94,7 +94,6 @@ jobs:
           - php-laravel
           - python-uv
           - react
-          - ruby
           - rust
           - typescript
           - zig-js

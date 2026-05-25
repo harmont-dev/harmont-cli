@@ -2,6 +2,7 @@
 
 use std::io::Write;
 
+use owo_colors::{AnsiColors, OwoColorize};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 #[derive(Debug, Clone)]
@@ -51,14 +52,14 @@ impl PerSlug {
     }
 }
 
-fn slug_color_code(slug: &str) -> &'static str {
-    const PALETTE: [&str; 6] = [
-        "\x1b[36m", // cyan
-        "\x1b[35m", // magenta
-        "\x1b[33m", // yellow
-        "\x1b[32m", // green
-        "\x1b[34m", // blue
-        "\x1b[91m", // bright red
+fn slug_color(slug: &str) -> AnsiColors {
+    const PALETTE: [AnsiColors; 6] = [
+        AnsiColors::Cyan,
+        AnsiColors::Magenta,
+        AnsiColors::Yellow,
+        AnsiColors::Green,
+        AnsiColors::Blue,
+        AnsiColors::BrightRed,
     ];
     let mut h: u32 = 0;
     for b in slug.bytes() {
@@ -76,7 +77,7 @@ fn write_line<W: Write>(
 ) -> std::io::Result<()> {
     let prefix = format!("[{slug:<width$}]");
     if color {
-        write!(w, "{}{prefix}\x1b[0m ", slug_color_code(slug))?;
+        write!(w, "{} ", prefix.color(slug_color(slug)))?;
     } else {
         write!(w, "{prefix} ")?;
     }
@@ -171,6 +172,6 @@ mod tests {
 
     #[test]
     fn slug_color_is_stable_per_slug() {
-        assert_eq!(slug_color_code("db"), slug_color_code("db"));
+        assert_eq!(slug_color("db"), slug_color("db"));
     }
 }

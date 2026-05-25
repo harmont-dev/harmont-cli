@@ -208,7 +208,7 @@
           "CI": "true"
         },
         "step": {
-          "cmd": "cd services/ml && uv run mypy .",
+          "cmd": "cd services/ml && uv run ty check .",
           "key": "typecheck",
           "label": ":python: typecheck"
         }

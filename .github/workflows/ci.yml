@@ -34,7 +34,7 @@ jobs:
         run: cargo clippy --all-targets -p harmont-cli -- -D warnings
 
   python-lint:
-    name: harmont-py (pytest + ruff + mypy)
+    name: harmont-py (pytest + ruff + ty)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -56,9 +56,9 @@ jobs:
         working-directory: dsls/harmont-py
         run: ruff check .
 
-      - name: mypy
+      - name: ty
         working-directory: dsls/harmont-py
-        run: mypy harmont
+        run: ty check harmont
 
       - name: pytest
         working-directory: dsls/harmont-py
@@ -137,6 +137,10 @@ jobs:
 
       - name: Install harmont-py (editable)
         run: pip install -e dsls/harmont-py
+
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
 
       - name: cargo build --tests (with docker-integration feature)
         run: cargo build -p harmont-cli --tests --features docker-integration

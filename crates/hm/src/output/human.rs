@@ -7,6 +7,7 @@ use std::fmt;
 use std::io::Write;
 
 use hm_plugin_protocol::BuildEvent;
+use owo_colors::{AnsiColors, OwoColorize};
 use uuid::Uuid;
 
 use crate::runner::OutputRenderer;
@@ -34,16 +35,14 @@ impl<W> HumanRenderer<W> {
     }
 }
 
-/// Pick a deterministic ANSI color for a step key, using the same
-/// hash-based palette as `logmux.rs`.
-fn key_color(key: &str) -> &'static str {
-    const PALETTE: [&str; 6] = [
-        "\x1b[36m", // cyan
-        "\x1b[35m", // magenta
-        "\x1b[33m", // yellow
-        "\x1b[32m", // green
-        "\x1b[34m", // blue
-        "\x1b[91m", // bright red
+fn key_color(key: &str) -> AnsiColors {
+    const PALETTE: [AnsiColors; 6] = [
+        AnsiColors::Cyan,
+        AnsiColors::Magenta,
+        AnsiColors::Yellow,
+        AnsiColors::Green,
+        AnsiColors::Blue,
+        AnsiColors::BrightRed,
     ];
     let mut h: u32 = 0;
     for b in key.bytes() {
@@ -52,7 +51,13 @@ fn key_color(key: &str) -> &'static str {
     PALETTE[(h as usize) % PALETTE.len()]
 }
 
-const RESET: &str = "\x1b[0m";
+fn fmt_key(key: &str, color: bool) -> String {
+    if color {
+        format!("[{}]", key.color(key_color(key)))
+    } else {
+        format!("[{key}]")
+    }
+}
 
 impl<W> HumanRenderer<W>
 where
@@ -86,44 +91,26 @@ where
                 runner,
                 image,
             } => {
-                let key = self.step_key(step_id);
-                if self.color {
-                    let c = key_color(key);
-                    image.as_ref().map_or_else(
-                        || format!("{c}[{key}]{RESET} start (runner={runner})\n"),
-                        |img| format!("{c}[{key}]{RESET} start (runner={runner} image={img})\n"),
-                    )
-                } else {
-                    image.as_ref().map_or_else(
-                        || format!("[{key}] start (runner={runner})\n"),
-                        |img| format!("[{key}] start (runner={runner} image={img})\n"),
-                    )
-                }
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                image.as_ref().map_or_else(
+                    || format!("{prefix} start (runner={runner})\n"),
+                    |img| format!("{prefix} start (runner={runner} image={img})\n"),
+                )
                 .into_bytes()
             }
 
             BuildEvent::StepLog {
                 step_id, line, ..
             } => {
-                let key = self.step_key(step_id);
-                if self.color {
-                    format!("{}[{key}]{RESET} {line}\n", key_color(key))
-                } else {
-                    format!("[{key}] {line}\n")
-                }
-                .into_bytes()
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                format!("{prefix} {line}\n").into_bytes()
             }
 
             BuildEvent::StepCacheHit {
                 step_id, tag, ..
             } => {
-                let key = self.step_key(step_id);
-                if self.color {
-                    format!("{}[{key}]{RESET} cache hit ({tag})\n", key_color(key))
-                } else {
-                    format!("[{key}] cache hit ({tag})\n")
-                }
-                .into_bytes()
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                format!("{prefix} cache hit ({tag})\n").into_bytes()
             }
 
             BuildEvent::StepEnd {
@@ -132,13 +119,8 @@ where
                 duration_ms,
                 ..
             } => {
-                let key = self.step_key(step_id);
-                if self.color {
-                    format!("{}[{key}]{RESET} end exit={exit_code} duration={duration_ms}ms\n", key_color(key))
-                } else {
-                    format!("[{key}] end exit={exit_code} duration={duration_ms}ms\n")
-                }
-                .into_bytes()
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                format!("{prefix} end exit={exit_code} duration={duration_ms}ms\n").into_bytes()
             }
 
             BuildEvent::BuildEnd {
@@ -154,17 +136,17 @@ where
                 exit_code,
                 message,
                 ..
-            } => if self.color {
-                let c = key_color(failed_step_key);
+            } => {
+                let styled_key = if self.color {
+                    format!("{}", failed_step_key.color(key_color(failed_step_key)))
+                } else {
+                    failed_step_key.clone()
+                };
                 format!(
-                    "chain {chain_idx}: FAILED at step '{c}{failed_step_key}{RESET}' (exit={exit_code}): {message}\n"
+                    "chain {chain_idx}: FAILED at step '{styled_key}' (exit={exit_code}): {message}\n"
                 )
-            } else {
-                format!(
-                    "chain {chain_idx}: FAILED at step '{failed_step_key}' (exit={exit_code}): {message}\n"
-                )
+                .into_bytes()
             }
-            .into_bytes(),
         };
 
         let _ = self.out.write_all(&bytes);

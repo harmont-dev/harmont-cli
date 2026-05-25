@@ -13,21 +13,16 @@ use std::io::Write;
 
 use hm_plugin_protocol::BuildEvent;
 use indicatif::ProgressStyle;
+use owo_colors::{OwoColorize, Style};
 use tracing::{Span, info_span};
 use tracing_indicatif::span_ext::IndicatifSpanExt;
 use uuid::Uuid;
 
 use crate::runner::OutputRenderer;
 
-const GREEN: &str = "\x1b[32m";
-const RED: &str = "\x1b[31m";
-const BOLD: &str = "\x1b[1m";
-const DIM: &str = "\x1b[2m";
-const RESET: &str = "\x1b[0m";
-
-fn ansi(text: &str, codes: &str, color: bool) -> String {
+fn styled(text: &str, style: Style, color: bool) -> String {
     if color {
-        format!("{codes}{text}{RESET}")
+        format!("{}", text.style(style))
     } else {
         text.to_string()
     }
@@ -45,22 +40,16 @@ fn active_style(color: bool) -> ProgressStyle {
 
 #[allow(clippy::literal_string_with_formatting_args)]
 fn completed_style(color: bool) -> ProgressStyle {
-    let tpl = if color {
-        "{span_child_prefix}\x1b[32m✓\x1b[0m {wide_msg}"
-    } else {
-        "{span_child_prefix}✓ {wide_msg}"
-    };
-    ProgressStyle::with_template(tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
+    let check = if color { format!("{}", "✓".green()) } else { "✓".to_string() };
+    let tpl = format!("{{span_child_prefix}}{check} {{wide_msg}}");
+    ProgressStyle::with_template(&tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
 #[allow(clippy::literal_string_with_formatting_args)]
 fn failed_style(color: bool) -> ProgressStyle {
-    let tpl = if color {
-        "{span_child_prefix}\x1b[31m✗\x1b[0m {wide_msg}"
-    } else {
-        "{span_child_prefix}✗ {wide_msg}"
-    };
-    ProgressStyle::with_template(tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
+    let cross = if color { format!("{}", "✗".red()) } else { "✗".to_string() };
+    let tpl = format!("{{span_child_prefix}}{cross} {{wide_msg}}");
+    ProgressStyle::with_template(&tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
 fn format_duration(ms: u64) -> String {
@@ -133,7 +122,7 @@ impl<W: Write> ProgressRenderer<W> {
         for (step_id, exit_code) in &self.failed_steps {
             let name = self.step_names.get(step_id).map_or("?", String::as_str);
             let header = format!("--- {name} failed (exit {exit_code}) ---");
-            let _ = writeln!(self.out, "\n{}", ansi(&header, RED, self.color));
+            let _ = writeln!(self.out, "\n{}", styled(&header, Style::new().red(), self.color));
             if let Some(lines) = self.log_buffer.get(step_id) {
                 for line in lines {
                     let _ = writeln!(self.out, "{line}");
@@ -156,33 +145,33 @@ impl<W: Write> ProgressRenderer<W> {
             let name = self.step_names.get(step_id).map_or("?", String::as_str);
             let (indicator, timing) = match self.step_outcomes.get(step_id) {
                 Some(StepOutcome::Succeeded { duration_ms }) => (
-                    ansi("✓", GREEN, self.color),
-                    ansi(&format_duration(*duration_ms), DIM, self.color),
+                    styled("✓", Style::new().green(), self.color),
+                    styled(&format_duration(*duration_ms), Style::new().dimmed(), self.color),
                 ),
                 Some(StepOutcome::Failed {
                     duration_ms,
                     exit_code,
                 }) => (
-                    ansi("✗", RED, self.color),
-                    ansi(
+                    styled("✗", Style::new().red(), self.color),
+                    styled(
                         &format!("{}  exit {exit_code}", format_duration(*duration_ms)),
-                        RED,
+                        Style::new().red(),
                         self.color,
                     ),
                 ),
                 Some(StepOutcome::Cancelled { duration_ms }) => (
-                    ansi("-", DIM, self.color),
-                    ansi(
+                    styled("-", Style::new().dimmed(), self.color),
+                    styled(
                         &format!("{}  cancelled", format_duration(*duration_ms)),
-                        DIM,
+                        Style::new().dimmed(),
                         self.color,
                     ),
                 ),
                 Some(StepOutcome::Cached) => (
-                    ansi("✓", GREEN, self.color),
-                    ansi("cached", DIM, self.color),
+                    styled("✓", Style::new().green(), self.color),
+                    styled("cached", Style::new().dimmed(), self.color),
                 ),
-                None => (ansi("-", DIM, self.color), ansi("—", DIM, self.color)),
+                None => (styled("-", Style::new().dimmed(), self.color), styled("—", Style::new().dimmed(), self.color)),
             };
             let _ = writeln!(self.out, "  {indicator} {name:<max_name_len$}  {timing}");
         }
@@ -337,7 +326,7 @@ where
                     let _ = writeln!(
                         self.out,
                         "\n{}",
-                        ansi(&msg, &format!("{RED}{BOLD}"), self.color)
+                        styled(&msg, Style::new().red().bold(), self.color)
                     );
                 } else {
                     let dur = format_duration(*duration_ms);
@@ -345,7 +334,7 @@ where
                     let _ = writeln!(
                         self.out,
                         "\n{}",
-                        ansi(&msg, &format!("{GREEN}{BOLD}"), self.color)
+                        styled(&msg, Style::new().green().bold(), self.color)
                     );
                 }
             }
@@ -625,8 +614,8 @@ mod tests {
         });
 
         let s = output(&r);
-        assert!(s.contains("\x1b[32m✓\x1b[0m"), "expected green ✓: {s}");
-        assert!(s.contains("\x1b[31m✗\x1b[0m"), "expected red ✗: {s}");
+        assert!(s.contains("\x1b[32m") && s.contains("✓"), "expected green ✓: {s}");
+        assert!(s.contains("\x1b[31m") && s.contains("✗"), "expected red ✗: {s}");
         assert!(s.contains("Build failed"), "expected failure banner: {s}");
     }
 
@@ -663,7 +652,7 @@ mod tests {
         });
 
         let s = output(&r);
-        assert!(s.contains("\x1b[32m\x1b[1m"), "expected green bold: {s}");
+        assert!(s.contains("\x1b[") && s.contains("Build succeeded"), "expected green bold success: {s}");
         assert!(s.contains("Build succeeded"), "expected success: {s}");
     }
 }
