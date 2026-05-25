@@ -165,9 +165,6 @@ jobs:
         working-directory: dsls/harmont-ts
         run: npm ci
 
-      - name: Install Python DSL runtime deps
-        run: pip install croniter python-dateutil
-
       - name: cargo build --tests (with docker-integration feature)
         run: cargo build -p harmont-cli --tests --features docker-integration
 
