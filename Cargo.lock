@@ -1188,7 +1188,6 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "async-trait",
- "dirs",
  "include_dir",
  "serde",
  "serde_json",
