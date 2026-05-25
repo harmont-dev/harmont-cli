@@ -7,7 +7,6 @@ pub mod detect;
 pub mod python_engine;
 pub mod ts_engine;
 
-#[allow(dead_code)] // Items used by engine modules added in Tasks 5-7.
 mod bundled_sources;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -32,11 +31,21 @@ pub trait DslEngine: Send + Sync {
     ) -> anyhow::Result<String>;
 }
 
-/// Placeholder — will be fully implemented when engines are added in Tasks 5-7.
+/// Return an appropriate [`DslEngine`] for the given language.
 ///
 /// # Errors
 ///
-/// Always returns an error until engine modules are wired in Tasks 5-7.
-pub fn engine_for(_lang: DslLanguage) -> anyhow::Result<Box<dyn DslEngine>> {
-    anyhow::bail!("DSL engines not yet wired — Tasks 5-7 pending")
+/// Returns an error if the required system runtime (`python3`, `node`/`bun`)
+/// is not found on PATH.
+pub fn engine_for(lang: DslLanguage) -> anyhow::Result<Box<dyn DslEngine>> {
+    match lang {
+        DslLanguage::Python => {
+            let engine = python_engine::SubprocessPythonEngine::new()?;
+            Ok(Box::new(engine))
+        }
+        DslLanguage::TypeScript => {
+            let engine = ts_engine::SubprocessTsEngine::new()?;
+            Ok(Box::new(engine))
+        }
+    }
 }
