@@ -76,6 +76,26 @@ impl DockerClient {
         Ok(!images.is_empty())
     }
 
+    /// List all image tags whose repository matches `reference` (e.g.
+    /// `"harmont-local/build"` finds `harmont-local/build:abc123`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HmError::Docker`] if the `list_images` API call fails.
+    pub async fn list_images_by_reference(&self, reference: &str) -> Result<Vec<String>> {
+        let mut filters = HashMap::new();
+        filters.insert("reference".to_string(), vec![format!("{reference}:*")]);
+        let images = self
+            .inner
+            .list_images(Some(ListImagesOptions {
+                filters,
+                ..Default::default()
+            }))
+            .await
+            .map_err(|e| HmError::Docker(format!("list_images: {e}")))?;
+        Ok(images.into_iter().flat_map(|img| img.repo_tags).collect())
+    }
+
     /// Pull `tag` from its registry, surfacing the daemon's progress
     /// stream as Docker errors.
     ///
@@ -795,5 +815,16 @@ mod smoke {
     async fn docker_ping() {
         let c = DockerClient::connect().unwrap();
         c.ping().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a running Docker daemon; opt in with `cargo test -- --ignored`"]
+    async fn list_images_by_reference_returns_empty_for_nonexistent() {
+        let c = DockerClient::connect().unwrap();
+        let tags = c
+            .list_images_by_reference("harmont-test-nonexistent")
+            .await
+            .unwrap();
+        assert!(tags.is_empty());
     }
 }
