@@ -19,18 +19,36 @@ use uuid::Uuid;
 
 use crate::runner::OutputRenderer;
 
-fn active_style() -> ProgressStyle {
-    ProgressStyle::with_template("{span_child_prefix}{spinner} {wide_msg}  ({elapsed})")
+#[allow(clippy::literal_string_with_formatting_args)]
+fn active_style(color: bool) -> ProgressStyle {
+    let tpl = if color {
+        "{span_child_prefix}{spinner:.cyan} {wide_msg}  ({elapsed})"
+    } else {
+        "{span_child_prefix}{spinner} {wide_msg}  ({elapsed})"
+    };
+    ProgressStyle::with_template(tpl)
         .unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
-fn completed_style() -> ProgressStyle {
-    ProgressStyle::with_template("{span_child_prefix}✓ {wide_msg}")
+#[allow(clippy::literal_string_with_formatting_args)]
+fn completed_style(color: bool) -> ProgressStyle {
+    let tpl = if color {
+        "{span_child_prefix}\x1b[32m✓\x1b[0m {wide_msg}"
+    } else {
+        "{span_child_prefix}✓ {wide_msg}"
+    };
+    ProgressStyle::with_template(tpl)
         .unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
-fn failed_style() -> ProgressStyle {
-    ProgressStyle::with_template("{span_child_prefix}✗ {wide_msg}")
+#[allow(clippy::literal_string_with_formatting_args)]
+fn failed_style(color: bool) -> ProgressStyle {
+    let tpl = if color {
+        "{span_child_prefix}\x1b[31m✗\x1b[0m {wide_msg}"
+    } else {
+        "{span_child_prefix}✗ {wide_msg}"
+    };
+    ProgressStyle::with_template(tpl)
         .unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
@@ -52,9 +70,17 @@ fn format_duration(ms: u64) -> String {
 ///
 /// Generic over `W: Write` so tests can capture text output into a
 /// `Vec<u8>` while production code writes to `std::io::Stderr`.
+#[derive(Debug)]
+#[allow(dead_code, reason = "fields read by upcoming coloured summary")]
+pub(crate) enum StepOutcome {
+    Succeeded { duration_ms: u64 },
+    Failed { duration_ms: u64, exit_code: i32 },
+    Cancelled { duration_ms: u64 },
+    Cached,
+}
+
 pub struct ProgressRenderer<W> {
     out: W,
-    #[allow(dead_code, reason = "wired up for upcoming coloured output")]
     pub(crate) color: bool,
     root_span: Option<Span>,
     step_spans: HashMap<Uuid, Span>,
@@ -62,6 +88,8 @@ pub struct ProgressRenderer<W> {
     step_names: HashMap<Uuid, String>,
     log_buffer: HashMap<Uuid, Vec<String>>,
     failed_steps: Vec<(Uuid, i32)>,
+    step_order: Vec<Uuid>,
+    pub(crate) step_outcomes: HashMap<Uuid, StepOutcome>,
 }
 
 impl<W> fmt::Debug for ProgressRenderer<W> {
@@ -84,6 +112,8 @@ impl<W> ProgressRenderer<W> {
             step_names: HashMap::new(),
             log_buffer: HashMap::new(),
             failed_steps: Vec::new(),
+            step_order: Vec::new(),
+            step_outcomes: HashMap::new(),
         }
     }
 }
@@ -100,22 +130,43 @@ impl<W: Write> ProgressRenderer<W> {
             }
         }
     }
+
+    fn print_step_summary(&mut self) {
+        let _ = writeln!(self.out);
+        for step_id in &self.step_order {
+            let name = self.step_names.get(step_id).map_or("?", String::as_str);
+            let timing = match self.step_outcomes.get(step_id) {
+                Some(
+                    StepOutcome::Succeeded { duration_ms }
+                    | StepOutcome::Failed { duration_ms, .. },
+                ) => format_duration(*duration_ms),
+                Some(StepOutcome::Cancelled { .. }) => "cancelled".into(),
+                Some(StepOutcome::Cached) => "cached".into(),
+                None => "\u{2014}".into(),
+            };
+            let _ = writeln!(self.out, "  {name}  {timing}");
+        }
+    }
 }
 
 impl<W> OutputRenderer for ProgressRenderer<W>
 where
     W: Write + Send + fmt::Debug,
 {
+    #[allow(clippy::too_many_lines, clippy::literal_string_with_formatting_args)]
     fn on_event(&mut self, event: &BuildEvent) {
         match event {
             BuildEvent::BuildStart { plan, .. } => {
                 let root = info_span!("pipeline");
 
+                let tpl = if self.color {
+                    "{spinner:.green} {span_name}  {wide_bar:.green/white} {pos}/{len} steps  ({elapsed})"
+                } else {
+                    "{spinner} {span_name}  {wide_bar} {pos}/{len} steps  ({elapsed})"
+                };
                 root.pb_set_style(
-                    &ProgressStyle::with_template(
-                        "{spinner} {span_name}  {wide_bar} {pos}/{len} steps  ({elapsed})",
-                    )
-                    .unwrap_or_else(|_| ProgressStyle::default_bar()),
+                    &ProgressStyle::with_template(tpl)
+                        .unwrap_or_else(|_| ProgressStyle::default_bar()),
                 );
                 root.pb_set_length(plan.step_count as u64);
                 root.pb_start();
@@ -146,7 +197,7 @@ where
                 let span = parent_span
                     .map_or_else(|| info_span!("step"), |p| info_span!(parent: p, "step"));
 
-                span.pb_set_style(&active_style());
+                span.pb_set_style(&active_style(self.color));
                 span.pb_set_message(display_name);
                 span.pb_start();
 
@@ -170,9 +221,10 @@ where
             BuildEvent::StepCacheHit { step_id, .. } => {
                 if let Some(span) = self.step_spans.get(step_id) {
                     let name = self.step_names.get(step_id).map_or("?", String::as_str);
-                    span.pb_set_style(&completed_style());
+                    span.pb_set_style(&completed_style(self.color));
                     span.pb_set_message(&format!("{name}  (cached)"));
                 }
+                self.step_outcomes.insert(*step_id, StepOutcome::Cached);
                 if let Some(root) = &self.root_span {
                     root.pb_inc(1);
                 }
@@ -189,21 +241,30 @@ where
                     self.failed_steps.push((*step_id, *exit_code));
                     if let Some(span) = self.step_spans.get(step_id) {
                         let name = self.step_names.get(step_id).map_or("?", String::as_str);
-                        span.pb_set_style(&failed_style());
+                        span.pb_set_style(&failed_style(self.color));
                         span.pb_set_message(&format!("{name}  FAILED (exit {exit_code})"));
                     }
                 } else if cancelled {
                     if let Some(span) = self.step_spans.get(step_id) {
                         let name = self.step_names.get(step_id).map_or("?", String::as_str);
-                        span.pb_set_style(&completed_style());
+                        span.pb_set_style(&completed_style(self.color));
                         span.pb_set_message(&format!("{name}  (cancelled)"));
                     }
                 } else if let Some(span) = self.step_spans.get(step_id) {
                     let name = self.step_names.get(step_id).map_or("?", String::as_str);
                     let dur = format_duration(*duration_ms);
-                    span.pb_set_style(&completed_style());
+                    span.pb_set_style(&completed_style(self.color));
                     span.pb_set_message(&format!("{name}  ({dur})"));
                 }
+
+                let outcome = if *exit_code == 0 {
+                    StepOutcome::Succeeded { duration_ms: *duration_ms }
+                } else if cancelled {
+                    StepOutcome::Cancelled { duration_ms: *duration_ms }
+                } else {
+                    StepOutcome::Failed { duration_ms: *duration_ms, exit_code: *exit_code }
+                };
+                self.step_outcomes.insert(*step_id, outcome);
 
                 if let Some(root) = &self.root_span {
                     root.pb_inc(1);
@@ -409,6 +470,43 @@ mod tests {
         assert!(
             r.step_spans.contains_key(&step_id),
             "cached step span should stay alive"
+        );
+    }
+
+    #[test]
+    fn step_outcome_tracks_failure() {
+        let mut r = renderer();
+        let step_id = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::BuildStart {
+            run_id: Uuid::nil(),
+            plan: PlanSummary {
+                step_count: 1,
+                chain_count: 1,
+                default_runner: "docker".into(),
+            },
+            started_at: chrono::Utc::now(),
+        });
+        r.on_event(&BuildEvent::StepQueued {
+            step_id,
+            key: "test".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "test".into(),
+        });
+        r.on_event(&BuildEvent::StepEnd {
+            step_id,
+            exit_code: 1,
+            duration_ms: 500,
+            snapshot: None,
+        });
+
+        assert!(
+            matches!(
+                r.step_outcomes.get(&step_id),
+                Some(StepOutcome::Failed { exit_code: 1, .. })
+            ),
+            "expected Failed outcome"
         );
     }
 }
