@@ -99,7 +99,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "23"
 
       - name: Download hm binary
         uses: actions/download-artifact@v4

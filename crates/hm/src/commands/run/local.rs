@@ -70,9 +70,9 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
     };
 
     let lang = detect::detect_language(&repo_root)
-        .map_err(|e| crate::error::HmError::DslEngine(e.to_string()))?;
+        .map_err(|e| crate::error::HmError::DslEngine(format!("{e:#}")))?;
     let engine = hm_dsl_engine::engine_for(lang)
-        .map_err(|e| crate::error::HmError::DslEngine(e.to_string()))?;
+        .map_err(|e| crate::error::HmError::DslEngine(format!("{e:#}")))?;
 
     let slug = if let Some(s) = &args.pipeline {
         s.clone()
@@ -80,7 +80,7 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         let metas: Vec<hm_dsl_engine::PipelineMeta> = engine
             .list_pipelines(&repo_root)
             .await
-            .map_err(|e| crate::error::HmError::PipelineRender(e.to_string()))?;
+            .map_err(|e| crate::error::HmError::PipelineRender(format!("{e:#}")))?;
         let slugs: Vec<String> = metas.into_iter().map(|m| m.slug).collect();
         match slugs.as_slice() {
             [only] => only.clone(),
@@ -98,7 +98,7 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
     let json_str = engine
         .render_pipeline_json(&repo_root, &slug)
         .await
-        .map_err(|e| crate::error::HmError::PipelineRender(e.to_string()))?;
+        .map_err(|e| crate::error::HmError::PipelineRender(format!("{e:#}")))?;
     let json = json_str.into_bytes();
     let graph = decode_plan_to_wire(&json)?;
     let parallelism = args.parallelism.unwrap_or_else(|| {
