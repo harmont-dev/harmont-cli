@@ -19,7 +19,7 @@ async fn main() {
 
     let use_indicatif = matches!(
         &args.command,
-        cli::Command::Run(r) if !r.logs && r.format != "json"
+        cli::Command::Run(r) if !r.logs && r.format == "human"
     );
 
     let default_level = if args.verbose { "debug" } else { "info" };

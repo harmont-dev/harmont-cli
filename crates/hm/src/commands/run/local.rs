@@ -98,8 +98,13 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
 
     let renderer: Box<dyn crate::runner::OutputRenderer> = match args.format.as_str() {
         "json" => Box::new(crate::output::json::JsonRenderer::new(std::io::stdout())),
-        _ if args.logs => Box::new(crate::output::human::HumanRenderer::new(std::io::stderr())),
-        _ => Box::new(crate::output::progress::ProgressRenderer::new(std::io::stderr())),
+        "human" if args.logs => {
+            Box::new(crate::output::human::HumanRenderer::new(std::io::stderr()))
+        }
+        "human" => Box::new(crate::output::progress::ProgressRenderer::new(std::io::stderr())),
+        other => anyhow::bail!(
+            "unknown --format '{other}'\n  available: human, json"
+        ),
     };
 
     let exit_code =

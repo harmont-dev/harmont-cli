@@ -77,5 +77,5 @@ fn unknown_format_fails_fast_with_listing() {
         .current_dir(temp.path())
         .assert()
         .failure()
-        .stderr(contains("unknown --format 'nope'"));
+        .stdout(contains("unknown --format 'nope'"));
 }
