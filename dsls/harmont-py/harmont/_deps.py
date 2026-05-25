@@ -187,7 +187,7 @@ def resolve_deps(fn: Callable[..., Any]) -> dict[str, Any]:
 
 def call_with_deps(fn: Callable[..., Any]) -> Any:
     """Resolve ``fn``'s parameters and call it. Detects cycles."""
-    name = fn.__name__
+    name = fn.__name__  # ty: ignore[unresolved-attribute]
     if name in _RESOLVING:
         cycle = " → ".join([*_RESOLVING, name])
         msg = (

@@ -47,7 +47,7 @@ def pipeline(
 
     def decorator(fn: Callable[..., Any]) -> Callable[[], Any]:
         validate_target_signature(fn)
-        resolved = slug if slug is not None else fn.__name__
+        resolved = slug if slug is not None else fn.__name__  # ty: ignore[unresolved-attribute]
         _validate_slug(resolved)
 
         @wraps(fn)

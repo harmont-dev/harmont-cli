@@ -92,7 +92,7 @@ def target(
 
     def decorator(fn: Callable[..., Any]) -> Callable[[], Any]:
         validate_target_signature(fn)
-        target_name = name if name is not None else fn.__name__
+        target_name = name if name is not None else fn.__name__  # ty: ignore[unresolved-attribute]
 
         @wraps(fn)
         def wrapper() -> Any:

@@ -94,7 +94,7 @@ def deploy(
 
     def decorator(fn: Callable[..., Any]) -> Callable[[], Deployment]:
         validate_target_signature(fn)
-        resolved_slug = slug if slug is not None else fn.__name__
+        resolved_slug = slug if slug is not None else fn.__name__  # ty: ignore[unresolved-attribute]
         _validate_slug(resolved_slug)
         if resolved_slug in DEPLOYMENTS:
             msg = (
@@ -139,7 +139,7 @@ def dep_graph() -> dict[str, tuple[str, ...]]:
 
     out: dict[str, tuple[str, ...]] = {}
     for slug, wrapper in DEPLOYMENTS.items():
-        fn = wrapper.__wrapped__  # type: ignore[attr-defined]
+        fn = wrapper.__wrapped__  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         sig = inspect.signature(fn)
         hints = _typing.get_type_hints(fn, include_extras=True)
         deps: list[str] = []
