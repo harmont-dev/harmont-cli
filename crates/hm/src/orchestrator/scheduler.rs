@@ -212,6 +212,17 @@ pub async fn run(
     };
 
     let dur = started_total.elapsed().as_millis() as u64;
+
+    // Clean up ephemeral images created during this run.
+    {
+        let images = node_image.lock().await;
+        for snap in images.values() {
+            if snap.0.starts_with("harmont-local-ephemeral/") {
+                let _ = docker.remove_image(&snap.0).await;
+            }
+        }
+    }
+
     bus.emit(BuildEvent::BuildEnd {
         exit_code: overall,
         duration_ms: dur,
