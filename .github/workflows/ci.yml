@@ -112,6 +112,17 @@ jobs:
           sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
           /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
 
+      - name: Restore harmont Docker cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .harmont-cache/
+          key: harmont-v1-will-never-match
+          restore-keys: |
+            harmont-v1-
+
+      - name: Load cached Docker images
+        run: ./target/debug/hm cache restore .harmont-cache/
+
       - name: hm run ci
         env:
           HM_NONINTERACTIVE: '1'
