@@ -142,6 +142,7 @@ impl SubprocessTsEngine {
         }
 
         cmd.env("NODE_PATH", tmp.path().join("node_modules"))
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

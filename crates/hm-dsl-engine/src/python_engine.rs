@@ -78,6 +78,7 @@ impl SubprocessPythonEngine {
             .current_dir(project_dir)
             .env("PYTHONPATH", tmp.path())
             .env("PYTHONDONTWRITEBYTECODE", "1")
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

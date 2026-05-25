@@ -4,8 +4,6 @@ use crate::cli::RunArgs;
 use crate::context::RunContext;
 
 mod local;
-#[allow(dead_code)]
-mod render;
 
 pub use local::handle as handle_local;
 pub use local::run_pipeline_v0_one_shot;
