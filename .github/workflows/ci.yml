@@ -20,8 +20,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          # build.rs cross-compiles hm-plugin-* wasm artifacts.
-          targets: wasm32-wasip1
           components: clippy
       - uses: Swatinem/rust-cache@v2
 
@@ -106,13 +104,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
       - uses: Swatinem/rust-cache@v2
 
       - name: Install esbuild (for harmont-ts bundle)
         working-directory: dsls/harmont-ts
         run: npm ci
+
+      - name: Install Python DSL runtime deps
+        run: pip install croniter python-dateutil
 
       - name: cargo build --tests (with docker-integration feature)
         run: cargo build -p harmont-cli --tests --features docker-integration

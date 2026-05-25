@@ -35,10 +35,20 @@ organization state lives in `~/.harmont/cloud-state.json`.
 
 ## Feature flags
 
-- `embedded-python` — wasmtime + CPython WASI for Python DSL evaluation (no system python3 needed)
-- `embedded-typescript` — wasmtime + QuickJS WASI + oxc for TS DSL evaluation (no system node needed)
 - `py-env` — test-only: assumes `harmont` Python package is on PATH
+- `docker-integration` — enables Docker-based integration tests
 
-Without embedded features, falls back to system interpreters (python3/node subprocess).
+## DSL engine
 
-Build-time asset fetching: when `embedded-python` or `embedded-typescript` features are enabled, `build.rs` downloads pinned assets (QuickJS WASM, Python vendor packages) from the internet on first build. Subsequent builds use the cached copies in `$OUT_DIR`.
+The `hm-dsl-engine` crate evaluates pipeline definitions by shelling out
+to system-installed runtimes:
+
+- **Python pipelines:** `python3 -c "..."` subprocess with bundled `harmont`
+  package extracted to temp dir via `PYTHONPATH`. Requires `croniter` and
+  `python-dateutil` pip-installed.
+- **TypeScript pipelines:** `bun run` or `node --experimental-strip-types`
+  subprocess with bundled harmont-ts ESM bundles in a temp `node_modules/`.
+  Prefers Bun, falls back to Node 22+.
+
+DSL source code (harmont-py, harmont-ts bundles) is compiled into the binary
+at build time. Build requires esbuild (`npm ci` in `dsls/harmont-ts/`).

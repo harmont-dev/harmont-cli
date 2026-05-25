@@ -43,20 +43,12 @@ jobs:
   build-hm:
     needs: validate-matrix
     runs-on: ubuntu-latest
-    # Debug build only — examples just need a working `hm` binary;
-    # release-mode LTO/codegen on wasmtime+cranelift can't finish in
-    # GH's 6h cap on a 2-vCPU runner. Debug builds in ~10 minutes
-    # cold, ~1 minute warm.
+    # Debug build only — examples just need a working `hm` binary.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          # crates/hm/build.rs cross-compiles hm-plugin-docker as a wasm
-          # plugin embedded into the binary, so the target must be on
-          # the toolchain.
-          targets: wasm32-wasip1
 
       - uses: Swatinem/rust-cache@v2
         with:
