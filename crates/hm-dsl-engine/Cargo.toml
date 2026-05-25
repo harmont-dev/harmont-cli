@@ -4,48 +4,23 @@ version = "0.0.0-dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Embedded DSL engine: run Python/TypeScript pipelines via Wasmtime."
+description = "DSL engine: evaluate Python/TypeScript pipeline definitions via system runtimes."
 publish = false
 
 [lib]
 path = "src/lib.rs"
 
-[features]
-default = ["embedded-python", "embedded-typescript"]
-embedded-python     = ["dep:wasmtime", "dep:wasmtime-wasi", "dep:include_dir"]
-embedded-typescript = ["dep:wasmtime", "dep:wasmtime-wasi", "dep:oxc_transformer", "dep:oxc_allocator", "dep:oxc_parser", "dep:oxc_span", "dep:oxc_codegen", "dep:oxc_semantic"]
-
 [dependencies]
-# Always-on
-anyhow     = { workspace = true }
+anyhow      = { workspace = true }
 async-trait = { workspace = true }
-dirs       = { workspace = true }
-serde      = { workspace = true }
-serde_json = { workspace = true }
-hex        = "0.4"
-sha2       = "0.10"
-tempfile   = "3"
-tokio      = { version = "1", features = ["process", "fs"] }
-tracing    = "0.1"
-reqwest    = { version = "0.13", default-features = false, features = ["stream", "rustls"] }
-
-# Feature-gated
-wasmtime      = { version = "33", default-features = false, features = ["cranelift", "cache"], optional = true }
-wasmtime-wasi = { version = "33", default-features = false, features = ["preview1"], optional = true }
-oxc_transformer = { version = "0.100", optional = true }
-oxc_allocator   = { version = "0.100", optional = true }
-oxc_parser      = { version = "0.100", optional = true }
-oxc_span        = { version = "0.100", optional = true }
-oxc_codegen     = { version = "0.100", optional = true }
-oxc_semantic    = { version = "0.100", optional = true }
-include_dir     = { version = "0.7", optional = true }
-
-[build-dependencies]
-reqwest  = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
-sha2     = "0.10"
-hex      = "0.4"
-flate2   = "1"
-tar      = "0.4"
+dirs        = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+include_dir = "0.7"
+tempfile    = "3"
+tokio       = { version = "1", features = ["process", "fs"] }
+tracing     = "0.1"
+which       = "7"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

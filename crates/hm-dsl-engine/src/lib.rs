@@ -1,5 +1,3 @@
-//! Embedded DSL engine: run Python/TypeScript pipeline definitions via Wasmtime.
-
 use std::path::Path;
 
 use async_trait::async_trait;
@@ -7,51 +5,24 @@ use serde::Deserialize;
 
 pub mod detect;
 
-// Feature-gated modules — added as engines are implemented:
+#[allow(dead_code)] // Items used by engine modules added in Tasks 5-7.
+mod bundled_sources;
 
-#[cfg(feature = "embedded-python")]
-pub mod python_engine;
-
-#[cfg(feature = "embedded-typescript")]
-pub mod js_engine;
-
-#[cfg(feature = "embedded-typescript")]
-pub mod ts_preprocess;
-
-#[cfg(feature = "embedded-python")]
-pub mod embedded_sources;
-
-#[cfg(any(feature = "embedded-python", feature = "embedded-typescript"))]
-pub mod wasm_runtime;
-
-#[cfg(any(feature = "embedded-python", feature = "embedded-typescript"))]
-pub mod runtime_cache;
-
-/// The language a DSL pipeline is written in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DslLanguage {
-    /// `CPython` compiled to WASI.
     Python,
-    /// TypeScript transpiled to JS, run via `QuickJS`-WASI.
     TypeScript,
 }
 
-/// Minimal metadata extracted from a DSL pipeline module.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PipelineMeta {
-    /// URL-safe identifier (e.g. `"deploy-api"`).
     pub slug: String,
-    /// Human-readable display name.
     pub name: String,
 }
 
-/// Trait implemented by each language-specific engine.
 #[async_trait]
 pub trait DslEngine: Send + Sync {
-    /// Discover all pipeline definitions under `project_dir`.
     async fn list_pipelines(&self, project_dir: &Path) -> anyhow::Result<Vec<PipelineMeta>>;
-
-    /// Render a single pipeline to its JSON IR.
     async fn render_pipeline_json(
         &self,
         project_dir: &Path,
@@ -59,41 +30,11 @@ pub trait DslEngine: Send + Sync {
     ) -> anyhow::Result<String>;
 }
 
-/// Return an appropriate [`DslEngine`] for the given language.
+/// Placeholder — will be fully implemented when engines are added in Tasks 5-7.
 ///
 /// # Errors
 ///
-/// Returns an error if the requested language feature was not compiled in.
-#[allow(clippy::unused_async)] // Will await engine constructors once implemented.
-pub async fn engine_for(lang: DslLanguage) -> anyhow::Result<Box<dyn DslEngine>> {
-    match lang {
-        DslLanguage::Python => {
-            #[cfg(feature = "embedded-python")]
-            {
-                let engine = python_engine::WasmPythonEngine::new().await?;
-                return Ok(Box::new(engine));
-            }
-            #[cfg(not(feature = "embedded-python"))]
-            {
-                anyhow::bail!(
-                    "embedded-python feature is not enabled; \
-                     rebuild with `--features embedded-python`"
-                );
-            }
-        }
-        DslLanguage::TypeScript => {
-            #[cfg(feature = "embedded-typescript")]
-            {
-                let engine = js_engine::WasmJsEngine::new()?;
-                return Ok(Box::new(engine));
-            }
-            #[cfg(not(feature = "embedded-typescript"))]
-            {
-                anyhow::bail!(
-                    "embedded-typescript feature is not enabled; \
-                     rebuild with `--features embedded-typescript`"
-                );
-            }
-        }
-    }
+/// Always returns an error until engine modules are wired in Tasks 5-7.
+pub fn engine_for(_lang: DslLanguage) -> anyhow::Result<Box<dyn DslEngine>> {
+    anyhow::bail!("DSL engines not yet wired — Tasks 5-7 pending")
 }

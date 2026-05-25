@@ -73,7 +73,6 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
     let lang = detect::detect_language(&repo_root)
         .map_err(|e| crate::error::HmError::DslEngine(e.to_string()))?;
     let engine = hm_dsl_engine::engine_for(lang)
-        .await
         .map_err(|e| crate::error::HmError::DslEngine(e.to_string()))?;
 
     let slug = if let Some(s) = &args.pipeline {

@@ -75,8 +75,6 @@ hex = "0.4"
 default = []
 py-env = []
 docker-integration = []
-embedded-python     = ["hm-dsl-engine/embedded-python"]
-embedded-typescript = ["hm-dsl-engine/embedded-typescript"]
 
 [dev-dependencies]
 wiremock = "0.6"
