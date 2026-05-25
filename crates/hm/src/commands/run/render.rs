@@ -7,7 +7,7 @@
 //!
 //! Mirrors `Harmont.Executor.Render.renderPipeline` on the api side.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Stdio;
 
 use anyhow::{Context, Result};
@@ -15,37 +15,6 @@ use serde::Deserialize;
 use tokio::process::Command;
 
 use crate::error::HmError;
-
-/// Where to find the cidsl/py package.
-#[derive(Debug)]
-pub(super) struct ToolPaths {
-    pub(super) cidsl_py: PathBuf,
-}
-
-impl ToolPaths {
-    /// Resolve the `cidsl/py` path. Honors `HARMONT_CIDSL_PY` if set;
-    /// otherwise walks up from the cli binary looking for a sibling
-    /// `cidsl/py` directory.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error only if `std::env::current_exe` fails (the
-    /// kernel could not return the binary's path — exceptionally rare).
-    pub(super) fn discover() -> Result<Self> {
-        let cidsl_py = if let Some(p) = std::env::var_os("HARMONT_CIDSL_PY") {
-            PathBuf::from(p)
-        } else {
-            let exe = std::env::current_exe().context("locating cli executable")?;
-            exe.ancestors()
-                .find_map(|d| {
-                    let candidate = d.join("cidsl/py");
-                    candidate.exists().then_some(candidate)
-                })
-                .unwrap_or_else(|| PathBuf::from("cidsl/py"))
-        };
-        Ok(Self { cidsl_py })
-    }
-}
 
 /// Metadata for one `@hm.pipeline` registration. Used by the
 /// "no slug → list available" branch in the caller.
@@ -69,10 +38,7 @@ pub(super) struct PipelineMeta {
 /// exits non-zero (DSL bug, missing import, duplicate slug), or its
 /// stdout is not valid JSON. Errors carry the offending process's
 /// stderr verbatim where available.
-pub(super) async fn list_pipelines(
-    tools: &ToolPaths,
-    repo_root: &Path,
-) -> Result<Vec<PipelineMeta>> {
+pub(super) async fn list_pipelines(repo_root: &Path) -> Result<Vec<PipelineMeta>> {
     let script = "\
 import importlib.util, json, pathlib
 import harmont as hm
@@ -84,18 +50,10 @@ envelope = json.loads(hm.dump_registry_json())
 print(json.dumps([{'slug': p['slug'], 'name': p['name']} for p in envelope['pipelines']]))
 ";
 
-    let pythonpath = format!(
-        "{}:{}",
-        tools.cidsl_py.display(),
-        repo_root.join(".harmont").display()
-    );
     let py = Command::new("python3")
         .arg("-c")
         .arg(script)
-        .env_clear()
-        .env("PYTHONPATH", &pythonpath)
-        .env("PATH", "/usr/bin:/usr/local/bin:/bin")
-        .env("LANG", "C.UTF-8")
+        .env("PYTHONPATH", repo_root.join(".harmont"))
         .current_dir(repo_root)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -125,7 +83,6 @@ print(json.dumps([{'slug': p['slug'], 'name': p['name']} for p in envelope['pipe
 /// stdout is not valid UTF-8. Errors carry the offending process's
 /// stderr verbatim where available.
 pub(super) async fn render_pipeline_json(
-    tools: &ToolPaths,
     repo_root: &Path,
     slug: &str,
 ) -> Result<Vec<u8>> {
@@ -146,20 +103,11 @@ if match is None:
 print(json.dumps(match['definition']))
 ";
 
-    let pythonpath = format!(
-        "{}:{}",
-        tools.cidsl_py.display(),
-        repo_root.join(".harmont").display()
-    );
-
     let py = Command::new("python3")
         .arg("-c")
         .arg(render_script)
         .arg(slug)
-        .env_clear()
-        .env("PYTHONPATH", &pythonpath)
-        .env("PATH", "/usr/bin:/usr/local/bin:/bin")
-        .env("LANG", "C.UTF-8")
+        .env("PYTHONPATH", repo_root.join(".harmont"))
         .current_dir(repo_root)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -200,14 +148,7 @@ mod tests {
         )
         .expect("write pipeline file");
 
-        let manifest = env!("CARGO_MANIFEST_DIR");
-        let tools = ToolPaths {
-            cidsl_py: std::path::PathBuf::from(manifest)
-                .join("..")
-                .join("cidsl/py"),
-        };
-
-        let json = render_pipeline_json(&tools, dir.path(), "demo")
+        let json = render_pipeline_json(dir.path(), "demo")
             .await
             .expect("render ok");
         let s = std::str::from_utf8(&json).expect("utf-8");
