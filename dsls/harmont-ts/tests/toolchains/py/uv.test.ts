@@ -42,20 +42,20 @@ describe("py.uv actions", () => {
     expect(p.fmt()._cmd).toContain("uv run ruff format --check .");
   });
 
-  it("typecheck runs uv run mypy", () => {
+  it("typecheck runs uv run ty check", () => {
     const p = py.uv();
-    expect(p.typecheck()._cmd).toContain("uv run mypy .");
+    expect(p.typecheck()._cmd).toContain("uv run ty check .");
   });
 
   it("typecheck with paths string", () => {
     const p = py.uv({ path: "myapp" });
-    expect(p.typecheck({ paths: "src" })._cmd).toContain("uv run mypy src");
+    expect(p.typecheck({ paths: "src" })._cmd).toContain("uv run ty check src");
   });
 
   it("typecheck with paths array", () => {
     const p = py.uv({ path: "myapp" });
     expect(p.typecheck({ paths: ["src", "tests"] })._cmd).toContain(
-      "uv run mypy src tests",
+      "uv run ty check src tests",
     );
   });
 

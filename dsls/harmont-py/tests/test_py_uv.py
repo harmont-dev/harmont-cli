@@ -48,7 +48,7 @@ class TestUvObjectForm:
         assert any("uv run pytest" in c for c in cmds)
         assert any("uv run ruff check" in c for c in cmds)
         assert any("uv run ruff format --check" in c for c in cmds)
-        assert any("uv run mypy" in c for c in cmds)
+        assert any("uv run ty check" in c for c in cmds)
 
     def test_sync_cached_on_change(self):
         proj = hm.py.uv(path="svc")
@@ -86,17 +86,17 @@ class TestUvActions:
     def test_typecheck_paths_string(self):
         proj = hm.py.uv(path="myapp")
         s = proj.typecheck(paths="src")
-        assert "uv run mypy src" in s.cmd
+        assert "uv run ty check src" in s.cmd
 
     def test_typecheck_paths_list(self):
         proj = hm.py.uv(path="myapp")
         s = proj.typecheck(paths=["src", "tests"])
-        assert "uv run mypy src tests" in s.cmd
+        assert "uv run ty check src tests" in s.cmd
 
     def test_typecheck_paths_default(self):
         proj = hm.py.uv(path="myapp")
         s = proj.typecheck()
-        assert "uv run mypy ." in s.cmd
+        assert "uv run ty check ." in s.cmd
 
     def test_cache_forwarded(self):
         proj = hm.py.uv(path=".")
@@ -199,7 +199,7 @@ class TestUvBareForm:
     def test_bare_typecheck(self):
         p = hm.pipeline(hm.py.uv.typecheck())
         cmds = _cmds(p)
-        assert any("cd . && uv run mypy" in c for c in cmds)
+        assert any("cd . && uv run ty check" in c for c in cmds)
 
     def test_bare_run(self):
         p = hm.pipeline(hm.py.uv.run("serve"))

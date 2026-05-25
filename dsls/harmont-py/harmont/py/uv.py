@@ -82,7 +82,7 @@ class UvProject:
     def typecheck(self, *, paths: str | list[str] | None = None, **kw: Any) -> Step:
         target = _resolve_paths(paths)
         return self._emit(
-            f"cd {self.path} && uv run mypy {target}",
+            f"cd {self.path} && uv run ty check {target}",
             ":python: typecheck",
             **kw,
         )

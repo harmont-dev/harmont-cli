@@ -61,7 +61,7 @@ export class UvProject {
   typecheck(opts?: ActionOptions & { paths?: string | string[] }): Step {
     const target = resolvePaths(opts?.paths);
     const { paths: _, ...rest } = opts ?? {};
-    return this._installed.sh(`cd ${this.path} && uv run mypy ${target}`, {
+    return this._installed.sh(`cd ${this.path} && uv run ty check ${target}`, {
       label: ":python: typecheck",
       ...rest,
     });

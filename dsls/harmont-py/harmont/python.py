@@ -82,7 +82,7 @@ class PythonToolchain:
     def typecheck(self, *, paths: str | list[str] | None = None, **kw: Any) -> Step:
         target = _resolve_paths(paths)
         return self._emit(
-            f"cd {self.path} && uv run mypy {target}",
+            f"cd {self.path} && uv run ty check {target}",
             ":python: typecheck",
             **kw,
         )
@@ -113,7 +113,7 @@ def _make_python(
     # `--all-extras` pulls every `[project.optional-dependencies]`
     # group declared in pyproject.toml. This matters because the
     # action surface (`.lint()`, `.fmt()`, `.typecheck()`, `.test()`)
-    # depends on tools like `ruff`, `mypy`, `pytest` that authors
+    # depends on tools like `ruff`, `ty`, `pytest` that authors
     # almost always declare under an `[optional-dependencies] dev`
     # extra rather than as runtime deps. Without `--all-extras`,
     # `uv sync` only installs runtime deps and every action step

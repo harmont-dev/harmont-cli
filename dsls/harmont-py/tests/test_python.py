@@ -39,7 +39,7 @@ def test_python_actions_share_install_step():
     assert any("uv run pytest" in c for c in cmds)
     assert any("uv run ruff check" in c for c in cmds)
     assert any("uv run ruff format --check" in c for c in cmds)
-    assert any("uv run mypy" in c for c in cmds)
+    assert any("uv run ty check" in c for c in cmds)
 
 
 def test_python_sync_cached_on_change_of_lockfile():
@@ -70,7 +70,7 @@ def test_python_bare_form_all_actions():
     assert any("pytest" in c for c in cmds)
     assert any("ruff check" in c for c in cmds)
     assert any("ruff format --check" in c for c in cmds)
-    assert any("mypy" in c for c in cmds)
+    assert any("ty check" in c for c in cmds)
 
 
 def test_python_action_labels_auto_generated():
@@ -84,19 +84,19 @@ def test_python_action_labels_auto_generated():
 def test_python_typecheck_paths_string():
     py = hm.python(path="myapp")
     s = py.typecheck(paths="src")
-    assert "uv run mypy src" in s.cmd
+    assert "uv run ty check src" in s.cmd
 
 
 def test_python_typecheck_paths_list():
     py = hm.python(path="myapp")
     s = py.typecheck(paths=["src", "tests"])
-    assert "uv run mypy src tests" in s.cmd
+    assert "uv run ty check src tests" in s.cmd
 
 
 def test_python_typecheck_paths_default():
     py = hm.python(path="myapp")
     s = py.typecheck()
-    assert "uv run mypy ." in s.cmd
+    assert "uv run ty check ." in s.cmd
 
 
 def test_python_action_label_override():
