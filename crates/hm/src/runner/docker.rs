@@ -215,11 +215,17 @@ async fn run_in_container(
                 input.step_id.simple()
             ))
         });
-        ctx.docker
+        match ctx
+            .docker
             .commit_container(cid, &target_tag.to_string())
             .await
-            .context("docker commit failed")?;
-        Some(target_tag)
+        {
+            Ok(_) => Some(target_tag),
+            Err(e) => {
+                tracing::warn!(step_key = %input.step.key, "docker commit failed, step still succeeded: {e:#}");
+                None
+            }
+        }
     } else {
         None
     };
