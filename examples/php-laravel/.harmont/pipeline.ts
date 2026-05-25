@@ -1,7 +1,7 @@
 import { pipeline, push, type PipelineDefinition } from "harmont";
 import { composer } from "harmont/toolchains";
 
-const project = composer({ path: ".", laravel: true });
+const project = composer({ path: ".", laravel: false });
 
 const pipelines: PipelineDefinition[] = [
   {
