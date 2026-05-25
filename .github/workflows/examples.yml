@@ -86,7 +86,6 @@ jobs:
           - nextjs
           - ocaml
           - perl
-          - php-laravel
           - python-uv
           - react
           - ruby
