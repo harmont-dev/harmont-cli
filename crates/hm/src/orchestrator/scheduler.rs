@@ -214,9 +214,8 @@ pub async fn run(
     let dur = started_total.elapsed().as_millis() as u64;
 
     // Clean up ephemeral images created during this run.
-    {
-        let images = node_image.lock().await;
-        for snap in images.values() {
+    for outcome in &outcomes {
+        if let Some(snap) = &outcome.snapshot {
             if snap.0.starts_with("harmont-local-ephemeral/") {
                 let _ = docker.remove_image(&snap.0).await;
             }
@@ -267,7 +266,13 @@ async fn execute_step(
     });
 
     // Decide cache outcome host-side.
-    let decision = cache::decide(&run_ctx.docker, &step_wire).await?;
+    let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
+    let decision = outcome.decision;
+
+    // Evict stale cache images for this step (best-effort).
+    for stale in &outcome.stale_tags {
+        let _ = run_ctx.docker.remove_image(stale).await;
+    }
     if let hm_plugin_protocol::CacheDecision::Hit { tag } = &decision {
         bus.emit(BuildEvent::StepCacheHit {
             step_id,
