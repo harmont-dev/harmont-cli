@@ -16,10 +16,7 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
     let harmont_dir = repo_root.join(".harmont");
 
     if !harmont_dir.is_dir() {
-        bail!(
-            "no .harmont/ directory found in {}",
-            repo_root.display()
-        );
+        bail!("no .harmont/ directory found in {}", repo_root.display());
     }
 
     let entries = std::fs::read_dir(&harmont_dir)
@@ -43,10 +40,7 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
         // When both languages are present, prefer TypeScript.
         (_, true) => Ok(DslLanguage::TypeScript),
         (true, false) => Ok(DslLanguage::Python),
-        (false, false) => bail!(
-            "no .py or .ts files found in {}",
-            harmont_dir.display()
-        ),
+        (false, false) => bail!("no .py or .ts files found in {}", harmont_dir.display()),
     }
 }
 
@@ -54,8 +48,8 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     /// Helper: create a temp dir with `.harmont/` and the given filenames inside
     /// it.

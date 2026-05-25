@@ -83,8 +83,7 @@ struct SymlinkCleanup {
 
 impl Drop for SymlinkCleanup {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.pkg)
-            .or_else(|_| std::fs::remove_dir_all(&self.pkg));
+        let _ = std::fs::remove_file(&self.pkg).or_else(|_| std::fs::remove_dir_all(&self.pkg));
         if self.remove_nm {
             let _ = std::fs::remove_dir(&self.nm);
         }
@@ -131,12 +130,7 @@ impl SubprocessTsEngine {
         Ok(tmp)
     }
 
-    async fn run(
-        &self,
-        project_dir: &Path,
-        mode: &str,
-        slug: Option<&str>,
-    ) -> Result<String> {
+    async fn run(&self, project_dir: &Path, mode: &str, slug: Option<&str>) -> Result<String> {
         let tmp = self.setup_temp()?;
         let runner_path = tmp.path().join("runner.mjs");
 
@@ -224,11 +218,7 @@ impl DslEngine for SubprocessTsEngine {
         serde_json::from_str(&stdout).context("decoding pipeline metadata from JS stdout")
     }
 
-    async fn render_pipeline_json(
-        &self,
-        project_dir: &Path,
-        slug: &str,
-    ) -> Result<String> {
+    async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> Result<String> {
         self.run(project_dir, "render", Some(slug))
             .await
             .context("rendering pipeline via JS runtime")

@@ -56,8 +56,8 @@ impl SubprocessPythonEngine {
     ///
     /// Returns an error if `python3` is not found on `PATH`.
     pub fn new() -> Result<Self> {
-        let python_bin = which::which("python3")
-            .context("python3 not found on PATH — install Python 3.11+")?;
+        let python_bin =
+            which::which("python3").context("python3 not found on PATH — install Python 3.11+")?;
         Ok(Self { python_bin })
     }
 
@@ -109,11 +109,7 @@ impl DslEngine for SubprocessPythonEngine {
         serde_json::from_str(&stdout).context("decoding pipeline metadata from python3 stdout")
     }
 
-    async fn render_pipeline_json(
-        &self,
-        project_dir: &Path,
-        slug: &str,
-    ) -> Result<String> {
+    async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> Result<String> {
         self.run_script(project_dir, RENDER_PIPELINE_SCRIPT, &[slug])
             .await
             .context("rendering pipeline via python3")

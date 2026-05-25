@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 
 /// The `harmont` Python package source tree (`dsls/harmont-py/harmont/`).
 pub(crate) static HARMONT_PY: Dir<'_> =
@@ -16,9 +16,8 @@ pub(crate) const HARMONT_TS_TOOLCHAINS: &str =
 
 /// Extract an embedded directory tree to disk.
 pub(crate) fn extract_to(dir: &Dir<'_>, target: &Path) -> anyhow::Result<()> {
-    std::fs::create_dir_all(target).map_err(|e| {
-        anyhow::anyhow!("creating directory {}: {e}", target.display())
-    })?;
+    std::fs::create_dir_all(target)
+        .map_err(|e| anyhow::anyhow!("creating directory {}: {e}", target.display()))?;
     dir.extract(target)
         .map_err(|e| anyhow::anyhow!("extracting to {}: {e}", target.display()))
 }

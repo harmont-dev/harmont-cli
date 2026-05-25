@@ -28,11 +28,19 @@ fn main() {
              Run `npm ci` in dsls/harmont-ts/ for real bundles."
         );
         fs::write(out_dir.join("harmont-index.mjs"), "// stub\nexport {};").unwrap();
-        fs::write(out_dir.join("harmont-toolchains.mjs"), "// stub\nexport {};").unwrap();
+        fs::write(
+            out_dir.join("harmont-toolchains.mjs"),
+            "// stub\nexport {};",
+        )
+        .unwrap();
         return;
     };
 
-    bundle(&esbuild, &ts_src.join("index.ts"), &out_dir.join("harmont-index.mjs"));
+    bundle(
+        &esbuild,
+        &ts_src.join("index.ts"),
+        &out_dir.join("harmont-index.mjs"),
+    );
     bundle(
         &esbuild,
         &ts_src.join("toolchains/index.ts"),

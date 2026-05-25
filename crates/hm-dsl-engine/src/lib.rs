@@ -24,11 +24,7 @@ pub struct PipelineMeta {
 #[async_trait]
 pub trait DslEngine: Send + Sync {
     async fn list_pipelines(&self, project_dir: &Path) -> anyhow::Result<Vec<PipelineMeta>>;
-    async fn render_pipeline_json(
-        &self,
-        project_dir: &Path,
-        slug: &str,
-    ) -> anyhow::Result<String>;
+    async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> anyhow::Result<String>;
 }
 
 /// Return an appropriate [`DslEngine`] for the given language.
