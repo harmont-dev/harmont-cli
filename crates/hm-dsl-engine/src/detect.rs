@@ -51,6 +51,7 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
