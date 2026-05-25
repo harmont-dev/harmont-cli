@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
-use super::render::{ToolPaths, list_pipelines, render_pipeline_json};
+use super::render::{list_pipelines, render_pipeline_json};
 use crate::cli::RunArgs;
 use crate::context::RunContext;
 use crate::runner::{RunnerRegistry, docker::DockerRunner};
@@ -68,12 +68,10 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
-    let tools = ToolPaths::discover()?;
-
     let slug = if let Some(s) = &args.pipeline {
         s.clone()
     } else {
-        let metas = list_pipelines(&tools, &repo_root).await?;
+        let metas = list_pipelines(&repo_root).await?;
         let slugs: Vec<String> = metas.into_iter().map(|m| m.slug).collect();
         match slugs.as_slice() {
             [only] => only.clone(),
@@ -88,7 +86,7 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         }
     };
 
-    let json = render_pipeline_json(&tools, &repo_root, &slug).await?;
+    let json = render_pipeline_json(&repo_root, &slug).await?;
     let graph = decode_plan_to_wire(&json)?;
     let parallelism = args.parallelism.unwrap_or_else(|| {
         std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
@@ -100,7 +98,8 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
 
     let renderer: Box<dyn crate::runner::OutputRenderer> = match args.format.as_str() {
         "json" => Box::new(crate::output::json::JsonRenderer::new(std::io::stdout())),
-        _ => Box::new(crate::output::human::HumanRenderer::new(std::io::stderr())),
+        _ if args.logs => Box::new(crate::output::human::HumanRenderer::new(std::io::stderr())),
+        _ => Box::new(crate::output::progress::ProgressRenderer::new(std::io::stderr())),
     };
 
     let exit_code =
