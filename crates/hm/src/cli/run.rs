@@ -37,4 +37,9 @@ pub struct RunArgs {
     /// `name`). Built-ins: `human`, `json`. Default: `human`.
     #[arg(long, value_name = "NAME", default_value = "human", global = false)]
     pub format: String,
+
+    /// Stream full build logs instead of showing progress bars.
+    /// Has no effect with `--format json`.
+    #[arg(long)]
+    pub logs: bool,
 }
