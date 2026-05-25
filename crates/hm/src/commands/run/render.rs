@@ -82,10 +82,7 @@ print(json.dumps([{'slug': p['slug'], 'name': p['name']} for p in envelope['pipe
 /// exits non-zero (DSL bug, missing import, slug not found), or its
 /// stdout is not valid UTF-8. Errors carry the offending process's
 /// stderr verbatim where available.
-pub(super) async fn render_pipeline_json(
-    repo_root: &Path,
-    slug: &str,
-) -> Result<Vec<u8>> {
+pub(super) async fn render_pipeline_json(repo_root: &Path, slug: &str) -> Result<Vec<u8>> {
     let render_script = "\
 import importlib.util, json, pathlib, sys
 import harmont as hm

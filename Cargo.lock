@@ -1120,6 +1120,7 @@ dependencies = [
  "smart-default",
  "tar",
  "tempfile",
+ "terminal_size",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",

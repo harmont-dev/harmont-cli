@@ -101,10 +101,10 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         "human" if args.logs => {
             Box::new(crate::output::human::HumanRenderer::new(std::io::stderr()))
         }
-        "human" => Box::new(crate::output::progress::ProgressRenderer::new(std::io::stderr())),
-        other => anyhow::bail!(
-            "unknown --format '{other}'\n  available: human, json"
-        ),
+        "human" => Box::new(crate::output::progress::ProgressRenderer::new(
+            std::io::stderr(),
+        )),
+        other => anyhow::bail!("unknown --format '{other}'\n  available: human, json"),
     };
 
     let exit_code =

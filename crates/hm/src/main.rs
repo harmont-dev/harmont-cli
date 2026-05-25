@@ -4,10 +4,10 @@
 )]
 
 use clap::Parser;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 use harmont_cli::cli::{self, Cli};
 use harmont_cli::context::RunContext;
@@ -27,7 +27,10 @@ async fn main() {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
 
     if use_indicatif {
-        let indicatif_layer = tracing_indicatif::IndicatifLayer::new();
+        let max_bars =
+            terminal_size::terminal_size().map_or(32, |(_, h)| u64::from(h.0.saturating_sub(2)));
+        let indicatif_layer =
+            tracing_indicatif::IndicatifLayer::new().with_max_progress_bars(max_bars, None);
 
         tracing_subscriber::registry()
             .with(

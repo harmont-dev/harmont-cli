@@ -12,7 +12,7 @@ use std::io::Write;
 
 use hm_plugin_protocol::BuildEvent;
 use indicatif::ProgressStyle;
-use tracing::{info_span, Span};
+use tracing::{Span, info_span};
 use tracing_indicatif::span_ext::IndicatifSpanExt;
 use uuid::Uuid;
 
@@ -90,9 +90,7 @@ where
                 self.root_span = Some(root);
             }
 
-            BuildEvent::StepQueued {
-                step_id, key, ..
-            } => {
+            BuildEvent::StepQueued { step_id, key, .. } => {
                 self.step_keys.insert(*step_id, key.clone());
 
                 let span = if let Some(root) = &self.root_span {
@@ -127,9 +125,7 @@ where
                 }
             }
 
-            BuildEvent::StepLog {
-                step_id, line, ..
-            } => {
+            BuildEvent::StepLog { step_id, line, .. } => {
                 self.log_buffer
                     .entry(*step_id)
                     .or_default()
@@ -143,9 +139,7 @@ where
             }
 
             BuildEvent::StepEnd {
-                step_id,
-                exit_code,
-                ..
+                step_id, exit_code, ..
             } => {
                 if *exit_code != 0 {
                     self.failed_steps.push((*step_id, *exit_code));
