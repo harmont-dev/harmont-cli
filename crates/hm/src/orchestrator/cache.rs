@@ -143,11 +143,9 @@ mod tests {
     }
 
     #[test]
-    fn cache_outcome_stale_tags_default_empty() {
-        let o = CacheOutcome {
-            decision: CacheDecision::MissNoCommit,
-            stale_tags: vec![],
-        };
-        assert!(o.stale_tags.is_empty());
+    fn sanitize_replaces_invalid_chars() {
+        assert_eq!(sanitize_for_tag("my/step.name:v1"), "my-step-name-v1");
+        assert_eq!(sanitize_for_tag("simple"), "simple");
+        assert_eq!(sanitize_for_tag("a_b-c"), "a_b-c");
     }
 }

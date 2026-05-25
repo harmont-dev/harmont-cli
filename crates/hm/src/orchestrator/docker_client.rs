@@ -76,8 +76,9 @@ impl DockerClient {
         Ok(!images.is_empty())
     }
 
-    /// List all image tags whose repository matches `reference` (e.g.
-    /// `"harmont-local/build"` finds `harmont-local/build:abc123`).
+    /// List all `repo_tags` from images that have at least one tag
+    /// matching `reference` (e.g. `"harmont-local/build"` matches
+    /// `harmont-local/build:abc123`).
     ///
     /// # Errors
     ///
