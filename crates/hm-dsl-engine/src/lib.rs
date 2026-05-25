@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 pub mod detect;
+pub mod python_engine;
 
 #[allow(dead_code)] // Items used by engine modules added in Tasks 5-7.
 mod bundled_sources;
