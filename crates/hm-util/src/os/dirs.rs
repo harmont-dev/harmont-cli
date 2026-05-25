@@ -10,5 +10,9 @@ pub(crate) fn home_dir() -> Option<PathBuf> {
 }
 
 pub(crate) fn config_dir() -> Option<PathBuf> {
-    dirs::config_dir()
+    if cfg!(windows) {
+        dirs::config_dir()
+    } else {
+        home_dir().map(|h| h.join(".config"))
+    }
 }
