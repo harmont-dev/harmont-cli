@@ -1,4 +1,5 @@
 """`python -m harmont.dev --dump-registry` integration."""
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,8 @@ if TYPE_CHECKING:
 def test_dump_cli_walks_harmont_dir_and_prints_registry(tmp_path: Path):
     pkg = tmp_path / ".harmont"
     pkg.mkdir()
-    (pkg / "deploys.py").write_text(textwrap.dedent("""
+    (pkg / "deploys.py").write_text(
+        textwrap.dedent("""
         import harmont as hm
 
         @hm.deploy("db")
@@ -24,7 +26,8 @@ def test_dump_cli_walks_harmont_dir_and_prints_registry(tmp_path: Path):
                 port_mapping={5432: hm.dev.port()},
                 env={"POSTGRES_PASSWORD": "dev"},
             )
-    """))
+    """)
+    )
     result = subprocess.run(
         [sys.executable, "-m", "harmont.dev", "--dump-registry"],
         cwd=tmp_path,

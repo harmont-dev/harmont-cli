@@ -27,8 +27,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use daggy::{Dag, NodeIndex, Walker};
 use daggy::petgraph::algo::toposort;
+use daggy::{Dag, NodeIndex, Walker};
 use futures::future::{BoxFuture, FutureExt, join_all};
 
 use anyhow::{Context, Result};
@@ -46,8 +46,8 @@ use crate::runner::{OutputRenderer, RunContext, RunnerRegistry};
 
 use super::archive::ArchiveStore;
 use super::cache;
-use tokio_util::sync::CancellationToken;
 use super::events::EventBus;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 struct StepOutcome {
@@ -152,10 +152,11 @@ pub async fn run(
                 join_all(preds.iter().map(|(_, f)| f.clone())).await;
 
             // Early exit if any predecessor failed or the build was cancelled.
-            if cancel.is_cancelled()
-                || pred_outcomes.iter().any(|o| o.exit_code != 0)
-            {
-                return StepOutcome { exit_code: 0, snapshot: None };
+            if cancel.is_cancelled() || pred_outcomes.iter().any(|o| o.exit_code != 0) {
+                return StepOutcome {
+                    exit_code: 0,
+                    snapshot: None,
+                };
             }
 
             // Acquire parallelism permit.
@@ -189,7 +190,10 @@ pub async fn run(
                 Ok(outcome) => outcome,
                 Err(e) => {
                     tracing::error!(%e, "step execution failed");
-                    StepOutcome { exit_code: 1, snapshot: None }
+                    StepOutcome {
+                        exit_code: 1,
+                        snapshot: None,
+                    }
                 }
             }
         }
@@ -208,6 +212,20 @@ pub async fn run(
     };
 
     let dur = started_total.elapsed().as_millis() as u64;
+
+    // Clean up ephemeral images created during this run.
+    let ephemeral_tags: Vec<&str> = outcomes
+        .iter()
+        .filter_map(|o| o.snapshot.as_ref())
+        .filter(|s| s.0.starts_with("harmont-local-ephemeral/"))
+        .map(|s| s.0.as_str())
+        .collect();
+    for tag in ephemeral_tags {
+        if let Err(e) = docker.remove_image(tag).await {
+            tracing::warn!(image = %tag, %e, "failed to remove ephemeral image");
+        }
+    }
+
     bus.emit(BuildEvent::BuildEnd {
         exit_code: overall,
         duration_ms: dur,
@@ -252,7 +270,9 @@ async fn execute_step(
     });
 
     // Decide cache outcome host-side.
-    let decision = cache::decide(&run_ctx.docker, &step_wire).await?;
+    let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
+    let decision = outcome.decision;
+
     if let hm_plugin_protocol::CacheDecision::Hit { tag } = &decision {
         bus.emit(BuildEvent::StepCacheHit {
             step_id,
@@ -333,6 +353,12 @@ async fn execute_step(
                     ts: chrono::Utc::now(),
                 });
                 cancel.cancel();
+            } else {
+                for stale in &outcome.stale_tags {
+                    if let Err(e) = run_ctx.docker.remove_image(stale).await {
+                        tracing::warn!(image = %stale, %e, "failed to evict stale cache image");
+                    }
+                }
             }
             Ok(StepOutcome {
                 exit_code: sr.exit_code,

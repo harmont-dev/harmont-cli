@@ -15,7 +15,8 @@ use bollard::container::{
 };
 use bollard::exec::{CreateExecOptions, StartExecResults};
 use bollard::image::{
-    CommitContainerOptions, CreateImageOptions, ListImagesOptions, RemoveImageOptions,
+    CommitContainerOptions, CreateImageOptions, ImportImageOptions, ListImagesOptions,
+    RemoveImageOptions,
 };
 use futures_util::StreamExt;
 use tokio::io::AsyncWrite;
@@ -74,6 +75,27 @@ impl DockerClient {
             .await
             .map_err(|e| HmError::Docker(format!("list_images: {e}")))?;
         Ok(!images.is_empty())
+    }
+
+    /// List all `repo_tags` from images that have at least one tag
+    /// matching `reference` (e.g. `"harmont-local/build"` matches
+    /// `harmont-local/build:abc123`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HmError::Docker`] if the `list_images` API call fails.
+    pub async fn list_images_by_reference(&self, reference: &str) -> Result<Vec<String>> {
+        let mut filters = HashMap::new();
+        filters.insert("reference".to_string(), vec![format!("{reference}:*")]);
+        let images = self
+            .inner
+            .list_images(Some(ListImagesOptions {
+                filters,
+                ..Default::default()
+            }))
+            .await
+            .map_err(|e| HmError::Docker(format!("list_images: {e}")))?;
+        Ok(images.into_iter().flat_map(|img| img.repo_tags).collect())
     }
 
     /// Pull `tag` from its registry, surfacing the daemon's progress
@@ -343,6 +365,91 @@ impl DockerClient {
         Ok(())
     }
 
+    /// Export a Docker image to a tar file on disk.
+    ///
+    /// Streams the image layer data from the daemon and writes it to
+    /// `dest` using a buffered writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HmError::Docker`] if the daemon's export stream fails,
+    /// or an I/O error if writing to `dest` fails.
+    pub async fn export_image(&self, image: &str, dest: &std::path::Path) -> Result<()> {
+        use tokio::io::AsyncWriteExt;
+
+        let mut stream = self.inner.export_image(image);
+        let file = tokio::fs::File::create(dest)
+            .await
+            .with_context(|| format!("create export file '{}'", dest.display()))?;
+        let mut writer = tokio::io::BufWriter::new(file);
+        while let Some(chunk) = stream.next().await {
+            let bytes =
+                chunk.map_err(|e| HmError::Docker(format!("export_image '{image}': {e}")))?;
+            writer
+                .write_all(&bytes)
+                .await
+                .with_context(|| format!("write export data to '{}'", dest.display()))?;
+        }
+        writer
+            .flush()
+            .await
+            .with_context(|| format!("flush export file '{}'", dest.display()))?;
+        Ok(())
+    }
+
+    /// Import a Docker image from a tar file on disk.
+    ///
+    /// Reads the full tar file into memory and loads it into the
+    /// daemon via the image import API.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HmError::Docker`] if the daemon rejects the import
+    /// stream, or an I/O error if reading `src` fails.
+    pub async fn import_image(&self, src: &std::path::Path) -> Result<()> {
+        let body = tokio::fs::read(src)
+            .await
+            .with_context(|| format!("read import file '{}'", src.display()))?;
+        let mut stream =
+            self.inner
+                .import_image(ImportImageOptions { quiet: true }, body.into(), None);
+        while let Some(item) = stream.next().await {
+            item.map_err(|e| HmError::Docker(format!("import_image '{}': {e}", src.display())))?;
+        }
+        Ok(())
+    }
+
+    /// List all image tags whose name starts with `prefix`.
+    ///
+    /// Uses the Docker `reference` filter with a glob pattern and then
+    /// post-filters the returned `repo_tags` to those that truly begin
+    /// with `prefix`. The result is sorted lexicographically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HmError::Docker`] if the `list_images` API call
+    /// fails (daemon unreachable, malformed filter).
+    pub async fn list_images_by_prefix(&self, prefix: &str) -> Result<Vec<String>> {
+        let mut filters = HashMap::new();
+        filters.insert("reference".to_string(), vec![format!("{prefix}*")]);
+        let images = self
+            .inner
+            .list_images(Some(ListImagesOptions {
+                filters,
+                ..Default::default()
+            }))
+            .await
+            .map_err(|e| HmError::Docker(format!("list_images: {e}")))?;
+        let mut tags: Vec<String> = images
+            .iter()
+            .flat_map(|img| &img.repo_tags)
+            .filter(|tag| tag.starts_with(prefix))
+            .cloned()
+            .collect();
+        tags.sort();
+        Ok(tags)
+    }
+
     pub async fn stop_remove(&self, container_id: &str) {
         let _ = self
             .inner
@@ -396,8 +503,7 @@ impl DockerClient {
         match self.inner.remove_network(name).await {
             Ok(())
             | Err(bollard::errors::Error::DockerResponseServerError {
-                status_code: 404,
-                ..
+                status_code: 404, ..
             }) => Ok(()),
             Err(e) => Err(HmError::Docker(format!("remove_network({name}): {e}")).into()),
         }
@@ -428,14 +534,20 @@ impl DockerClient {
 
         // Docker's exposed_ports type requires HashMap<String, HashMap<(), ()>>.
         // The unit-value inner map is the Docker API convention for "no options".
-        #[allow(clippy::zero_sized_map_values, reason = "Docker API requires this exact type")]
+        #[allow(
+            clippy::zero_sized_map_values,
+            reason = "Docker API requires this exact type"
+        )]
         let (mut exposed, mut port_bindings) = (
             HashMap::<String, HashMap<(), ()>>::new(),
             HashMap::<String, Option<Vec<PortBinding>>>::new(),
         );
         for cport in &spec.publish {
             let key = format!("{cport}/tcp");
-            #[allow(clippy::zero_sized_map_values, reason = "Docker API requires this exact type")]
+            #[allow(
+                clippy::zero_sized_map_values,
+                reason = "Docker API requires this exact type"
+            )]
             exposed.insert(key.clone(), HashMap::new());
             port_bindings.insert(
                 key,
@@ -559,8 +671,7 @@ impl DockerClient {
         {
             Ok(())
             | Err(bollard::errors::Error::DockerResponseServerError {
-                status_code: 404,
-                ..
+                status_code: 404, ..
             }) => Ok(()),
             Err(e) => Err(HmError::Docker(format!("stop_container({container_id}): {e}")).into()),
         }
@@ -585,12 +696,9 @@ impl DockerClient {
         {
             Ok(())
             | Err(bollard::errors::Error::DockerResponseServerError {
-                status_code: 404,
-                ..
+                status_code: 404, ..
             }) => Ok(()),
-            Err(e) => {
-                Err(HmError::Docker(format!("remove_container({container_id}): {e}")).into())
-            }
+            Err(e) => Err(HmError::Docker(format!("remove_container({container_id}): {e}")).into()),
         }
     }
 
@@ -794,5 +902,16 @@ mod smoke {
     async fn docker_ping() {
         let c = DockerClient::connect().unwrap();
         c.ping().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a running Docker daemon; opt in with `cargo test -- --ignored`"]
+    async fn list_images_by_reference_returns_empty_for_nonexistent() {
+        let c = DockerClient::connect().unwrap();
+        let tags = c
+            .list_images_by_reference("harmont-test-nonexistent")
+            .await
+            .unwrap();
+        assert!(tags.is_empty());
     }
 }

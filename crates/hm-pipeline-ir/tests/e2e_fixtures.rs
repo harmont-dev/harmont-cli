@@ -26,10 +26,8 @@ fn fixtures_dir() -> PathBuf {
 
 fn load_fixture(dsl: &str, scenario: &str) -> PipelineGraph {
     let path = fixtures_dir().join(dsl).join(format!("{scenario}.json"));
-    let bytes =
-        fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    serde_json::from_slice(&bytes)
-        .unwrap_or_else(|e| panic!("parse {dsl}/{scenario}: {e}"))
+    let bytes = fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("parse {dsl}/{scenario}: {e}"))
 }
 
 fn step_labels(g: &PipelineGraph) -> BTreeSet<String> {
@@ -61,8 +59,16 @@ fn python_monorepo_ci() {
     assert!(g.node_count() >= 15, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
     assert!(labels.iter().any(|l| l.contains("go")));
-    assert!(labels.iter().any(|l| l.contains("python") || l.contains("uv")));
-    assert!(labels.iter().any(|l| l.contains("node") || l.contains("npm")));
+    assert!(
+        labels
+            .iter()
+            .any(|l| l.contains("python") || l.contains("uv"))
+    );
+    assert!(
+        labels
+            .iter()
+            .any(|l| l.contains("node") || l.contains("npm"))
+    );
 }
 
 #[test]
@@ -81,7 +87,11 @@ fn python_zig_node_polyglot() {
     assert!(g.node_count() >= 10, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
     assert!(labels.iter().any(|l| l.contains("zig")));
-    assert!(labels.iter().any(|l| l.contains("node") || l.contains("npm")));
+    assert!(
+        labels
+            .iter()
+            .any(|l| l.contains("node") || l.contains("npm"))
+    );
 }
 
 #[test]
@@ -91,9 +101,17 @@ fn python_kitchen_sink() {
     assert!(g.node_count() >= 12, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
     assert!(labels.iter().any(|l| l.contains("haskell")));
-    assert!(labels.iter().any(|l| l.contains("cmake") || l.contains(":c:")));
+    assert!(
+        labels
+            .iter()
+            .any(|l| l.contains("cmake") || l.contains(":c:"))
+    );
     for (_, t) in g.dag().graph().node_references() {
-        assert!(t.env.contains_key("CI"), "node {} missing CI env", t.step.key);
+        assert!(
+            t.env.contains_key("CI"),
+            "node {} missing CI env",
+            t.step.key
+        );
     }
 }
 
@@ -148,11 +166,7 @@ fn all_fixtures_have_valid_structure() {
             assert!(bi + dep > 0, "{dsl}/{scenario}: no edges");
 
             for e in g.dag().graph().edge_references() {
-                assert_ne!(
-                    e.source(),
-                    e.target(),
-                    "{dsl}/{scenario}: self-loop",
-                );
+                assert_ne!(e.source(), e.target(), "{dsl}/{scenario}: self-loop");
             }
         }
     }
@@ -197,7 +211,8 @@ fn parity_step_labels() {
         let py_labels = step_labels(&py);
         let ts_labels = step_labels(&ts);
         assert_eq!(
-            py_labels, ts_labels,
+            py_labels,
+            ts_labels,
             "parity/{scenario}: labels\npy-only: {:?}\nts-only: {:?}",
             py_labels.difference(&ts_labels).collect::<Vec<_>>(),
             ts_labels.difference(&py_labels).collect::<Vec<_>>(),
@@ -241,10 +256,7 @@ fn parity_env_keys() {
                 .find(|(_, t)| t.step.label.as_deref() == Some(label))
                 .map(|(_, t)| t.env.keys().cloned().collect())
                 .unwrap();
-            assert_eq!(
-                py_env, ts_env,
-                "parity/{scenario}/{label}: env keys",
-            );
+            assert_eq!(py_env, ts_env, "parity/{scenario}/{label}: env keys");
         }
     }
 }

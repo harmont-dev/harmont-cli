@@ -5,6 +5,7 @@ committed fixtures for Rust deserialization tests.
 
 Regenerate: UPDATE_E2E_FIXTURES=1 pytest tests/test_e2e_fixtures.py -v
 """
+
 from __future__ import annotations
 
 import json
@@ -44,9 +45,7 @@ def _assert_fixture(name: str, ir: dict) -> None:
     )
     expected = json.loads(fixture_path.read_text())
     actual = json.loads(rendered)
-    assert actual == expected, (
-        f"Fixture drift for {name}. Regenerate with UPDATE_E2E_FIXTURES=1"
-    )
+    assert actual == expected, f"Fixture drift for {name}. Regenerate with UPDATE_E2E_FIXTURES=1"
 
 
 def _build_monorepo_ci() -> dict:
@@ -70,7 +69,7 @@ def _build_monorepo_ci() -> dict:
 
 
 def _build_rust_release() -> dict:
-    project = rust(path=".")
+    project = rust.toolchain(path=".")
 
     return hm.pipeline(
         project.build(),

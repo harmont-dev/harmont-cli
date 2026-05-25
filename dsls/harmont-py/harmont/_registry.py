@@ -3,6 +3,7 @@
 Stage 1 (`dump_registry_json` in `_envelope`) walks REGISTRATIONS to
 emit the envelope JSON the api/cli consume.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,8 +33,7 @@ def register(reg: PipelineRegistration) -> None:
     """Append a registration; raise on duplicate slug."""
     if any(r.slug == reg.slug for r in REGISTRATIONS):
         msg = (
-            f"duplicate pipeline slug {reg.slug!r}\n"
-            f"  → each @hm.pipeline must have a unique slug"
+            f"duplicate pipeline slug {reg.slug!r}\n  → each @hm.pipeline must have a unique slug"
         )
         raise ValueError(msg)
     REGISTRATIONS.append(reg)

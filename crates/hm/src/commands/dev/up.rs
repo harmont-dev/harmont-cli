@@ -43,20 +43,21 @@ struct BootCtx {
 ///
 /// Returns an error if the registry dump fails, Docker is unreachable,
 /// network creation fails, or any container boot fails.
-#[allow(clippy::print_stderr, reason = "status messages to stderr are intentional for a foreground CLI")]
 pub async fn handle(args: DevUpArgs, _ctx: RunContext) -> Result<i32> {
     let worktree_root = resolve_worktree_root()?;
     let wt_hash = worktree_hash(&worktree_root);
     let session_id = fresh_session_id();
-    eprintln!("[hm] session {session_id}. resolving deployments in .harmont/");
+    tracing::info!("[hm] session {session_id}. resolving deployments in .harmont/");
 
-    let registry = dump(&worktree_root).await.context("dump deployment registry")?;
+    let registry = dump(&worktree_root)
+        .await
+        .context("dump deployment registry")?;
     let boot_plan = plan(&registry, &args.slugs, args.no_deps)?;
     let docker = DockerClient::connect()?;
     docker.ping().await.context("docker daemon ping")?;
 
     let net = create_network(&docker, &wt_hash, &session_id).await?;
-    eprintln!("[hm] network {}: created", net.name);
+    tracing::info!("[hm] network {}: created", net.name);
 
     // Determine slug column width.
     let slug_width = boot_plan.slugs().map(str::len).max().unwrap_or(4);
@@ -87,9 +88,7 @@ pub async fn handle(args: DevUpArgs, _ctx: RunContext) -> Result<i32> {
             let slug = slug.clone();
             let log_tx = log_tx.clone();
             let ctx = ctx.clone();
-            joinset.spawn(async move {
-                boot_one(docker, slug, spec, ctx, log_tx).await
-            });
+            joinset.spawn(async move { boot_one(docker, slug, spec, ctx, log_tx).await });
         }
         while let Some(res) = joinset.join_next().await {
             let b = res??;
@@ -97,12 +96,12 @@ pub async fn handle(args: DevUpArgs, _ctx: RunContext) -> Result<i32> {
         }
     }
 
-    eprintln!("[hm] all up. Ctrl-C to tear down. Logs follow.");
+    tracing::info!("[hm] all up. Ctrl-C to tear down. Logs follow.");
 
     // Wait for SIGINT/SIGTERM.
     wait_signal().await?;
 
-    eprintln!("[hm] tearing down...");
+    tracing::info!("[hm] tearing down...");
     teardown(&docker, &net, &booted).await;
 
     // Drop the sender so the logmux channel closes and the task can finish.
@@ -112,7 +111,6 @@ pub async fn handle(args: DevUpArgs, _ctx: RunContext) -> Result<i32> {
     Ok(0)
 }
 
-#[allow(clippy::print_stderr, reason = "per-slug ready/pull/build messages go to stderr")]
 async fn boot_one(
     docker: DockerClient,
     slug: String,
@@ -121,8 +119,7 @@ async fn boot_one(
     log_tx: mpsc::UnboundedSender<LogLine>,
 ) -> Result<Booted> {
     // Resolve image: raw or build-from-step.
-    let image =
-        resolve_image(&docker, &slug, &spec, &ctx.worktree_hash, ctx.rebuild).await?;
+    let image = resolve_image(&docker, &slug, &spec, &ctx.worktree_hash, ctx.rebuild).await?;
     let resolved = build_spec(
         &slug,
         &spec,
@@ -146,7 +143,7 @@ async fn boot_one(
             .collect();
         format!(" | {}", parts.join(", "))
     };
-    eprintln!("[{slug}] ready  ( {}{ports_str} )", resolved.container_name);
+    tracing::info!("[{slug}] ready  ( {}{ports_str} )", resolved.container_name);
     // Spawn the log-stream consumer for this container.
     tokio::spawn(stream_logs(
         docker.clone(),
@@ -166,23 +163,16 @@ async fn resolve_image(
 ) -> Result<String> {
     if let Some(tag) = &spec.image {
         if !docker.image_exists(tag).await? {
-            #[allow(clippy::print_stderr, reason = "pull progress goes to stderr")]
-            {
-                eprintln!("[{slug}] pulling {tag}...");
-            }
+            tracing::info!("[{slug}] pulling {tag}...");
             docker.pull_image(tag).await?;
         }
         return Ok(tag.clone());
     }
     if let Some(FromSource::StepChain { pipeline_v0 }) = &spec.from {
-        let chain_key =
-            extract_terminal_key(pipeline_v0).unwrap_or_else(|| "nocache".to_string());
+        let chain_key = extract_terminal_key(pipeline_v0).unwrap_or_else(|| "nocache".to_string());
         let tag = format!("hm-build-{worktree_hash}-{slug}:{chain_key}");
         if rebuild || !docker.image_exists(&tag).await? {
-            #[allow(clippy::print_stderr, reason = "build progress goes to stderr")]
-            {
-                eprintln!("[{slug}] building from Step chain...");
-            }
+            tracing::info!("[{slug}] building from Step chain...");
             crate::orchestrator::build_image_from_pipeline(docker, pipeline_v0, &tag).await?;
         }
         return Ok(tag);
@@ -219,7 +209,13 @@ async fn stream_logs(
         match item {
             Ok(chunk) => {
                 let bytes = chunk.into_bytes().to_vec();
-                if tx.send(LogLine { slug: slug.clone(), bytes }).is_err() {
+                if tx
+                    .send(LogLine {
+                        slug: slug.clone(),
+                        bytes,
+                    })
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -242,14 +238,13 @@ async fn wait_signal() -> Result<()> {
     Ok(())
 }
 
-#[allow(clippy::print_stderr, reason = "teardown status goes to stderr")]
 async fn teardown(docker: &DockerClient, net: &Network, booted: &[Booted]) {
     // Reverse order so dependents stop before their deps.
     for b in booted.iter().rev() {
         let _ = docker.stop_container(&b.container_id).await;
         let _ = docker.remove_container(&b.container_id).await;
-        eprintln!("[{}] stopped", b.slug);
+        tracing::info!("[{}] stopped", b.slug);
     }
     let _ = remove_network(docker, net).await;
-    eprintln!("[hm] network {}: removed", net.name);
+    tracing::info!("[hm] network {}: removed", net.name);
 }

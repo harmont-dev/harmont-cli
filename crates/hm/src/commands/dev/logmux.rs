@@ -19,9 +19,14 @@ struct PerSlug {
 }
 
 impl PerSlug {
-    fn ingest<W: Write>(&mut self, slug: &str, width: usize, color: bool, bytes: &[u8], w: &mut W)
-        -> std::io::Result<()>
-    {
+    fn ingest<W: Write>(
+        &mut self,
+        slug: &str,
+        width: usize,
+        color: bool,
+        bytes: &[u8],
+        w: &mut W,
+    ) -> std::io::Result<()> {
         self.buf.extend_from_slice(bytes);
         while let Some(idx) = self.buf.iter().position(|&b| b == b'\n') {
             // line = bytes up to (excluding) the newline
@@ -32,9 +37,13 @@ impl PerSlug {
         Ok(())
     }
 
-    fn flush<W: Write>(&mut self, slug: &str, width: usize, color: bool, w: &mut W)
-        -> std::io::Result<()>
-    {
+    fn flush<W: Write>(
+        &mut self,
+        slug: &str,
+        width: usize,
+        color: bool,
+        w: &mut W,
+    ) -> std::io::Result<()> {
         if !self.buf.is_empty() {
             let line = std::mem::take(&mut self.buf);
             write_line(slug, width, color, &line, w)?;
@@ -60,9 +69,13 @@ fn slug_color(slug: &str) -> AnsiColors {
     PALETTE[(h as usize) % PALETTE.len()]
 }
 
-fn write_line<W: Write>(slug: &str, width: usize, color: bool, line: &[u8], w: &mut W)
-    -> std::io::Result<()>
-{
+fn write_line<W: Write>(
+    slug: &str,
+    width: usize,
+    color: bool,
+    line: &[u8],
+    w: &mut W,
+) -> std::io::Result<()> {
     let prefix = format!("[{slug:<width$}]");
     if color {
         write!(w, "{} ", prefix.color(slug_color(slug)))?;

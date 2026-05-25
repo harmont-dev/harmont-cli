@@ -46,20 +46,23 @@ class CMakeProject:
     def configure(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && cmake -S . -B build",
-            f":{self._tag}: configure", **kw,
+            f":{self._tag}: configure",
+            **kw,
         )
 
     def build(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && cmake -S . -B build && cmake --build build",
-            f":{self._tag}: build", **kw,
+            f":{self._tag}: build",
+            **kw,
         )
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && cmake -S . -B build && cmake --build build "
             "&& ctest --test-dir build --output-on-failure",
-            f":{self._tag}: test", **kw,
+            f":{self._tag}: test",
+            **kw,
         )
 
     def fmt(self, **kw: Any) -> Step:
@@ -67,7 +70,8 @@ class CMakeProject:
             f"cd {self.path} && find src tests -name '*.[ch]' "
             f"-o -name '*.cpp' -o -name '*.hpp' | "
             f"xargs clang-format --dry-run --Werror",
-            f":{self._tag}: fmt", **kw,
+            f":{self._tag}: fmt",
+            **kw,
         )
 
 
@@ -79,10 +83,7 @@ def _make_cmake(
     base: Step | None = None,
 ) -> CMakeProject:
     if lang not in ("c", "cpp"):
-        msg = (
-            f"hm.cmake: invalid lang {lang!r}\n"
-            '  → use "c" or "cpp"'
-        )
+        msg = f'hm.cmake: invalid lang {lang!r}\n  → use "c" or "cpp"'
         raise ValueError(msg)
     installed = make_install_chain(
         apt_packages=APT_PACKAGES,

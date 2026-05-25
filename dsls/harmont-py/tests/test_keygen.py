@@ -31,12 +31,14 @@ def _make_graph(nodes, edges=None):
 
 
 def test_none_policy_emits_no_key():
-    graph = _make_graph([
-        {
-            "step": {"key": "a", "cmd": "echo", "cache": {"policy": "none"}},
-            "env": {},
-        },
-    ])
+    graph = _make_graph(
+        [
+            {
+                "step": {"key": "a", "cmd": "echo", "cache": {"policy": "none"}},
+                "env": {},
+            },
+        ]
+    )
     out = resolve_pipeline_keys(
         graph,
         pipeline_org="default",
@@ -49,16 +51,18 @@ def test_none_policy_emits_no_key():
 
 
 def test_forever_policy_key_matches_scheme_formula():
-    graph = _make_graph([
-        {
-            "step": {
-                "key": "a",
-                "cmd": "echo hi",
-                "cache": {"policy": "forever", "env_keys": []},
+    graph = _make_graph(
+        [
+            {
+                "step": {
+                    "key": "a",
+                    "cmd": "echo hi",
+                    "cache": {"policy": "forever", "env_keys": []},
+                },
+                "env": {},
             },
-            "env": {},
-        },
-    ])
+        ]
+    )
     out = resolve_pipeline_keys(
         graph,
         pipeline_org="default",
@@ -76,16 +80,18 @@ def test_forever_policy_key_matches_scheme_formula():
 
 
 def test_ttl_policy_key_includes_bucket():
-    graph = _make_graph([
-        {
-            "step": {
-                "key": "a",
-                "cmd": "x",
-                "cache": {"policy": "ttl", "duration_seconds": 3600, "env_keys": []},
+    graph = _make_graph(
+        [
+            {
+                "step": {
+                    "key": "a",
+                    "cmd": "x",
+                    "cache": {"policy": "ttl", "duration_seconds": 3600, "env_keys": []},
+                },
+                "env": {},
             },
-            "env": {},
-        },
-    ])
+        ]
+    )
     out = resolve_pipeline_keys(
         graph,
         pipeline_org="default",
@@ -106,16 +112,18 @@ def test_on_change_reads_file_contents():
     with tempfile.TemporaryDirectory() as d:
         f = Path(d) / "file.txt"
         f.write_bytes(b"hello")
-        graph = _make_graph([
-            {
-                "step": {
-                    "key": "a",
-                    "cmd": "make",
-                    "cache": {"policy": "on_change", "paths": ["file.txt"]},
+        graph = _make_graph(
+            [
+                {
+                    "step": {
+                        "key": "a",
+                        "cmd": "make",
+                        "cache": {"policy": "on_change", "paths": ["file.txt"]},
+                    },
+                    "env": {},
                 },
-                "env": {},
-            },
-        ])
+            ]
+        )
         out = resolve_pipeline_keys(
             graph,
             pipeline_org="default",
@@ -145,16 +153,18 @@ def test_on_change_handles_directory_paths():
         (sub / "a.txt").write_bytes(b"alpha")
         (sub / "b.txt").write_bytes(b"beta")
 
-        graph = _make_graph([
-            {
-                "step": {
-                    "key": "s",
-                    "cmd": "make",
-                    "cache": {"policy": "on_change", "paths": ["dir/"]},
+        graph = _make_graph(
+            [
+                {
+                    "step": {
+                        "key": "s",
+                        "cmd": "make",
+                        "cache": {"policy": "on_change", "paths": ["dir/"]},
+                    },
+                    "env": {},
                 },
-                "env": {},
-            },
-        ])
+            ]
+        )
         out1 = resolve_pipeline_keys(
             graph,
             pipeline_org="default",
@@ -166,16 +176,18 @@ def test_on_change_handles_directory_paths():
         key1 = out1["nodes"][0]["step"]["cache"]["key"]
 
         # Same tree -> same key.
-        graph2 = _make_graph([
-            {
-                "step": {
-                    "key": "s",
-                    "cmd": "make",
-                    "cache": {"policy": "on_change", "paths": ["dir/"]},
+        graph2 = _make_graph(
+            [
+                {
+                    "step": {
+                        "key": "s",
+                        "cmd": "make",
+                        "cache": {"policy": "on_change", "paths": ["dir/"]},
+                    },
+                    "env": {},
                 },
-                "env": {},
-            },
-        ])
+            ]
+        )
         out_again = resolve_pipeline_keys(
             graph2,
             pipeline_org="default",
@@ -188,16 +200,18 @@ def test_on_change_handles_directory_paths():
 
         # Modify a file -> key changes.
         (sub / "a.txt").write_bytes(b"alpha2")
-        graph3 = _make_graph([
-            {
-                "step": {
-                    "key": "s",
-                    "cmd": "make",
-                    "cache": {"policy": "on_change", "paths": ["dir/"]},
+        graph3 = _make_graph(
+            [
+                {
+                    "step": {
+                        "key": "s",
+                        "cmd": "make",
+                        "cache": {"policy": "on_change", "paths": ["dir/"]},
+                    },
+                    "env": {},
                 },
-                "env": {},
-            },
-        ])
+            ]
+        )
         out2 = resolve_pipeline_keys(
             graph3,
             pipeline_org="default",
@@ -211,16 +225,18 @@ def test_on_change_handles_directory_paths():
 
 def test_on_change_missing_path_skipped():
     with tempfile.TemporaryDirectory() as d:
-        graph = _make_graph([
-            {
-                "step": {
-                    "key": "s",
-                    "cmd": "make",
-                    "cache": {"policy": "on_change", "paths": ["nope/"]},
+        graph = _make_graph(
+            [
+                {
+                    "step": {
+                        "key": "s",
+                        "cmd": "make",
+                        "cache": {"policy": "on_change", "paths": ["nope/"]},
+                    },
+                    "env": {},
                 },
-                "env": {},
-            },
-        ])
+            ]
+        )
         resolve_pipeline_keys(
             graph,
             pipeline_org="default",
@@ -233,16 +249,18 @@ def test_on_change_missing_path_skipped():
 
 
 def test_env_keys_are_sorted_and_picked_up():
-    graph = _make_graph([
-        {
-            "step": {
-                "key": "a",
-                "cmd": "echo",
-                "cache": {"policy": "forever", "env_keys": ["BAR", "FOO"]},
+    graph = _make_graph(
+        [
+            {
+                "step": {
+                    "key": "a",
+                    "cmd": "echo",
+                    "cache": {"policy": "forever", "env_keys": ["BAR", "FOO"]},
+                },
+                "env": {},
             },
-            "env": {},
-        },
-    ])
+        ]
+    )
     out = resolve_pipeline_keys(
         graph,
         pipeline_org="default",
@@ -300,22 +318,24 @@ def test_parent_key_chains_through_resolved_cache_keys():
 
 
 def test_compose_concatenates_subpolicies():
-    graph = _make_graph([
-        {
-            "step": {
-                "key": "a",
-                "cmd": "z",
-                "cache": {
-                    "policy": "compose",
-                    "sub_policies": [
-                        {"policy": "forever", "env_keys": []},
-                        {"policy": "none"},
-                    ],
+    graph = _make_graph(
+        [
+            {
+                "step": {
+                    "key": "a",
+                    "cmd": "z",
+                    "cache": {
+                        "policy": "compose",
+                        "sub_policies": [
+                            {"policy": "forever", "env_keys": []},
+                            {"policy": "none"},
+                        ],
+                    },
                 },
+                "env": {},
             },
-            "env": {},
-        },
-    ])
+        ]
+    )
     out = resolve_pipeline_keys(
         graph,
         pipeline_org="default",

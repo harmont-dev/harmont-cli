@@ -5,12 +5,9 @@
 //! exit with code 130 (sigint).
 
 // Pedantic-bucket nags accepted at module scope:
-// - `print_stderr`: this module's whole purpose is signalling the user
-//   on the TTY when they Ctrl-C. The output sink is not running at this
-//   point (or is being torn down); stderr is the correct channel.
 // - `exit`: force-exit on second Ctrl-C is the documented UX, matching
 //   the legacy executor. The user has explicitly asked us to die.
-#![allow(clippy::print_stderr, clippy::exit)]
+#![allow(clippy::exit)]
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,10 +28,10 @@ pub fn install_ctrlc(token: CancellationToken) -> tokio::task::JoinHandle<()> {
             match tokio::signal::ctrl_c().await {
                 Ok(()) => {
                     if armed.swap(true, Ordering::SeqCst) {
-                        eprintln!("\nforce-exit on second Ctrl-C");
+                        tracing::warn!("\nforce-exit on second Ctrl-C");
                         std::process::exit(130);
                     }
-                    eprintln!("\ncancelling… (Ctrl-C again to force)");
+                    tracing::info!("\ncancelling… (Ctrl-C again to force)");
                     token.cancel();
                 }
                 Err(_) => return,

@@ -1,7 +1,7 @@
 import { pipeline, push, type PipelineDefinition } from "harmont";
 import { rust } from "harmont/toolchains";
 
-const project = rust({ path: "." });
+const project = rust.toolchain({ path: "." });
 
 const pipelines: PipelineDefinition[] = [
   {

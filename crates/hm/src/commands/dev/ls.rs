@@ -18,21 +18,22 @@ use super::registry::{RegEntry, dump};
 ///
 /// Returns an error if the worktree root cannot be resolved or the
 /// registry subprocess fails.
-#[allow(clippy::print_stdout, reason = "`hm dev ls` is a table-printing command")]
 pub async fn handle(_ctx: RunContext) -> Result<i32> {
     let worktree_root = resolve_worktree_root()?;
     let wt_hash = worktree_hash(&worktree_root);
     let registry = dump(&worktree_root).await?;
     let docker = DockerClient::connect().ok();
 
-    println!(
+    tracing::info!(
         "{:<10} {:<8} {:<10} {:<10} PORTS",
-        "SLUG", "DRIVER", "SESSION", "STATUS"
+        "SLUG",
+        "DRIVER",
+        "SESSION",
+        "STATUS"
     );
 
     // Pre-load running containers by (slug, session) key.
-    let mut running: HashMap<(String, String), (String, HashMap<u16, u16>)> =
-        HashMap::new();
+    let mut running: HashMap<(String, String), (String, HashMap<u16, u16>)> = HashMap::new();
     if let Some(d) = &docker {
         let containers = d
             .list_containers_by_label(LABEL_WORKTREE, &wt_hash)
@@ -59,23 +60,29 @@ pub async fn handle(_ctx: RunContext) -> Result<i32> {
                     if s == slug {
                         matched = true;
                         let ports_s = format_ports(ports);
-                        println!(
+                        tracing::info!(
                             "{slug:<10} {:<8} {:<10} {:<10} {ports_s}",
-                            "local", sess, state
+                            "local",
+                            sess,
+                            state
                         );
                     }
                 }
                 if !matched {
-                    println!(
+                    tracing::info!(
                         "{slug:<10} {:<8} {:<10} {:<10} \u{2014}",
-                        "local", "\u{2014}", "registered"
+                        "local",
+                        "\u{2014}",
+                        "registered"
                     );
                 }
             }
             RegEntry::Unhandled => {
-                println!(
+                tracing::info!(
                     "{slug:<10} {:<8} {:<10} {:<10} (no local driver)",
-                    "?", "\u{2014}", "registered"
+                    "?",
+                    "\u{2014}",
+                    "registered"
                 );
             }
         }

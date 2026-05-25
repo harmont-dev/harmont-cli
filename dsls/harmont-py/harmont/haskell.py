@@ -28,8 +28,13 @@ if TYPE_CHECKING:
     from ._step import Step
 
 APT_PACKAGES = (
-    "curl", "ca-certificates", "build-essential",
-    "libgmp-dev", "libffi-dev", "libncurses-dev", "zlib1g-dev",
+    "curl",
+    "ca-certificates",
+    "build-essential",
+    "libgmp-dev",
+    "libffi-dev",
+    "libncurses-dev",
+    "zlib1g-dev",
 )
 
 _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
@@ -80,31 +85,36 @@ class HaskellPackage:
     def build(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && cabal build all",
-            f":haskell: {self.path} build", **kw,
+            f":haskell: {self.path} build",
+            **kw,
         )
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && cabal test all",
-            f":haskell: {self.path} test", **kw,
+            f":haskell: {self.path} test",
+            **kw,
         )
 
     def lint(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && cabal build all --flag werror",
-            f":haskell: {self.path} lint", **kw,
+            f":haskell: {self.path} lint",
+            **kw,
         )
 
     def hlint(self, **kw: Any) -> Step:
         return self._emit(
             f"hlint {self.path}",
-            f":haskell: {self.path} hlint", **kw,
+            f":haskell: {self.path} hlint",
+            **kw,
         )
 
     def fmt(self, **kw: Any) -> Step:
         return self._emit(
             f"fourmolu --mode check {self.path}",
-            f":haskell: {self.path} fmt", **kw,
+            f":haskell: {self.path} fmt",
+            **kw,
         )
 
 
@@ -174,10 +184,7 @@ def _validate_ghc(ghc: str | None) -> str:
         )
         raise ValueError(msg)
     if not _VERSION_RE.match(ghc):
-        msg = (
-            f"hm.haskell: invalid ghc {ghc!r}\n"
-            '  → use a GHC version like "9.6.7"'
-        )
+        msg = f'hm.haskell: invalid ghc {ghc!r}\n  → use a GHC version like "9.6.7"'
         raise ValueError(msg)
     return ghc
 

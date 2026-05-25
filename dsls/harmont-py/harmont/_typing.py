@@ -90,8 +90,7 @@ def BaseImage(image: str) -> _BaseImageMarker:  # noqa: N802 — factory mimicki
     """
     if not isinstance(image, str) or not image:
         msg = (
-            "hm: BaseImage(...) takes a non-empty image string\n"
-            '  → e.g. BaseImage("ubuntu-24.04")'
+            'hm: BaseImage(...) takes a non-empty image string\n  → e.g. BaseImage("ubuntu-24.04")'
         )
         raise TypeError(msg)
     return _BaseImageMarker(image)

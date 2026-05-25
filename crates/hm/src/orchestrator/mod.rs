@@ -53,11 +53,7 @@ pub async fn build_image_from_pipeline(
     //
     // NOTE: run_pipeline_v0_one_shot is currently a stub (see its doc
     // comment in commands/run/local.rs for the full rationale).
-    let container_id = crate::commands::run::run_pipeline_v0_one_shot(
-        docker,
-        pipeline_v0,
-    )
-    .await?;
+    let container_id = crate::commands::run::run_pipeline_v0_one_shot(docker, pipeline_v0).await?;
     docker.commit_container(&container_id, image_tag).await?;
     docker.remove_container(&container_id).await?;
     Ok(())

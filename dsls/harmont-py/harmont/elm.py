@@ -53,25 +53,29 @@ class ElmProject:
         suffix = f" --output={output}" if output is not None else ""
         return self._emit(
             f"cd {self.path} && elm make {target}{suffix}",
-            f":elm: make {target}", **kw,
+            f":elm: make {target}",
+            **kw,
         )
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && npx --yes elm-test",
-            ":elm: test", **kw,
+            ":elm: test",
+            **kw,
         )
 
     def review(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && npx --yes elm-review",
-            ":elm: review", **kw,
+            ":elm: review",
+            **kw,
         )
 
     def fmt(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && npx --yes elm-format --validate .",
-            ":elm: fmt", **kw,
+            ":elm: fmt",
+            **kw,
         )
 
 
@@ -84,10 +88,7 @@ def _make_elm(
     base: Step | None = None,
 ) -> ElmProject:
     if not _VERSION_RE.match(elm_version):
-        msg = (
-            f"hm.elm: invalid elm_version {elm_version!r}\n"
-            '  → e.g. elm_version="0.19.1"'
-        )
+        msg = f'hm.elm: invalid elm_version {elm_version!r}\n  → e.g. elm_version="0.19.1"'
         raise ValueError(msg)
     node_installed = make_install_chain(
         apt_packages=APT_PACKAGES,
@@ -119,8 +120,11 @@ class _ElmEntry:
         base: Step | None = None,
     ) -> ElmProject:
         return _make_elm(
-            path=path, elm_version=elm_version, node_version=node_version,
-            image=image, base=base,
+            path=path,
+            elm_version=elm_version,
+            node_version=node_version,
+            image=image,
+            base=base,
         )
 
     def make(self, target: str, *, output: str | None = None, **kw: Any) -> Step:

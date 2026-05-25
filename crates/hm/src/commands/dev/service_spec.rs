@@ -8,8 +8,7 @@ use anyhow::{Context, Result, anyhow};
 use crate::orchestrator::docker_client::{ServiceSpec, ServiceSpecBuilder};
 
 use super::naming::{
-    DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_SLUG, LABEL_WORKTREE,
-    container_name,
+    DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_SLUG, LABEL_WORKTREE, container_name,
 };
 use super::registry::{LocalSpec, PORT_SENTINEL};
 
@@ -69,9 +68,11 @@ pub fn build(
         .port_mapping
         .iter()
         .filter(|(_, sentinel)| sentinel.as_str() == PORT_SENTINEL)
-        .map(|(cport, _)| cport.parse::<u16>().context(format!(
-            "port_mapping key `{cport}` is not a valid u16 — registry-dump bug?"
-        )))
+        .map(|(cport, _)| {
+            cport.parse::<u16>().context(format!(
+                "port_mapping key `{cport}` is not a valid u16 — registry-dump bug?"
+            ))
+        })
         .collect::<Result<Vec<_>>>()?;
     let mut labels = HashMap::new();
     labels.insert(LABEL_WORKTREE.to_string(), worktree_hash.to_string());
@@ -103,9 +104,9 @@ fn resolve_binds(
         } else {
             worktree_root.join(host)
         };
-        let host_str = host_abs.to_str().ok_or_else(|| {
-            anyhow!("bind host path is not valid UTF-8: {}", host_abs.display())
-        })?;
+        let host_str = host_abs
+            .to_str()
+            .ok_or_else(|| anyhow!("bind host path is not valid UTF-8: {}", host_abs.display()))?;
         // container may carry a `:ro` suffix; split + reconstruct so we
         // emit "host:container[:ro]".
         let (cpath, mode) = match container.rsplit_once(':') {
@@ -135,9 +136,7 @@ mod tests {
             from: None,
             cmd: None,
             port_mapping,
-            env: BTreeMap::from([
-                ("POSTGRES_PASSWORD".to_string(), "dev".to_string()),
-            ]),
+            env: BTreeMap::from([("POSTGRES_PASSWORD".to_string(), "dev".to_string())]),
             volumes: BTreeMap::new(),
             workdir: None,
             deps: vec![],
@@ -154,7 +153,8 @@ mod tests {
             "a1b2c3d4e5",
             "7a2f91",
             "hm-a1b2c3d4e5-7a2f91",
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(rs.container_name, "hm-a1b2c3d4e5-db-7a2f91");
         assert_eq!(rs.publish, vec![5432]);
         assert!(rs.env.contains(&"POSTGRES_PASSWORD=dev".to_string()));
@@ -164,22 +164,18 @@ mod tests {
     #[test]
     fn resolves_relative_volume_against_worktree_root() {
         let mut spec = local_spec();
-        spec.volumes.insert(".".to_string(), "/workspace".to_string());
-        let rs = build(
-            "web", &spec, "node:20",
-            Path::new("/tmp/wt"), "a", "b", "n",
-        ).unwrap();
+        spec.volumes
+            .insert(".".to_string(), "/workspace".to_string());
+        let rs = build("web", &spec, "node:20", Path::new("/tmp/wt"), "a", "b", "n").unwrap();
         assert_eq!(rs.binds, vec!["/tmp/wt/.:/workspace".to_string()]);
     }
 
     #[test]
     fn preserves_ro_suffix_on_container_path() {
         let mut spec = local_spec();
-        spec.volumes.insert(".".to_string(), "/workspace:ro".to_string());
-        let rs = build(
-            "web", &spec, "node:20",
-            Path::new("/tmp/wt"), "a", "b", "n",
-        ).unwrap();
+        spec.volumes
+            .insert(".".to_string(), "/workspace:ro".to_string());
+        let rs = build("web", &spec, "node:20", Path::new("/tmp/wt"), "a", "b", "n").unwrap();
         assert_eq!(rs.binds, vec!["/tmp/wt/.:/workspace:ro".to_string()]);
     }
 }

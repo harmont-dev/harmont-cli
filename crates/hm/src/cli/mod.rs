@@ -7,6 +7,8 @@ pub use dev::{DevCommand, DevDownArgs, DevExecArgs, DevLogsArgs, DevPortOfArgs, 
 pub use plugin::PluginCommand;
 pub use run::RunArgs;
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -58,9 +60,33 @@ pub enum Command {
     #[command(subcommand)]
     Dev(DevCommand),
 
+    /// Manage harmont Docker image cache.
+    #[command(subcommand)]
+    Cache(CacheCommand),
+
     /// Interact with the Harmont cloud API.
     #[command(subcommand)]
     Cloud(hm_plugin_cloud::cli::CloudCommand),
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum CacheCommand {
+    /// Save harmont Docker images to a cache directory.
+    Save(CacheSaveArgs),
+    /// Restore harmont Docker images from a cache directory.
+    Restore(CacheRestoreArgs),
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct CacheSaveArgs {
+    /// Directory to save image tars into.
+    pub dir: PathBuf,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct CacheRestoreArgs {
+    /// Directory containing cached image tars.
+    pub dir: PathBuf,
 }
 
 /// Dispatch a parsed CLI command to the appropriate handler. Returns an exit code.
@@ -72,6 +98,10 @@ pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
     match command {
         Command::Run(args) => crate::commands::run::handle(args, ctx).await,
         Command::Dev(cmd) => dev::dispatch(cmd, ctx).await,
+        Command::Cache(cmd) => match cmd {
+            CacheCommand::Save(args) => crate::commands::cache::handle_save(&args.dir).await,
+            CacheCommand::Restore(args) => crate::commands::cache::handle_restore(&args.dir).await,
+        },
         Command::Version => version::run().await.map(|()| 0),
         Command::Plugin(cmd) => plugin::run(cmd).await.map(|()| 0),
         Command::Cloud(cmd) => {

@@ -6,6 +6,7 @@ driver subpackages (``harmont.dev``, future ``harmont.aws``).
 The registry stores deployments polymorphically; CLI subcommands filter
 by ``isinstance`` or by the ``driver`` discriminator.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -27,6 +28,7 @@ class Deployment:
     ``name`` is the slug the user passed to ``@hm.deploy``.
     ``driver`` is the discriminator string ("local" for ``hm.dev``).
     """
+
     name: str
     driver: str
 

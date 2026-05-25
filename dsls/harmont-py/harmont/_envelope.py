@@ -38,10 +38,7 @@ def _render_one(
     try:
         leaves = as_leaves(raw)
     except TypeError as e:
-        msg = (
-            f"pipeline {reg.slug!r}: invalid return value\n"
-            f"  → {e}"
-        )
+        msg = f"pipeline {reg.slug!r}: invalid return value\n  → {e}"
         raise TypeError(msg) from e
     ir = _assemble(*leaves, env=reg.env, default_image=reg.default_image)
     resolve_pipeline_keys(
@@ -84,8 +81,10 @@ def dump_registry_json(
     """
     clear_target_memo()
     env_map: Mapping[str, str] = env if env is not None else os.environ
-    org = pipeline_org if pipeline_org is not None else env_map.get(
-        "HARMONT_PIPELINE_ORG", "default"
+    org = (
+        pipeline_org
+        if pipeline_org is not None
+        else env_map.get("HARMONT_PIPELINE_ORG", "default")
     )
     render_now = now if now is not None else int(time.time())
     bp = base_path if base_path is not None else Path.cwd()

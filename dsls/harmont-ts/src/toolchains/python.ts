@@ -10,6 +10,11 @@ const APT_PACKAGES = [
 ] as const;
 const VERSION_RE = /^([0-9]+\.[0-9]+\.[0-9]+|latest)$/;
 
+function resolvePaths(paths?: string | string[]): string {
+  if (paths == null) return ".";
+  return Array.isArray(paths) ? paths.join(" ") : paths;
+}
+
 export interface PythonOptions {
   readonly path?: string;
   readonly uvVersion?: string;
@@ -53,10 +58,12 @@ export class PythonToolchain {
     );
   }
 
-  typecheck(opts?: ActionOptions): Step {
-    return this._installed.sh(`cd ${this.path} && uv run mypy .`, {
+  typecheck(opts?: ActionOptions & { paths?: string | string[] }): Step {
+    const target = resolvePaths(opts?.paths);
+    const { paths: _, ...rest } = opts ?? {};
+    return this._installed.sh(`cd ${this.path} && uv run mypy ${target}`, {
       label: ":python: typecheck",
-      ...opts,
+      ...rest,
     });
   }
 }

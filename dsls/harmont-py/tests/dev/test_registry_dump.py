@@ -1,4 +1,5 @@
 """dump_registry_json — golden JSON shape for canonical examples."""
+
 from __future__ import annotations
 
 import json
@@ -60,7 +61,8 @@ def test_dump_with_deps_emits_deps_array_in_param_order():
     @hm.deploy("api")
     def api(db: hm.Dep[hm.Deployment]):
         return hm.dev.deploy(
-            image="x", port_mapping={8000: hm.dev.port()},
+            image="x",
+            port_mapping={8000: hm.dev.port()},
             env={"DB_HOST": db.name},
         )
 

@@ -47,6 +47,18 @@ describe("python actions", () => {
     expect(p.typecheck()._cmd).toContain("uv run mypy .");
   });
 
+  it("typecheck with paths string", () => {
+    const p = python({ path: "myapp" });
+    expect(p.typecheck({ paths: "src" })._cmd).toContain("uv run mypy src");
+  });
+
+  it("typecheck with paths array", () => {
+    const p = python({ path: "myapp" });
+    expect(p.typecheck({ paths: ["src", "tests"] })._cmd).toContain(
+      "uv run mypy src tests",
+    );
+  });
+
   it("actions chain from install (sync step)", () => {
     const p = python();
     expect(p.test()._parent).toBe(p.install());

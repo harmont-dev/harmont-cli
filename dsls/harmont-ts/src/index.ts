@@ -21,4 +21,5 @@ export {
 } from "./triggers.js";
 export { pipeline, type PipelineIR, type PipelineOptions } from "./pipeline.js";
 export { target, clearTargetCache } from "./target.js";
+export { aptBase } from "./toolchains/shared.js";
 export { renderEnvelope, type PipelineDefinition } from "./envelope.js";

@@ -76,7 +76,8 @@ def clear_target_cache() -> None:
 
 
 def target(
-    *, name: str | None = None,
+    *,
+    name: str | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[[], Any]]:
     """Mark a function as a reusable, memoized pipeline building block.
 
@@ -88,6 +89,7 @@ def target(
     name collides with another target or when a more human-readable
     registry key is wanted.
     """
+
     def decorator(fn: Callable[..., Any]) -> Callable[[], Any]:
         validate_target_signature(fn)
         target_name = name if name is not None else fn.__name__

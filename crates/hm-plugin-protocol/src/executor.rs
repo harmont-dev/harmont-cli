@@ -11,8 +11,18 @@ use crate::ir::CommandStep;
 /// Opaque archive handle. The plugin streams bytes via
 /// `hm_archive_read(id, offset, max)`.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema,
-    derive_more::From, derive_more::Deref, derive_more::Display,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    DeriveJsonSchema,
+    derive_more::From,
+    derive_more::Deref,
+    derive_more::Display,
 )]
 #[serde(transparent)]
 pub struct ArchiveId(pub Uuid);
@@ -21,8 +31,17 @@ pub struct ArchiveId(pub Uuid);
 /// tag; other plugins are free to encode their own format. The host
 /// never inspects the contents.
 #[derive(
-    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveJsonSchema,
-    derive_more::From, derive_more::Deref, derive_more::Display,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    DeriveJsonSchema,
+    derive_more::From,
+    derive_more::Deref,
+    derive_more::Display,
 )]
 #[serde(transparent)]
 pub struct SnapshotRef(pub String);
@@ -36,7 +55,9 @@ pub struct ArtifactRef {
 
 /// Host-decided cache outcome. The executor honours this; it does
 /// not re-decide.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant,
+)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CacheDecision {
     /// Boot from `tag`; skip running `cmd`.

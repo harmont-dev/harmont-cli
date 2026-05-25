@@ -32,12 +32,16 @@ class PerlProject:
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && prove -lv t/", ":perl: test", **kw,
+            f"cd {self.path} && prove -lv t/",
+            ":perl: test",
+            **kw,
         )
 
     def lint(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && perlcritic lib/", ":perl: lint", **kw,
+            f"cd {self.path} && perlcritic lib/",
+            ":perl: lint",
+            **kw,
         )
 
 

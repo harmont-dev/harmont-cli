@@ -20,7 +20,7 @@ pub async fn run(cmd: PluginCommand) -> Result<()> {
 
 #[allow(clippy::unused_async)]
 async fn list() -> Result<()> {
-    println!("Registered runners:");
-    println!("  docker (default, built-in)");
+    tracing::info!("Registered runners:");
+    tracing::info!("  docker (default, built-in)");
     Ok(())
 }

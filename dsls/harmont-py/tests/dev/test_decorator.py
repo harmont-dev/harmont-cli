@@ -1,4 +1,5 @@
 """@hm.deploy decorator: registration, slug derivation, fixture injection."""
+
 from __future__ import annotations
 
 import pytest
@@ -16,7 +17,7 @@ def test_deploy_registers_under_explicit_slug():
     assert "db" in DEPLOYMENTS
     resolved = DEPLOYMENTS["db"]()
     assert isinstance(resolved, LocalDeployment)
-    assert resolved.name == "db"           # decorator stamped slug in
+    assert resolved.name == "db"  # decorator stamped slug in
     assert resolved.image == "postgres:16"
 
 
@@ -30,6 +31,7 @@ def test_deploy_uses_function_name_when_slug_omitted():
 
 def test_deploy_rejects_invalid_slug():
     with pytest.raises(ValueError, match="invalid deployment slug"):
+
         @hm.deploy("Bad Slug")
         def x():
             return hm.dev.deploy(image="x", port_mapping={5432: hm.dev.port()})
@@ -41,6 +43,7 @@ def test_deploy_rejects_duplicate_slug():
         return hm.dev.deploy(image="postgres:16", port_mapping={5432: hm.dev.port()})
 
     with pytest.raises(ValueError, match="duplicate deployment slug"):
+
         @hm.deploy("db")
         def db2():
             return hm.dev.deploy(image="postgres:15", port_mapping={5432: hm.dev.port()})
@@ -50,6 +53,7 @@ def test_deploy_requires_marker_on_param():
     # validate_target_signature (the shared validator used by @hm.target,
     # @hm.pipeline, and @hm.deploy) raises TypeError for unmarkered params.
     with pytest.raises(TypeError, match=r"parameter 'db' has no marker"):
+
         @hm.deploy("api")
         def api(db):  # type: ignore[no-untyped-def]
             return hm.dev.deploy(image="x", port_mapping={8000: hm.dev.port()})

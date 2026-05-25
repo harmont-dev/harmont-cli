@@ -24,12 +24,14 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: OrgCommand) -> Resu
 
 async fn switch(client: &Client, slug: &str) -> Result<()> {
     let orgs: OrganizationList = client.get("/organizations").await?;
-    let found = orgs.data.iter().find(|o| o.slug == slug).ok_or_else(|| {
-        anyhow::anyhow!("no organization with slug '{slug}'")
-    })?;
+    let found = orgs
+        .data
+        .iter()
+        .find(|o| o.slug == slug)
+        .ok_or_else(|| anyhow::anyhow!("no organization with slug '{slug}'"))?;
     let mut state = CloudState::load();
     state.active_org = Some(found.slug.clone());
     state.save();
-    eprintln!("active organization: {} ({})", found.name, found.slug);
+    tracing::info!("active organization: {} ({})", found.name, found.slug);
     Ok(())
 }

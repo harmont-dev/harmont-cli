@@ -32,6 +32,14 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 _VERSION_RE = re.compile(r"^([0-9]+\.[0-9]+\.[0-9]+|latest)$")
 
 
+def _resolve_paths(paths: str | list[str] | None) -> str:
+    if paths is None:
+        return "."
+    if isinstance(paths, str):
+        return paths
+    return " ".join(paths)
+
+
 def _uv_install_cmd(uv_version: str) -> str:
     pin = "" if uv_version == "latest" else f"UV_VERSION={uv_version} "
     return (
@@ -52,23 +60,31 @@ class PythonToolchain:
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && uv run pytest", ":python: test", **kw,
+            f"cd {self.path} && uv run pytest",
+            ":python: test",
+            **kw,
         )
 
     def lint(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && uv run ruff check .", ":python: lint", **kw,
+            f"cd {self.path} && uv run ruff check .",
+            ":python: lint",
+            **kw,
         )
 
     def fmt(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && uv run ruff format --check .",
-            ":python: fmt", **kw,
+            ":python: fmt",
+            **kw,
         )
 
-    def typecheck(self, **kw: Any) -> Step:
+    def typecheck(self, *, paths: str | list[str] | None = None, **kw: Any) -> Step:
+        target = _resolve_paths(paths)
         return self._emit(
-            f"cd {self.path} && uv run mypy .", ":python: typecheck", **kw,
+            f"cd {self.path} && uv run mypy {target}",
+            ":python: typecheck",
+            **kw,
         )
 
 
@@ -133,9 +149,9 @@ class _PythonEntry:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
         return self(**kw).fmt(**action_kw)
 
-    def typecheck(self, **kw: Any) -> Step:
+    def typecheck(self, *, paths: str | list[str] | None = None, **kw: Any) -> Step:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
-        return self(**kw).typecheck(**action_kw)
+        return self(**kw).typecheck(paths=paths, **action_kw)
 
 
 python = _PythonEntry()

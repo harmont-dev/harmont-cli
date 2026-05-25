@@ -1,4 +1,5 @@
 """hm.Dep[T] marker is detected; call_with_deps resolves it from DEPLOYMENTS."""
+
 from __future__ import annotations
 
 import pytest

@@ -40,7 +40,7 @@ async fn balance(client: &Client, org: &str) -> Result<()> {
         .get(&format!("/organizations/{org}/billing/balance"))
         .await?;
     let dollars = b.credits_usd_cents as f64 / 100.0;
-    println!("${dollars:.2}");
+    tracing::info!("${dollars:.2}");
     Ok(())
 }
 
@@ -51,7 +51,7 @@ async fn transactions(client: &Client, org: &str, limit: u32) -> Result<()> {
         ))
         .await?;
     for t in &list.data {
-        println!(
+        tracing::info!(
             "{}  {:>10} {:<14} {}",
             t.at.format("%Y-%m-%d %H:%M:%S"),
             t.amount_cents,
@@ -62,12 +62,7 @@ async fn transactions(client: &Client, org: &str, limit: u32) -> Result<()> {
     Ok(())
 }
 
-async fn usage(
-    client: &Client,
-    org: &str,
-    from: Option<&str>,
-    to: Option<&str>,
-) -> Result<()> {
+async fn usage(client: &Client, org: &str, from: Option<&str>, to: Option<&str>) -> Result<()> {
     let mut q = vec![];
     if let Some(f) = from {
         q.push(format!("from={f}"));
@@ -83,7 +78,7 @@ async fn usage(
     let u: UsageWindow = client
         .get(&format!("/organizations/{org}/billing/usage{qs}"))
         .await?;
-    println!(
+    tracing::info!(
         "{} -> {}: {:.2} min, ${:.2}",
         u.from.format("%Y-%m-%d"),
         u.to.format("%Y-%m-%d"),
@@ -104,10 +99,10 @@ async fn topup(client: &Client, org: &str, amount_usd: u32, no_browser: bool) ->
         )
         .await?;
     if no_browser {
-        println!("{}", r.checkout_url);
+        tracing::info!("{}", r.checkout_url);
     } else if webbrowser::open(&r.checkout_url).is_err() {
-        eprintln!("couldn't open browser; URL:");
-        eprintln!("{}", r.checkout_url);
+        tracing::warn!("couldn't open browser; URL:");
+        tracing::warn!("{}", r.checkout_url);
     }
     Ok(())
 }
@@ -123,12 +118,12 @@ async fn redeem(client: &Client, org: &str, code: &str) -> Result<()> {
         )
         .await?;
     let dollars = r.credited_cents as f64 / 100.0;
-    eprintln!("credited ${dollars:.2}");
+    tracing::info!("credited ${dollars:.2}");
     Ok(())
 }
 
 fn active_org() -> Result<String> {
-    CloudState::load().active_org.ok_or_else(|| {
-        anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`")
-    })
+    CloudState::load()
+        .active_org
+        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
 }

@@ -35,13 +35,15 @@ class NpmProject:
     def run(self, script: str, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && npm run {script}",
-            f":node: {script}", **kw,
+            f":node: {script}",
+            **kw,
         )
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
             f"cd {self.path} && npm test",
-            ":node: test", **kw,
+            ":node: test",
+            **kw,
         )
 
     def lint(self, **kw: Any) -> Step:

@@ -16,15 +16,13 @@ use super::naming::{
 ///
 /// Returns an error if Docker is unreachable or if the exec lifecycle
 /// calls fail.
-#[allow(
-    clippy::print_stderr,
-    reason = "user-facing error messages for a foreground CLI"
-)]
 pub async fn handle(args: DevExecArgs, _ctx: RunContext) -> Result<i32> {
     let docker = DockerClient::connect()?;
     let worktree_root = resolve_worktree_root()?;
     let wt_hash = worktree_hash(&worktree_root);
-    let containers = docker.list_containers_by_label(LABEL_WORKTREE, &wt_hash).await?;
+    let containers = docker
+        .list_containers_by_label(LABEL_WORKTREE, &wt_hash)
+        .await?;
     let mut matches: Vec<String> = Vec::new();
     for c in &containers {
         let labels = c.labels.clone().unwrap_or_default();
@@ -42,14 +40,15 @@ pub async fn handle(args: DevExecArgs, _ctx: RunContext) -> Result<i32> {
         }
     }
     if matches.is_empty() {
-        eprintln!(
+        tracing::error!(
             "hm: slug `{}` is not running in this worktree.\n  → run `hm dev up {}` first.",
-            args.slug, args.slug,
+            args.slug,
+            args.slug,
         );
         return Ok(4);
     }
     if matches.len() > 1 {
-        eprintln!(
+        tracing::error!(
             "hm: slug `{}` matches multiple live sessions; pass --session <id>",
             args.slug
         );

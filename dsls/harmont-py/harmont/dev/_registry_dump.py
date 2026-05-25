@@ -11,6 +11,7 @@ Step-chain deployments emit their pipeline as the existing v0 IR via
 keygen path so the Rust executor can use the terminal key as the
 build-image tag without re-running the algorithm.
 """
+
 from __future__ import annotations
 
 import json
@@ -93,8 +94,10 @@ def dump_registry_json(
                 "expected a Deployment subclass"
             )
             raise TypeError(msg)
-    return json.dumps({
-        "schema_version": "0",
-        "worktree": str(wt),
-        "deployments": deployments,
-    })
+    return json.dumps(
+        {
+            "schema_version": "0",
+            "worktree": str(wt),
+            "deployments": deployments,
+        }
+    )

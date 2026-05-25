@@ -75,7 +75,7 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, args: RunArgs) -> Result
         args.pipeline,
         build.number
     );
-    eprintln!("submitted build #{}: {url}", build.number);
+    tracing::info!("submitted build #{}: {url}", build.number);
     if args.no_watch {
         return Ok(());
     }

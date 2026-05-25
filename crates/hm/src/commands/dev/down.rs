@@ -9,23 +9,26 @@ use crate::context::RunContext;
 use crate::orchestrator::docker_client::DockerClient;
 
 use super::naming::{
-    DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_SLUG, LABEL_WORKTREE,
-    network_name, resolve_worktree_root, worktree_hash,
+    DRIVER_LOCAL, LABEL_DRIVER, LABEL_SESSION, LABEL_SLUG, LABEL_WORKTREE, network_name,
+    resolve_worktree_root, worktree_hash,
 };
 
 /// # Errors
 ///
 /// Returns Docker errors on list / stop / remove failures.
-#[allow(clippy::print_stderr, reason = "status messages to stderr are intentional for a foreground CLI")]
 pub async fn handle(args: DevDownArgs, _ctx: RunContext) -> Result<i32> {
     let docker = DockerClient::connect()?;
     let worktree_root = resolve_worktree_root()?;
     let wt_hash = worktree_hash(&worktree_root);
 
     let containers = if args.all {
-        docker.list_containers_by_label(LABEL_DRIVER, DRIVER_LOCAL).await?
+        docker
+            .list_containers_by_label(LABEL_DRIVER, DRIVER_LOCAL)
+            .await?
     } else {
-        docker.list_containers_by_label(LABEL_WORKTREE, &wt_hash).await?
+        docker
+            .list_containers_by_label(LABEL_WORKTREE, &wt_hash)
+            .await?
     };
 
     // (id, slug, session, name)
@@ -53,7 +56,7 @@ pub async fn handle(args: DevDownArgs, _ctx: RunContext) -> Result<i32> {
     }
 
     if to_remove.is_empty() {
-        eprintln!("[hm] nothing to sweep");
+        tracing::info!("[hm] nothing to sweep");
         return Ok(0);
     }
 
@@ -61,7 +64,7 @@ pub async fn handle(args: DevDownArgs, _ctx: RunContext) -> Result<i32> {
     for (id, slug, session, name) in &to_remove {
         let _ = docker.stop_container(id).await;
         let _ = docker.remove_container(id).await;
-        eprintln!("[hm] removed {name} (slug={slug}, session={session})");
+        tracing::info!("[hm] removed {name} (slug={slug}, session={session})");
         sessions_swept.insert(session.clone());
     }
 

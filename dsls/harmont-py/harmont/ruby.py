@@ -39,12 +39,16 @@ class RubyProject:
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && bundle exec rspec", ":ruby: test", **kw,
+            f"cd {self.path} && bundle exec rspec",
+            ":ruby: test",
+            **kw,
         )
 
     def lint(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && bundle exec rubocop", ":ruby: lint", **kw,
+            f"cd {self.path} && bundle exec rubocop",
+            ":ruby: lint",
+            **kw,
         )
 
 

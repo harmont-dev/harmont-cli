@@ -1,4 +1,5 @@
 """Trigger constructors — push/pull_request/schedule."""
+
 import pytest
 
 import harmont as hm

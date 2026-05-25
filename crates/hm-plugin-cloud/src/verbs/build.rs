@@ -21,12 +21,8 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: BuildCommand) -> Re
     match cmd {
         BuildCommand::List { pipeline } => list(&client, &org, &pipeline).await,
         BuildCommand::Show { pipeline, number } => show(&client, &org, &pipeline, number).await,
-        BuildCommand::Cancel { pipeline, number } => {
-            cancel(&client, &org, &pipeline, number).await
-        }
-        BuildCommand::Watch { pipeline, number } => {
-            watch(&client, &org, &pipeline, number).await
-        }
+        BuildCommand::Cancel { pipeline, number } => cancel(&client, &org, &pipeline, number).await,
+        BuildCommand::Watch { pipeline, number } => watch(&client, &org, &pipeline, number).await,
     }
 }
 
@@ -35,7 +31,7 @@ async fn list(client: &Client, org: &str, pipe: &str) -> Result<()> {
         .get(&format!("/organizations/{org}/pipelines/{pipe}/builds"))
         .await?;
     for b in &builds.data {
-        println!(
+        tracing::info!(
             "#{:<5} {:<10} {}",
             b.number,
             b.state,
@@ -52,7 +48,7 @@ async fn show(client: &Client, org: &str, pipe: &str, number: i64) -> Result<()>
         ))
         .await?;
     let json = serde_json::to_string_pretty(&b).unwrap_or_default();
-    println!("{json}");
+    tracing::info!("{json}");
     Ok(())
 }
 
@@ -63,7 +59,7 @@ async fn cancel(client: &Client, org: &str, pipe: &str, number: i64) -> Result<(
             &serde_json::json!({}),
         )
         .await?;
-    eprintln!("build #{number} cancelled");
+    tracing::info!("build #{number} cancelled");
     Ok(())
 }
 
@@ -76,7 +72,7 @@ async fn watch(client: &Client, org: &str, pipe: &str, number: i64) -> Result<()
             ))
             .await?;
         if b.state != last_state {
-            eprintln!("state: {last_state} -> {}", b.state);
+            tracing::info!("state: {last_state} -> {}", b.state);
             last_state = b.state.clone();
         }
         match b.state.as_str() {
@@ -91,7 +87,7 @@ async fn watch(client: &Client, org: &str, pipe: &str, number: i64) -> Result<()
 }
 
 fn active_org() -> Result<String> {
-    CloudState::load().active_org.ok_or_else(|| {
-        anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`")
-    })
+    CloudState::load()
+        .active_org
+        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
 }

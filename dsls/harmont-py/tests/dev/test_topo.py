@@ -1,4 +1,5 @@
 """dep_graph extraction + topo_order on the deployment registry."""
+
 from __future__ import annotations
 
 import pytest
@@ -23,8 +24,7 @@ def test_dep_graph_lists_param_names_in_order():
 
     @hm.deploy("api")
     def api(db: hm.Dep[hm.Deployment]):
-        return hm.dev.deploy(image="x", port_mapping={8000: hm.dev.port()},
-                             env={"DB": db.name})
+        return hm.dev.deploy(image="x", port_mapping={8000: hm.dev.port()}, env={"DB": db.name})
 
     g = dep_graph()
     assert g == {"db": (), "api": ("db",)}

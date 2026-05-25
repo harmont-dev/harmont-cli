@@ -4,6 +4,7 @@ Construction is mediated by ``harmont.dev._factory.deploy(...)``; the
 factory does input validation and coerces fields. ``__post_init__`` is
 the last-line invariant check (driver must be 'local').
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ class LocalDeployment(Deployment):
     ``volumes`` maps host paths (relative or absolute) to container
     paths (with optional ``:ro`` suffix).
     """
+
     image: str | None
     from_step: Step | None
     cmd: tuple[str, ...] | None

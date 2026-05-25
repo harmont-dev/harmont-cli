@@ -82,10 +82,7 @@ def _make_ocaml(
     base: Step | None = None,
 ) -> OCamlProject:
     if not _VERSION_RE.match(compiler):
-        msg = (
-            f"hm.ocaml: invalid compiler {compiler!r}\n"
-            '  → use a compiler version like "5.1.1"'
-        )
+        msg = f'hm.ocaml: invalid compiler {compiler!r}\n  → use a compiler version like "5.1.1"'
         raise ValueError(msg)
     opam = make_install_chain(
         apt_packages=APT_PACKAGES,

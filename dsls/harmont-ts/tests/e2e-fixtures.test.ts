@@ -79,7 +79,7 @@ describe("E2E pipeline fixtures", () => {
   });
 
   it("rust-release", () => {
-    const project = rust({ path: "." });
+    const project = rust.toolchain({ path: "." });
 
     const ir = pipeline(
       project.build(),

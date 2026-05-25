@@ -1,4 +1,5 @@
 """@hm.pipeline decorator — see docs/superpowers/specs/2026-05-10-har-9-imperfect-dsl-design.md."""
+
 from __future__ import annotations
 
 import re
@@ -43,6 +44,7 @@ def pipeline(
     declare dependencies as parameters (pytest-style); each parameter
     name is resolved against the global target registry.
     """
+
     def decorator(fn: Callable[..., Any]) -> Callable[[], Any]:
         validate_target_signature(fn)
         resolved = slug if slug is not None else fn.__name__

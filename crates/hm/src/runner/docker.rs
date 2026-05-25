@@ -91,7 +91,11 @@ async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> 
         });
     }
 
-    let image = resolve_image(&input.step, plan.hit_tag.as_ref(), input.parent_snapshot.as_ref());
+    let image = resolve_image(
+        &input.step,
+        plan.hit_tag.as_ref(),
+        input.parent_snapshot.as_ref(),
+    );
     let container_name = sanitize_container_name(&input.run_id.to_string(), &input.step.key);
     let env_vec: Vec<String> = input.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
 
@@ -131,10 +135,7 @@ async fn run_in_container(
     // --- Extract workspace archive ---
     let archive = ctx.archives.read(input.workspace_archive_id, 0, u64::MAX);
     if archive.is_empty() {
-        anyhow::bail!(
-            "archive {} is empty or unknown",
-            input.workspace_archive_id
-        );
+        anyhow::bail!("archive {} is empty or unknown", input.workspace_archive_id);
     }
 
     let docker = ctx.docker.clone();
@@ -188,7 +189,10 @@ async fn run_in_container(
         }
     };
 
-    #[allow(clippy::cast_possible_truncation, reason = "docker exit codes fit in i32")]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "docker exit codes fit in i32"
+    )]
     let exit_code = rc as i32;
 
     // --- Commit snapshot on success ---

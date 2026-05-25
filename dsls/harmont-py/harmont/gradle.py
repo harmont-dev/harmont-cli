@@ -68,17 +68,23 @@ class GradleProject:
 
     def build(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && gradle build", f":{self._tag}: build", **kw,
+            f"cd {self.path} && gradle build",
+            f":{self._tag}: build",
+            **kw,
         )
 
     def test(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && gradle test", f":{self._tag}: test", **kw,
+            f"cd {self.path} && gradle test",
+            f":{self._tag}: test",
+            **kw,
         )
 
     def lint(self, **kw: Any) -> Step:
         return self._emit(
-            f"cd {self.path} && gradle check", f":{self._tag}: lint", **kw,
+            f"cd {self.path} && gradle check",
+            f":{self._tag}: lint",
+            **kw,
         )
 
 
@@ -91,10 +97,7 @@ def _make_gradle(
     base: Step | None = None,
 ) -> GradleProject:
     if not _JDK_RE.match(jdk):
-        msg = (
-            f"hm.gradle: invalid jdk {jdk!r}\n"
-            '  → use "11", "17", or "21"'
-        )
+        msg = f'hm.gradle: invalid jdk {jdk!r}\n  → use "11", "17", or "21"'
         raise ValueError(msg)
     tag = "kotlin" if kotlin else "java"
     installed = make_install_chain(

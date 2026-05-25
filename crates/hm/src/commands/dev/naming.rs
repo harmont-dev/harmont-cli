@@ -59,7 +59,9 @@ pub fn network_name(worktree_hash: &str, session: &str) -> String {
 /// Returns an error if the cwd is unreadable.
 pub fn resolve_worktree_root() -> Result<std::path::PathBuf> {
     use std::process::Command;
-    let try_git = Command::new("git").args(["rev-parse", "--show-toplevel"]).output();
+    let try_git = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output();
     if let Ok(out) = try_git
         && out.status.success()
     {
@@ -108,9 +110,6 @@ mod tests {
 
     #[test]
     fn network_name_format() {
-        assert_eq!(
-            network_name("a1b2c3d4e5", "7a2f91"),
-            "hm-a1b2c3d4e5-7a2f91",
-        );
+        assert_eq!(network_name("a1b2c3d4e5", "7a2f91"), "hm-a1b2c3d4e5-7a2f91",);
     }
 }

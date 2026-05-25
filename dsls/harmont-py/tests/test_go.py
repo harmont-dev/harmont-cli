@@ -1,4 +1,5 @@
 """Go toolchain abstraction tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -29,8 +30,7 @@ def test_go_object_form_full_chain():
 
 def test_go_actions_share_install_step():
     go = hm.go(path="svc")
-    p = hm.pipeline(go.build(), go.test(), go.vet(), go.fmt(),
-                    default_image="ubuntu:24.04")
+    p = hm.pipeline(go.build(), go.test(), go.vet(), go.fmt(), default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert len([c for c in cmds if "go.dev/dl/" in c]) == 1
     assert any("go build ./..." in c for c in cmds)

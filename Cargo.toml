@@ -42,6 +42,8 @@ derive_more = { version = "1", default-features = false, features = ["full"] }
 smart-default = "0.7"
 tokio       = { version = "1", features = ["full"] }
 tokio-util  = { version = "0.7", features = ["rt"] }
+tracing     = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -70,8 +72,8 @@ unimplemented = "deny"
 mem_forget = "deny"
 implicit_clone = "deny"
 lossy_float_literal = "deny"
-print_stdout = "warn"
-print_stderr = "warn"
+print_stdout = "deny"
+print_stderr = "deny"
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"

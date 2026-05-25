@@ -1,4 +1,5 @@
 """Abstract Deployment + LocalDeployment construction tests."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -46,20 +47,30 @@ def test_local_deployment_is_a_deployment_with_driver_local():
 def test_local_deployment_rejects_non_local_driver():
     with pytest.raises(ValueError, match="driver must be 'local'"):
         LocalDeployment(
-            name="db", driver="aws",
-            image="postgres:16", from_step=None, cmd=None,
+            name="db",
+            driver="aws",
+            image="postgres:16",
+            from_step=None,
+            cmd=None,
             port_mapping={5432: port()},
-            env={}, volumes={}, workdir=None,
+            env={},
+            volumes={},
+            workdir=None,
         )
 
 
 def test_local_deployment_holds_step_chain():
     s = scratch().sh("echo hi", image="alpine:3.20")
     d = LocalDeployment(
-        name="api", driver="local",
-        image=None, from_step=s, cmd=None,
+        name="api",
+        driver="local",
+        image=None,
+        from_step=s,
+        cmd=None,
         port_mapping={8000: port()},
-        env={}, volumes={}, workdir=None,
+        env={},
+        volumes={},
+        workdir=None,
     )
     assert d.from_step is s
     assert d.image is None
@@ -67,10 +78,15 @@ def test_local_deployment_holds_step_chain():
 
 def test_port_mapping_is_a_mapping_of_int_to_port_sentinel():
     d = LocalDeployment(
-        name="db", driver="local",
-        image="postgres:16", from_step=None, cmd=None,
+        name="db",
+        driver="local",
+        image="postgres:16",
+        from_step=None,
+        cmd=None,
         port_mapping={5432: port()},
-        env={}, volumes={}, workdir=None,
+        env={},
+        volumes={},
+        workdir=None,
     )
     assert isinstance(d.port_mapping, Mapping)
     [(cport, sentinel)] = d.port_mapping.items()

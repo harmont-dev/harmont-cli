@@ -6,7 +6,6 @@ use hm_dsl_engine::detect;
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
-use crate::output::format::banner;
 use crate::runner::{RunnerRegistry, docker::DockerRunner};
 
 /// Execute a v0 IR pipeline locally; return the final container id.
@@ -96,10 +95,6 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
         }
     };
 
-    if args.format == "human" {
-        banner("run --local", &format!("slug={slug}"));
-    }
-
     let json_str = engine
         .render_pipeline_json(&repo_root, &slug)
         .await
@@ -120,7 +115,6 @@ pub async fn handle(args: RunArgs, _ctx: RunContext) -> Result<i32> {
     };
 
     let exit_code =
-        crate::orchestrator::run(graph, repo_root, parallelism, runner_registry, renderer)
-            .await?;
+        crate::orchestrator::run(graph, repo_root, parallelism, runner_registry, renderer).await?;
     Ok(exit_code)
 }

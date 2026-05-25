@@ -58,7 +58,10 @@ impl Client {
         if let Some(b) = body {
             req = req.header("Content-Type", "application/json").json(b);
         }
-        let resp = req.send().await.with_context(|| format!("{method} {url}"))?;
+        let resp = req
+            .send()
+            .await
+            .with_context(|| format!("{method} {url}"))?;
         let status = resp.status().as_u16();
         if !(200..300).contains(&status) {
             let text = resp.text().await.unwrap_or_default();

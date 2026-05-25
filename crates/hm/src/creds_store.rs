@@ -59,13 +59,10 @@ pub fn set(service: &str, account: &str, secret: &str) {
 /// underlying write fails.
 pub fn delete(service: &str, account: &str) {
     let mut f = load();
-    let now_empty = f
-        .entries
-        .get_mut(service)
-        .is_some_and(|svc| {
-            svc.remove(account);
-            svc.is_empty()
-        });
+    let now_empty = f.entries.get_mut(service).is_some_and(|svc| {
+        svc.remove(account);
+        svc.is_empty()
+    });
     if now_empty {
         f.entries.remove(service);
     }
@@ -81,7 +78,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let prev = std::env::var_os("HOME");
         // SAFETY: tests are single-threaded for env mutation by Cargo.
-        unsafe { std::env::set_var("HOME", tmp.path()); }
+        unsafe {
+            std::env::set_var("HOME", tmp.path());
+        }
         f();
         unsafe {
             if let Some(v) = prev {

@@ -1,4 +1,5 @@
 """Strict signature validation + Annotated-marker dispatch (HAR-28 follow-up)."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -55,6 +56,7 @@ def test_base_image_marker_injects_scratch_step_with_image():
 
 def test_base_image_then_sh_emits_step_with_image():
     """End-to-end: BaseImage param → .sh() → first emitted cmd step carries image."""
+
     def fn(base: Annotated[Step, hm.BaseImage("ubuntu-24.04")]) -> Step:  # type: ignore[empty-body]
         ...
 
@@ -121,6 +123,7 @@ def test_zero_param_fn_is_valid():
 
 def test_target_marker_strict_no_default_fallback():
     """Even with a default, Target marker requires the target to exist."""
+
     def fn(api: hm.Target[Step] = None) -> Step:  # type: ignore[assignment,empty-body]
         ...
 
