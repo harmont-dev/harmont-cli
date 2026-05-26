@@ -31,6 +31,16 @@ pub fn harmont_plugin_state_dir() -> Option<PathBuf> {
     harmont_data_dir().map(|d| d.join("state"))
 }
 
+/// `~/.harmont/cache/` — local build cache root.
+pub fn harmont_cache_dir() -> Option<PathBuf> {
+    harmont_config_dir().map(|h| h.join("cache"))
+}
+
+/// `~/.harmont/cache/workspaces/` — COW workspace cache root.
+pub fn harmont_workspace_cache_dir() -> Option<PathBuf> {
+    harmont_cache_dir().map(|c| c.join("workspaces"))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -58,5 +68,17 @@ mod tests {
     fn harmont_plugin_state_dir_resolves() {
         let p = harmont_plugin_state_dir().unwrap();
         assert!(p.ends_with("harmont/state"));
+    }
+
+    #[test]
+    fn harmont_cache_dir_resolves() {
+        let p = harmont_cache_dir().unwrap();
+        assert!(p.to_string_lossy().contains("cache"));
+    }
+
+    #[test]
+    fn harmont_workspace_cache_dir_resolves() {
+        let p = harmont_workspace_cache_dir().unwrap();
+        assert!(p.to_string_lossy().contains("workspaces"));
     }
 }

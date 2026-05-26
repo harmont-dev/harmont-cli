@@ -125,16 +125,11 @@ pub fn cow_cache_dir(step: &CommandStep) -> Result<Option<PathBuf>> {
         Some(k) => k,
         None => return Ok(None),
     };
-    let base = hm_util::dirs::harmont_config_dir()
-        .ok_or_else(|| anyhow::anyhow!("cannot resolve ~/.harmont"))?;
+    let ws_cache = hm_util::dirs::harmont_workspace_cache_dir()
+        .ok_or_else(|| anyhow::anyhow!("cannot resolve ~/.harmont/cache/workspaces"))?;
     let safe = sanitize_for_tag(&step.key);
     let short = &key[..key.len().min(16)];
-    Ok(Some(
-        base.join("cache")
-            .join("workspaces")
-            .join(safe)
-            .join(short),
-    ))
+    Ok(Some(ws_cache.join(safe).join(short)))
 }
 
 /// Decide cache outcome for a step against the local COW workspace
