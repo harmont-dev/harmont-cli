@@ -14,11 +14,11 @@ use bollard::container::{
     StopContainerOptions,
 };
 use bollard::exec::{CreateExecOptions, StartExecResults};
-use bollard::models::HostConfig;
 use bollard::image::{
     CommitContainerOptions, CreateImageOptions, ImportImageOptions, ListImagesOptions,
     RemoveImageOptions,
 };
+use bollard::models::HostConfig;
 use futures_util::StreamExt;
 use tokio::io::AsyncWrite;
 
@@ -576,10 +576,7 @@ mod smoke {
 
     #[test]
     fn build_host_config_with_binds_and_no_caps() {
-        let hc = super::build_host_config(
-            &["/host/path:/container/path".to_string()],
-            &[],
-        );
+        let hc = super::build_host_config(&["/host/path:/container/path".to_string()], &[]);
         assert_eq!(
             hc.binds.as_ref().unwrap(),
             &["/host/path:/container/path".to_string()]

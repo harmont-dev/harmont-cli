@@ -145,11 +145,8 @@ fn try_platform_cow(src: &Path, dst: &Path) -> Result<bool> {
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
-    std::fs::create_dir_all(dst)
-        .with_context(|| format!("create {}", dst.display()))?;
-    for entry in std::fs::read_dir(src)
-        .with_context(|| format!("read dir {}", src.display()))?
-    {
+    std::fs::create_dir_all(dst).with_context(|| format!("create {}", dst.display()))?;
+    for entry in std::fs::read_dir(src).with_context(|| format!("read dir {}", src.display()))? {
         let entry = entry?;
         let ty = entry.file_type()?;
         let src_path = entry.path();
@@ -250,7 +247,10 @@ impl OverlayMount {
     /// Returns an error if `fusermount` cannot be spawned or exits
     /// with a non-zero status.
     pub fn unmount(&self) -> Result<()> {
-        if !self.mounted.swap(false, std::sync::atomic::Ordering::AcqRel) {
+        if !self
+            .mounted
+            .swap(false, std::sync::atomic::Ordering::AcqRel)
+        {
             return Ok(());
         }
         let bin = if which::which("fusermount3").is_ok() {

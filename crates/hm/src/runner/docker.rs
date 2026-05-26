@@ -280,19 +280,12 @@ async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResu
             .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
         mgr.workspace_path(&input.step.key)
             .map(|p| p.to_path_buf())
-            .ok_or_else(|| {
-                anyhow::anyhow!("workspace for step '{}' not created", input.step.key)
-            })?
+            .ok_or_else(|| anyhow::anyhow!("workspace for step '{}' not created", input.step.key))?
     };
 
     let image = resolve_image_cow(&input.step);
-    let container_name =
-        sanitize_container_name(&input.run_id.to_string(), &input.step.key);
-    let env_vec: Vec<String> = input
-        .env
-        .iter()
-        .map(|(k, v)| format!("{k}={v}"))
-        .collect();
+    let container_name = sanitize_container_name(&input.run_id.to_string(), &input.step.key);
+    let env_vec: Vec<String> = input.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
 
     // Pull image if needed.
     if !ctx.docker.image_exists(&image).await.unwrap_or(false) {
@@ -310,13 +303,7 @@ async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResu
     let binds = vec![format!("{}:{}", workspace_path.display(), input.workdir)];
     let cid = ctx
         .docker
-        .start_long_lived_with_mounts(
-            &image,
-            &env_vec,
-            &input.workdir,
-            &container_name,
-            &binds,
-        )
+        .start_long_lived_with_mounts(&image, &env_vec, &input.workdir, &container_name, &binds)
         .await
         .context("docker start with mounts failed")?;
 

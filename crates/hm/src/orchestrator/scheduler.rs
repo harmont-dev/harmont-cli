@@ -252,7 +252,9 @@ pub async fn run(
 
     // Clean up the COW workspace tree if one was created.
     if let Some(ref ws) = workspace {
-        let mut mgr = ws.lock().map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+        let mut mgr = ws
+            .lock()
+            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
         if let Err(e) = mgr.cleanup() {
             tracing::warn!(%e, "failed to clean up COW workspace");
         }
@@ -314,19 +316,19 @@ async fn execute_step(
 
     // Decide cache outcome host-side. In COW mode we check the
     // workspace cache directory; otherwise we consult Docker images.
-    let (decision, cow_cache_to, cow_stale_dirs, docker_stale_tags) =
-        if run_ctx.workspace.is_some() {
-            let cow_outcome = cache::decide_cow(&step_wire)?;
-            (
-                cow_outcome.decision,
-                cow_outcome.cache_to,
-                cow_outcome.stale_dirs,
-                vec![],
-            )
-        } else {
-            let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
-            (outcome.decision, None, vec![], outcome.stale_tags)
-        };
+    let (decision, cow_cache_to, cow_stale_dirs, docker_stale_tags) = if run_ctx.workspace.is_some()
+    {
+        let cow_outcome = cache::decide_cow(&step_wire)?;
+        (
+            cow_outcome.decision,
+            cow_outcome.cache_to,
+            cow_outcome.stale_dirs,
+            vec![],
+        )
+    } else {
+        let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
+        (outcome.decision, None, vec![], outcome.stale_tags)
+    };
 
     // Create a COW workspace for this step when running in COW mode.
     // On a COW cache hit we restore from the cached directory instead
@@ -432,12 +434,10 @@ async fn execute_step(
                 if run_ctx.workspace.is_some() {
                     if let Some(ref cache_to) = cow_cache_to {
                         let ws_path = {
-                            let mgr = run_ctx
-                                .workspace
-                                .as_ref()
-                                .unwrap()
-                                .lock()
-                                .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+                            let mgr =
+                                run_ctx.workspace.as_ref().unwrap().lock().map_err(|_| {
+                                    anyhow::anyhow!("workspace manager mutex poisoned")
+                                })?;
                             mgr.workspace_path(&step_key).map(|p| p.to_path_buf())
                         };
                         if let Some(ws) = ws_path {

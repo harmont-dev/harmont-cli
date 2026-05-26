@@ -119,9 +119,7 @@ impl WorkspaceManager {
         if let Some(p) = self.workspaces.get(step_key) {
             return Some(p.as_path());
         }
-        self.overlays
-            .get(step_key)
-            .map(|l| l.merged_dir.as_path())
+        self.overlays.get(step_key).map(|l| l.merged_dir.as_path())
     }
 
     /// The base directory that root workspaces are cloned from.
@@ -146,9 +144,8 @@ impl WorkspaceManager {
         // Drop overlay mounts before removing the filesystem tree.
         self.overlays.clear();
         if self.run_dir.exists() {
-            std::fs::remove_dir_all(&self.run_dir).with_context(|| {
-                format!("cleanup run dir {}", self.run_dir.display())
-            })?;
+            std::fs::remove_dir_all(&self.run_dir)
+                .with_context(|| format!("cleanup run dir {}", self.run_dir.display()))?;
         }
         Ok(())
     }
@@ -177,9 +174,8 @@ impl WorkspaceManager {
             self.base_dir.clone()
         };
 
-        hm_util::cow::cow_clone_dir(&source, &ws_dir).with_context(|| {
-            format!("cow clone {} -> {}", source.display(), ws_dir.display())
-        })?;
+        hm_util::cow::cow_clone_dir(&source, &ws_dir)
+            .with_context(|| format!("cow clone {} -> {}", source.display(), ws_dir.display()))?;
 
         self.workspaces.insert(step_key.to_string(), ws_dir.clone());
         Ok(ws_dir)
@@ -189,11 +185,7 @@ impl WorkspaceManager {
     // Overlay strategy
     // ------------------------------------------------------------------
 
-    fn create_overlay(
-        &mut self,
-        step_key: &str,
-        parent_key: Option<&str>,
-    ) -> Result<PathBuf> {
+    fn create_overlay(&mut self, step_key: &str, parent_key: Option<&str>) -> Result<PathBuf> {
         let safe = sanitize_key(step_key);
         let layer_dir = self.run_dir.join("layers").join(&safe);
         let upper_dir = layer_dir.join("upper");
@@ -205,9 +197,10 @@ impl WorkspaceManager {
         std::fs::create_dir_all(&merged_dir)?;
 
         let ancestor_uppers = if let Some(pk) = parent_key {
-            let parent = self.overlays.get(pk).ok_or_else(|| {
-                anyhow::anyhow!("parent overlay '{pk}' not registered")
-            })?;
+            let parent = self
+                .overlays
+                .get(pk)
+                .ok_or_else(|| anyhow::anyhow!("parent overlay '{pk}' not registered"))?;
             let mut ancestors = vec![parent.upper_dir.clone()];
             ancestors.extend(parent.ancestor_uppers.iter().cloned());
             ancestors
@@ -215,16 +208,10 @@ impl WorkspaceManager {
             vec![]
         };
 
-        let mut lower_dirs: Vec<&Path> =
-            ancestor_uppers.iter().map(PathBuf::as_path).collect();
+        let mut lower_dirs: Vec<&Path> = ancestor_uppers.iter().map(PathBuf::as_path).collect();
         lower_dirs.push(&self.base_dir);
 
-        let mount = OverlayMount::mount(
-            &lower_dirs,
-            &upper_dir,
-            &work_dir,
-            &merged_dir,
-        )?;
+        let mount = OverlayMount::mount(&lower_dirs, &upper_dir, &work_dir, &merged_dir)?;
 
         let merged_path = merged_dir.clone();
         self.overlays.insert(
@@ -288,8 +275,7 @@ mod tests {
     fn root_step_clones_base() {
         let tmp = tempfile::tempdir().unwrap();
         let base = make_base(tmp.path());
-        let mut mgr =
-            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        let mut mgr = WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
 
         let ws = mgr.create_workspace("build", None).unwrap();
         assert_eq!(
@@ -302,8 +288,7 @@ mod tests {
     fn child_step_inherits_parent_changes() {
         let tmp = tempfile::tempdir().unwrap();
         let base = make_base(tmp.path());
-        let mut mgr =
-            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        let mut mgr = WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
 
         let ws_a = mgr.create_workspace("a", None).unwrap();
         fs::write(ws_a.join("artifact.bin"), b"built").unwrap();
@@ -323,8 +308,7 @@ mod tests {
     fn fork_children_are_isolated() {
         let tmp = tempfile::tempdir().unwrap();
         let base = make_base(tmp.path());
-        let mut mgr =
-            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        let mut mgr = WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
 
         let ws_a = mgr.create_workspace("a", None).unwrap();
         fs::write(ws_a.join("from_a"), b"a").unwrap();
@@ -340,8 +324,7 @@ mod tests {
     fn workspace_path_returns_created() {
         let tmp = tempfile::tempdir().unwrap();
         let base = make_base(tmp.path());
-        let mut mgr =
-            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        let mut mgr = WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
 
         mgr.create_workspace("s", None).unwrap();
         assert!(mgr.workspace_path("s").is_some());
@@ -356,8 +339,7 @@ mod tests {
         fs::create_dir(&cached).unwrap();
         fs::write(cached.join("cached_file.txt"), b"from_cache").unwrap();
 
-        let mut mgr =
-            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        let mut mgr = WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
         let ws = mgr.create_workspace_from_cache("s", &cached).unwrap();
         assert_eq!(
             fs::read_to_string(ws.join("cached_file.txt")).unwrap(),
@@ -370,8 +352,7 @@ mod tests {
     fn duplicate_step_key_errors() {
         let tmp = tempfile::tempdir().unwrap();
         let base = make_base(tmp.path());
-        let mut mgr =
-            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        let mut mgr = WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
         mgr.create_workspace("dup", None).unwrap();
         assert!(mgr.create_workspace("dup", None).is_err());
     }
@@ -381,8 +362,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let base = make_base(tmp.path());
         let run_dir = tmp.path().join("run");
-        let mut mgr =
-            WorkspaceManager::from_base(run_dir.clone(), base).unwrap();
+        let mut mgr = WorkspaceManager::from_base(run_dir.clone(), base).unwrap();
         mgr.create_workspace("s", None).unwrap();
         assert!(run_dir.exists());
 
