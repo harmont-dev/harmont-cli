@@ -275,7 +275,9 @@ async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResu
         .ok_or_else(|| anyhow::anyhow!("COW mode requires workspace manager"))?;
 
     let workspace_path = {
-        let mgr = workspace_mgr.lock().unwrap_or_else(|e| e.into_inner());
+        let mgr = workspace_mgr
+            .lock()
+            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
         mgr.workspace_path(&input.step.key)
             .map(|p| p.to_path_buf())
             .ok_or_else(|| {
@@ -305,7 +307,7 @@ async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResu
     }
 
     // Start container with workspace bind mount.
-    let binds = vec![format!("{}:/workspace", workspace_path.display())];
+    let binds = vec![format!("{}:{}", workspace_path.display(), input.workdir)];
     let cid = ctx
         .docker
         .start_long_lived_with_mounts(
