@@ -40,14 +40,22 @@ fn active_style(color: bool) -> ProgressStyle {
 
 #[allow(clippy::literal_string_with_formatting_args)]
 fn completed_style(color: bool) -> ProgressStyle {
-    let check = if color { format!("{}", "✓".green()) } else { "✓".to_string() };
+    let check = if color {
+        format!("{}", "✓".green())
+    } else {
+        "✓".to_string()
+    };
     let tpl = format!("{{span_child_prefix}}{check} {{wide_msg}}");
     ProgressStyle::with_template(&tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
 #[allow(clippy::literal_string_with_formatting_args)]
 fn failed_style(color: bool) -> ProgressStyle {
-    let cross = if color { format!("{}", "✗".red()) } else { "✗".to_string() };
+    let cross = if color {
+        format!("{}", "✗".red())
+    } else {
+        "✗".to_string()
+    };
     let tpl = format!("{{span_child_prefix}}{cross} {{wide_msg}}");
     ProgressStyle::with_template(&tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
@@ -122,7 +130,11 @@ impl<W: Write> ProgressRenderer<W> {
         for (step_id, exit_code) in &self.failed_steps {
             let name = self.step_names.get(step_id).map_or("?", String::as_str);
             let header = format!("--- {name} failed (exit {exit_code}) ---");
-            let _ = writeln!(self.out, "\n{}", styled(&header, Style::new().red(), self.color));
+            let _ = writeln!(
+                self.out,
+                "\n{}",
+                styled(&header, Style::new().red(), self.color)
+            );
             if let Some(lines) = self.log_buffer.get(step_id) {
                 for line in lines {
                     let _ = writeln!(self.out, "{line}");
@@ -146,7 +158,11 @@ impl<W: Write> ProgressRenderer<W> {
             let (indicator, timing) = match self.step_outcomes.get(step_id) {
                 Some(StepOutcome::Succeeded { duration_ms }) => (
                     styled("✓", Style::new().green(), self.color),
-                    styled(&format_duration(*duration_ms), Style::new().dimmed(), self.color),
+                    styled(
+                        &format_duration(*duration_ms),
+                        Style::new().dimmed(),
+                        self.color,
+                    ),
                 ),
                 Some(StepOutcome::Failed {
                     duration_ms,
@@ -171,7 +187,10 @@ impl<W: Write> ProgressRenderer<W> {
                     styled("✓", Style::new().green(), self.color),
                     styled("cached", Style::new().dimmed(), self.color),
                 ),
-                None => (styled("-", Style::new().dimmed(), self.color), styled("—", Style::new().dimmed(), self.color)),
+                None => (
+                    styled("-", Style::new().dimmed(), self.color),
+                    styled("—", Style::new().dimmed(), self.color),
+                ),
             };
             let _ = writeln!(self.out, "  {indicator} {name:<max_name_len$}  {timing}");
         }
@@ -614,8 +633,14 @@ mod tests {
         });
 
         let s = output(&r);
-        assert!(s.contains("\x1b[32m") && s.contains("✓"), "expected green ✓: {s}");
-        assert!(s.contains("\x1b[31m") && s.contains("✗"), "expected red ✗: {s}");
+        assert!(
+            s.contains("\x1b[32m") && s.contains("✓"),
+            "expected green ✓: {s}"
+        );
+        assert!(
+            s.contains("\x1b[31m") && s.contains("✗"),
+            "expected red ✗: {s}"
+        );
         assert!(s.contains("Build failed"), "expected failure banner: {s}");
     }
 
@@ -652,7 +677,10 @@ mod tests {
         });
 
         let s = output(&r);
-        assert!(s.contains("\x1b[") && s.contains("Build succeeded"), "expected green bold success: {s}");
+        assert!(
+            s.contains("\x1b[") && s.contains("Build succeeded"),
+            "expected green bold success: {s}"
+        );
         assert!(s.contains("Build succeeded"), "expected success: {s}");
     }
 }

@@ -92,23 +92,21 @@ where
                 image,
             } => {
                 let prefix = fmt_key(self.step_key(step_id), self.color);
-                image.as_ref().map_or_else(
-                    || format!("{prefix} start (runner={runner})\n"),
-                    |img| format!("{prefix} start (runner={runner} image={img})\n"),
-                )
-                .into_bytes()
+                image
+                    .as_ref()
+                    .map_or_else(
+                        || format!("{prefix} start (runner={runner})\n"),
+                        |img| format!("{prefix} start (runner={runner} image={img})\n"),
+                    )
+                    .into_bytes()
             }
 
-            BuildEvent::StepLog {
-                step_id, line, ..
-            } => {
+            BuildEvent::StepLog { step_id, line, .. } => {
                 let prefix = fmt_key(self.step_key(step_id), self.color);
                 format!("{prefix} {line}\n").into_bytes()
             }
 
-            BuildEvent::StepCacheHit {
-                step_id, tag, ..
-            } => {
+            BuildEvent::StepCacheHit { step_id, tag, .. } => {
                 let prefix = fmt_key(self.step_key(step_id), self.color);
                 format!("{prefix} cache hit ({tag})\n").into_bytes()
             }
@@ -126,9 +124,7 @@ where
             BuildEvent::BuildEnd {
                 exit_code,
                 duration_ms,
-            } => {
-                format!("build: end exit={exit_code} duration={duration_ms}ms\n").into_bytes()
-            }
+            } => format!("build: end exit={exit_code} duration={duration_ms}ms\n").into_bytes(),
 
             BuildEvent::ChainFailed {
                 chain_idx,
