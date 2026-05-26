@@ -249,10 +249,12 @@ async fn run_in_container(
 
 /// Pick the base image for a COW step.
 ///
-/// In COW mode the workspace is bind-mounted, so there is no
-/// parent-snapshot chain. We use the step's declared image or fall
-/// back to `alpine:latest`.
-fn resolve_image_cow(step: &CommandStep) -> String {
+/// In COW mode the workspace is bind-mounted, but we still need
+/// parent snapshots for system-level state (installed packages).
+fn resolve_image_cow(step: &CommandStep, input: &ExecutorInput) -> String {
+    if let Some(snap) = &input.parent_snapshot {
+        return snap.to_string();
+    }
     step.image
         .clone()
         .unwrap_or_else(|| "alpine:latest".to_string())
@@ -283,7 +285,7 @@ async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResu
             .ok_or_else(|| anyhow::anyhow!("workspace for step '{}' not created", input.step.key))?
     };
 
-    let image = resolve_image_cow(&input.step);
+    let image = resolve_image_cow(&input.step, &input);
     let container_name = sanitize_container_name(&input.run_id.to_string(), &input.step.key);
     let env_vec: Vec<String> = input.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
 
@@ -307,7 +309,7 @@ async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResu
         .await
         .context("docker start with mounts failed")?;
 
-    let result = run_cow_in_container(ctx, &cid, &input, &env_vec).await;
+    let result = run_cow_in_container(ctx, &cid, &input, &env_vec, &plan).await;
     ctx.docker.stop_remove(&cid).await;
     result
 }
@@ -317,6 +319,7 @@ async fn run_cow_in_container(
     cid: &str,
     input: &ExecutorInput,
     env_vec: &[String],
+    plan: &DecisionPlan,
 ) -> Result<StepResult> {
     let mut writer = StepLogWriter::new(input.step_id, Arc::clone(&ctx.event_bus));
     let docker = ctx.docker.clone();
@@ -344,12 +347,52 @@ async fn run_cow_in_container(
         }
     };
 
-    #[allow(clippy::cast_possible_truncation)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "docker exit codes fit in i32"
+    )]
     let exit_code = rc as i32;
+
+    // Commit container so child steps inherit system-level changes
+    // (installed packages, etc.). Workspace files propagate via COW
+    // bind mounts, but the container image captures everything else.
+    let committed = if exit_code == 0 {
+        let target_tag = plan.commit_to.clone().unwrap_or_else(|| {
+            let safe: String = input
+                .step
+                .key
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                        c
+                    } else {
+                        '-'
+                    }
+                })
+                .collect();
+            SnapshotRef::from(format!(
+                "harmont-local-ephemeral/{safe}:run-{}",
+                input.step_id.simple()
+            ))
+        });
+        match ctx
+            .docker
+            .commit_container(cid, &target_tag.to_string())
+            .await
+        {
+            Ok(_) => Some(target_tag),
+            Err(e) => {
+                tracing::warn!(step_key = %input.step.key, "docker commit failed, step still succeeded: {e:#}");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     Ok(StepResult {
         exit_code,
-        committed_snapshot: None,
+        committed_snapshot: committed,
         artifacts: vec![],
     })
 }
@@ -530,18 +573,44 @@ mod tests {
         }
     }
 
+    fn make_input(step: CommandStep, parent_snapshot: Option<SnapshotRef>) -> ExecutorInput {
+        ExecutorInput {
+            step,
+            workspace_archive_id: hm_plugin_protocol::ArchiveId::from(uuid::Uuid::nil()),
+            env: std::collections::BTreeMap::new(),
+            workdir: "/workspace".into(),
+            run_id: uuid::Uuid::nil(),
+            step_id: uuid::Uuid::nil(),
+            cache_lookup: CacheDecision::MissNoCommit,
+            parent_snapshot,
+        }
+    }
+
     // -- resolve_image_cow ----------------------------------------------------
 
     #[test]
     fn resolve_image_cow_uses_step_image() {
         let s = step_with_image(Some("rust:1.82"));
-        assert_eq!(resolve_image_cow(&s), "rust:1.82");
+        let input = make_input(s.clone(), None);
+        assert_eq!(resolve_image_cow(&s, &input), "rust:1.82");
     }
 
     #[test]
     fn resolve_image_cow_fallback_alpine() {
         let s = step_with_image(None);
-        assert_eq!(resolve_image_cow(&s), "alpine:latest");
+        let input = make_input(s.clone(), None);
+        assert_eq!(resolve_image_cow(&s, &input), "alpine:latest");
+    }
+
+    #[test]
+    fn resolve_image_cow_prefers_parent_snapshot() {
+        let s = step_with_image(Some("rust:1.82"));
+        let snap = SnapshotRef::from("harmont-local-ephemeral/base:abc123".to_string());
+        let input = make_input(s.clone(), Some(snap));
+        assert_eq!(
+            resolve_image_cow(&s, &input),
+            "harmont-local-ephemeral/base:abc123"
+        );
     }
 
     // -- resolve_image -------------------------------------------------------
