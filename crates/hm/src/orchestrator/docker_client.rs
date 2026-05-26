@@ -156,29 +156,8 @@ impl DockerClient {
         workdir: &str,
         name: &str,
     ) -> Result<String> {
-        let cfg = Config {
-            image: Some(image.to_string()),
-            cmd: Some(vec!["sh".into(), "-c".into(), "sleep infinity".into()]),
-            env: Some(env.to_vec()),
-            working_dir: Some(workdir.to_string()),
-            ..Default::default()
-        };
-        let create = self
-            .inner
-            .create_container(
-                Some(CreateContainerOptions {
-                    name,
-                    ..Default::default()
-                }),
-                cfg,
-            )
+        self.start_long_lived_with_mounts(image, env, workdir, name, &[])
             .await
-            .map_err(|e| HmError::Docker(format!("create_container: {e}")))?;
-        self.inner
-            .start_container(&create.id, None::<StartContainerOptions<String>>)
-            .await
-            .map_err(|e| HmError::Docker(format!("start_container: {e}")))?;
-        Ok(create.id)
     }
 
     /// Like [`Self::start_long_lived`] but with bind mounts via `HostConfig`.

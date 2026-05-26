@@ -87,6 +87,9 @@ impl WorkspaceManager {
         step_key: &str,
         parent_key: Option<&str>,
     ) -> Result<PathBuf> {
+        if self.workspaces.contains_key(step_key) || self.overlays.contains_key(step_key) {
+            anyhow::bail!("workspace for step '{step_key}' already exists");
+        }
         match self.strategy {
             CowStrategy::FuseOverlay => self.create_overlay(step_key, parent_key),
             _ => self.create_clone(step_key, parent_key, None),
@@ -340,6 +343,34 @@ mod tests {
         mgr.create_workspace("s", None).unwrap();
         assert!(mgr.workspace_path("s").is_some());
         assert!(mgr.workspace_path("nonexistent").is_none());
+    }
+
+    #[test]
+    fn create_workspace_from_cache_clones_cached_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = make_base(tmp.path());
+        let cached = tmp.path().join("cached");
+        fs::create_dir(&cached).unwrap();
+        fs::write(cached.join("cached_file.txt"), b"from_cache").unwrap();
+
+        let mut mgr =
+            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        let ws = mgr.create_workspace_from_cache("s", &cached).unwrap();
+        assert_eq!(
+            fs::read_to_string(ws.join("cached_file.txt")).unwrap(),
+            "from_cache"
+        );
+        assert!(!ws.join("main.rs").exists());
+    }
+
+    #[test]
+    fn duplicate_step_key_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = make_base(tmp.path());
+        let mut mgr =
+            WorkspaceManager::from_base(tmp.path().join("run"), base).unwrap();
+        mgr.create_workspace("dup", None).unwrap();
+        assert!(mgr.create_workspace("dup", None).is_err());
     }
 
     #[test]
