@@ -88,16 +88,13 @@ jobs:
           - perl
           - python-uv
           - react
+          - ruby
           - rust
           - typescript
           - zig-js
           - zig
     steps:
       - uses: actions/checkout@v4
-      - name: Install harmont-py into system Python
-        run: |
-          sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
-          /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
 
       - uses: actions/setup-node@v4
         with:
