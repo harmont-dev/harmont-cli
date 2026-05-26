@@ -72,6 +72,7 @@ pub async fn run(
     parallelism: usize,
     runner_registry: Arc<RunnerRegistry>,
     renderer: Box<dyn OutputRenderer>,
+    cow: bool,
 ) -> Result<i32> {
     // Set up per-run state.
     let bus = EventBus::new();
@@ -89,6 +90,20 @@ pub async fn run(
 
     // Build the source archive once.
     let archive_bytes = build_archive_bytes(&repo_root).context("build source archive")?;
+
+    // When COW mode is enabled, extract the source archive into a
+    // temporary directory and create a workspace manager that will
+    // produce per-step COW clones. This must happen before
+    // `archives.register()` which consumes the bytes.
+    let workspace = if cow {
+        let run_dir = std::env::temp_dir().join(format!("harmont-run-{run_id}"));
+        let mgr = super::workspace::WorkspaceManager::from_archive(run_dir, &archive_bytes)
+            .context("init COW workspace")?;
+        Some(Arc::new(std::sync::Mutex::new(mgr)))
+    } else {
+        None
+    };
+
     let archive_id = archives.register(archive_bytes);
 
     let run_ctx = RunContext {
@@ -96,7 +111,7 @@ pub async fn run(
         event_bus: bus.clone(),
         archives: archives.clone(),
         cancel: cancel.clone(),
-        workspace: None,
+        workspace: workspace.clone(),
     };
 
     let parallelism = parallelism.max(1);
@@ -233,6 +248,14 @@ pub async fn run(
         }
     }
 
+    // Clean up the COW workspace tree if one was created.
+    if let Some(ref ws) = workspace {
+        let mut mgr = ws.lock().map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+        if let Err(e) = mgr.cleanup() {
+            tracing::warn!(%e, "failed to clean up COW workspace");
+        }
+    }
+
     bus.emit(BuildEvent::BuildEnd {
         exit_code: overall,
         duration_ms: dur,
@@ -283,7 +306,7 @@ async fn execute_step(
         step_id,
         key: step_key.clone(),
         chain_idx: chain_pos,
-        parent_key,
+        parent_key: parent_key.clone(),
         display_name: display_name.clone(),
     });
 
@@ -308,6 +331,15 @@ async fn execute_step(
             exit_code: 0,
             snapshot: Some(tag.clone()),
         });
+    }
+
+    // Create a COW workspace for this step when running in COW mode.
+    if let Some(ref workspace) = run_ctx.workspace {
+        let mut mgr = workspace
+            .lock()
+            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+        mgr.create_workspace(&step_key, parent_key.as_deref())
+            .context("create workspace for step")?;
     }
 
     let input = ExecutorInput {

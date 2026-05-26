@@ -42,4 +42,8 @@ pub struct RunArgs {
     /// Has no effect with `--format json`.
     #[arg(long)]
     pub logs: bool,
+
+    /// Use COW workspace bind mounts instead of Docker image commits.
+    #[arg(long)]
+    pub cow: bool,
 }
