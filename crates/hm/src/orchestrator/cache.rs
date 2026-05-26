@@ -116,14 +116,16 @@ pub struct CowCacheOutcome {
 ///
 /// Returns `None` when the step has no cache, a `"none"` policy, or no
 /// cache key — matching the same guard logic as [`cache_image_tag`].
+///
+/// # Errors
+/// Returns an error if the config directory cannot be resolved.
 pub fn cow_cache_dir(step: &CommandStep) -> Result<Option<PathBuf>> {
     let cache = match step.cache.as_ref() {
         Some(c) if c.policy != "none" => c,
         _ => return Ok(None),
     };
-    let key = match cache.key.as_deref() {
-        Some(k) => k,
-        None => return Ok(None),
+    let Some(key) = cache.key.as_deref() else {
+        return Ok(None);
     };
     let ws_cache = hm_util::dirs::harmont_workspace_cache_dir()
         .ok_or_else(|| anyhow::anyhow!("cannot resolve ~/.harmont/cache/workspaces"))?;
@@ -155,10 +157,18 @@ pub fn decide_cow(step: &CommandStep) -> Result<CowCacheOutcome> {
             stale_dirs: vec![],
         })
     } else {
-        let step_cache_root = cache_dir.parent().expect("cache_dir always has parent");
+        let Some(step_cache_root) = cache_dir.parent() else {
+            return Ok(CowCacheOutcome {
+                decision: CacheDecision::MissBuildAs {
+                    tag: SnapshotRef::from(format!("cow:{}", cache_dir.display())),
+                },
+                cache_to: Some(cache_dir),
+                stale_dirs: vec![],
+            });
+        };
         let stale = if step_cache_root.exists() {
             std::fs::read_dir(step_cache_root)?
-                .filter_map(|e| e.ok())
+                .filter_map(std::result::Result::ok)
                 .map(|e| e.path())
                 .filter(|p| *p != cache_dir)
                 .collect()

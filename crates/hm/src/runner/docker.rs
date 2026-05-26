@@ -279,7 +279,7 @@ async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResu
             .lock()
             .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
         mgr.workspace_path(&input.step.key)
-            .map(|p| p.to_path_buf())
+            .map(std::path::Path::to_path_buf)
             .ok_or_else(|| anyhow::anyhow!("workspace for step '{}' not created", input.step.key))?
     };
 

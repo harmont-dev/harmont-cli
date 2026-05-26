@@ -26,6 +26,7 @@ pub fn detect_strategy() -> CowStrategy {
     *STRATEGY.get_or_init(detect_strategy_inner)
 }
 
+#[allow(clippy::missing_const_for_fn)]
 fn detect_strategy_inner() -> CowStrategy {
     #[cfg(target_os = "macos")]
     {
@@ -49,9 +50,8 @@ fn detect_strategy_inner() -> CowStrategy {
 
 #[cfg(target_os = "linux")]
 fn probe_reflink() -> bool {
-    let tmp = match tempfile::tempdir() {
-        Ok(t) => t,
-        Err(_) => return false,
+    let Ok(tmp) = tempfile::tempdir() else {
+        return false;
     };
     let src = tmp.path().join("src");
     let dst = tmp.path().join("dst");
@@ -276,7 +276,7 @@ impl std::fmt::Debug for OverlayMount {
         f.debug_struct("OverlayMount")
             .field("merged", &self.merged)
             .field("upper", &self.upper)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
