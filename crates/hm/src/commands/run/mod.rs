@@ -4,10 +4,8 @@ use crate::cli::RunArgs;
 use crate::context::RunContext;
 
 mod local;
-mod render;
 
 pub use local::handle as handle_local;
-pub use local::run_pipeline_v0_one_shot;
 
 /// Top-level dispatcher for `hm run`. After the plan-4 cloud-plugin
 /// cutover, `hm run` always runs locally via Docker.

@@ -12,6 +12,17 @@ export function nodeInstallCmd(version: string): string {
   return `curl -fsSL https://deb.nodesource.com/setup_${major}.x | bash - && apt-get install -y nodejs`;
 }
 
+export function aptBase(opts: {
+  packages: readonly string[];
+  image?: string;
+  label?: string;
+}): Step {
+  return scratch({ image: opts.image }).sh(aptInstallCmd(opts.packages), {
+    label: opts.label ?? ":apt: base",
+    cache: ttl(APT_TTL_SECONDS),
+  });
+}
+
 export function makeInstallChain(opts: {
   aptPackages: readonly string[];
   installCmd: string;

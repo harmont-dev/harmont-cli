@@ -94,24 +94,3 @@ def BaseImage(image: str) -> _BaseImageMarker:  # noqa: N802 — factory mimicki
         )
         raise TypeError(msg)
     return _BaseImageMarker(image)
-
-
-class _DepMarker:
-    """Sentinel class for Annotated metadata. Marks a parameter as a
-    dependency on another @hm.deploy by parameter name; the injected
-    value is the resolved Deployment. The module-level instance
-    ``_DEP_MARKER`` is the actual sentinel value embedded in
-    ``Annotated[T, _DEP_MARKER]`` by the ``Dep`` alias.
-    """
-
-    __slots__ = ()
-
-    def __repr__(self) -> str:
-        return "<hm.Dep marker>"
-
-
-_DEP_MARKER = _DepMarker()
-
-
-# hm.Dep[Deployment] (or a concrete subclass) -> Annotated[T, _DEP_MARKER].
-Dep = Annotated[T, _DEP_MARKER]

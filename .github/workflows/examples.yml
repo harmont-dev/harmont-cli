@@ -38,29 +38,25 @@ jobs:
           fi
 
   # Build `hm` once and share the binary across every matrix leg.
-  # Each leg only needs Python + Docker + the binary; making them
-  # re-compile the whole workspace 17× was the long tent-pole.
+  # Each leg only needs Docker + the binary; making them re-compile
+  # the whole workspace 17× was the long tent-pole.
   build-hm:
     needs: validate-matrix
     runs-on: ubuntu-latest
-    # Debug build only — examples just need a working `hm` binary;
-    # release-mode LTO/codegen on wasmtime+cranelift can't finish in
-    # GH's 6h cap on a 2-vCPU runner. Debug builds in ~10 minutes
-    # cold, ~1 minute warm.
+    # Debug build only — examples just need a working `hm` binary.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          # crates/hm/build.rs cross-compiles hm-plugin-docker as a wasm
-          # plugin embedded into the binary, so the target must be on
-          # the toolchain.
-          targets: wasm32-wasip1
 
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: examples-hm
+
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
 
       - name: Build hm
         run: cargo build -p harmont-cli
@@ -85,13 +81,11 @@ jobs:
           - cpp
           - csharp
           - go
-          - haskell
           - java
           - kotlin
           - nextjs
           - ocaml
           - perl
-          - php-laravel
           - python-uv
           - react
           - rust
@@ -100,21 +94,14 @@ jobs:
           - zig
     steps:
       - uses: actions/checkout@v4
-
-      # `hm run` shells out to `/usr/bin/python3` with PATH restricted
-      # to /usr/bin:/usr/local/bin:/bin (see render.rs), so harmont-py
-      # has to land in the *system* Python's site-packages — not the
-      # actions/setup-python hostedtoolcache. PEP 668's
-      # externally-managed marker requires --break-system-packages.
       - name: Install harmont-py into system Python
         run: |
           sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
           /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
 
-      - name: Install harmont-py into system Python
-        run: |
-          sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
-          /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "23"
 
       - name: Download hm binary
         uses: actions/download-artifact@v4

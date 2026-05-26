@@ -39,10 +39,19 @@ def test_haskell_package_unwraps_to_build(tmp_path, monkeypatch):
 
 
 def test_rust_toolchain_unwraps_to_build():
-    tc = hm.rust(path="cli", version="stable")
+    tc = hm.rust.toolchain(path="cli", version="stable")
     leaves = as_leaves(tc)
     assert len(leaves) == 1
     assert "cargo build" in leaves[0].cmd
+
+
+def test_rust_project_unwraps_to_test_clippy_fmt():
+    proj = hm.rust.project(path="cli")
+    leaves = as_leaves(proj)
+    assert len(leaves) == 3
+    assert "cargo test" in leaves[0].cmd
+    assert "cargo clippy" in leaves[1].cmd
+    assert "cargo fmt" in leaves[2].cmd
 
 
 def test_npm_project_unwraps_to_install():
@@ -76,5 +85,5 @@ def test_unknown_type_raises_typeerror():
 
 
 def test_unknown_type_message_lists_supported_types():
-    with pytest.raises(TypeError, match=r"Step.*HaskellPackage.*ElmProject"):
+    with pytest.raises(TypeError, match=r"Step.*RustProject.*RustToolchain.*HaskellPackage"):
         as_leaves("oops")  # type: ignore[arg-type]

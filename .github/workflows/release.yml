@@ -18,12 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          # crates/hm/build.rs cross-compiles hm-plugin-docker as a wasm
-          # plugin embedded into the binary, so the target must be on
-          # the toolchain for the `cargo check` in the next step.
-          targets: wasm32-wasip1
       - uses: Swatinem/rust-cache@v2
+
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
 
       - name: Set version from tag
         run: |
@@ -60,25 +59,6 @@ jobs:
 
       - name: Wait for crates.io index
         run: sleep 30
-
-      - name: Build embedded WASM plugins
-        # The harmont-cli build.rs prefers crates/hm/embedded/*.wasm
-        # over the in-workspace cross-compile. Stage them here so the
-        # `cargo publish -p harmont-cli` verify-build (which runs in
-        # target/package/harmont-cli-<ver>/ without the sibling plugin
-        # crates) and any downstream `cargo install harmont-cli` both
-        # find the wasms already cooked. The include = [...] in
-        # crates/hm/Cargo.toml carries them into the tarball.
-        run: |
-          set -euo pipefail
-          for crate in hm-plugin-docker hm-plugin-output-human hm-plugin-output-json hm-plugin-cloud; do
-            cargo build --target wasm32-wasip1 -p "$crate" --release
-          done
-          mkdir -p crates/hm/embedded
-          for name in hm_plugin_docker hm_plugin_output_human hm_plugin_output_json hm_plugin_cloud; do
-            cp "target/wasm32-wasip1/release/$name.wasm" "crates/hm/embedded/$name.wasm"
-          done
-          ls -la crates/hm/embedded/
 
       - name: Publish harmont-cli
         run: |

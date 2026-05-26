@@ -77,3 +77,18 @@ def make_install_chain(
         label=f":{lang_tag}: {install_tag}",
         cache=install_cache,
     )
+
+
+def apt_base(
+    *,
+    packages: tuple[str, ...],
+    image: str | None = None,
+    label: str = ":apt: base",
+) -> Step:
+    """Create a standalone apt-base step sharable across toolchains via ``base=``."""
+    return scratch().sh(
+        apt_install_cmd(packages),
+        label=label,
+        image=image,
+        cache=CacheTTL(duration=APT_TTL),
+    )

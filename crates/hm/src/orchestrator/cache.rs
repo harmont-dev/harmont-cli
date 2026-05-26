@@ -46,6 +46,17 @@ fn sanitize_for_tag(s: &str) -> String {
         .collect()
 }
 
+/// The outcome of a cache lookup: the wire-typed decision plus any
+/// stale images that should be garbage-collected after the new image
+/// is committed.
+#[derive(Debug)]
+pub struct CacheOutcome {
+    pub decision: CacheDecision,
+    /// Stale cache images for this step that should be removed after
+    /// the new image is committed successfully.
+    pub stale_tags: Vec<String>,
+}
+
 /// Decide cache outcome for a step against the local Docker daemon.
 ///
 /// Returns hit (snapshot already present), miss-with-tag (run and commit
@@ -54,17 +65,35 @@ fn sanitize_for_tag(s: &str) -> String {
 ///
 /// # Errors
 /// Returns an error if the Docker daemon `image_exists` call fails.
-pub async fn decide(docker: &DockerClient, step: &CommandStep) -> Result<CacheDecision> {
+pub async fn decide(docker: &DockerClient, step: &CommandStep) -> Result<CacheOutcome> {
     let Some(tag) = cache_image_tag(step) else {
-        return Ok(CacheDecision::MissNoCommit);
+        return Ok(CacheOutcome {
+            decision: CacheDecision::MissNoCommit,
+            stale_tags: vec![],
+        });
     };
     if docker.image_exists(&tag).await? {
-        Ok(CacheDecision::Hit {
-            tag: SnapshotRef::from(tag),
+        Ok(CacheOutcome {
+            decision: CacheDecision::Hit {
+                tag: SnapshotRef::from(tag),
+            },
+            stale_tags: vec![],
         })
     } else {
-        Ok(CacheDecision::MissBuildAs {
-            tag: SnapshotRef::from(tag),
+        let safe = sanitize_for_tag(&step.key);
+        let prefix = format!("harmont-local/{safe}");
+        let stale = docker
+            .list_images_by_reference(&prefix)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|t| *t != tag)
+            .collect();
+        Ok(CacheOutcome {
+            decision: CacheDecision::MissBuildAs {
+                tag: SnapshotRef::from(tag),
+            },
+            stale_tags: stale,
         })
     }
 }
@@ -111,5 +140,12 @@ mod tests {
         }));
         let tag = cache_image_tag(&s).unwrap();
         assert!(tag.starts_with("harmont-local/build:"));
+    }
+
+    #[test]
+    fn sanitize_replaces_invalid_chars() {
+        assert_eq!(sanitize_for_tag("my/step.name:v1"), "my-step-name-v1");
+        assert_eq!(sanitize_for_tag("simple"), "simple");
+        assert_eq!(sanitize_for_tag("a_b-c"), "a_b-c");
     }
 }

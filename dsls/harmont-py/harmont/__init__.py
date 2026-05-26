@@ -29,12 +29,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from . import _decorator, dev, py
-from ._deploy import Deployment, deploy
+from . import _decorator, py
 from ._envelope import dump_registry_json
 from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
-from ._typing import BaseImage, Dep, Target
+from ._toolchain import apt_base
+from ._typing import BaseImage, Target
 from .cache import (
     CacheCompose,
     CacheForever,
@@ -57,8 +57,9 @@ from .pipeline import pipeline as _pipeline_factory
 from .pipeline import pipeline_to_json
 from .python import python
 from .ruby import ruby
-from .rust import rust
+from .rust import RustProject, rust
 from .triggers import pull_request, push, schedule
+from .triggers import pull_request as pr
 from .types import Pipeline
 from .zig import zig
 
@@ -127,6 +128,11 @@ def sh(
     )
 
 
+def group(steps: list[Step] | tuple[Step, ...]) -> tuple[Step, ...]:
+    """Combine steps into a group for use as a target return value."""
+    return tuple(steps)
+
+
 __all__ = [
     "BaseImage",
     "CacheCompose",
@@ -136,8 +142,10 @@ __all__ = [
     "CachePolicy",
     "CacheTTL",
     "Pipeline",
+    "RustProject",
     "Step",
     "Target",
+    "apt_base",
     "cmake",
     "compose",
     "composer",
@@ -147,6 +155,7 @@ __all__ = [
     "forever",
     "go",
     "gradle",
+    "group",
     "haskell",
     "npm",
     "ocaml",
@@ -154,6 +163,7 @@ __all__ = [
     "perl",
     "pipeline",
     "pipeline_to_json",
+    "pr",
     "pull_request",
     "push",
     "py",

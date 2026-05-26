@@ -69,7 +69,7 @@ def _build_monorepo_ci() -> dict:
 
 
 def _build_rust_release() -> dict:
-    project = rust(path=".")
+    project = rust.toolchain(path=".")
 
     return hm.pipeline(
         project.build(),

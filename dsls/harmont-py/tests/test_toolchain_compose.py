@@ -44,7 +44,7 @@ def test_stack_elm_on_npm():
 
 def test_escape_hatch_consistent_across_toolchains():
     """Every toolchain exposes .installed as a public Step."""
-    rust = hm.rust(path=".")
+    rust = hm.rust.toolchain(path=".")
     ghc = hm.haskell(ghc="9.6.7")
     api = ghc.package("api")
     node = hm.npm(path=".")
@@ -60,7 +60,7 @@ def test_deterministic_emission():
     """Two identical pipeline constructions emit equal IR dicts."""
 
     def build() -> dict:
-        rust = hm.rust(path="cli")
+        rust = hm.rust.toolchain(path="cli")
         return hm.pipeline(rust.build(), rust.test(), default_image="ubuntu:24.04")
 
     assert build() == build()
@@ -69,7 +69,7 @@ def test_deterministic_emission():
 def test_mixed_pipeline_compiles():
     """A pipeline mixing all four toolchains lowers without error."""
     ghc = hm.haskell(ghc="9.6.7")
-    rust = hm.rust(path="cli")
+    rust = hm.rust.toolchain(path="cli")
     node = hm.npm(path="app/codegen")
     elm = hm.elm(path="app", base=node.installed)
     p = hm.pipeline(
@@ -82,3 +82,55 @@ def test_mixed_pipeline_compiles():
     )
     assert p["version"] == "0"
     assert len(p["graph"]["nodes"]) > 0
+
+
+def _step_by_substring(p: dict, needle: str) -> dict:
+    for n in p["graph"]["nodes"]:
+        if needle in (n["step"].get("cmd") or ""):
+            return n["step"]
+    msg = f"no command step containing {needle!r}"
+    raise AssertionError(msg)
+
+
+def test_apt_base_shared_across_toolchains():
+    """Single apt-base feeds both rust and python toolchains."""
+    base = hm.apt_base(
+        packages=(
+            "curl",
+            "ca-certificates",
+            "build-essential",
+            "pkg-config",
+            "libssl-dev",
+            "python3",
+            "python3-venv",
+        ),
+    )
+    rust = hm.rust.toolchain(path=".", base=base)
+    py = hm.py.uv(path="dsls/harmont-py", base=base)
+    p = hm.pipeline(
+        rust.build(),
+        py.test(),
+        default_image="ubuntu:24.04",
+    )
+    cmds = _cmds(p)
+    assert len([c for c in cmds if "apt-get install" in c]) == 1
+    assert any("sh.rustup.rs" in c for c in cmds)
+    assert any("uv" in c for c in cmds)
+
+
+def test_apt_base_default_label():
+    base = hm.apt_base(packages=("curl",))
+    assert base.label == ":apt: base"
+
+
+def test_apt_base_custom_image():
+    base = hm.apt_base(packages=("curl",), image="debian:bookworm")
+    rust = hm.rust.toolchain(path=".", base=base)
+    p = hm.pipeline(rust.build(), default_image="ubuntu:24.04")
+    apt_step = _step_by_substring(p, "apt-get install")
+    assert apt_step.get("image") == "debian:bookworm"
+
+
+def test_apt_base_custom_label():
+    base = hm.apt_base(packages=("curl",), label=":lock: deps")
+    assert base.label == ":lock: deps"

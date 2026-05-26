@@ -1,258 +1,230 @@
-# harmont-cli
+<p align="center">
+  <img src=".github/res/github-banner.png" alt="harmont — CI/CD that sucks less." width="100%">
+</p>
 
-[![license](https://img.shields.io/crates/l/harmont-cli.svg)](#license)
+<p align="center">
+  <a href="https://github.com/harmont-dev/harmont-cli/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/harmont-dev/harmont-cli/ci.yml?branch=main&logo=github" alt="CI"></a>
+  <a href="https://crates.io/crates/harmont-cli"><img src="https://img.shields.io/crates/v/harmont-cli?logo=rust" alt="crates.io"></a>
+  <a href="https://discord.gg/hm-dev"><img src="https://img.shields.io/discord/1503184719578136576?logo=discord&label=discord" alt="Discord"></a>
+  <a href="https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A"><img src="https://img.shields.io/badge/slack-join-brightgreen?logo=slack" alt="Slack"></a>
+  <a href="#license"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue" alt="License"></a>
+</p>
 
-Run CI pipelines on your own machine, in Docker, from a Python pipeline definition checked into your repo.
+<p align="center">
+  <a href="https://harmont.dev">Website</a> · <a href="https://harmont.dev/docs">Docs</a> · <a href="https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A">Slack</a>
+</p>
 
-Define the pipeline with the [`harmont-py`](https://github.com/harmont-dev/harmont-py) DSL, then `hm run` builds a fresh container per chain, runs the steps, and reuses snapshots across runs. The same definition runs unchanged on the hosted [Harmont](https://harmont.dev) cloud via `hm cloud run`.
+> [!WARNING]
+> Harmont is in **early alpha**. Today it's a powerful local task runner —
+> think `make` or `just`, but with DAG-based parallel execution, Docker
+> isolation, layer caching, and typed toolchain presets for many languages.
+> The cloud CI/CD platform at [harmont.dev](https://harmont.dev) is under
+> active development. APIs will change. We'd love your feedback — [join the
+> community](#community).
 
-## Quick start
+## What is Harmont?
 
-### 1. Write a pipeline
+Harmont lets you define CI/CD pipelines in TypeScript or Python and run them
+instantly on your machine in Docker containers. No YAML. No waiting for CI. No
+`commit -m "run ci" --allow-empty` spam. Each pipeline step runs in an isolated
+container with built-in caching, parallel execution, and consistent environments.
 
-Pipelines live in `.harmont/<slug>.py`. Save this as `.harmont/hello.py`:
+**Features:**
+
+- **Pipelines as real code** — Python or TypeScript, not YAML
+- **Instant local runs** — `hm run` executes in Docker on your machine
+- **DAG-based parallelism** — independent chains run concurrently, automatically
+- **Layer caching** — Docker snapshots are reused across runs; only changed steps re-execute
+- **Typed toolchains** — first-class presets for Rust, Go, Python, Java, C++, React, and more
+
+<!-- TODO(marko): add asciinema -->
+
+## Quick Start
+
+### 0. Install `hm`
+
+```sh
+curl -fsSL https://get.harmont.dev/install.sh | sh
+```
+
+Or via Cargo:
+
+```sh
+cargo install harmont-cli
+```
+
+### 1. Create a pipeline
+
+Save this as `.harmont/pipeline.py` (or `.harmont/pipeline.ts`):
+
+<details open>
+<summary><b>Python</b></summary>
 
 ```python
 import harmont as hm
 
-
-@hm.pipeline("hello")
-def hello() -> hm.Step:
+@hm.pipeline("ci")
+def ci() -> hm.Step:
     return (
         hm.sh("echo 'hello from harmont'", label="hello")
           .sh("uname -a", label="env")
     )
 ```
 
-### 2. Install
-
-Install the CLI from [crates.io](https://crates.io/crates/harmont-cli):
-
-```sh
-cargo install harmont-cli
-```
-
-`hm run` also needs **Docker** and **Python 3.11+** with [`harmont`](https://pypi.org/project/harmont/):
-
-```sh
-pip install harmont
-```
+</details>
 
 <details>
-<summary>Or build from source (contributors)</summary>
+<summary><b>TypeScript</b></summary>
 
-```sh
-git clone https://github.com/harmont-dev/harmont-cli
-cd harmont-cli
-cargo build --release
-install -m 0755 target/release/hm /usr/local/bin/hm   # or any dir on $PATH
+```typescript
+import { sh, pipeline, type PipelineDefinition } from "harmont";
 
-git clone https://github.com/harmont-dev/harmont-py
-pip install -e ./harmont-py
+const pipelines: PipelineDefinition[] = [
+  {
+    slug: "ci",
+    pipeline: pipeline(
+      sh("echo 'hello from harmont'", { label: "hello" })
+        .sh("uname -a", { label: "env" }),
+    ),
+  },
+];
+
+export default pipelines;
 ```
 
 </details>
 
-Verify:
+### 2. Run it
 
 ```sh
-hm --version
-```
-
-### 3. Run
-
-From the repo root:
-
-```sh
-hm run hello
-```
-
-The CLI walks `.harmont/*.py`, resolves the `hello` slug, renders the pipeline to JSON, and schedules chains across Docker containers. Forks run in parallel up to `--parallelism N` (default: host CPU count).
-
-If the repo declares only one pipeline, the slug is optional:
-
-```sh
-hm run
-```
-
-## DSL surface
-
-The DSL is small. See [`harmont-py`](https://github.com/harmont-dev/harmont-py) for the full reference.
-
-| Primitive | What it does |
-|---|---|
-| `hm.sh(cmd, label=...)` | Start a chain with one shell command |
-| `.sh(cmd, label=..., cwd=...)` | Chain another command; shares container state with the parent |
-| `.fork(label=...)` | Branch a shared base into parallel work |
-| `hm.wait()` | Explicit synchronization barrier |
-| `@hm.target()` | Reusable, memoized building block |
-| `@hm.pipeline("slug")` | Register a pipeline (multiple per file are fine) |
-
-## Common flags
-
-```sh
-hm run --parallelism 4         # cap concurrent chains
-hm run --env FOO=bar           # inject env vars
-hm run --dir path/to/source    # run against a different source root
-hm run --format json           # machine-readable event stream
-hm run --no-watch              # create the build and exit (don't stream events)
-hm run --help                  # full flag reference
-```
-
-## Cloud
-
-`hm cloud <verb>` talks to `api.harmont.dev`. Credentials are stored file-backed at `~/.harmont/credentials.toml` (mode `0600`); the active org slug persists under `~/.config/harmont/state/harmont-cloud.kv`.
-
-| Command | What it does |
-|---|---|
-| `hm cloud login` | Browser-loopback OAuth (`--paste` to paste a token) |
-| `hm cloud logout` | Forget stored credentials |
-| `hm cloud whoami` | Show user + active org |
-| `hm cloud org switch <slug>` | Set the active organization |
-| `hm cloud pipeline list` / `pipeline show <slug>` | List or inspect pipelines |
-| `hm cloud build list -p <slug>` | List builds for a pipeline |
-| `hm cloud build show -p <slug> <n>` / `watch -p <slug> <n>` / `cancel -p <slug> <n>` | Inspect or control a build |
-| `hm cloud job list -p <slug> -b <n>` / `job show -p <slug> -b <n> <id>` | Inspect jobs in a build |
-| `hm cloud billing <verb>` | Credit balance and usage (see below for verbs) |
-| `hm cloud run [--plan-file PATH]` | Submit a pre-rendered plan JSON (defaults to `.harmont/plan.json`) |
-
-Source-archive upload for `cloud run` is in progress — pre-render to `.harmont/plan.json` for now.
-
-<details>
-<summary>Billing verbs</summary>
-
-| Command | What it does |
-|---|---|
-| `hm cloud billing balance` | Print the current credit balance |
-| `hm cloud billing transactions [--limit N]` | List billing transactions (default 100) |
-| `hm cloud billing usage` | Usage over a time window |
-| `hm cloud billing topup` | Top up credits |
-| `hm cloud billing redeem` | Redeem a promo code |
-
-</details>
-
-## Examples
-
-Eighteen idiomatic starter projects live under [`examples/`](./examples). Each has a `.harmont/pipeline.py` you can read, copy, and run:
-
-```sh
-cd examples/rust
 hm run ci
 ```
 
-Toolchains covered: Rust, Haskell, Go, Python (uv), Java/Kotlin (Gradle), C and C++ (CMake), C# (dotnet), Ruby, Perl, PHP (Composer + Laravel), OCaml, Zig, Zig+JS monorepo, and npm-based stacks (React, Next.js, TypeScript).
+If the repo declares only one pipeline, the slug is optional — just `hm run`.
 
-<details>
-<summary>A two-branch pipeline using forks and a shared base image</summary>
+### Real-world example
+
+For production pipelines, use typed toolchains — they generate test, lint, and
+format steps from your project layout:
+
+<details open>
+<summary><b>Python</b></summary>
 
 ```python
 import harmont as hm
+from harmont.python import PythonToolchain
 
+@hm.target()
+def project() -> PythonToolchain:
+    return hm.python(path=".")
 
-@hm.pipeline("ci")
-def ci() -> hm.Step:
-    setup = hm.sh(
-        "apt-get update && apt-get install -y curl",
-        label="apt",
+@hm.pipeline(
+    "ci",
+    default_image="ubuntu:24.04",
+    triggers=[hm.push(branch="main")],
+)
+def ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:
+    return (
+        project.test(),
+        project.lint(),
+        project.fmt(),
+        project.typecheck(),
     )
-    fetch = setup.fork(label="branch-a").sh(
-        "curl -fsSL https://example.com",
-        label="fetch",
-    )
-    work = setup.fork(label="branch-b").sh(
-        "echo independent work",
-        label="other",
-    )
-    return hm.pipeline(fetch, work, default_image="ubuntu:24.04")
 ```
 
 </details>
 
 <details>
-<summary>Composing larger pipelines with typed fixture-style targets</summary>
+<summary><b>TypeScript</b></summary>
 
-```python
-from typing import Annotated
+```typescript
+import { pipeline, push, type PipelineDefinition } from "harmont";
+import { python } from "harmont/toolchains";
 
-import harmont as hm
+const project = python({ path: "." });
 
+const pipelines: PipelineDefinition[] = [
+  {
+    slug: "ci",
+    triggers: [push({ branch: "main" })],
+    pipeline: pipeline(
+      project.test(),
+      project.lint(),
+      project.fmt(),
+      project.typecheck(),
+      { defaultImage: "ubuntu:24.04" },
+    ),
+  },
+];
 
-@hm.target()
-def apt_base(base: Annotated[hm.Step, hm.BaseImage("ubuntu:24.04")]) -> hm.Step:
-    return base.sh("apt-get update && apt-get install -y curl", label="apt")
-
-
-@hm.target()
-def smoke(apt_base: hm.Target[hm.Step]) -> hm.Step:
-    return apt_base.sh("curl -fsSL https://example.com", label="smoke")
-
-
-@hm.pipeline("ci")
-def ci(smoke: hm.Target[hm.Step]) -> hm.Step:
-    return smoke
+export default pipelines;
 ```
-
-Dependencies are resolved by parameter name from the `@hm.target` registry. `Target[T]` and `Annotated[Step, BaseImage("...")]` both unwrap cleanly under mypy and pyright.
 
 </details>
 
-## Build from source
+Browse the [example projects](./examples) for idiomatic pipelines in Rust,
+Go, Python, Java, C++, React, Next.js, and more.
 
-```sh
-git clone https://github.com/harmont-dev/harmont-cli
-cd harmont-cli
-cargo build
-cargo test                          # `local_*` tests need a running Docker daemon
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
-```
+## Community
 
-The OpenAPI client is generated at build time from the vendored `openapi.json` via [progenitor](https://github.com/oxidecomputer/progenitor).
+- **Discord** — [discord.gg/hm-dev](https://discord.gg/hm-dev)
+- **Slack** — [harmont-dev.slack.com](https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A)
+- **Website** — [harmont.dev](https://harmont.dev)
 
-## Repository layout
+## Documentation
 
-Cargo workspace:
-
-- `crates/hm/` — the `hm` binary.
-- `crates/hm-plugin-protocol/`, `crates/hm-plugin-sdk/` — public API for third-party plugins.
-- `crates/hm-plugin-*` — bundled plugins (Docker executor, output formatters, cloud client).
-- `examples/` — sample pipeline repos to `hm run` against.
-
-This repo mirrors the `cli/` and `examples/` directories of the private Harmont monorepo. Open issues and PRs here; maintainers land them upstream and a CI sync replays the result back.
-
-## Plugin authoring
-
-`hm` is plugin-driven via [Extism](https://extism.org). To write one, start a `cdylib` crate and depend on the SDK:
-
-```sh
-cargo new --lib my-plugin
-cd my-plugin
-cargo add --git https://github.com/harmont-dev/harmont-cli hm-plugin-sdk
-```
-
-Implement one of `StepExecutor`, `SubcommandPlugin`, `LifecycleHook`, or `OutputFormatter`, declare a `PluginManifest`, and call `register_plugin!(...)`. Then build to WebAssembly:
-
-```sh
-cargo build --target wasm32-wasip1 --release
-```
-
-Install the resulting `.wasm`:
-
-```sh
-hm plugin install ./target/wasm32-wasip1/release/my_plugin.wasm
-```
-
-Built-in output formatters: `human` (default), `json`. Select with `hm run --format <name>`. Working examples live in `crates/hm-fixtures/src/bin/`.
-
-## See also
-
-- [`harmont-py`](https://github.com/harmont-dev/harmont-py) — the Python DSL this CLI consumes.
+For the full pipeline reference, rich examples, and more — see the
+[docs](https://harmont.dev/docs).
 
 ## License
 
-Dual-licensed under either of
+The CLI is dual-licensed under either of
 
 - Apache License, Version 2.0 ([`LICENSE-APACHE`](LICENSE-APACHE))
 - MIT license ([`LICENSE-MIT`](LICENSE-MIT))
 
-at your option.
+## Motivation
+
+>
+> The reason [I](https://github.com/markovejnovic) started this project is
+> because every other CI/CD tool I've used in my life has sucked.
+>
+> I've worked at [Tesla](https://tesla.com), [Bun](https://bun.com),
+> [Mesa](https://mesa.dev) and never did I find a CI/CD system that was easy to
+> use and was also fast.
+>
+> At Tesla, we used [Jenkins](https://www.jenkins.io/) -- executors are finite,
+> so your builds are stuck in queues.
+>
+> At Bun, we used [Buildkite](https://buildkite.com/) -- large shell pipelines,
+> and really pricy service, and a TS SDK that's only slightly better than
+> YAMLs.
+>
+> At Mesa, I migrated everyone to use [BuildBuddy](https://www.buildbuddy.io/)
+> and Buildkite. [Bazel](https://bazel.build/) is awesome, but the mental
+> overhead required to use it is way too high. We, sadly, ended up reverting
+> to plain Buildkite.
+>
+> I asked myself a couple questions:
+>
+> - **Why can't I run my CI/CD pipelines locally?**
+>   [act](https://github.com/nektos/act) is an awesome project, but it's
+>   surprisingly slow (not to the author's fault -- but rather GHA's model).
+> - **Why is my CI/CD system not just a `Makefile`?** Why is there no `hm run`
+>   command that is shared between local dev and CI/CD?
+> - **Why can't I get preview environments for Haskell, Rust, Zig or
+>   whatever?** Vercel does an awesome job with `next.js` preview environments,
+>   but there is no good way to do this for arbitrary environments.
+> - **Why do we have to write YAMLs for our pipelines?** All my pipelines end
+>   up being [YAML documents from
+>   hell](https://ruuda.nl/2023/the-yaml-document-from-hell). I think we can do
+>   better.
+> - **Why do I need `artifacts-upload` and `artifacts-download` everywhere?**
+>   I don't need it locally, so why do I need it in CI/CD? In other words, why
+>   aren't our CI/CD systems stateful? If my build scripts can write an
+>   `openapi.json` in the local directory, why do I need some magic to transfer
+>   it between individual steps?
+
+Harmont's goal is to make all these questions obsolete. CI/CD _can_ be better,
+and that's what [Harmont](https://harmont.dev) is -- a CI/CD that wants to suck
+a lot less.

@@ -2,18 +2,45 @@
 from __future__ import annotations
 
 import harmont as hm
-from harmont.py.uv import UvProject
-from harmont.rust import RustToolchain
 
 
 @hm.target()
-def rust_project() -> RustToolchain:
-    return hm.rust(path=".")
+def shared_base() -> hm.Step:
+    return hm.apt_base(packages=(
+        "curl",
+        "ca-certificates",
+        "build-essential",
+        "pkg-config",
+        "libssl-dev",
+        "python3",
+        "python3-venv",
+    ))
 
 
 @hm.target()
-def py_project() -> UvProject:
-    return hm.py.uv(path="dsls/harmont-py")
+def rust_project(shared_base: hm.Target[hm.Step]) -> tuple[hm.Step, ...]:
+    project = hm.rust.project(path=".", base=shared_base)
+    return hm.group([
+        project.test(flags=("--lib",)),
+        project.clippy(),
+        project.fmt(),
+    ])
+
+
+@hm.target()
+def py_project(shared_base: hm.Target[hm.Step]) -> tuple[hm.Step, ...]:
+    project = hm.py.uv(path="dsls/harmont-py", base=shared_base)
+    return hm.group([
+        project.lint(),
+        project.fmt(),
+        project.typecheck(paths="harmont"),
+        project.run(
+            "pytest -v"
+            " --deselect tests/test_gradle.py"
+            " --deselect tests/test_haskell.py",
+            label=":python: test",
+        ),
+    ])
 
 
 @hm.pipeline(
@@ -22,28 +49,11 @@ def py_project() -> UvProject:
     default_image="ubuntu:24.04",
     triggers=[
         hm.push(branch="main"),
-        hm.pull_request(branches="main"),
+        hm.pr(branches="main"),
     ],
 )
 def ci(
-    rust_project: hm.Target[RustToolchain],
-    py_project: hm.Target[UvProject],
-) -> tuple[hm.Step, ...]:
-    return (
-        rust_project.build(),
-        rust_project.installed.sh(
-            ". $HOME/.cargo/env && cd . && cargo test --lib",
-            label=":rust: test",
-        ),
-        rust_project.clippy(),
-        rust_project.fmt(),
-        py_project.lint(),
-        py_project.fmt(),
-        py_project.typecheck(paths="harmont"),
-        py_project.run(
-            "pytest -v"
-            " --deselect tests/test_gradle.py"
-            " --deselect tests/test_haskell.py",
-            label=":python: test",
-        ),
-    )
+    rust_project: hm.Target[tuple[hm.Step, ...]],
+    py_project: hm.Target[tuple[hm.Step, ...]],
+) -> list:
+    return [rust_project, py_project]

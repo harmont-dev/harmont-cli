@@ -218,6 +218,20 @@ pub async fn run(
     };
 
     let dur = started_total.elapsed().as_millis() as u64;
+
+    // Clean up ephemeral images created during this run.
+    let ephemeral_tags: Vec<&str> = outcomes
+        .iter()
+        .filter_map(|o| o.snapshot.as_ref())
+        .filter(|s| s.0.starts_with("harmont-local-ephemeral/"))
+        .map(|s| s.0.as_str())
+        .collect();
+    for tag in ephemeral_tags {
+        if let Err(e) = docker.remove_image(tag).await {
+            tracing::warn!(image = %tag, %e, "failed to remove ephemeral image");
+        }
+    }
+
     bus.emit(BuildEvent::BuildEnd {
         exit_code: overall,
         duration_ms: dur,
@@ -273,7 +287,9 @@ async fn execute_step(
     });
 
     // Decide cache outcome host-side.
-    let decision = cache::decide(&run_ctx.docker, &step_wire).await?;
+    let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
+    let decision = outcome.decision;
+
     if let hm_plugin_protocol::CacheDecision::Hit { tag } = &decision {
         bus.emit(BuildEvent::StepCacheHit {
             step_id,
@@ -354,6 +370,12 @@ async fn execute_step(
                     ts: chrono::Utc::now(),
                 });
                 cancel.cancel();
+            } else {
+                for stale in &outcome.stale_tags {
+                    if let Err(e) = run_ctx.docker.remove_image(stale).await {
+                        tracing::warn!(image = %stale, %e, "failed to evict stale cache image");
+                    }
+                }
             }
             Ok(StepOutcome {
                 exit_code: sr.exit_code,

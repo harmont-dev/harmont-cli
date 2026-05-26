@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -19,10 +20,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          # build.rs cross-compiles hm-plugin-* wasm artifacts.
-          targets: wasm32-wasip1
           components: clippy
       - uses: Swatinem/rust-cache@v2
+
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
 
       - name: cargo build (all targets)
         run: cargo build -p harmont-cli --all-targets
@@ -99,18 +102,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
 
       - uses: Swatinem/rust-cache@v2
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: npm
+          cache-dependency-path: dsls/harmont-ts/package-lock.json
+
+      - name: Install esbuild (for harmont-ts bundle)
+        working-directory: dsls/harmont-ts
+        run: npm ci
+
       - name: Build hm
         run: cargo build -p harmont-cli
-
-      - name: Install harmont-py into system Python
-        run: |
-          sudo /usr/bin/python3 -m pip install --break-system-packages dsls/harmont-py
-          /usr/bin/python3 -c "import harmont; print('harmont', harmont.__file__)"
 
       - name: Restore harmont Docker cache
         uses: actions/cache/restore@v4
@@ -127,6 +133,20 @@ jobs:
         env:
           HM_NONINTERACTIVE: '1'
         run: ./target/debug/hm run ci
+
+      - name: Save harmont Docker images
+        id: cache-manifest
+        if: always()
+        run: |
+          hash=$(./target/debug/hm cache save .harmont-cache/)
+          echo "key=harmont-v1-${hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Docker cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .harmont-cache/
+          key: ${{ steps.cache-manifest.outputs.key }}
 
   integration:
     name: docker-gated integration test
