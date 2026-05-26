@@ -70,7 +70,13 @@ impl StepRunner for DockerRunner {
         input: ExecutorInput,
     ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>> {
         let ctx = ctx.clone();
-        Box::pin(async move { run_step(&ctx, input).await })
+        Box::pin(async move {
+            if ctx.workspace.is_some() {
+                run_step_cow(&ctx, input).await
+            } else {
+                run_step(&ctx, input).await
+            }
+        })
     }
 }
 
@@ -233,6 +239,128 @@ async fn run_in_container(
     Ok(StepResult {
         exit_code,
         committed_snapshot: committed,
+        artifacts: vec![],
+    })
+}
+
+// ---------------------------------------------------------------------------
+// COW execution path
+// ---------------------------------------------------------------------------
+
+/// Pick the base image for a COW step.
+///
+/// In COW mode the workspace is bind-mounted, so there is no
+/// parent-snapshot chain. We use the step's declared image or fall
+/// back to `alpine:latest`.
+fn resolve_image_cow(step: &CommandStep) -> String {
+    step.image
+        .clone()
+        .unwrap_or_else(|| "alpine:latest".to_string())
+}
+
+async fn run_step_cow(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> {
+    let plan = decision_plan(&input.cache_lookup);
+
+    if !plan.run_command {
+        return Ok(StepResult {
+            exit_code: 0,
+            committed_snapshot: plan.hit_tag.clone(),
+            artifacts: vec![],
+        });
+    }
+
+    let workspace_mgr = ctx
+        .workspace
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("COW mode requires workspace manager"))?;
+
+    let workspace_path = {
+        let mgr = workspace_mgr.lock().unwrap_or_else(|e| e.into_inner());
+        mgr.workspace_path(&input.step.key)
+            .map(|p| p.to_path_buf())
+            .ok_or_else(|| {
+                anyhow::anyhow!("workspace for step '{}' not created", input.step.key)
+            })?
+    };
+
+    let image = resolve_image_cow(&input.step);
+    let container_name =
+        sanitize_container_name(&input.run_id.to_string(), &input.step.key);
+    let env_vec: Vec<String> = input
+        .env
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect();
+
+    // Pull image if needed.
+    if !ctx.docker.image_exists(&image).await.unwrap_or(false) {
+        let docker = ctx.docker.clone();
+        let cancel = ctx.cancel.clone();
+        let img = image.clone();
+        let pull_fut = async move { docker.pull_image(&img).await };
+        tokio::select! {
+            result = pull_fut => result.with_context(|| format!("pull '{image}'"))?,
+            () = cancel.cancelled() => anyhow::bail!("cancelled during image pull"),
+        }
+    }
+
+    // Start container with workspace bind mount.
+    let binds = vec![format!("{}:/workspace", workspace_path.display())];
+    let cid = ctx
+        .docker
+        .start_long_lived_with_mounts(
+            &image,
+            &env_vec,
+            &input.workdir,
+            &container_name,
+            &binds,
+        )
+        .await
+        .context("docker start with mounts failed")?;
+
+    let result = run_cow_in_container(ctx, &cid, &input, &env_vec).await;
+    ctx.docker.stop_remove(&cid).await;
+    result
+}
+
+async fn run_cow_in_container(
+    ctx: &RunContext,
+    cid: &str,
+    input: &ExecutorInput,
+    env_vec: &[String],
+) -> Result<StepResult> {
+    let mut writer = StepLogWriter::new(input.step_id, Arc::clone(&ctx.event_bus));
+    let docker = ctx.docker.clone();
+    let cancel = ctx.cancel.clone();
+    let cid_owned = cid.to_owned();
+    let cmd = vec!["sh".into(), "-c".into(), input.step.cmd.clone()];
+    let workdir = input.workdir.clone();
+    let env_owned = env_vec.to_vec();
+    let exec_fut = async move {
+        let rc = docker
+            .exec_streaming(&cid_owned, &cmd, &env_owned, &workdir, &mut writer)
+            .await?;
+        writer.flush_remaining();
+        Ok::<i64, anyhow::Error>(rc)
+    };
+
+    let rc = tokio::select! {
+        result = exec_fut => result.context("docker exec failed")?,
+        () = cancel.cancelled() => {
+            return Ok(StepResult {
+                exit_code: 130,
+                committed_snapshot: None,
+                artifacts: vec![],
+            });
+        }
+    };
+
+    #[allow(clippy::cast_possible_truncation)]
+    let exit_code = rc as i32;
+
+    Ok(StepResult {
+        exit_code,
+        committed_snapshot: None,
         artifacts: vec![],
     })
 }
@@ -411,6 +539,20 @@ mod tests {
             runner: None,
             runner_args: None,
         }
+    }
+
+    // -- resolve_image_cow ----------------------------------------------------
+
+    #[test]
+    fn resolve_image_cow_uses_step_image() {
+        let s = step_with_image(Some("rust:1.82"));
+        assert_eq!(resolve_image_cow(&s), "rust:1.82");
+    }
+
+    #[test]
+    fn resolve_image_cow_fallback_alpine() {
+        let s = step_with_image(None);
+        assert_eq!(resolve_image_cow(&s), "alpine:latest");
     }
 
     // -- resolve_image -------------------------------------------------------

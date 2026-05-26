@@ -96,6 +96,7 @@ pub async fn run(
         event_bus: bus.clone(),
         archives: archives.clone(),
         cancel: cancel.clone(),
+        workspace: None,
     };
 
     let parallelism = parallelism.max(1);
