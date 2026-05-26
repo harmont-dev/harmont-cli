@@ -1211,7 +1211,7 @@ dependencies = [
 
 [[package]]
 name = "hm-plugin-cloud"
-version = "0.1.0"
+version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "base64",
@@ -1248,9 +1248,12 @@ dependencies = [
 name = "hm-util"
 version = "0.0.0-dev"
 dependencies = [
+ "anyhow",
  "dirs",
  "tempfile",
  "tokio",
+ "tracing",
+ "which 6.0.3",
  "windows",
 ]
 

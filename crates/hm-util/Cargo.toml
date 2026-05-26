@@ -7,8 +7,12 @@ repository.workspace = true
 description = "Shared OS and filesystem utilities for Harmont crates."
 
 [dependencies]
+anyhow = { workspace = true }
 dirs = "6"
+tempfile = "3"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "fs", "io-util"] }
+tracing = { workspace = true }
+which = "6"
 
 [target.'cfg(windows)'.dependencies.windows]
 version = "0.62"
