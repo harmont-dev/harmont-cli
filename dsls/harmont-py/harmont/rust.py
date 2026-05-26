@@ -91,10 +91,17 @@ class RustProject:
     toolchain: RustToolchain
     warmup: Step
 
-    def test(self, *, flags: tuple[str, ...] = (), **kw: Any) -> Step:
+    def test(
+        self,
+        *,
+        flags: tuple[str, ...] = (),
+        packages: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        scope = " ".join(f"-p {p}" for p in packages) if packages else "--workspace"
         extra = (" " + " ".join(flags)) if flags else ""
         return self.warmup.sh(
-            self.toolchain._wrap(f"cargo test --workspace --locked{extra}"),  # noqa: SLF001
+            self.toolchain._wrap(f"cargo test {scope} --locked{extra}"),  # noqa: SLF001
             label=kw.pop("label", ":rust: test"),
             **kw,
         )

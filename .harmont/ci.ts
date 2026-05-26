@@ -27,7 +27,7 @@ const pipelines: PipelineDefinition[] = [
     slug: "ci",
     triggers: [push({ branch: "main" }), pullRequest({ branches: ["main"] })],
     pipeline: pipeline(
-      rustProject.test({ flags: ["--lib"] }),
+      rustProject.test({ flags: ["--lib"], packages: ["harmont-cli"] }),
       rustProject.clippy(),
       rustProject.fmt(),
       pyProject.lint(),

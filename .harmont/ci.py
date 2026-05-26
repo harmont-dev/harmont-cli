@@ -21,7 +21,7 @@ def shared_base() -> hm.Step:
 def rust_project(shared_base: hm.Target[hm.Step]) -> tuple[hm.Step, ...]:
     project = hm.rust.project(path=".", base=shared_base)
     return hm.group([
-        project.test(flags=("--lib",)),
+        project.test(flags=("--lib",), packages=("harmont-cli",)),
         project.clippy(),
         project.fmt(),
     ])

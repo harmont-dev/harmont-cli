@@ -89,10 +89,13 @@ export class RustProject {
     this.warmup = warmup;
   }
 
-  test(opts?: { flags?: readonly string[] } & ActionOptions): Step {
+  test(opts?: { flags?: readonly string[]; packages?: readonly string[] } & ActionOptions): Step {
+    const scope = opts?.packages?.length
+      ? opts.packages.map(p => `-p ${p}`).join(" ")
+      : "--workspace";
     const extra = opts?.flags?.length ? " " + opts.flags.join(" ") : "";
     return this.warmup.sh(
-      `. $HOME/.cargo/env && cd ${this.toolchain.path} && cargo test --workspace --locked${extra}`,
+      `. $HOME/.cargo/env && cd ${this.toolchain.path} && cargo test ${scope} --locked${extra}`,
       { label: ":rust: test", ...opts },
     );
   }
