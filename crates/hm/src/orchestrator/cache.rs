@@ -196,8 +196,14 @@ pub fn persist_cow_cache(workspace_path: &Path, cache_dir: &Path) -> Result<()> 
     if cache_dir.exists() {
         return Ok(());
     }
-    hm_util::cow::cow_clone_dir(workspace_path, cache_dir)
-        .context("persist workspace to COW cache")
+    match hm_util::cow::cow_clone_dir(workspace_path, cache_dir) {
+        Ok(()) => Ok(()),
+        Err(e) if cache_dir.exists() => {
+            tracing::debug!(%e, "concurrent run already populated cache");
+            Ok(())
+        }
+        Err(e) => Err(e).context("persist workspace to COW cache"),
+    }
 }
 
 /// Remove stale COW cache directories left over from previous cache

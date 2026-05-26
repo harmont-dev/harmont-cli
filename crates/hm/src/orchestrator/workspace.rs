@@ -107,6 +107,9 @@ impl WorkspaceManager {
         step_key: &str,
         cached_workspace: &Path,
     ) -> Result<PathBuf> {
+        if self.workspaces.contains_key(step_key) || self.overlays.contains_key(step_key) {
+            anyhow::bail!("workspace for step '{step_key}' already exists");
+        }
         self.create_clone(step_key, None, Some(cached_workspace))
     }
 
