@@ -314,6 +314,17 @@ async fn execute_step(
     let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
     let decision = outcome.decision;
 
+    // Create a COW workspace for this step when running in COW mode.
+    // This must happen before the cache-hit short-circuit so that
+    // downstream steps can clone from this step's workspace.
+    if let Some(ref workspace) = run_ctx.workspace {
+        let mut mgr = workspace
+            .lock()
+            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+        mgr.create_workspace(&step_key, parent_key.as_deref())
+            .context("create workspace for step")?;
+    }
+
     if let hm_plugin_protocol::CacheDecision::Hit { tag } = &decision {
         bus.emit(BuildEvent::StepCacheHit {
             step_id,
@@ -324,22 +335,10 @@ async fn execute_step(
                 .unwrap_or_default(),
             tag: tag.0.clone(),
         });
-        // Short-circuit: the cached image already exists locally, so
-        // there is nothing for the executor to do. Return the
-        // snapshot so downstream nodes can use it as their parent.
         return Ok(StepOutcome {
             exit_code: 0,
             snapshot: Some(tag.clone()),
         });
-    }
-
-    // Create a COW workspace for this step when running in COW mode.
-    if let Some(ref workspace) = run_ctx.workspace {
-        let mut mgr = workspace
-            .lock()
-            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
-        mgr.create_workspace(&step_key, parent_key.as_deref())
-            .context("create workspace for step")?;
     }
 
     let input = ExecutorInput {
