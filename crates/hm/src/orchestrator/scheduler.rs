@@ -33,7 +33,7 @@ use futures::future::{BoxFuture, FutureExt, join_all};
 
 use anyhow::{Context, Result};
 use hm_plugin_protocol::{
-    ArchiveId, BuildEvent, ExecutorInput, PlanSummary, SnapshotRef, StepResult,
+    ArchiveId, BuildEvent, CacheDecision, ExecutorInput, PlanSummary, SnapshotRef, StepResult,
 };
 use uuid::Uuid;
 
@@ -312,22 +312,45 @@ async fn execute_step(
         display_name: display_name.clone(),
     });
 
-    // Decide cache outcome host-side.
-    let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
-    let decision = outcome.decision;
+    // Decide cache outcome host-side. In COW mode we check the
+    // workspace cache directory; otherwise we consult Docker images.
+    let (decision, cow_cache_to, cow_stale_dirs, docker_stale_tags) =
+        if run_ctx.workspace.is_some() {
+            let cow_outcome = cache::decide_cow(&step_wire)?;
+            (
+                cow_outcome.decision,
+                cow_outcome.cache_to,
+                cow_outcome.stale_dirs,
+                vec![],
+            )
+        } else {
+            let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
+            (outcome.decision, None, vec![], outcome.stale_tags)
+        };
 
     // Create a COW workspace for this step when running in COW mode.
-    // This must happen before the cache-hit short-circuit so that
-    // downstream steps can clone from this step's workspace.
+    // On a COW cache hit we restore from the cached directory instead
+    // of cloning from the parent workspace.
     if let Some(ref workspace) = run_ctx.workspace {
         let mut mgr = workspace
             .lock()
             .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
-        mgr.create_workspace(&step_key, parent_key.as_deref())
-            .context("create workspace for step")?;
+        if let CacheDecision::Hit { ref tag } = decision {
+            if tag.0.starts_with("cow:") {
+                let cached_path = PathBuf::from(&tag.0[4..]);
+                mgr.create_workspace_from_cache(&step_key, &cached_path)
+                    .context("create workspace from cache")?;
+            } else {
+                mgr.create_workspace(&step_key, parent_key.as_deref())
+                    .context("create workspace for cache hit")?;
+            }
+        } else {
+            mgr.create_workspace(&step_key, parent_key.as_deref())
+                .context("create workspace for step")?;
+        }
     }
 
-    if let hm_plugin_protocol::CacheDecision::Hit { tag } = &decision {
+    if let CacheDecision::Hit { tag } = &decision {
         bus.emit(BuildEvent::StepCacheHit {
             step_id,
             key: step_wire
@@ -405,9 +428,31 @@ async fn execute_step(
                 });
                 cancel.cancel();
             } else {
-                for stale in &outcome.stale_tags {
-                    if let Err(e) = run_ctx.docker.remove_image(stale).await {
-                        tracing::warn!(image = %stale, %e, "failed to evict stale cache image");
+                // Persist to COW cache and evict stale entries on success.
+                if run_ctx.workspace.is_some() {
+                    if let Some(ref cache_to) = cow_cache_to {
+                        let ws_path = {
+                            let mgr = run_ctx
+                                .workspace
+                                .as_ref()
+                                .unwrap()
+                                .lock()
+                                .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+                            mgr.workspace_path(&step_key).map(|p| p.to_path_buf())
+                        };
+                        if let Some(ws) = ws_path {
+                            if let Err(e) = cache::persist_cow_cache(&ws, cache_to) {
+                                tracing::warn!(%e, "failed to persist COW cache");
+                            }
+                        }
+                    }
+                    cache::evict_stale_cow_dirs(&cow_stale_dirs);
+                } else {
+                    // Docker mode: evict stale Docker cache images.
+                    for stale in &docker_stale_tags {
+                        if let Err(e) = run_ctx.docker.remove_image(stale).await {
+                            tracing::warn!(image = %stale, %e, "failed to evict stale cache image");
+                        }
                     }
                 }
             }
