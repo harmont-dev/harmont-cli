@@ -434,10 +434,11 @@ async fn execute_step(
                 if let Some(ref ws_mgr) = run_ctx.workspace {
                     if let Some(ref cache_to) = cow_cache_to {
                         let ws_path = {
-                            let mgr = ws_mgr.lock().map_err(|_| {
-                                anyhow::anyhow!("workspace manager mutex poisoned")
-                            })?;
-                            mgr.workspace_path(&step_key).map(std::path::Path::to_path_buf)
+                            let mgr = ws_mgr
+                                .lock()
+                                .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+                            mgr.workspace_path(&step_key)
+                                .map(std::path::Path::to_path_buf)
                         };
                         if let Some(ws) = ws_path
                             && let Err(e) = cache::persist_cow_cache(&ws, cache_to)
