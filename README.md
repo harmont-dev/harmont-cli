@@ -1,9 +1,5 @@
 <p align="center">
-  <strong>harmont</strong>
-</p>
-
-<p align="center">
-  <em>Pipelines as code. Run locally in Docker. Ship to cloud when ready.</em>
+  <img src=".github/res/github-banner.png" alt="harmont — CI/CD that sucks less." width="100%">
 </p>
 
 <p align="center">
