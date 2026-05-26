@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 use anyhow::{Context, Result, bail};
 
@@ -18,9 +19,14 @@ pub enum CowStrategy {
 }
 
 /// Detect the best available COW strategy for the current platform.
+/// Result is cached after the first call.
 #[must_use]
-#[allow(clippy::missing_const_for_fn)] // linux branch calls runtime functions
 pub fn detect_strategy() -> CowStrategy {
+    static STRATEGY: OnceLock<CowStrategy> = OnceLock::new();
+    *STRATEGY.get_or_init(detect_strategy_inner)
+}
+
+fn detect_strategy_inner() -> CowStrategy {
     #[cfg(target_os = "macos")]
     {
         return CowStrategy::ApfsClone;
@@ -168,10 +174,10 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
 // OverlayMount — fuse-overlayfs lifecycle (strategy 3)
 // -----------------------------------------------------------------------
 
-#[derive(Debug)]
 pub struct OverlayMount {
     merged: PathBuf,
     upper: PathBuf,
+    mounted: std::sync::atomic::AtomicBool,
 }
 
 impl OverlayMount {
@@ -203,17 +209,17 @@ impl OverlayMount {
             work_dir.display(),
         );
 
-        let status = Command::new("fuse-overlayfs")
+        let output = Command::new("fuse-overlayfs")
             .args(["-o", &opts])
             .arg(merged_path)
-            .stderr(std::process::Stdio::piped())
-            .status()
+            .output()
             .context("spawn fuse-overlayfs")?;
 
-        if !status.success() {
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
             bail!(
-                "fuse-overlayfs mount failed (exit {}): lowerdir={}, upper={}, merged={}",
-                status.code().unwrap_or(-1),
+                "fuse-overlayfs mount failed (exit {}): {stderr}\nlowerdir={}, upper={}, merged={}",
+                output.status.code().unwrap_or(-1),
                 lowerdir,
                 upper_dir.display(),
                 merged_path.display(),
@@ -223,6 +229,7 @@ impl OverlayMount {
         Ok(Self {
             merged: merged_path.to_path_buf(),
             upper: upper_dir.to_path_buf(),
+            mounted: std::sync::atomic::AtomicBool::new(true),
         })
     }
 
@@ -236,13 +243,16 @@ impl OverlayMount {
         &self.upper
     }
 
-    /// Unmount the fuse-overlayfs filesystem.
+    /// Unmount the fuse-overlayfs filesystem. Safe to call multiple times.
     ///
     /// # Errors
     ///
     /// Returns an error if `fusermount` cannot be spawned or exits
     /// with a non-zero status.
     pub fn unmount(&self) -> Result<()> {
+        if !self.mounted.swap(false, std::sync::atomic::Ordering::AcqRel) {
+            return Ok(());
+        }
         let bin = if which::which("fusermount3").is_ok() {
             "fusermount3"
         } else {
@@ -258,6 +268,15 @@ impl OverlayMount {
             bail!("{bin} -u {} failed", self.merged.display());
         }
         Ok(())
+    }
+}
+
+impl std::fmt::Debug for OverlayMount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OverlayMount")
+            .field("merged", &self.merged)
+            .field("upper", &self.upper)
+            .finish()
     }
 }
 
