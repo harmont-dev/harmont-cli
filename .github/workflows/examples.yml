@@ -109,6 +109,9 @@ jobs:
       - name: Mark hm executable
         run: chmod +x bin/hm
 
+      - name: Enable FUSE allow_other
+        run: sudo sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
+
       - name: Run example via hm run
         working-directory: examples/${{ matrix.example }}
         env:

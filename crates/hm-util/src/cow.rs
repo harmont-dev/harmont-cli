@@ -69,7 +69,46 @@ fn probe_reflink() -> bool {
 
 #[cfg(target_os = "linux")]
 fn probe_fuse_overlayfs() -> bool {
-    which::which("fuse-overlayfs").is_ok()
+    if which::which("fuse-overlayfs").is_err() {
+        return false;
+    }
+    let Ok(tmp) = tempfile::tempdir() else {
+        return false;
+    };
+    let lower = tmp.path().join("lower");
+    let upper = tmp.path().join("upper");
+    let work = tmp.path().join("work");
+    let merged = tmp.path().join("merged");
+    for d in [&lower, &upper, &work, &merged] {
+        if std::fs::create_dir(d).is_err() {
+            return false;
+        }
+    }
+    let opts = format!(
+        "lowerdir={},upperdir={},workdir={},allow_other",
+        lower.display(),
+        upper.display(),
+        work.display(),
+    );
+    let ok = Command::new("fuse-overlayfs")
+        .args(["-o", &opts])
+        .arg(&merged)
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    if ok {
+        let bin = if which::which("fusermount3").is_ok() {
+            "fusermount3"
+        } else {
+            "fusermount"
+        };
+        let _ = Command::new(bin)
+            .args(["-u"])
+            .arg(&merged)
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    ok
 }
 
 // -----------------------------------------------------------------------
@@ -201,7 +240,7 @@ impl OverlayMount {
             .join(":");
 
         let opts = format!(
-            "lowerdir={lowerdir},upperdir={},workdir={}",
+            "lowerdir={lowerdir},upperdir={},workdir={},allow_other",
             upper_dir.display(),
             work_dir.display(),
         );

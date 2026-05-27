@@ -118,6 +118,9 @@ jobs:
       - name: Build hm
         run: cargo build -p harmont-cli
 
+      - name: Enable FUSE allow_other
+        run: sudo sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
+
       - name: Restore harmont Docker cache
         uses: actions/cache/restore@v4
         with:
