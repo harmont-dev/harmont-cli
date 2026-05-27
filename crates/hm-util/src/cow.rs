@@ -141,7 +141,7 @@ fn probe_fuse_overlayfs() -> bool {
         }
     }
     let opts = format!(
-        "lowerdir={},upperdir={},workdir={},allow_other",
+        "lowerdir={},upperdir={},workdir={},allow_other,squash_to_uid=0,squash_to_gid=0",
         lower.display(),
         upper.display(),
         work.display(),
@@ -296,7 +296,7 @@ impl OverlayMount {
             .join(":");
 
         let opts = format!(
-            "lowerdir={lowerdir},upperdir={},workdir={},allow_other",
+            "lowerdir={lowerdir},upperdir={},workdir={},allow_other,squash_to_uid=0,squash_to_gid=0",
             upper_dir.display(),
             work_dir.display(),
         );
