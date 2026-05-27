@@ -6,10 +6,6 @@ use std::sync::OnceLock;
 
 use anyhow::{Context, Result, bail};
 
-// -----------------------------------------------------------------------
-// Strategy detection
-// -----------------------------------------------------------------------
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CowStrategy {
     ApfsClone,
@@ -167,10 +163,6 @@ fn probe_fuse_overlayfs() -> bool {
     ok
 }
 
-// -----------------------------------------------------------------------
-// cow_clone_dir
-// -----------------------------------------------------------------------
-
 /// Clone `src` to `dst` using the best available COW mechanism.
 ///
 /// # Errors
@@ -261,10 +253,6 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     }
     Ok(())
 }
-
-// -----------------------------------------------------------------------
-// OverlayMount — fuse-overlayfs lifecycle (strategy 3)
-// -----------------------------------------------------------------------
 
 pub struct OverlayMount {
     merged: PathBuf,
