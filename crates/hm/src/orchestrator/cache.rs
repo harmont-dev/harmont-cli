@@ -1,40 +1,16 @@
 //! Host-side cache decision.
 //!
-//! Resolves a wire-typed [`CommandStep`] against the local Docker
-//! daemon and returns the wire-typed [`CacheDecision`] consumed by
-//! step-executor plugins (design spec §5.5).
+//! Resolves a wire-typed [`CommandStep`] against the local COW
+//! workspace cache directory and returns the wire-typed
+//! [`CacheDecision`] consumed by step execution.
 //!
 //! Cache keys are computed by `harmont.keygen` at plan time and ride
-//! along the JSON in `cache.key`. We turn them into Docker image tags
-//! and consult the local image store.
+//! along the JSON in `cache.key`.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use hm_plugin_protocol::{CacheDecision, CommandStep, SnapshotRef};
-
-use crate::orchestrator::docker_client::DockerClient;
-
-/// `harmont-local/<step_key>:<cache_key_first_16_hex>`. Step key is
-/// sanitised to `[a-zA-Z0-9_-]` (Docker tag rules). Returns `None`
-/// when the step has no cache or a policy of `"none"`.
-///
-/// The cache key is the SHA-256 hex resolved at plan time by
-/// `harmont.keygen`. We truncate to the first 16 hex chars (8 bytes)
-/// for the image tag — collision odds across a developer's local
-/// cache are negligible. The cloud path uses the full key elsewhere;
-/// that divergence is acceptable for local-only tags since they're
-/// never resolved across machines.
-fn cache_image_tag(step: &CommandStep) -> Option<String> {
-    let cache = step.cache.as_ref()?;
-    if cache.policy == "none" {
-        return None;
-    }
-    let key = cache.key.as_deref()?;
-    let safe = sanitize_for_tag(&step.key);
-    let short = &key[..key.len().min(16)];
-    Some(format!("harmont-local/{safe}:{short}"))
-}
 
 fn sanitize_for_tag(s: &str) -> String {
     s.chars()
@@ -46,58 +22,6 @@ fn sanitize_for_tag(s: &str) -> String {
             }
         })
         .collect()
-}
-
-/// The outcome of a cache lookup: the wire-typed decision plus any
-/// stale images that should be garbage-collected after the new image
-/// is committed.
-#[derive(Debug)]
-pub struct CacheOutcome {
-    pub decision: CacheDecision,
-    /// Stale cache images for this step that should be removed after
-    /// the new image is committed successfully.
-    pub stale_tags: Vec<String>,
-}
-
-/// Decide cache outcome for a step against the local Docker daemon.
-///
-/// Returns hit (snapshot already present), miss-with-tag (run and commit
-/// afterwards), or miss-no-commit (`cache.policy == "none"` or no cache
-/// key).
-///
-/// # Errors
-/// Returns an error if the Docker daemon `image_exists` call fails.
-pub async fn decide(docker: &DockerClient, step: &CommandStep) -> Result<CacheOutcome> {
-    let Some(tag) = cache_image_tag(step) else {
-        return Ok(CacheOutcome {
-            decision: CacheDecision::MissNoCommit,
-            stale_tags: vec![],
-        });
-    };
-    if docker.image_exists(&tag).await? {
-        Ok(CacheOutcome {
-            decision: CacheDecision::Hit {
-                tag: SnapshotRef::from(tag),
-            },
-            stale_tags: vec![],
-        })
-    } else {
-        let safe = sanitize_for_tag(&step.key);
-        let prefix = format!("harmont-local/{safe}");
-        let stale = docker
-            .list_images_by_reference(&prefix)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|t| *t != tag)
-            .collect();
-        Ok(CacheOutcome {
-            decision: CacheDecision::MissBuildAs {
-                tag: SnapshotRef::from(tag),
-            },
-            stale_tags: stale,
-        })
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,39 +166,11 @@ mod tests {
     }
 
     #[test]
-    fn no_cache_yields_none() {
-        assert!(cache_image_tag(&step(None)).is_none());
-    }
-
-    #[test]
-    fn policy_none_yields_none() {
-        let s = step(Some(Cache {
-            policy: "none".into(),
-            key: Some("abcdef".into()),
-        }));
-        assert!(cache_image_tag(&s).is_none());
-    }
-
-    #[test]
-    fn ttl_with_key_yields_tag() {
-        let s = step(Some(Cache {
-            policy: "ttl".into(),
-            key: Some("0123456789abcdefffff".into()),
-        }));
-        let tag = cache_image_tag(&s).unwrap();
-        assert!(tag.starts_with("harmont-local/build:"));
-    }
-
-    #[test]
     fn sanitize_replaces_invalid_chars() {
         assert_eq!(sanitize_for_tag("my/step.name:v1"), "my-step-name-v1");
         assert_eq!(sanitize_for_tag("simple"), "simple");
         assert_eq!(sanitize_for_tag("a_b-c"), "a_b-c");
     }
-
-    // ------------------------------------------------------------------
-    // COW workspace cache tests
-    // ------------------------------------------------------------------
 
     #[test]
     fn cow_cache_dir_returns_path_for_cacheable_step() {

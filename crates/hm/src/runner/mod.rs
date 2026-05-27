@@ -37,9 +37,7 @@ pub struct RunContext {
     pub event_bus: Arc<EventBus>,
     pub archives: Arc<ArchiveStore>,
     pub cancel: CancellationToken,
-    /// When present, steps use COW workspace bind mounts instead of
-    /// tar.gz extraction + docker commit.
-    pub workspace: Option<Arc<Mutex<WorkspaceManager>>>,
+    pub workspace: Arc<Mutex<WorkspaceManager>>,
 }
 
 // ---------------------------------------------------------------------------

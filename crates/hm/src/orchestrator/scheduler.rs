@@ -72,7 +72,6 @@ pub async fn run(
     parallelism: usize,
     runner_registry: Arc<RunnerRegistry>,
     renderer: Box<dyn OutputRenderer>,
-    cow: bool,
 ) -> Result<i32> {
     // Set up per-run state.
     let bus = EventBus::new();
@@ -91,17 +90,14 @@ pub async fn run(
     // Build the source archive once.
     let archive_bytes = build_archive_bytes(&repo_root).context("build source archive")?;
 
-    // When COW mode is enabled, extract the source archive into a
-    // temporary directory and create a workspace manager that will
-    // produce per-step COW clones. This must happen before
-    // `archives.register()` which consumes the bytes.
-    let workspace = if cow {
-        let run_dir = std::env::temp_dir().join(format!("harmont-run-{run_id}"));
+    // Extract the source archive into a temporary directory and create
+    // a workspace manager for per-step COW clones. This must happen
+    // before `archives.register()` which consumes the bytes.
+    let run_dir = std::env::temp_dir().join(format!("harmont-run-{run_id}"));
+    let workspace = {
         let mgr = super::workspace::WorkspaceManager::from_archive(run_dir, &archive_bytes)
             .context("init COW workspace")?;
-        Some(Arc::new(std::sync::Mutex::new(mgr)))
-    } else {
-        None
+        Arc::new(std::sync::Mutex::new(mgr))
     };
 
     let archive_id = archives.register(archive_bytes);
@@ -248,9 +244,8 @@ pub async fn run(
         }
     }
 
-    // Clean up the COW workspace tree if one was created.
-    if let Some(ref ws) = workspace {
-        let mut mgr = ws
+    {
+        let mut mgr = workspace
             .lock()
             .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
         if let Err(e) = mgr.cleanup() {
@@ -312,27 +307,14 @@ async fn execute_step(
         display_name: display_name.clone(),
     });
 
-    // Decide cache outcome host-side. In COW mode we check the
-    // workspace cache directory; otherwise we consult Docker images.
-    let (decision, cow_cache_to, cow_stale_dirs, docker_stale_tags) = if run_ctx.workspace.is_some()
-    {
-        let cow_outcome = cache::decide_cow(&step_wire)?;
-        (
-            cow_outcome.decision,
-            cow_outcome.cache_to,
-            cow_outcome.stale_dirs,
-            vec![],
-        )
-    } else {
-        let outcome = cache::decide(&run_ctx.docker, &step_wire).await?;
-        (outcome.decision, None, vec![], outcome.stale_tags)
-    };
+    let cow_outcome = cache::decide_cow(&step_wire)?;
+    let decision = cow_outcome.decision;
+    let cow_cache_to = cow_outcome.cache_to;
+    let cow_stale_dirs = cow_outcome.stale_dirs;
 
-    // Create a COW workspace for this step when running in COW mode.
-    // On a COW cache hit we restore from the cached directory instead
-    // of cloning from the parent workspace.
-    if let Some(ref workspace) = run_ctx.workspace {
-        let mut mgr = workspace
+    {
+        let mut mgr = run_ctx
+            .workspace
             .lock()
             .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
         if let CacheDecision::Hit { ref tag } = decision {
@@ -428,31 +410,22 @@ async fn execute_step(
                 });
                 cancel.cancel();
             } else {
-                // Persist to COW cache and evict stale entries on success.
-                if let Some(ref ws_mgr) = run_ctx.workspace {
-                    if let Some(ref cache_to) = cow_cache_to {
-                        let ws_path = {
-                            let mgr = ws_mgr
-                                .lock()
-                                .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
-                            mgr.workspace_path(&step_key)
-                                .map(std::path::Path::to_path_buf)
-                        };
-                        if let Some(ws) = ws_path
-                            && let Err(e) = cache::persist_cow_cache(&ws, cache_to)
-                        {
-                            tracing::warn!(%e, "failed to persist COW cache");
-                        }
-                    }
-                    cache::evict_stale_cow_dirs(&cow_stale_dirs);
-                } else {
-                    // Docker mode: evict stale Docker cache images.
-                    for stale in &docker_stale_tags {
-                        if let Err(e) = run_ctx.docker.remove_image(stale).await {
-                            tracing::warn!(image = %stale, %e, "failed to evict stale cache image");
-                        }
+                if let Some(ref cache_to) = cow_cache_to {
+                    let ws_path = {
+                        let mgr = run_ctx
+                            .workspace
+                            .lock()
+                            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+                        mgr.workspace_path(&step_key)
+                            .map(std::path::Path::to_path_buf)
+                    };
+                    if let Some(ws) = ws_path
+                        && let Err(e) = cache::persist_cow_cache(&ws, cache_to)
+                    {
+                        tracing::warn!(%e, "failed to persist COW cache");
                     }
                 }
+                cache::evict_stale_cow_dirs(&cow_stale_dirs);
             }
             Ok(StepOutcome {
                 exit_code: sr.exit_code,

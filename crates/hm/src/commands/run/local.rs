@@ -83,14 +83,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         other => anyhow::bail!("unknown --format '{other}'\n  available: human, json"),
     };
 
-    let exit_code = crate::orchestrator::run(
-        graph,
-        repo_root,
-        parallelism,
-        runner_registry,
-        renderer,
-        args.cow,
-    )
-    .await?;
+    let exit_code =
+        crate::orchestrator::run(graph, repo_root, parallelism, runner_registry, renderer).await?;
     Ok(exit_code)
 }
