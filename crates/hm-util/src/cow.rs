@@ -26,6 +26,62 @@ pub fn detect_strategy() -> CowStrategy {
     *STRATEGY.get_or_init(detect_strategy_inner)
 }
 
+/// Probe result for a single strategy.
+#[derive(Debug, Clone)]
+pub struct StrategyProbe {
+    pub strategy: CowStrategy,
+    pub available: bool,
+    pub reason: &'static str,
+}
+
+/// Test all strategies and report which are available.
+/// Used for diagnostics / user-facing warnings.
+#[must_use]
+#[allow(clippy::vec_init_then_push)]
+pub fn diagnose_strategies() -> Vec<StrategyProbe> {
+    let mut probes = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    probes.push(StrategyProbe {
+        strategy: CowStrategy::ApfsClone,
+        available: true,
+        reason: "macOS APFS detected",
+    });
+
+    #[cfg(target_os = "linux")]
+    {
+        probes.push(StrategyProbe {
+            strategy: CowStrategy::Reflink,
+            available: probe_reflink(),
+            reason: if probe_reflink() {
+                "filesystem supports reflinks"
+            } else {
+                "filesystem does not support reflinks (btrfs/XFS required)"
+            },
+        });
+        let fuse_ok = probe_fuse_overlayfs();
+        probes.push(StrategyProbe {
+            strategy: CowStrategy::FuseOverlay,
+            available: fuse_ok,
+            reason: if fuse_ok {
+                "fuse-overlayfs mount succeeded"
+            } else if which::which("fuse-overlayfs").is_err() {
+                "fuse-overlayfs not installed"
+            } else {
+                "fuse-overlayfs mount failed (missing /dev/fuse or user_allow_other?)"
+            },
+        });
+    }
+
+    probes.push(StrategyProbe {
+        strategy: CowStrategy::FullCopy,
+        available: true,
+        reason: "always available (slow)",
+    });
+
+    probes
+}
+
 #[allow(clippy::missing_const_for_fn)]
 fn detect_strategy_inner() -> CowStrategy {
     #[cfg(target_os = "macos")]

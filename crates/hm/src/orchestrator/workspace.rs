@@ -47,6 +47,16 @@ impl WorkspaceManager {
             .with_context(|| format!("create run dir {}", run_dir.display()))?;
         let strategy = hm_util::cow::detect_strategy();
         tracing::info!(?strategy, "COW workspace strategy");
+        if strategy == hm_util::cow::CowStrategy::FullCopy {
+            tracing::warn!("using full-copy fallback — workspace cloning will be slow");
+            for probe in hm_util::cow::diagnose_strategies() {
+                if probe.available {
+                    tracing::info!(strategy = ?probe.strategy, reason = probe.reason, "available");
+                } else {
+                    tracing::info!(strategy = ?probe.strategy, reason = probe.reason, "unavailable");
+                }
+            }
+        }
         Ok(Self {
             run_dir,
             base_dir,
