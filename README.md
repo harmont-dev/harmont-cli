@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://harmont.dev">Website</a> · <a href="https://harmont.dev/docs">Docs</a> · <a href="https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A">Slack</a>
+  <a href="https://harmont.dev">Website</a> · <a href="https://docs.harmont.dev">Docs</a> · <a href="https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A">Slack</a>
 </p>
 
 > [!WARNING]
@@ -174,7 +174,7 @@ Go, Python, Java, C++, React, Next.js, and more.
 ## Documentation
 
 For the full pipeline reference, rich examples, and more — see the
-[docs](https://harmont.dev/docs).
+[docs](https://docs.harmont.dev).
 
 ## License
 
