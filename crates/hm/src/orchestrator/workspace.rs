@@ -160,10 +160,6 @@ impl WorkspaceManager {
         Ok(())
     }
 
-    // ------------------------------------------------------------------
-    // Clone strategy
-    // ------------------------------------------------------------------
-
     fn create_clone(
         &mut self,
         step_key: &str,
@@ -190,10 +186,6 @@ impl WorkspaceManager {
         self.workspaces.insert(step_key.to_string(), ws_dir.clone());
         Ok(ws_dir)
     }
-
-    // ------------------------------------------------------------------
-    // Overlay strategy
-    // ------------------------------------------------------------------
 
     fn create_overlay(&mut self, step_key: &str, parent_key: Option<&str>) -> Result<PathBuf> {
         let safe = sanitize_key(step_key);
