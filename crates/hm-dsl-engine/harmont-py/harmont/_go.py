@@ -2,7 +2,7 @@
 
 Chain: scratch -> apt-base (curl, ca-certificates) -> go-install (download
 official tarball to /usr/local/go) -> action leaves. The go-install step
-is cached forever, keyed on the Go version in the command.
+is cached forever, keyed on the Go version baked into the command.
 """
 
 from __future__ import annotations
@@ -37,6 +37,12 @@ def _go_install_cmd(version: str) -> str:
 
 @dataclass(frozen=True)
 class GoToolchain:
+    """Go toolchain install chain — constructed via ``hm.go()``.
+
+    Holds the go-install step. Action methods (``build``, ``test``, ``vet``,
+    ``fmt``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
 
@@ -85,6 +91,12 @@ def _make_go(
 
 
 class GoEntry:
+    """Callable singleton for the Go toolchain — access as ``hm.go``.
+
+    Call directly to construct a ``GoToolchain``, or use the bare-form
+    action methods (``go.build()``, ``go.test()``, etc.) for a one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -93,6 +105,24 @@ class GoEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> GoToolchain:
+        """Install Go and return a toolchain object.
+
+        Args:
+            path: Path to the Go module root.
+            version: Go version to install (e.g. ``"1.23.2"``). Must be a
+                full ``MAJOR.MINOR.PATCH`` version string.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``GoToolchain`` ready for action methods.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.go(version="1.23.2")
+            >>> hm.pipeline(tc.test(), tc.vet())
+        """
         return _make_go(path=path, version=version, image=image, base=base)
 
     def build(self, **kw: Any) -> Step:

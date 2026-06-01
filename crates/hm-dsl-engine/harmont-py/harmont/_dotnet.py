@@ -3,7 +3,7 @@
 Chain: scratch -> apt-base (curl, ca-certificates, libicu-dev) ->
 dotnet-install (via Microsoft's dotnet-install.sh) -> action leaves.
 The dotnet-install step is cached forever, keyed on the channel baked
-into the command.
+into the install command.
 """
 
 from __future__ import annotations
@@ -39,6 +39,12 @@ def _dotnet_install_cmd(channel: str) -> str:
 
 @dataclass(frozen=True)
 class DotnetProject:
+    """dotnet (C#) project install chain — constructed via ``hm.dotnet()``.
+
+    ``installed`` is the dotnet-install step. Action methods (``build``,
+    ``test``, ``fmt``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
 
@@ -92,6 +98,13 @@ def _make_dotnet(
 
 
 class DotnetEntry:
+    """Callable singleton for the dotnet toolchain — access as ``hm.dotnet``.
+
+    Call directly to construct a ``DotnetProject``, or use the bare-form
+    action methods (``dotnet.build()``, ``dotnet.test()``, etc.) for a
+    one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -100,6 +113,24 @@ class DotnetEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> DotnetProject:
+        """Install the .NET SDK and return a project object.
+
+        Args:
+            path: Path to the .NET project root.
+            channel: .NET SDK channel to install. Use a version like
+                ``"8.0"``, or a release band like ``"LTS"`` or ``"STS"``.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``DotnetProject`` ready for action methods.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.dotnet(channel="8.0")
+            >>> hm.pipeline(proj.test())
+        """
         return _make_dotnet(path=path, channel=channel, image=image, base=base)
 
     def build(self, **kw: Any) -> Step:

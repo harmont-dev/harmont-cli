@@ -1,7 +1,7 @@
 """Python (uv) toolchain abstraction.
 
-Public surface lives on the module-level singleton :data:`python`. Call
-it to construct a :class:`PythonToolchain`, or use the bare-form action
+Public surface lives on the module-level singleton ``python``. Call
+it to construct a ``PythonToolchain``, or use the bare-form action
 methods (``python.test()``, ``python.lint()``, etc.) for a one-shot leaf.
 
 The chain is:
@@ -50,6 +50,13 @@ def _uv_install_cmd(uv_version: str) -> str:
 
 @dataclass(frozen=True)
 class PythonToolchain:
+    """Python (uv) toolchain install chain — constructed via ``hm.python()``.
+
+    ``installed`` is the ``uv sync`` step. Action methods (``test``,
+    ``lint``, ``fmt``, ``typecheck``) attach leaves to ``installed`` so
+    dependency installation is shared across CI actions.
+    """
+
     path: str
     installed: Step  # uv-sync Step
 
@@ -127,6 +134,13 @@ def _make_python(
 
 
 class PythonEntry:
+    """Callable singleton for the Python (uv) toolchain — access as ``hm.python``.
+
+    Call directly to construct a ``PythonToolchain``, or use the bare-form
+    action methods (``python.test()``, ``python.lint()``, etc.) for a
+    one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -135,6 +149,25 @@ class PythonEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> PythonToolchain:
+        """Install uv, sync the project, and return a toolchain object.
+
+        Args:
+            path: Path to the Python project root (must contain a
+                ``pyproject.toml``).
+            uv_version: uv version to install. Use ``"latest"`` for the
+                latest release or a pinned version like ``"0.4.18"``.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``PythonToolchain`` whose ``installed`` step is ``uv sync``.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.python(path="services/api")
+            >>> hm.pipeline(tc.test(), tc.lint())
+        """
         return _make_python(path=path, uv_version=uv_version, image=image, base=base)
 
     def test(self, **kw: Any) -> Step:

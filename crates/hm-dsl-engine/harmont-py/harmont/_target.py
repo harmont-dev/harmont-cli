@@ -1,7 +1,7 @@
 """@hm.target — memoized, composable building blocks (HAR-28).
 
 A target is a function that returns a ``Step`` (or a toolchain wrapper
-that unwraps to one — see :mod:`harmont._unwrap`). The decorator:
+that unwraps to one). The decorator:
 
   1. Registers the wrapped function by name in the global registry
      (``harmont._deps._TARGETS_BY_NAME``), so other targets can
@@ -9,7 +9,7 @@ that unwraps to one — see :mod:`harmont._unwrap`). The decorator:
   2. Memoizes the return value per envelope render so targets calling
      other targets dedup correctly.
   3. Resolves any parameters declared by the wrapped function via
-     :func:`harmont._deps.call_with_deps` (cycle-aware).
+     ``call_with_deps`` (cycle-aware).
 
 Pytest-style fixture form:
 
@@ -28,9 +28,8 @@ Explicit-call form is still supported:
         return apt_base().sh("python3 -m venv .venv")
 
 The cache lives in a module-level dict keyed by the wrapped function
-object. :func:`harmont._envelope.dump_registry_json` clears it before
-each render; tests clear it via the fixture pattern documented in
-``cidsl/py/CLAUDE.md``.
+object. ``dump_registry_json()`` clears it before each render; tests
+clear it via the fixture pattern documented in ``cidsl/py/CLAUDE.md``.
 """
 
 from __future__ import annotations
@@ -55,11 +54,11 @@ _TARGET_CACHE: dict[Callable[..., Any], Any] = {}
 def clear_target_memo() -> None:
     """Reset only the per-render memoization cache.
 
-    Called at the start of every envelope render so two consecutive
-    renders don't share cached ``Step`` values. The named-target
-    registry is NOT touched — it is populated once at decoration time
-    and must remain in place so pipeline fixture-style params can
-    resolve their dependencies during the same render.
+    Called at the start of every envelope render so two consecutive renders
+    don't share cached ``Step`` values. The named-target registry is NOT
+    touched — it is populated once at decoration time and must remain in
+    place so pipeline fixture-style params can resolve their dependencies
+    during the same render.
     """
     _TARGET_CACHE.clear()
 
@@ -69,7 +68,7 @@ def clear_target_cache() -> None:
 
     Test-only helper: between tests we want a clean slate. During an
     envelope render the named registry stays put — only the memo cache
-    is wiped via :func:`clear_target_memo`.
+    is wiped via ``clear_target_memo()``.
     """
     _TARGET_CACHE.clear()
     clear_target_names()
@@ -83,11 +82,22 @@ def target(
 
     The wrapped function may declare dependencies as parameters; each
     parameter name is resolved against the global target registry
-    (pytest-fixture style).
+    (pytest-fixture style). The return value is memoized per render so
+    targets calling other targets dedup correctly.
 
-    ``name`` defaults to ``fn.__name__``. Override when the function
-    name collides with another target or when a more human-readable
-    registry key is wanted.
+    Args:
+        name: Registry key for this target. Defaults to the decorated
+            function's name. Override when the name collides with another
+            target or a more human-readable key is preferred.
+
+    Returns:
+        A decorator that registers and memoizes the wrapped function.
+
+    Examples:
+        >>> import harmont as hm
+        >>> @hm.target()
+        ... def apt_base() -> hm.Step:
+        ...     return hm.sh("apt-get update")
     """
 
     def decorator(fn: Callable[..., Any]) -> Callable[[], Any]:

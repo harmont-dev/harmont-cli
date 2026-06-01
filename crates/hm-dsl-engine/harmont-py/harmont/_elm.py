@@ -1,8 +1,8 @@
 """Elm project abstraction (HAR-15).
 
-Public surface lives on the module-level singleton :data:`elm`. Call it
-to construct an :class:`ElmProject`, or use the bare-form action
-methods (``elm.make(...)``, ``elm.test()``, etc.) for a one-shot leaf.
+Public surface lives on the module-level singleton ``elm``. Call it
+to construct an ``ElmProject``, or use the bare-form action methods
+(``elm.make(...)``, ``elm.test()``, etc.) for a one-shot leaf.
 
 Chain shape: scratch -> apt-base -> nodesource node install -> elm
 binary download -> action leaves. Node is required because elm-test,
@@ -39,7 +39,11 @@ def _elm_install_cmd(elm_version: str) -> str:
 
 @dataclass(frozen=True)
 class ElmProject:
-    """Constructed via :func:`elm` (the ``hm.elm`` singleton)."""
+    """Elm project install chain — constructed via ``hm.elm()``.
+
+    ``installed`` is the elm binary download step. Action methods
+    (``make``, ``test``, ``review``, ``fmt``) attach leaves to ``installed``.
+    """
 
     path: str
     installed: Step
@@ -108,7 +112,11 @@ def _make_elm(
 
 
 class ElmEntry:
-    """Callable singleton — supports both object form and bare form."""
+    """Callable singleton for the Elm toolchain — access as ``hm.elm``.
+
+    Supports both object form (``hm.elm()``) and bare form
+    (``hm.elm.make(target)``, ``hm.elm.test()``, etc.).
+    """
 
     def __call__(
         self,
@@ -119,6 +127,26 @@ class ElmEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> ElmProject:
+        """Install Node.js and the Elm compiler, returning a project object.
+
+        Args:
+            path: Path to the Elm project root.
+            elm_version: Elm compiler version to download from GitHub releases
+                (e.g. ``"0.19.1"``).
+            node_version: Node.js major version for npx-based tools
+                (elm-test, elm-review, elm-format). Defaults to ``"20"``.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            An ``ElmProject`` whose ``installed`` step is the elm-install step.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.elm(path="frontend")
+            >>> hm.pipeline(proj.make("src/Main.elm"), proj.test())
+        """
         return _make_elm(
             path=path,
             elm_version=elm_version,

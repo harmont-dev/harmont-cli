@@ -1,6 +1,6 @@
 """Rust toolchain abstraction (HAR-15).
 
-Public surface lives on the module-level singleton :data:`rust`:
+Public surface lives on the module-level singleton ``rust``:
 
     hm.rust.toolchain(...)  -> RustToolchain  (install-only)
     hm.rust.project(...)    -> RustProject    (full CI DAG)
@@ -42,7 +42,11 @@ def _rustup_cmd(version: str, components: tuple[str, ...]) -> str:
 
 @dataclass(frozen=True)
 class RustToolchain:
-    """Constructed via :func:`rust` (the ``hm.rust`` singleton)."""
+    """Rust toolchain install chain — constructed via ``hm.rust.toolchain()``.
+
+    Holds the install step produced by rustup. Action methods (``build``,
+    ``test``, ``clippy``, ``fmt``, ``doc``) attach leaves to ``installed``.
+    """
 
     path: str
     installed: Step
@@ -86,7 +90,12 @@ class RustToolchain:
 
 @dataclass(frozen=True)
 class RustProject:
-    """High-level Rust CI DAG — constructed via ``hm.rust.project()``."""
+    """High-level Rust CI DAG — constructed via ``hm.rust.project()``.
+
+    Wraps a ``RustToolchain`` and a pre-built warmup step. Action methods
+    (``test``, ``clippy``, ``fmt``) attach leaves to the warmup so
+    dependency compilation is shared across CI actions.
+    """
 
     toolchain: RustToolchain
     warmup: Step
@@ -191,6 +200,32 @@ class RustEntry:
         components: tuple[str, ...] = ("clippy", "rustfmt"),
         base: Step | None = None,
     ) -> RustToolchain:
+        """Install the Rust toolchain via rustup.
+
+        Produces a ``RustToolchain`` whose ``installed`` step is the
+        rustup-install step. Action methods on the toolchain attach leaves
+        to ``installed``. Use ``project()`` instead when you want a
+        pre-built warmup step shared across test/clippy/fmt.
+
+        Args:
+            path: Path to the crate or workspace root.
+            version: rustup channel name (``"stable"``) or a pinned version
+                (``"1.81.0"``).
+            image: Local-mode Docker base image override.
+            components: rustup components to install alongside the toolchain.
+                Defaults to ``("clippy", "rustfmt")``.
+            base: Existing ``Step`` to attach the toolchain install to instead
+                of emitting a fresh apt-base step. Use to share one apt-base
+                across multiple toolchains.
+
+        Returns:
+            A ``RustToolchain`` ready for action methods.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.rust.toolchain(version="1.81.0")
+            >>> hm.pipeline(tc.test(), tc.clippy())
+        """
         return _make_rust(
             path=path,
             version=version,
@@ -209,6 +244,33 @@ class RustEntry:
         base: Step | None = None,
         cache: CachePolicy | None = None,
     ) -> RustProject:
+        """Build a high-level Rust CI DAG.
+
+        Installs the toolchain via rustup, warms a dependency cache keyed on
+        ``Cargo.lock``, and returns a ``RustProject`` whose ``.test()``,
+        ``.clippy()``, and ``.fmt()`` methods build on that warmup step so
+        dependency compilation is shared.
+
+        Args:
+            path: Path to the crate or workspace root.
+            version: rustup channel name (``"stable"``) or a pinned version
+                (``"1.81.0"``).
+            image: Local-mode Docker base image override.
+            components: rustup components to install alongside the toolchain.
+                Defaults to ``("clippy", "rustfmt")``.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+            cache: Override the warmup step's cache policy. Defaults to
+                ``CacheOnChange`` keyed on ``Cargo.lock``.
+
+        Returns:
+            A ``RustProject`` exposing the common CI steps.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.rust.project()
+            >>> hm.group([proj.test(), proj.clippy(), proj.fmt()])
+        """
         return _make_rust_project(
             path=path,
             version=version,

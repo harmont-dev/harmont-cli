@@ -57,6 +57,12 @@ def _install_cmd() -> str:
 
 @dataclass(frozen=True)
 class GradleProject:
+    """Gradle (Java/Kotlin) project install chain — constructed via ``hm.gradle()``.
+
+    ``installed`` is the JDK-verify step. Action methods (``build``,
+    ``test``, ``lint``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
     _tag: str
@@ -113,6 +119,13 @@ def _make_gradle(
 
 
 class GradleEntry:
+    """Callable singleton for the Gradle toolchain — access as ``hm.gradle``.
+
+    Call directly to construct a ``GradleProject``, or use the bare-form
+    action methods (``gradle.build()``, ``gradle.test()``, etc.) for a
+    one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -122,6 +135,26 @@ class GradleEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> GradleProject:
+        """Install the JDK and Gradle, returning a project object.
+
+        Args:
+            path: Path to the project root (where ``build.gradle`` lives).
+            jdk: JDK major version to install via apt. Must be one of
+                ``"11"``, ``"17"``, or ``"21"``.
+            kotlin: When ``True``, sets the label prefix to ``:kotlin:``
+                instead of ``:java:``. The Gradle commands are identical.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``GradleProject`` ready for action methods.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.gradle(jdk="21")
+            >>> hm.pipeline(proj.test())
+        """
         return _make_gradle(path=path, jdk=jdk, kotlin=kotlin, image=image, base=base)
 
     def build(self, **kw: Any) -> Step:

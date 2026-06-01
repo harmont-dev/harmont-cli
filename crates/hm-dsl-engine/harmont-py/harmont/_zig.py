@@ -47,6 +47,12 @@ def _zig_install_cmd(version: str) -> str:
 
 @dataclass(frozen=True)
 class ZigProject:
+    """Zig project rooted on a specific path — constructed via ``hm.zig(path=...)``.
+
+    ``installed`` is the zig-install step. Action methods (``build``,
+    ``test``, ``fmt``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
 
@@ -79,18 +85,34 @@ class ZigProject:
 
 @dataclass(frozen=True)
 class ZigToolchain:
-    """Constructed via :func:`zig` when no ``path`` is supplied.
+    """Zig toolchain install chain — constructed via ``hm.zig()`` with no ``path``.
 
-    Holds the shared zig-install Step. Spawn one :class:`ZigProject`
-    per subdir via :meth:`project`; all projects from one toolchain
-    share the same install Step, so the emitted IR contains a single
-    :zig: install node fanned out to N project chains.
+    Holds the shared zig-install step. Spawn one ``ZigProject`` per
+    subdirectory via ``.project(path)``; all projects from one toolchain
+    share the same install step, so the emitted IR contains a single
+    ``:zig: install`` node fanned out to N project chains.
     """
 
     version: str
     installed: Step
 
     def project(self, path: str = ".") -> ZigProject:
+        """Create a ``ZigProject`` rooted at ``path`` from this toolchain.
+
+        Args:
+            path: Path to the Zig project root relative to the workspace.
+
+        Returns:
+            A ``ZigProject`` whose ``installed`` step is shared with this
+            toolchain.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.zig(version="0.13.0")
+            >>> lib = tc.project("lib-a")
+            >>> app = tc.project("app")
+            >>> hm.pipeline(lib.test(), app.test())
+        """
         return ZigProject(path=path, installed=self.installed)
 
 
@@ -116,7 +138,15 @@ def _make_toolchain(
 
 
 class ZigEntry:
-    """Callable singleton — supports object form, toolchain form, and bare form."""
+    """Callable singleton for the Zig toolchain — access as ``hm.zig``.
+
+    Supports three usage forms:
+
+    - Toolchain form: ``hm.zig(version="0.13.0")`` returns a ``ZigToolchain``
+      shared across multiple projects.
+    - Project form: ``hm.zig(path=".")`` returns a ``ZigProject`` directly.
+    - Bare form: ``hm.zig.build()``, ``hm.zig.test()``, etc. for one-shot leaves.
+    """
 
     @overload
     def __call__(
@@ -145,6 +175,29 @@ class ZigEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> ZigToolchain | ZigProject:
+        """Install Zig and return a toolchain or project.
+
+        Returns a ``ZigToolchain`` when ``path`` is omitted, or a ``ZigProject``
+        when ``path`` is provided.
+
+        Args:
+            path: Zig project root. Omit to get a reusable ``ZigToolchain``
+                from which multiple projects can be spawned.
+            version: Zig release version (e.g. ``"0.13.0"``). Must be a
+                full ``MAJOR.MINOR.PATCH`` string.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``ZigToolchain`` when ``path`` is omitted, or a ``ZigProject``
+            when ``path`` is provided.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.zig(path=".", version="0.13.0")
+            >>> hm.pipeline(proj.build(), proj.test())
+        """
         toolchain = _make_toolchain(version=version, image=image, base=base)
         if path is None:
             return toolchain

@@ -35,6 +35,12 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 
 @dataclass(frozen=True)
 class ComposerProject:
+    """Composer (PHP/Laravel) project install chain — constructed via ``hm.composer()``.
+
+    ``installed`` is the ``composer install`` step. Action methods (``test``,
+    ``lint``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
     _tag: str
@@ -87,6 +93,12 @@ def _make_composer(
 
 
 class ComposerEntry:
+    """Callable singleton for the Composer toolchain — access as ``hm.composer``.
+
+    Call directly to construct a ``ComposerProject``, or use the bare-form
+    action methods (``composer.test()``, ``composer.lint()``) for a one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -95,6 +107,26 @@ class ComposerEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> ComposerProject:
+        """Install Composer dependencies and return a project object.
+
+        Args:
+            path: Path to the PHP project root (must contain a
+                ``composer.lock``).
+            laravel: When ``True``, uses ``php artisan test`` for ``.test()``
+                and sets the label prefix to ``:laravel:`` instead of
+                ``:php:``.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``ComposerProject`` whose ``installed`` step is ``composer install``.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.composer(laravel=True)
+            >>> hm.pipeline(proj.test())
+        """
         return _make_composer(path=path, laravel=laravel, image=image, base=base)
 
     def test(self, **kw: Any) -> Step:

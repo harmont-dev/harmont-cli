@@ -17,7 +17,7 @@ The whole public surface:
     schedule(cron=...)                 -> ScheduleTrigger
     dump_registry_json()              -> str  (HAR-9 envelope)
 
-Cache helpers: ttl, on_change, forever, compose.
+Cache helpers: `ttl`, `on_change`, `forever`, `compose`.
 
 ``hm.pipeline`` is polymorphic. When called with positional ``Step``
 arguments it builds a v0 IR dict (the factory). When called with no
@@ -68,20 +68,27 @@ if TYPE_CHECKING:
 
 
 def pipeline(*args: Any, **kwargs: Any) -> Any:
-    """Polymorphic entry point.
+    """Build a v0 IR dict or register a pipeline function.
 
-    - ``pipeline(*leaves, env=..., default_image=...)`` — every
-      positional arg is a :class:`Step`; returns the v0 IR dict (the
-      factory).
-    - ``pipeline(slug=None, *, name=..., triggers=..., allow_manual=...,
-      env=..., default_image=...)`` — no positionals or a string slug;
-      returns a decorator that registers the wrapped function in the
-      module-level :data:`~harmont._registry.REGISTRATIONS` table
-      (HAR-9).
+    This function is polymorphic based on the type of its positional arguments.
 
-    The discriminant is the *type* of the positional arguments: any
-    non-Step positional (including a string slug, or no positional at
-    all) routes to the decorator path.
+    Factory form — every positional is a ``Step``:
+
+        pipeline(*leaves, env=None, default_image=None) -> dict
+
+    Decorator form — no positionals or a string slug:
+
+        @pipeline(slug=None, *, name=None, triggers=(), allow_manual=True,
+                  env=None, default_image=None)
+        def my_pipeline() -> Step: ...
+
+    The decorator registers the wrapped function in the module-level
+    pipeline registry (HAR-9). The discriminant is the type of the
+    positional arguments: any non-``Step`` positional (including a string
+    slug, or no positional at all) routes to the decorator path.
+
+    Returns:
+        A v0 IR ``dict`` in factory form, or a decorator in decorator form.
     """
     if args and all(isinstance(a, Step) for a in args):
         return _pipeline_factory(*args, **kwargs)
@@ -89,18 +96,91 @@ def pipeline(*args: Any, **kwargs: Any) -> Any:
 
 
 def ttl(duration: timedelta) -> CacheTTL:
+    """Create a time-to-live cache policy.
+
+    The step's snapshot is reused until ``duration`` has elapsed since the
+    last successful run, floored to UTC midnight. Two builds within the same
+    UTC day share a cache key; a build the following day rebuilds.
+
+    Args:
+        duration: How long the cached result remains valid.
+
+    Returns:
+        A ``CacheTTL`` policy for use in ``.sh(cache=...)``.
+
+    Examples:
+        >>> from datetime import timedelta
+        >>> import harmont as hm
+        >>> step = hm.sh("apt-get update", cache=hm.ttl(timedelta(days=1)))
+    """
     return CacheTTL(duration=duration)
 
 
 def on_change(*paths: str) -> CacheOnChange:
+    """Create a content-addressed cache policy keyed on file hashes.
+
+    The step's snapshot is reused until any file under ``paths`` changes.
+    Paths are relative to the source-archive root and resolved at render
+    time by the key generator.
+
+    Args:
+        *paths: One or more paths (relative to workspace root) to watch for
+            changes.
+
+    Returns:
+        A ``CacheOnChange`` policy for use in ``.sh(cache=...)``.
+
+    Examples:
+        >>> import harmont as hm
+        >>> step = hm.sh("pip install -r requirements.txt",
+        ...               cache=hm.on_change("requirements.txt"))
+    """
     return CacheOnChange(paths=tuple(paths))
 
 
 def forever(env_keys: tuple[str, ...] = ()) -> CacheForever:
+    """Create a permanent cache policy.
+
+    The step's snapshot is reused indefinitely, keyed on (command, parent,
+    env_keys). Suitable for deterministic installs where the command string
+    itself encodes the version (e.g. downloading a pinned binary). Do not
+    use for steps that fetch mutable remote resources.
+
+    Args:
+        env_keys: Environment variable names whose values are folded into
+            the cache key. Use this when the command's behavior varies by
+            environment (e.g. ``GOARCH``).
+
+    Returns:
+        A ``CacheForever`` policy for use in ``.sh(cache=...)``.
+
+    Examples:
+        >>> import harmont as hm
+        >>> step = hm.sh("curl .../go1.23.tar.gz | tar ...", cache=hm.forever())
+    """
     return CacheForever(env_keys=env_keys)
 
 
 def compose(*policies: CachePolicy) -> CacheCompose:
+    """Combine multiple cache policies: hit only when every sub-policy hits.
+
+    Use to express compound invalidation conditions such as "rebuild daily
+    OR when these files change".
+
+    Args:
+        *policies: Two or more ``CachePolicy`` instances to combine.
+
+    Returns:
+        A ``CacheCompose`` policy for use in ``.sh(cache=...)``.
+
+    Examples:
+        >>> from datetime import timedelta
+        >>> import harmont as hm
+        >>> policy = hm.compose(
+        ...     hm.ttl(timedelta(days=1)),
+        ...     hm.on_change("api/cabal.project"),
+        ... )
+    """
     return CacheCompose(policies=tuple(policies))
 
 
@@ -115,7 +195,29 @@ def sh(
     image: str | None = None,
     key: str | None = None,
 ) -> Step:
-    """Shorthand for ``scratch().sh(cmd, ...)`` — start a chain in one call."""
+    """Start a chain with a single shell command.
+
+    Shorthand for ``scratch().sh(cmd, ...)``. All keyword arguments are
+    forwarded to ``Step.sh``.
+
+    Args:
+        cmd: Shell command to run.
+        cwd: Directory to run in, relative to the workspace root. Omit to
+            run in the root.
+        label: Human-facing label shown in the UI. Defaults to the command.
+        cache: Cache policy controlling result reuse across builds.
+        env: Per-step environment variables merged on top of pipeline-level env.
+        timeout_seconds: Hard wall-clock timeout in seconds.
+        image: Local-mode Docker base image override for this step.
+        key: Manual key override for this step in the v0 IR.
+
+    Returns:
+        A new root ``Step`` with the command set.
+
+    Examples:
+        >>> import harmont as hm
+        >>> step = hm.sh("cargo build")
+    """
     return scratch().sh(
         cmd,
         cwd=cwd,
@@ -129,7 +231,22 @@ def sh(
 
 
 def group(steps: list[Step] | tuple[Step, ...]) -> tuple[Step, ...]:
-    """Combine steps into a group for use as a target return value."""
+    """Collect a list of steps into a tuple for use as a target return value.
+
+    ``pipeline()`` and ``@pipeline`` both accept a tuple of leaves.
+    ``group()`` converts a list to that tuple for convenience.
+
+    Args:
+        steps: The leaf steps to collect.
+
+    Returns:
+        A tuple of the input steps.
+
+    Examples:
+        >>> import harmont as hm
+        >>> proj = hm.rust.project()
+        >>> leaves = hm.group([proj.test(), proj.clippy(), proj.fmt()])
+    """
     return tuple(steps)
 
 

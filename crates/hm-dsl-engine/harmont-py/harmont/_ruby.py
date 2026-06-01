@@ -29,6 +29,12 @@ _VERSION_RE = re.compile(r"^(default|[0-9]+\.[0-9]+(\.[0-9]+)?)$")
 
 @dataclass(frozen=True)
 class RubyProject:
+    """Ruby project install chain — constructed via ``hm.ruby()``.
+
+    ``installed`` is the ``bundle install`` step. Action methods (``test``,
+    ``lint``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
 
@@ -90,6 +96,12 @@ def _make_ruby(
 
 
 class RubyEntry:
+    """Callable singleton for the Ruby toolchain — access as ``hm.ruby``.
+
+    Call directly to construct a ``RubyProject``, or use the bare-form
+    action methods (``ruby.test()``, ``ruby.lint()``) for a one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -98,6 +110,30 @@ class RubyEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> RubyProject:
+        """Install Ruby and bundle dependencies, returning a project object.
+
+        Args:
+            path: Path to the Ruby project root (must contain a
+                ``Gemfile.lock``).
+            version: Ruby version. Currently only ``"default"`` is supported
+                (installs whichever ``ruby-full`` ships in the apt repository).
+                Pinned versions require rbenv/asdf support, which is not yet
+                implemented.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``RubyProject`` whose ``installed`` step is ``bundle install``.
+
+        Raises:
+            NotImplementedError: If ``version`` is not ``"default"``.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.ruby()
+            >>> hm.pipeline(proj.test())
+        """
         return _make_ruby(path=path, version=version, image=image, base=base)
 
     def test(self, **kw: Any) -> Step:

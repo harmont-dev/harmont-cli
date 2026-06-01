@@ -21,6 +21,13 @@ _VERSION_RE = re.compile(r"^[0-9]+(\.x)?$")
 
 @dataclass(frozen=True)
 class NpmProject:
+    """npm project install chain — constructed via ``hm.npm()``.
+
+    ``installed`` is the ``npm ci`` step. Action methods (``run``,
+    ``test``, ``lint``, ``fmt``) attach leaves to ``installed`` so
+    dependency installation is shared across CI actions.
+    """
+
     path: str
     installed: Step  # the `npm ci` step
 
@@ -84,6 +91,13 @@ def _make_npm(
 
 
 class NpmEntry:
+    """Callable singleton for the npm toolchain — access as ``hm.npm``.
+
+    Call directly to construct an ``NpmProject``, or use the bare-form
+    action methods (``npm.test()``, ``npm.run(script)``, etc.) for a
+    one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -92,6 +106,25 @@ class NpmEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> NpmProject:
+        """Install Node.js and run ``npm ci``, returning a project object.
+
+        Args:
+            path: Path to the npm project root (must contain a
+                ``package-lock.json``).
+            version: Node.js major version to install (e.g. ``"20"`` or
+                ``"20.x"``).
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            An ``NpmProject`` whose ``installed`` step is ``npm ci``.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.npm(path="frontend", version="20")
+            >>> hm.pipeline(proj.test())
+        """
         return _make_npm(path=path, version=version, image=image, base=base)
 
     def install(self, **kw: Any) -> Step:

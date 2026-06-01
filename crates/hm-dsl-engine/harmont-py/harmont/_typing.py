@@ -2,16 +2,16 @@
 
 Two markers are public surface:
 
-  Target[T]      — declares a dependency on a registered target by
-                   parameter name. The resolved value is typed `T`
-                   (whatever the target returns — `Step`,
-                   `HaskellPackage`, `ElmProject`, etc.).
+  ``Target[T]``    — declares a dependency on a registered target by
+                     parameter name. The resolved value is typed ``T``
+                     (whatever the target returns — ``Step``,
+                     ``HaskellPackage``, ``ElmProject``, etc.).
 
-  BaseImage(X)   — used in ``Annotated[Step, BaseImage("X")]``. Declares
-                   a scratch-rooted Step in image "X" as the parameter
-                   value. The first ``.sh()`` call on the parameter
-                   inherits ``image="X"``, so the first emitted IR step
-                   carries it in the v0 wire format.
+  ``BaseImage(X)`` — used in ``Annotated[Step, BaseImage("X")]``. Declares
+                     a scratch-rooted Step in image "X" as the parameter
+                     value. The first ``.sh()`` call on the parameter
+                     inherits ``image="X"``, so the first emitted IR step
+                     carries it in the v0 wire format.
 
 Both surface as PEP 593 ``Annotated[...]`` so static type-checkers see
 the concrete type (``Step``, ``HaskellPackage``, etc.) while the runtime
@@ -80,13 +80,29 @@ class _BaseImageMarker:
 
 
 def BaseImage(image: str) -> _BaseImageMarker:  # noqa: N802 — factory mimicking a type
-    """Annotation metadata factory. Use as
-    ``Annotated[Step, BaseImage("ubuntu-24.04")]``.
+    """Create a ``BaseImage`` annotation marker for a target parameter.
 
-    The decorator injects a ``Step(image="ubuntu-24.04")`` (a scratch
-    root with the image set) as the parameter value. The first
-    ``.sh(...)`` call on it inherits the image so the first emitted
-    IR step carries ``image="ubuntu-24.04"`` in the v0 wire format.
+    Use as ``Annotated[Step, BaseImage("ubuntu-24.04")]`` on a parameter
+    of a ``@hm.target()`` function. The runtime decorator injects a
+    scratch-rooted ``Step`` with the given image set as the parameter value.
+    The first ``.sh()`` call on that step inherits the image, so the first
+    emitted IR step carries ``image`` in the v0 wire format.
+
+    Args:
+        image: Non-empty Docker image string (e.g. ``"ubuntu-24.04"``).
+
+    Returns:
+        A ``_BaseImageMarker`` for use in ``Annotated[Step, ...]``.
+
+    Raises:
+        TypeError: If ``image`` is not a non-empty string.
+
+    Examples:
+        >>> import harmont as hm
+        >>> from typing import Annotated
+        >>> @hm.target()
+        ... def my_target(base: Annotated[hm.Step, hm.BaseImage("ubuntu-24.04")]) -> hm.Step:
+        ...     return base.sh("apt-get update")
     """
     if not isinstance(image, str) or not image:
         msg = (

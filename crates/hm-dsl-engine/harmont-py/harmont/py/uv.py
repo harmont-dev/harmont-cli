@@ -1,7 +1,7 @@
 """uv-managed Python project toolchain (``hm.py.uv``).
 
-Public surface lives on the module-level singleton :data:`uv`. Call
-it to construct a :class:`UvProject`, or use the bare-form action
+Public surface lives on the module-level singleton ``uv``. Call
+it to construct a ``UvProject``, or use the bare-form action
 methods (``uv.test()``, ``uv.lint()``, etc.) for a one-shot leaf.
 
 The chain is:
@@ -50,6 +50,14 @@ def _uv_install_cmd(version: str) -> str:
 
 @dataclass(frozen=True)
 class UvProject:
+    """uv-managed Python project install chain — constructed via ``hm.py.uv()``.
+
+    ``installed`` is the ``uv sync`` step. Action methods (``test``,
+    ``lint``, ``fmt``, ``typecheck``, ``run``, ``build``, ``lock_check``,
+    ``publish``) attach leaves to ``installed`` so dependency installation
+    is shared across CI actions.
+    """
+
     path: str
     installed: Step  # uv-sync Step
 
@@ -148,6 +156,12 @@ def _make_uv(
 
 
 class UvEntry:
+    """Callable singleton for the uv toolchain — access as ``hm.py.uv``.
+
+    Call directly to construct a ``UvProject``, or use the bare-form
+    action methods (``uv.test()``, ``uv.lint()``, etc.) for a one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -156,6 +170,26 @@ class UvEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> UvProject:
+        """Install uv, sync the project, and return a project object.
+
+        Args:
+            path: Path to the Python project root (must contain a
+                ``pyproject.toml``).
+            version: uv version to install. Use ``"latest"`` for the latest
+                release or a pinned version like ``"0.4.18"``.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``UvProject`` whose ``installed`` step is ``uv sync``.
+
+        Examples:
+            >>> import harmont.py as hmpy
+            >>> proj = hmpy.uv(path="services/api")
+            >>> import harmont as hm
+            >>> hm.pipeline(proj.test(), proj.lint())
+        """
         return _make_uv(path=path, version=version, image=image, base=base)
 
     def test(self, **kw: Any) -> Step:

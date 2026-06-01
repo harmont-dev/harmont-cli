@@ -1,7 +1,7 @@
 """Shared helpers for language toolchain abstractions (HAR-15).
 
 Each language module (rust.py, haskell.py, npm.py, elm.py) builds its
-toolchain chain via :func:`make_install_chain`. The chain is:
+toolchain chain via ``make_install_chain``. The chain is:
 
     scratch (no Step) -> apt-base -> tool-install -> (action leaves)
 
@@ -85,7 +85,25 @@ def apt_base(
     image: str | None = None,
     label: str = ":apt: base",
 ) -> Step:
-    """Create a standalone apt-base step sharable across toolchains via ``base=``."""
+    """Create a standalone apt-base step sharable across toolchains.
+
+    Emits ``apt-get update && apt-get install -y <packages>`` with a
+    daily TTL cache. Pass the returned step as ``base=`` to any toolchain
+    constructor to share one apt-base across multiple toolchains.
+
+    Args:
+        packages: apt package names to install.
+        image: Local-mode Docker base image override for this step.
+        label: Human-facing label shown in the UI.
+
+    Returns:
+        A ``Step`` that installs the given apt packages.
+
+    Examples:
+        >>> import harmont as hm
+        >>> base = hm.apt_base(packages=("git", "curl"))
+        >>> tc = hm.rust.toolchain(base=base)
+    """
     return scratch().sh(
         apt_install_cmd(packages),
         label=label,

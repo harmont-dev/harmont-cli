@@ -22,6 +22,12 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 
 @dataclass(frozen=True)
 class PerlProject:
+    """Perl project install chain — constructed via ``hm.perl()``.
+
+    ``installed`` is the cpanm-deps step. Action methods (``test``,
+    ``lint``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
 
@@ -69,6 +75,12 @@ def _make_perl(
 
 
 class PerlEntry:
+    """Callable singleton for the Perl toolchain — access as ``hm.perl``.
+
+    Call directly to construct a ``PerlProject``, or use the bare-form
+    action methods (``perl.test()``, ``perl.lint()``) for a one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -76,6 +88,22 @@ class PerlEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> PerlProject:
+        """Install cpanminus and project dependencies, returning a project object.
+
+        Args:
+            path: Path to the Perl project root (must contain a ``cpanfile``).
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``PerlProject`` whose ``installed`` step is the cpanm-deps step.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.perl(path=".")
+            >>> hm.pipeline(proj.test())
+        """
         return _make_perl(path=path, image=image, base=base)
 
     def test(self, **kw: Any) -> Step:

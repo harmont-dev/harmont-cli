@@ -1,8 +1,8 @@
 """Haskell toolchain + package abstraction (HAR-15).
 
-Public surface lives on the module-level singleton :data:`haskell`. Call
-it to construct a :class:`HaskellToolchain` (which then spawns one
-:class:`HaskellPackage` per cabal package via ``.package(path)``), or
+Public surface lives on the module-level singleton ``haskell``. Call
+it to construct a ``HaskellToolchain`` (which then spawns one
+``HaskellPackage`` per cabal package via ``.package(path)``), or
 use the bare-form action methods (``haskell.build(path=..., ghc=...)``,
 etc.) for a one-shot leaf.
 
@@ -11,8 +11,8 @@ The chain is:
     scratch -> apt-base -> ghcup-install -> <pkg>-deps -> <pkg>-action
 
 ``ghcup-install`` is cached forever (keyed on the GHC version baked
-into the command). Each package's ``deps`` Step is cached
-:class:`CacheOnChange` against the package's cabal files.
+into the command). Each package's ``deps`` step is cached
+``CacheOnChange`` against the package's cabal files.
 """
 
 from __future__ import annotations
@@ -67,11 +67,11 @@ def _ghcup_cmd(ghc: str, cabal: str) -> str:
 
 @dataclass(frozen=True)
 class HaskellPackage:
-    """One cabal package. Returned by :meth:`HaskellToolchain.package`.
+    """One cabal package — returned by ``HaskellToolchain.package()``.
 
-    ``installed`` is the package's ``deps`` Step — the chain ancestor
-    every action leaf attaches to. Exposed so callers can chain custom
-    commands onto the deps-installed snapshot via ``pkg.installed.sh(...)``.
+    ``installed`` is the package's ``deps`` step (the chain ancestor every
+    action leaf attaches to). Exposed so callers can chain custom commands
+    onto the deps-installed snapshot via ``pkg.installed.sh(...)``.
     """
 
     path: str
@@ -120,10 +120,11 @@ class HaskellPackage:
 
 @dataclass(frozen=True)
 class HaskellToolchain:
-    """Constructed via :func:`haskell` (the ``hm.haskell`` singleton).
+    """Haskell toolchain install chain — constructed via ``hm.haskell()``.
 
-    Holds the shared ``ghcup`` install Step. Spawn one
-    :class:`HaskellPackage` per cabal package via :meth:`package`.
+    Holds the shared ``ghcup`` install step. Spawn one ``HaskellPackage``
+    per cabal package via ``.package(path)``. All packages from one
+    toolchain share the same ghcup-install step.
     """
 
     ghc: str
@@ -136,6 +137,27 @@ class HaskellToolchain:
         *,
         cache_paths: tuple[str, ...] | None = None,
     ) -> HaskellPackage:
+        """Create a ``HaskellPackage`` for the cabal package at ``path``.
+
+        Emits a ``cabal build all --only-dependencies`` step cached on the
+        package's cabal files. Action methods on the returned package attach
+        to that deps step.
+
+        Args:
+            path: Path to the cabal package root. Must contain a ``*.cabal``
+                file and optionally a ``cabal.project``.
+            cache_paths: Override the set of paths used for cache invalidation.
+                Defaults to ``(f"{path}/*.cabal", f"{path}/cabal.project")``.
+
+        Returns:
+            A ``HaskellPackage`` ready for action methods.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.haskell(ghc="9.6.7")
+            >>> pkg = tc.package("api")
+            >>> hm.pipeline(pkg.build(), pkg.test())
+        """
         if cache_paths is not None:
             paths = cache_paths
         else:
@@ -153,7 +175,17 @@ class HaskellToolchain:
         *,
         cache_paths: tuple[str, ...] | None = None,
     ) -> HaskellPackage:
-        """Alias for :meth:`package`. Reads more naturally for cabal projects."""
+        """Create a ``HaskellPackage`` for the cabal package at ``path``.
+
+        Alias for ``.package()``; reads more naturally for cabal projects.
+
+        Args:
+            path: Path to the cabal package root.
+            cache_paths: Override the set of paths used for cache invalidation.
+
+        Returns:
+            A ``HaskellPackage`` ready for action methods.
+        """
         return self.package(path, cache_paths=cache_paths)
 
 
@@ -190,7 +222,11 @@ def _validate_ghc(ghc: str | None) -> str:
 
 
 class HaskellEntry:
-    """Callable singleton — supports both object form and bare form."""
+    """Callable singleton for the Haskell toolchain — access as ``hm.haskell``.
+
+    Supports both object form (``hm.haskell(ghc="9.6.7")``) and bare form
+    (``hm.haskell.build(ghc="9.6.7", path="api")``, etc.).
+    """
 
     @overload
     def __call__(
@@ -224,6 +260,35 @@ class HaskellEntry:
         path: str | None = None,
         cache_paths: tuple[str, ...] | None = None,
     ) -> HaskellToolchain | HaskellPackage:
+        """Install GHC via ghcup and return a toolchain or package.
+
+        Returns a ``HaskellToolchain`` when ``path`` is omitted, or a
+        ``HaskellPackage`` when ``path`` is provided.
+
+        Args:
+            ghc: GHC version to install (e.g. ``"9.6.7"``). Required.
+            cabal: cabal-install version. Defaults to ``"latest"``.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+            path: Cabal package root. When provided, the call returns a
+                ``HaskellPackage`` directly rather than a toolchain.
+            cache_paths: Override the cabal-file paths for deps-step cache
+                invalidation. Only meaningful when ``path`` is also set.
+
+        Returns:
+            A ``HaskellToolchain`` when ``path`` is omitted, or a
+            ``HaskellPackage`` when ``path`` is provided.
+
+        Raises:
+            ValueError: If ``ghc`` is ``None`` or not a valid version string.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.haskell(ghc="9.6.7")
+            >>> pkg = tc.package("api")
+            >>> hm.pipeline(pkg.build(), pkg.test())
+        """
         ghc_v = _validate_ghc(ghc)
         toolchain = _make_toolchain(ghc=ghc_v, cabal=cabal, image=image, base=base)
         if path is None:

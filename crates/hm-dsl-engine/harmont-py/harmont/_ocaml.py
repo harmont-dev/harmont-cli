@@ -44,6 +44,12 @@ def _opam_init_cmd(compiler: str) -> str:
 
 @dataclass(frozen=True)
 class OCamlProject:
+    """OCaml project install chain — constructed via ``hm.ocaml()``.
+
+    ``installed`` is the opam-deps step. Action methods (``build``,
+    ``test``, ``fmt``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
 
@@ -116,6 +122,13 @@ def _make_ocaml(
 
 
 class OCamlEntry:
+    """Callable singleton for the OCaml toolchain — access as ``hm.ocaml``.
+
+    Call directly to construct an ``OCamlProject``, or use the bare-form
+    action methods (``ocaml.build()``, ``ocaml.test()``, etc.) for a
+    one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -124,6 +137,26 @@ class OCamlEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> OCamlProject:
+        """Initialize opam and install project dependencies, returning a project object.
+
+        Args:
+            path: Path to the OCaml project root. If ``*.opam`` files are
+                present, ``opam install . --deps-only`` is run and cached on
+                those files.
+            compiler: OCaml compiler version to install via opam
+                (e.g. ``"5.1.1"``).
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            An ``OCamlProject`` whose ``installed`` step is the opam-deps step.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.ocaml(compiler="5.1.1")
+            >>> hm.pipeline(proj.build(), proj.test())
+        """
         return _make_ocaml(path=path, compiler=compiler, image=image, base=base)
 
     def build(self, **kw: Any) -> Step:

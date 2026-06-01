@@ -1,7 +1,7 @@
 """CMake (C/C++) toolchain.
 
-Public surface lives on the module-level singleton :data:`cmake`. Call it
-to construct a :class:`CMakeProject`, or use the bare-form action methods
+Public surface lives on the module-level singleton ``cmake``. Call it
+to construct a ``CMakeProject``, or use the bare-form action methods
 (``cmake.configure()``, ``cmake.build()``, etc.) for a one-shot leaf.
 
 The chain is:
@@ -34,6 +34,12 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 
 @dataclass(frozen=True)
 class CMakeProject:
+    """CMake (C/C++) project install chain — constructed via ``hm.cmake()``.
+
+    ``installed`` is the cmake-verify step. Action methods (``configure``,
+    ``build``, ``test``, ``fmt``) attach leaves to ``installed``.
+    """
+
     path: str
     installed: Step
     _tag: str
@@ -98,6 +104,13 @@ def _make_cmake(
 
 
 class CMakeEntry:
+    """Callable singleton for the CMake toolchain — access as ``hm.cmake``.
+
+    Call directly to construct a ``CMakeProject``, or use the bare-form
+    action methods (``cmake.build()``, ``cmake.test()``, etc.) for a
+    one-shot leaf.
+    """
+
     def __call__(
         self,
         *,
@@ -106,6 +119,24 @@ class CMakeEntry:
         image: str | None = None,
         base: Step | None = None,
     ) -> CMakeProject:
+        """Verify cmake and clang-format are available, returning a project object.
+
+        Args:
+            path: Path to the project root (where ``CMakeLists.txt`` lives).
+            lang: Language tag, either ``"c"`` or ``"cpp"``. Affects label
+                prefixes only; the cmake commands are identical.
+            image: Local-mode Docker base image override.
+            base: Existing ``Step`` to attach to instead of emitting a fresh
+                apt-base step.
+
+        Returns:
+            A ``CMakeProject`` ready for action methods.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.cmake(lang="cpp")
+            >>> hm.pipeline(proj.build(), proj.test())
+        """
         return _make_cmake(path=path, lang=lang, image=image, base=base)
 
     def configure(self, **kw: Any) -> Step:

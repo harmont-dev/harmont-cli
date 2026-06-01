@@ -1,12 +1,12 @@
 """Shared dependency resolution for @hm.target and @hm.pipeline (HAR-28).
 
 Strict-marker model:
-- ``Target[T]``           — resolve by parameter name from the global
-                            target registry; raise if not found.
-- ``BaseImage["X"]``      — inject a scratch-rooted ``Step(image=X)``.
+- ``Target[T]``            — resolve by parameter name from the global
+                             target registry; raise if not found.
+- ``BaseImage["X"]``       — inject a scratch-rooted ``Step(image=X)``.
 - plain param with default — bind the default value.
 - anything else            — raise at decoration time via
-                            :func:`validate_target_signature`.
+                             ``validate_target_signature``.
 
 Cycle detection uses a module-level "currently resolving" stack keyed
 by function name; the dump_registry_json render clears it at the
