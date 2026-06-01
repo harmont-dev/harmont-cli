@@ -14,12 +14,12 @@ Authors who want a different default call the explicit action method.
 
 from __future__ import annotations
 
+from ._elm import ElmProject
+from ._haskell import HaskellPackage
+from ._npm import NpmProject
+from ._rust import RustProject, RustToolchain
 from ._step import Step
-from .elm import ElmProject
-from .haskell import HaskellPackage
-from .npm import NpmProject
 from .py.uv import UvProject
-from .rust import RustProject, RustToolchain
 
 
 def _one(obj: object) -> tuple[Step, ...]:

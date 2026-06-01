@@ -179,7 +179,7 @@ def _make_rust_project(
     return RustProject(toolchain=tc, warmup=warm)
 
 
-class _RustEntry:
+class RustEntry:
     """Namespace for ``hm.rust.toolchain()`` and ``hm.rust.project()``."""
 
     @staticmethod
@@ -219,4 +219,4 @@ class _RustEntry:
         )
 
 
-rust = _RustEntry()
+rust: RustEntry = RustEntry()

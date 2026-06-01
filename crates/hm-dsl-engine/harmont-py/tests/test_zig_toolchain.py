@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import harmont as hm
-from harmont.zig import ZigProject, ZigToolchain
+from harmont._zig import ZigProject, ZigToolchain
 
 
 def test_zig_no_path_returns_toolchain() -> None:

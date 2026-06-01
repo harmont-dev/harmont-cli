@@ -16,13 +16,13 @@ from pathlib import Path
 import pytest
 
 import harmont as hm
-from harmont.cmake import cmake
-from harmont.go import go
-from harmont.haskell import haskell
-from harmont.npm import npm
-from harmont.python import python as python_tc
-from harmont.rust import rust
-from harmont.zig import zig
+from harmont._cmake import cmake
+from harmont._go import go
+from harmont._haskell import haskell
+from harmont._npm import npm
+from harmont._python import python as python_tc
+from harmont._rust import rust
+from harmont._zig import zig
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 FIXTURES_DIR = REPO_ROOT / "tests" / "e2e" / "fixtures" / "python"

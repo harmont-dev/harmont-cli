@@ -115,7 +115,7 @@ def _make_toolchain(
     return ZigToolchain(version=version, installed=installed)
 
 
-class _ZigEntry:
+class ZigEntry:
     """Callable singleton — supports object form, toolchain form, and bare form."""
 
     @overload
@@ -169,4 +169,4 @@ class _ZigEntry:
         return self._project(**kw).fmt(**action_kw)
 
 
-zig = _ZigEntry()
+zig: ZigEntry = ZigEntry()

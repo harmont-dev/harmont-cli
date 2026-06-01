@@ -97,7 +97,7 @@ def _make_cmake(
     return CMakeProject(path=path, installed=installed, _tag=lang)
 
 
-class _CMakeEntry:
+class CMakeEntry:
     def __call__(
         self,
         *,
@@ -125,4 +125,4 @@ class _CMakeEntry:
         return self(**kw).fmt(**action_kw)
 
 
-cmake = _CMakeEntry()
+cmake: CMakeEntry = CMakeEntry()

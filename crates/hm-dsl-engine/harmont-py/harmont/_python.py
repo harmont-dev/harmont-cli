@@ -126,7 +126,7 @@ def _make_python(
     return PythonToolchain(path=path, installed=synced)
 
 
-class _PythonEntry:
+class PythonEntry:
     def __call__(
         self,
         *,
@@ -154,4 +154,4 @@ class _PythonEntry:
         return self(**kw).typecheck(paths=paths, **action_kw)
 
 
-python = _PythonEntry()
+python: PythonEntry = PythonEntry()

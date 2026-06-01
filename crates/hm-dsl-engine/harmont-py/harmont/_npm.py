@@ -83,7 +83,7 @@ def _make_npm(
     return NpmProject(path=path, installed=npm_ci)
 
 
-class _NpmEntry:
+class NpmEntry:
     def __call__(
         self,
         *,
@@ -117,4 +117,4 @@ class _NpmEntry:
         return self(**kw).fmt(**action_kw)
 
 
-npm = _NpmEntry()
+npm: NpmEntry = NpmEntry()

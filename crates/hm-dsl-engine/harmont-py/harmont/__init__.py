@@ -30,11 +30,25 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from . import _decorator, py
+from ._cmake import cmake
+from ._composer import composer
+from ._dotnet import dotnet
+from ._elm import elm
 from ._envelope import dump_registry_json
+from ._go import go
+from ._gradle import gradle
+from ._haskell import haskell
+from ._npm import npm
+from ._ocaml import ocaml
+from ._perl import perl
+from ._python import python
+from ._ruby import ruby
+from ._rust import RustProject, rust
 from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
 from ._toolchain import apt_base
 from ._typing import BaseImage, Target
+from ._zig import zig
 from .cache import (
     CacheCompose,
     CacheForever,
@@ -43,25 +57,11 @@ from .cache import (
     CachePolicy,
     CacheTTL,
 )
-from .cmake import cmake
-from .composer import composer
-from .dotnet import dotnet
-from .elm import elm
-from .go import go
-from .gradle import gradle
-from .haskell import haskell
-from .npm import npm
-from .ocaml import ocaml
-from .perl import perl
 from .pipeline import pipeline as _pipeline_factory
 from .pipeline import pipeline_to_json
-from .python import python
-from .ruby import ruby
-from .rust import RustProject, rust
 from .triggers import pull_request, push, schedule
 from .triggers import pull_request as pr
 from .types import Pipeline
-from .zig import zig
 
 if TYPE_CHECKING:
     from datetime import timedelta

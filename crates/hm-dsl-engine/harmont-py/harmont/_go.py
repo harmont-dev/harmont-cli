@@ -84,7 +84,7 @@ def _make_go(
     return GoToolchain(path=path, installed=installed)
 
 
-class _GoEntry:
+class GoEntry:
     def __call__(
         self,
         *,
@@ -112,4 +112,4 @@ class _GoEntry:
         return self(**kw).fmt(**action_kw)
 
 
-go = _GoEntry()
+go: GoEntry = GoEntry()

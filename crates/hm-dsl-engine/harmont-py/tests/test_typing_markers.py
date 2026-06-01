@@ -21,7 +21,7 @@ def test_target_subscript_returns_annotated_with_marker():
 
 
 def test_target_with_different_types():
-    from harmont.haskell import HaskellPackage
+    from harmont._haskell import HaskellPackage
 
     annot = Target[HaskellPackage]
     args = get_args(annot)

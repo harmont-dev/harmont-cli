@@ -115,7 +115,7 @@ def _make_ocaml(
     return OCamlProject(path=path, installed=deps)
 
 
-class _OCamlEntry:
+class OCamlEntry:
     def __call__(
         self,
         *,
@@ -139,4 +139,4 @@ class _OCamlEntry:
         return self(**kw).fmt(**action_kw)
 
 
-ocaml = _OCamlEntry()
+ocaml: OCamlEntry = OCamlEntry()

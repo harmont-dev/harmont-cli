@@ -112,7 +112,7 @@ def _make_gradle(
     return GradleProject(path=path, installed=installed, _tag=tag)
 
 
-class _GradleEntry:
+class GradleEntry:
     def __call__(
         self,
         *,
@@ -137,4 +137,4 @@ class _GradleEntry:
         return self(**kw).lint(**action_kw)
 
 
-gradle = _GradleEntry()
+gradle: GradleEntry = GradleEntry()

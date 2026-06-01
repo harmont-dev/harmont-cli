@@ -89,7 +89,7 @@ def _make_ruby(
     return RubyProject(path=path, installed=deps)
 
 
-class _RubyEntry:
+class RubyEntry:
     def __call__(
         self,
         *,
@@ -109,4 +109,4 @@ class _RubyEntry:
         return self(**kw).lint(**action_kw)
 
 
-ruby = _RubyEntry()
+ruby: RubyEntry = RubyEntry()

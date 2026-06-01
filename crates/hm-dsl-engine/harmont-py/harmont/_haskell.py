@@ -189,7 +189,7 @@ def _validate_ghc(ghc: str | None) -> str:
     return ghc
 
 
-class _HaskellEntry:
+class HaskellEntry:
     """Callable singleton — supports both object form and bare form."""
 
     @overload
@@ -257,4 +257,4 @@ class _HaskellEntry:
         return self._pkg(**kw).fmt(**action_kw)
 
 
-haskell = _HaskellEntry()
+haskell: HaskellEntry = HaskellEntry()

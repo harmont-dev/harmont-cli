@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 import harmont as hm
-from harmont.haskell import HaskellPackage, HaskellToolchain
+from harmont._haskell import HaskellPackage, HaskellToolchain
 
 # The repo-root cwd these tests need (so default cache_paths globs
 # `<path>/*.cabal` against real files) is supplied by the autouse

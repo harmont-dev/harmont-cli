@@ -91,7 +91,7 @@ def _make_dotnet(
     return DotnetProject(path=path, installed=installed)
 
 
-class _DotnetEntry:
+class DotnetEntry:
     def __call__(
         self,
         *,
@@ -115,4 +115,4 @@ class _DotnetEntry:
         return self(**kw).fmt(**action_kw)
 
 
-dotnet = _DotnetEntry()
+dotnet: DotnetEntry = DotnetEntry()

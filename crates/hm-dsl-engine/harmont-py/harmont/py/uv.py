@@ -147,7 +147,7 @@ def _make_uv(
     return UvProject(path=path, installed=synced)
 
 
-class _UvEntry:
+class UvEntry:
     def __call__(
         self,
         *,
@@ -191,4 +191,4 @@ class _UvEntry:
         return self(**kw).publish(**action_kw)
 
 
-uv = _UvEntry()
+uv: UvEntry = UvEntry()

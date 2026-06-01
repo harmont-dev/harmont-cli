@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import harmont as hm
-from harmont.haskell import HaskellPackage
+from harmont._haskell import HaskellPackage
 
 
 def test_cabal_returns_haskell_package(tmp_path, monkeypatch):

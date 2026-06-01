@@ -107,7 +107,7 @@ def _make_elm(
     return ElmProject(path=path, installed=elm_installed)
 
 
-class _ElmEntry:
+class ElmEntry:
     """Callable singleton — supports both object form and bare form."""
 
     def __call__(
@@ -144,4 +144,4 @@ class _ElmEntry:
         return self(**kw).fmt(**action_kw)
 
 
-elm = _ElmEntry()
+elm: ElmEntry = ElmEntry()

@@ -88,7 +88,7 @@ def test_target_with_toolchain_return_passes_through(tmp_path, monkeypatch):
     def api():
         return hm.haskell(ghc="9.6.7").cabal(path="api")
 
-    from harmont.haskell import HaskellPackage
+    from harmont._haskell import HaskellPackage
 
     result = api()
     assert isinstance(result, HaskellPackage)

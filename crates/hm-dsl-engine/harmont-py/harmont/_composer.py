@@ -86,7 +86,7 @@ def _make_composer(
     return ComposerProject(path=path, installed=deps, _tag=tag, _laravel=laravel)
 
 
-class _ComposerEntry:
+class ComposerEntry:
     def __call__(
         self,
         *,
@@ -106,4 +106,4 @@ class _ComposerEntry:
         return self(**kw).lint(**action_kw)
 
 
-composer = _ComposerEntry()
+composer: ComposerEntry = ComposerEntry()

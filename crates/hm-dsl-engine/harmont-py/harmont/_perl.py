@@ -68,7 +68,7 @@ def _make_perl(
     return PerlProject(path=path, installed=deps)
 
 
-class _PerlEntry:
+class PerlEntry:
     def __call__(
         self,
         *,
@@ -87,4 +87,4 @@ class _PerlEntry:
         return self(**kw).lint(**action_kw)
 
 
-perl = _PerlEntry()
+perl: PerlEntry = PerlEntry()
