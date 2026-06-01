@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
+from harmont._pipeline import _lower_to_graph, pipeline
 from harmont._step import scratch, wait
-from harmont.pipeline import _lower_to_graph, pipeline
 
 
 def _nodes(graph: dict) -> list[dict]:

@@ -19,7 +19,7 @@ def test_pipeline_factory_rejects_no_leaves():
     # `harmont.pipeline` (re-exported) is a polymorphic facade: no-arg
     # call routes to the @hm.pipeline decorator path. The factory's
     # "at least one leaf" guard is tested via the submodule directly.
-    from harmont.pipeline import pipeline as _factory
+    from harmont._pipeline import pipeline as _factory
 
     with pytest.raises(ValueError, match="at least one leaf"):
         _factory()

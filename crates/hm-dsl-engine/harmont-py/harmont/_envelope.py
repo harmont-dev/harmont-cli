@@ -16,11 +16,11 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ._pipeline import pipeline as _assemble
 from ._registry import REGISTRATIONS, PipelineRegistration
 from ._target import clear_target_memo
 from ._unwrap import as_leaves
 from .keygen import resolve_pipeline_keys
-from .pipeline import pipeline as _assemble
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

@@ -41,6 +41,8 @@ from ._haskell import haskell
 from ._npm import npm
 from ._ocaml import ocaml
 from ._perl import perl
+from ._pipeline import pipeline as _pipeline_factory
+from ._pipeline import pipeline_to_json
 from ._python import python
 from ._ruby import ruby
 from ._rust import RustProject, rust
@@ -57,8 +59,6 @@ from .cache import (
     CachePolicy,
     CacheTTL,
 )
-from .pipeline import pipeline as _pipeline_factory
-from .pipeline import pipeline_to_json
 from .triggers import pull_request, push, schedule
 from .triggers import pull_request as pr
 from .types import Pipeline
