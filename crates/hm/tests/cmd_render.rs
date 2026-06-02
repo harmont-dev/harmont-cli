@@ -48,7 +48,10 @@ fn render_emits_v0_ir_for_slug() {
 
     let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["version"], "0");
-    assert!(v["graph"].is_object(), "expected a graph object in the v0 IR, got: {v}");
+    assert!(
+        v["graph"].is_object(),
+        "expected a graph object in the v0 IR, got: {v}"
+    );
 }
 
 #[test]
@@ -71,5 +74,5 @@ fn render_unknown_slug_fails_with_available_on_stderr() {
         .failure()
         // Both the bad slug and the list of available slugs must reach stderr.
         .stderr(predicates::str::contains("nope"))
-        .stderr(predicates::str::contains("ci"));
+        .stderr(predicates::str::contains("available: ci"));
 }

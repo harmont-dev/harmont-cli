@@ -24,7 +24,7 @@ print(json.dumps([{'slug': p['slug'], 'name': p['name']} for p in envelope['pipe
 ";
 
 const REGISTRY_JSON_SCRIPT: &str = "\
-import sys, json, pathlib, importlib.util
+import sys, pathlib, importlib.util
 try:
     import harmont as hm
 except ImportError as e:
