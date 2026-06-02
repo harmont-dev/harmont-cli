@@ -223,4 +223,11 @@ impl DslEngine for SubprocessTsEngine {
             .await
             .context("rendering pipeline via JS runtime")
     }
+
+    async fn registry_json(&self, _project_dir: &Path) -> Result<String> {
+        bail!(
+            "the discovery envelope (hm pipelines) is not yet supported for \
+             TypeScript pipelines; only Python pipelines are supported today"
+        )
+    }
 }

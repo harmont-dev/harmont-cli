@@ -25,6 +25,11 @@ pub struct PipelineMeta {
 pub trait DslEngine: Send + Sync {
     async fn list_pipelines(&self, project_dir: &Path) -> anyhow::Result<Vec<PipelineMeta>>;
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> anyhow::Result<String>;
+    /// Emit the full discovery envelope JSON for every pipeline in the repo:
+    /// `{"schema_version": "...", "pipelines": [{slug, name, allow_manual,
+    /// triggers, definition}, ...]}`. Returned verbatim from the DSL runtime so
+    /// the backend's pipeline discovery can consume it directly.
+    async fn registry_json(&self, project_dir: &Path) -> anyhow::Result<String>;
 }
 
 /// Return an appropriate [`DslEngine`] for the given language.
