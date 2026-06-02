@@ -45,3 +45,26 @@ def ci() -> hm.Step:
     assert_eq!(v["pipelines"][0]["slug"], "ci");
     assert_eq!(v["pipelines"][0]["triggers"][0]["event"], "push");
 }
+
+#[test]
+fn pipelines_emits_empty_envelope_when_no_harmont_dir() {
+    // A repo that declares no pipelines must yield an empty envelope, not an
+    // error (the backend fans discovery across every repo in an installation,
+    // most of which carry no `.harmont/`). No python3 needed — this short-
+    // circuits before the DSL engine, so the test always runs.
+    let dir = tempfile::tempdir().unwrap();
+
+    let out = Command::cargo_bin("hm")
+        .unwrap()
+        .arg("pipelines")
+        .arg("--dir")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["pipelines"], serde_json::json!([]));
+}

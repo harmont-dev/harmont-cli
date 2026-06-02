@@ -17,6 +17,9 @@ pub struct RenderArgs {
 
 /// Render one pipeline's v0 IR JSON to stdout without executing it.
 ///
+/// When both Python and TypeScript are present, Python wins (the supported
+/// backend path), matching `hm pipelines`.
+///
 /// # Errors
 ///
 /// Returns an error if the language can't be detected, the engine can't start,
@@ -28,7 +31,8 @@ pub async fn run(args: RenderArgs) -> Result<()> {
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
-    let lang = detect::detect_language(&repo_root).context("detecting pipeline language")?;
+    let lang =
+        detect::detect_language_python_first(&repo_root).context("detecting pipeline language")?;
     let engine = engine_for(lang).context("initializing DSL engine")?;
     let json = engine
         .render_pipeline_json(&repo_root, &args.slug)
