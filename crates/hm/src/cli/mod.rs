@@ -1,3 +1,4 @@
+pub mod pipelines;
 pub mod plugin;
 pub mod run;
 pub mod version;
@@ -45,6 +46,9 @@ pub enum Command {
     /// Run a pipeline locally via Docker.
     Run(RunArgs),
 
+    /// Print the pipeline discovery envelope (JSON) for every pipeline in the repo.
+    Pipelines(pipelines::PipelinesArgs),
+
     /// Show hm version.
     Version,
 
@@ -91,6 +95,7 @@ pub struct CacheRestoreArgs {
 pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
     match command {
         Command::Run(args) => crate::commands::run::handle(args, ctx).await,
+        Command::Pipelines(args) => crate::cli::pipelines::run(args).await.map(|()| 0),
         Command::Cache(cmd) => match cmd {
             CacheCommand::Save(args) => crate::commands::cache::handle_save(&args.dir).await,
             CacheCommand::Restore(args) => crate::commands::cache::handle_restore(&args.dir).await,
