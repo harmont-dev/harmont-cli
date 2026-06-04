@@ -18,16 +18,40 @@ pub struct CloudJobView {
     multi: MultiProgress,
     bars: HashMap<Uuid, (ProgressBar, Instant)>,
     color: bool,
+    /// Plain mode (non-TTY/CI): never create steady-tick spinner bars; print
+    /// prefixed log lines and status glyphs straight to the sink instead. This
+    /// guarantees no animated spinner frames leak into a pipe or log file.
+    plain: bool,
 }
 
 impl CloudJobView {
     /// Share the reporter's `MultiProgress` so lines and bars never collide.
+    ///
+    /// Use this for the interactive (TTY) path, where live spinner bars are
+    /// drawn above streamed log lines.
     #[must_use]
     pub fn new(multi: MultiProgress, color: bool) -> Self {
         Self {
             multi,
             bars: HashMap::new(),
             color,
+            plain: false,
+        }
+    }
+
+    /// A plain (non-TTY/CI) view: no animated spinners, just prefixed log lines
+    /// and terminal-state glyphs printed straight to `multi` via `println`.
+    ///
+    /// Pass a `MultiProgress` whose draw target is the desired sink (e.g.
+    /// `MultiProgress::new()` writing to stderr); in plain mode no bars are
+    /// added, so nothing animates.
+    #[must_use]
+    pub fn plain(multi: MultiProgress, color: bool) -> Self {
+        Self {
+            multi,
+            bars: HashMap::new(),
+            color,
+            plain: true,
         }
     }
 
@@ -43,7 +67,18 @@ impl CloudJobView {
     }
 
     /// A job transitions to running: add a live spinner bar (idempotent).
+    ///
+    /// In plain mode this prints a single status line and adds no animated bar.
     pub fn job_running(&mut self, id: Uuid, name: &str) {
+        if self.plain {
+            let line = if self.color {
+                format!("{name} | running").dimmed().to_string()
+            } else {
+                format!("{name} | running")
+            };
+            let _ = self.multi.println(line);
+            return;
+        }
         if self.bars.contains_key(&id) {
             return;
         }
@@ -70,7 +105,19 @@ impl CloudJobView {
     }
 
     /// A job reaches a terminal state: finish its bar in place with a glyph.
+    ///
+    /// In plain mode this prints a single terminal-state line (no bar exists).
     pub fn job_done(&mut self, id: Uuid, name: &str, passed: bool) {
+        if self.plain {
+            let glyph = match (passed, self.color) {
+                (true, true) => "✓".green().to_string(),
+                (false, true) => "✗".red().to_string(),
+                (true, false) => "✓".to_string(),
+                (false, false) => "✗".to_string(),
+            };
+            let _ = self.multi.println(format!("{glyph} {name}"));
+            return;
+        }
         if let Some((pb, started)) = self.bars.remove(&id) {
             let secs = started.elapsed().as_secs_f64();
             let glyph = match (passed, self.color) {
@@ -132,5 +179,28 @@ mod tests {
         let mut view = CloudJobView::new(multi, false);
         // Should not panic when the id was never registered.
         view.job_done(Uuid::new_v4(), "ghost-job", true);
+    }
+
+    #[test]
+    fn plain_view_never_creates_spinner_bars() {
+        // Plain mode (non-TTY/CI): no animated bars are ever added, so the
+        // bars map stays empty across the whole lifecycle. This guarantees no
+        // steady-tick spinner frames can leak into a pipe or log file.
+        let multi = MultiProgress::new();
+        let mut view = CloudJobView::plain(multi, false);
+        let id = Uuid::new_v4();
+
+        view.job_running(id, "test-job");
+        assert!(view.bars.is_empty(), "plain mode adds no bars");
+
+        view.job_log(id, "test-job", "line of output");
+        view.job_done(id, "test-job", true);
+        assert!(view.bars.is_empty(), "plain mode still has no bars");
+
+        // A failed job in color mode also stays bar-free.
+        let mut color_view = CloudJobView::plain(MultiProgress::new(), true);
+        color_view.job_running(id, "fail-job");
+        color_view.job_done(id, "fail-job", false);
+        assert!(color_view.bars.is_empty());
     }
 }

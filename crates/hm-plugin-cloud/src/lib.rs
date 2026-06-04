@@ -16,6 +16,7 @@ pub mod cli;
 pub mod reporter;
 pub mod settings;
 pub mod ui;
+pub mod watch;
 
 mod auth;
 mod verbs;

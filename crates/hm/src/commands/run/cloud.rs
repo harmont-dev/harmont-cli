@@ -1,6 +1,12 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use harmont_cloud::builds::NewBuild;
+use hm_plugin_cloud::reporter::{Level, PlainReporter, Reporter, TermReporter};
 use hm_plugin_cloud::settings;
+use hm_plugin_cloud::ui::cloud_view::CloudJobView;
+use hm_plugin_cloud::watch::watch_build;
+use tokio::sync::Mutex;
 
 use crate::cli::RunArgs;
 use crate::commands::run::local::render_pipeline;
@@ -52,21 +58,48 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         .await
         .context("submitting the build")?;
 
-    // 7. Tell the user where to watch.
-    tracing::info!(
-        "build #{} created ({})  org={} pipeline={}",
-        build.number,
-        build.state,
-        org,
-        slug
+    // 7. Build a reporter + a CloudJobView sharing its progress surface, then
+    //    watch the build to completion (live log streaming).
+    let color = ctx.output.color_enabled();
+    let interactive = ctx.output.interactive();
+
+    let (reporter, view): (Arc<dyn Reporter>, CloudJobView) = if interactive {
+        let term = TermReporter::new(color);
+        // SHARE the reporter's MultiProgress so bars and lines never collide.
+        let view = CloudJobView::new(term.multi(), color);
+        (Arc::new(term), view)
+    } else {
+        // Non-TTY/CI: plain prefixed lines, no animated spinner bars. The plain
+        // view never enables steady-tick, so nothing animates into a pipe/log.
+        let reporter = PlainReporter::new(std::io::stderr(), color);
+        let view = CloudJobView::plain(indicatif::MultiProgress::new(), color);
+        (Arc::new(reporter), view)
+    };
+
+    reporter.status(
+        Level::Success,
+        &format!(
+            "Build #{} submitted ({}/{} on {})",
+            build.number, org, slug, rctx.api
+        ),
     );
 
     if args.no_watch {
         return Ok(0);
     }
-    // Live streaming is wired in task F3.
-    tracing::info!("(live log streaming lands in a follow-up; use `hm cloud build watch` meanwhile)");
-    Ok(0)
+
+    let view = Arc::new(Mutex::new(view));
+    let code = watch_build(
+        &client,
+        &rctx.api,
+        &org,
+        &slug,
+        build.number,
+        reporter.clone(),
+        view,
+    )
+    .await?;
+    Ok(code)
 }
 
 fn parse_env(pairs: &[String]) -> std::collections::HashMap<String, String> {

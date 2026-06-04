@@ -1268,6 +1268,8 @@ dependencies = [
  "harmont-cloud",
  "harmont-cloud-raw",
  "hm-util",
+ "indicatif",
+ "owo-colors",
  "serde",
  "serde_json",
  "tokio",
