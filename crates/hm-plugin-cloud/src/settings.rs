@@ -187,8 +187,11 @@ impl Credentials {
             .join("credentials.toml"))
     }
 
-    /// Load from disk, returning defaults when the file does not exist or
-    /// cannot be parsed.
+    /// Load from disk, returning defaults when the file does not exist.
+    ///
+    /// If the file is present but its TOML is malformed, emits a
+    /// `tracing::warn!` with the path and parse error and falls back to
+    /// empty credentials, so a corrupt cache never hard-blocks commands.
     ///
     /// # Errors
     ///
@@ -197,9 +200,16 @@ impl Credentials {
     pub fn load() -> Result<Self> {
         let p = Self::path()?;
         match std::fs::read_to_string(&p) {
-            Ok(s) => Ok(toml::from_str(&s).unwrap_or_default()),
+            Ok(s) => match toml::from_str(&s) {
+                Ok(c) => Ok(c),
+                Err(e) => {
+                    tracing::warn!(path = %p.display(), error = %e,
+                        "ignoring unparseable credentials file; treating as empty");
+                    Ok(Self::default())
+                }
+            },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e).with_context(|| format!("read {}", p.display())),
         }
     }
 
