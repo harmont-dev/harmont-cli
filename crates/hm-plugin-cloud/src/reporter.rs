@@ -5,6 +5,8 @@
 
 use std::io::Write;
 use std::sync::Mutex;
+
+use indicatif::MultiProgress;
 use owo_colors::OwoColorize;
 
 /// Severity of a status line.
@@ -22,6 +24,26 @@ pub trait Reporter: Send + Sync {
     fn line(&self, text: &str);
     /// A semantic status line (tagged + colored by level).
     fn status(&self, level: Level, text: &str);
+}
+
+/// Format a status line: a level glyph + text, colored iff `color`.
+pub(crate) fn format_status(level: Level, text: &str, color: bool) -> String {
+    let tag = match level {
+        Level::Info => "·",
+        Level::Warn => "!",
+        Level::Error => "✗",
+        Level::Success => "✓",
+    };
+    if color {
+        match level {
+            Level::Error => format!("{} {text}", tag.red()),
+            Level::Warn => format!("{} {text}", tag.yellow()),
+            Level::Success => format!("{} {text}", tag.green()),
+            Level::Info => format!("{} {text}", tag.dimmed()),
+        }
+    } else {
+        format!("{tag} {text}")
+    }
 }
 
 /// Plain / CI / non-TTY reporter: writes straight to an inner writer.
@@ -52,23 +74,48 @@ impl<W: Write + Send> Reporter for PlainReporter<W> {
     }
 
     fn status(&self, level: Level, text: &str) {
-        let tag = match level {
-            Level::Info => "·",
-            Level::Warn => "!",
-            Level::Error => "✗",
-            Level::Success => "✓",
-        };
-        let line = if self.color {
-            match level {
-                Level::Error => format!("{} {text}", tag.red()),
-                Level::Warn => format!("{} {text}", tag.yellow()),
-                Level::Success => format!("{} {text}", tag.green()),
-                Level::Info => format!("{} {text}", tag.dimmed()),
-            }
-        } else {
-            format!("{tag} {text}")
-        };
-        self.line(&line);
+        self.line(&format_status(level, text, self.color));
+    }
+}
+
+/// Interactive TTY reporter. Holds the `MultiProgress` so log lines print
+/// *above* live job bars via `MultiProgress::println` (never corrupting them).
+/// Lint-clean: `MultiProgress::println` is a method, not the `println!` macro.
+#[derive(Clone, Debug)]
+pub struct TermReporter {
+    multi: MultiProgress,
+    color: bool,
+}
+
+impl TermReporter {
+    /// Create a new `TermReporter`.
+    ///
+    /// Pass `color = true` to emit ANSI escape codes.
+    pub fn new(color: bool) -> Self {
+        Self {
+            multi: MultiProgress::new(),
+            color,
+        }
+    }
+
+    /// Share the `MultiProgress` with a `CloudJobView` so bars and lines coexist.
+    pub fn multi(&self) -> MultiProgress {
+        self.multi.clone()
+    }
+
+    /// Whether ANSI color output is enabled.
+    pub fn color(&self) -> bool {
+        self.color
+    }
+}
+
+impl Reporter for TermReporter {
+    fn line(&self, text: &str) {
+        let _ = self.multi.println(text);
+    }
+
+    fn status(&self, level: Level, text: &str) {
+        let _ = self.multi.println(format_status(level, text, self.color));
     }
 }
 
@@ -110,5 +157,28 @@ mod tests {
         let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
         assert!(out.contains("boom"));
         assert!(out.contains('\u{1b}'), "ANSI escape present when color=true");
+    }
+
+    #[test]
+    fn term_reporter_constructs_and_does_not_panic() {
+        let r = TermReporter::new(false);
+        r.line("hello from term");
+        r.status(Level::Info, "all good");
+        r.status(Level::Warn, "watch out");
+        r.status(Level::Error, "something failed");
+        r.status(Level::Success, "done");
+        // color=true path
+        let rc = TermReporter::new(true);
+        rc.status(Level::Error, "colored error");
+        rc.status(Level::Success, "colored success");
+    }
+
+    #[test]
+    fn term_reporter_multi_is_cloneable() {
+        let r = TermReporter::new(false);
+        let _m = r.multi();
+        assert!(!r.color());
+        let rc = TermReporter::new(true);
+        assert!(rc.color());
     }
 }
