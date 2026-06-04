@@ -65,6 +65,7 @@ hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 hm-util = { workspace = true }
 hm-plugin-cloud = { workspace = true }
+harmont-cloud   = { workspace = true }
 hm-dsl-engine   = { workspace = true }
 daggy          = { workspace = true }
 schemars = { workspace = true }

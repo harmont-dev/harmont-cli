@@ -1117,6 +1117,7 @@ dependencies = [
  "fs2",
  "futures",
  "futures-util",
+ "harmont-cloud",
  "hex",
  "hm-dsl-engine",
  "hm-pipeline-ir",

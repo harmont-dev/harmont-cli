@@ -12,17 +12,22 @@ fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::PipelineG
     serde_json::from_slice(bytes).map_err(|e| anyhow::anyhow!("decode pipeline JSON: {e}"))
 }
 
-/// Run a pipeline locally via Docker.
+/// Resolve repo root, detect the DSL, select the pipeline slug, and render
+/// the v0 IR JSON. Shared by local and cloud runs.
+///
+/// Returns `(repo_root, slug, ir_json_string)`. The JSON is returned as a
+/// string (before it is decoded into a [`hm_pipeline_ir::PipelineGraph`]) so
+/// the cloud path can ship it verbatim as `pipeline_ir`.
 ///
 /// # Errors
 ///
-/// Returns an error if the working directory cannot be resolved, no
-/// pipeline slug was given when more than one is declared (or none are
-/// declared), the Python DSL transpile or Scheme evaluator step fails,
-/// the resulting plan does not decode, the Docker daemon is unreachable,
-/// or the orchestrator surfaces an internal scheduler error. Non-zero
-/// step exit codes are returned as the `i32`, not as an Err.
-pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
+/// Returns an error if the working directory cannot be resolved, no pipeline
+/// slug was given when more than one is declared (or none are declared), or
+/// the DSL detection / pipeline-render step fails.
+pub(crate) async fn render_pipeline(
+    args: &RunArgs,
+    _ctx: &RunContext,
+) -> Result<(std::path::PathBuf, String, String)> {
     let repo_root = match args.dir.clone() {
         Some(p) => p,
         None => std::env::current_dir().context("cannot determine current directory")?,
@@ -58,6 +63,22 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         .render_pipeline_json(&repo_root, &slug)
         .await
         .map_err(|e| crate::error::HmError::PipelineRender(format!("{e:#}")))?;
+
+    Ok((repo_root, slug, json_str))
+}
+
+/// Run a pipeline locally via Docker.
+///
+/// # Errors
+///
+/// Returns an error if the working directory cannot be resolved, no
+/// pipeline slug was given when more than one is declared (or none are
+/// declared), the Python DSL transpile or Scheme evaluator step fails,
+/// the resulting plan does not decode, the Docker daemon is unreachable,
+/// or the orchestrator surfaces an internal scheduler error. Non-zero
+/// step exit codes are returned as the `i32`, not as an Err.
+pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
+    let (repo_root, _slug, json_str) = render_pipeline(&args, &ctx).await?;
     let json = json_str.into_bytes();
     let graph = decode_plan_to_wire(&json)?;
     let parallelism = args.parallelism.unwrap_or_else(|| {
