@@ -42,4 +42,14 @@ pub struct RunArgs {
     /// Has no effect with `--format json`.
     #[arg(long)]
     pub logs: bool,
+
+    /// Run the local worktree in Harmont Cloud instead of locally. Uploads
+    /// the working tree (respecting .gitignore, excluding .git) and streams
+    /// live logs. Requires `hm login` or `HARMONT_API_TOKEN`.
+    #[arg(long)]
+    pub cloud: bool,
+
+    /// Cloud organization (defaults to the configured default org).
+    #[arg(long, requires = "cloud")]
+    pub org: Option<String>,
 }
