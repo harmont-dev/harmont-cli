@@ -22,6 +22,18 @@ use crate::ui::cloud_view::CloudJobView;
 /// Poll-interval for build/job status.
 const POLL: Duration = Duration::from_millis(1500);
 
+/// Aborts any still-running stream tasks when dropped (covers early-return
+/// error paths so no detached ghost tasks outlive `watch_build`).
+#[derive(Debug)]
+struct AbortGuard(Vec<tokio::task::JoinHandle<()>>);
+impl Drop for AbortGuard {
+    fn drop(&mut self) {
+        for h in &self.0 {
+            h.abort();
+        }
+    }
+}
+
 /// Watch `build #number` until terminal. `log_base` is the host serving the
 /// SSE log stream (the API base in prod). Returns 0 if the build passed, else 1.
 pub async fn watch_build(
@@ -33,9 +45,12 @@ pub async fn watch_build(
     reporter: Arc<dyn Reporter>,
     view: Arc<Mutex<CloudJobView>>,
 ) -> Result<i32> {
+    // TODO: log token has a ~1h TTL; very long builds will 401 mid-stream and
+    // lose remaining logs (build-status poll still drives completion).
+    // Refresh via LogToken.expires_at if needed.
     let token = client.log_token(org, pipeline, number).await?.token;
     let mut streaming: HashSet<Uuid> = HashSet::new();
-    let mut handles = Vec::new();
+    let mut guard = AbortGuard(Vec::new());
 
     let final_state = loop {
         // Discover jobs; start a log stream for each job that has reached a
@@ -45,12 +60,18 @@ pub async fn watch_build(
             let state = job.state.to_string();
             let logs_available = matches!(
                 state.as_str(),
-                "running" | "passed" | "failed" | "timed_out"
+                "running"
+                    | "passed"
+                    | "failed"
+                    | "timed_out"
+                    | "canceling"
+                    | "canceled"
+                    | "timing_out"
             );
             if logs_available && streaming.insert(job.id) {
                 let name = job.name.clone().unwrap_or_else(|| "job".to_string());
                 view.lock().await.job_running(job.id, &name);
-                handles.push(tokio::spawn(stream_one(
+                guard.0.push(tokio::spawn(stream_one(
                     client.clone(),
                     log_base.to_string(),
                     job.id,
@@ -65,11 +86,14 @@ pub async fn watch_build(
         if build_is_terminal(&build.state.to_string()) {
             break build.state.to_string();
         }
+        // TODO: no overall deadline; a build stuck non-terminal loops forever
+        // (matches `hm cloud build watch`). Consider a --timeout ceiling.
         tokio::time::sleep(POLL).await;
     };
 
-    // Drain all log streams.
-    for h in handles.drain(..) {
+    // Drain all log streams (empties the guard so Drop aborts nothing on the
+    // success path).
+    for h in guard.0.drain(..) {
         let _ = h.await;
     }
 
