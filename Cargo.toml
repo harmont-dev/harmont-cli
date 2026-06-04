@@ -28,6 +28,7 @@ hm-plugin-cloud    = { path = "crates/hm-plugin-cloud",    version = "0.0.0-dev"
 hm-pipeline-ir     = { path = "crates/hm-pipeline-ir",     version = "0.0.0-dev" }
 hm-util            = { path = "crates/hm-util",            version = "0.0.0-dev" }
 hm-dsl-engine      = { path = "crates/hm-dsl-engine",     version = "0.0.0-dev" }
+harmont-cloud = "0.1"
 anyhow      = "1"
 async-trait = "0.1"
 dirs        = "6"
@@ -79,3 +80,10 @@ unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
 exit = "warn"
+
+# Dev override: harmont-cloud is not yet on crates.io. The SDK lives in the
+# parent monorepo; this path resolves when the CLI is checked out as a
+# submodule of it. Remove (or replace with a git dep) before publishing the
+# CLI or building it standalone. Tracked for finalization in plan task G3.
+[patch.crates-io]
+harmont-cloud = { path = "../oss/harmont-cloud-sdk-rs/harmont-cloud" }
