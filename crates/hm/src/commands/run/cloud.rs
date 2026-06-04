@@ -38,11 +38,19 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // 4. Git metadata (best-effort; this is a local run, not a push).
     let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
 
+    // Select the output mode up front. `--format json` is honored directly off
+    // `args.format` (the host `RunContext` always reports `Human`, so
+    // `ctx.output.is_json()` is never true on the run path — see `cloud_output_mode`).
+    let mode = cloud_output_mode(&args.format, ctx.output.interactive());
+    let json = matches!(mode, Mode::Json);
+    let color = ctx.output.color_enabled();
+    let interactive = matches!(mode, Mode::Interactive);
+
     // 5. Archive + submit. In interactive mode an indeterminate spinner gives
     //    feedback during the (multi-second) archive + upload; in non-interactive
     //    mode (CI / `--format json`) we keep the quiet tracing breadcrumbs so
     //    nothing animates into a pipe.
-    let uploading = if ctx.output.interactive() {
+    let uploading = if interactive {
         let pb = indicatif::ProgressBar::new_spinner();
         let style = indicatif::ProgressStyle::with_template("{spinner:.cyan} {msg}")
             .unwrap_or_else(|_| indicatif::ProgressStyle::default_spinner())
@@ -94,10 +102,7 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
     // 7. Build a reporter + a CloudJobView sharing its progress surface, then
     //    watch the build to completion (live log streaming).
-    let color = ctx.output.color_enabled();
-    let interactive = ctx.output.interactive();
-
-    let (reporter, view): (Arc<dyn Reporter>, CloudJobView) = if ctx.output.is_json() {
+    let (reporter, view): (Arc<dyn Reporter>, CloudJobView) = if json {
         // `--format json`: machine-readable NDJSON to stdout, no progress UI.
         // `std::io::stdout()` returns a fresh handle each call; both write to
         // the same fd and serialize via the per-`writeln!` stdout lock.
@@ -148,6 +153,33 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             .unwrap_or(e)
     })?;
     Ok(code)
+}
+
+/// The output surface chosen for a `hm run --cloud` invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    /// Machine-readable NDJSON to stdout, no progress UI or spinner.
+    Json,
+    /// Animated terminal bars/spinners on an interactive TTY.
+    Interactive,
+    /// Plain prefixed lines (non-TTY / CI), no animation.
+    Plain,
+}
+
+/// Decide the cloud output mode from the `--format` value and TTY state.
+///
+/// `--format json` (case-insensitive) always wins and suppresses the spinner;
+/// anything else falls back to interactive (on a TTY) or plain. This mirrors
+/// the local handler, where only the exact formatter name `json` selects JSON
+/// and every other value renders human output.
+const fn cloud_output_mode(format: &str, interactive: bool) -> Mode {
+    if format.eq_ignore_ascii_case("json") {
+        Mode::Json
+    } else if interactive {
+        Mode::Interactive
+    } else {
+        Mode::Plain
+    }
 }
 
 /// Render a `HarmontError` in the project's error doctrine: point precisely,
@@ -228,6 +260,22 @@ fn git_metadata(root: &std::path::Path, branch_override: Option<String>) -> (Str
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_output_mode_selection() {
+        // `--format json` (any case) → JSON, regardless of TTY.
+        assert_eq!(cloud_output_mode("json", true), Mode::Json);
+        assert_eq!(cloud_output_mode("json", false), Mode::Json);
+        assert_eq!(cloud_output_mode("JSON", false), Mode::Json);
+        assert_eq!(cloud_output_mode("Json", true), Mode::Json);
+        // Human (the default) on a TTY → interactive bars.
+        assert_eq!(cloud_output_mode("human", true), Mode::Interactive);
+        // Human off a TTY (CI / pipe) → plain prefixed lines.
+        assert_eq!(cloud_output_mode("human", false), Mode::Plain);
+        // An unknown/plugin formatter name is not JSON: falls back like human.
+        assert_eq!(cloud_output_mode("pretty", true), Mode::Interactive);
+        assert_eq!(cloud_output_mode("pretty", false), Mode::Plain);
+    }
 
     #[test]
     fn parse_env_splits_pairs() {
