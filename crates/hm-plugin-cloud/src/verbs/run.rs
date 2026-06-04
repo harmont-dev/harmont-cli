@@ -1,85 +1,74 @@
-//! `hm cloud run [TASK]` — submit the local pipeline plan to the cloud
-//! and watch the resulting build.
+//! `hm cloud run <PIPELINE>` — submit a pre-rendered pipeline plan to the
+//! cloud and watch the resulting build.
 //!
-//! For plan 4 the caller supplies a pre-rendered plan JSON via
-//! `--plan-file` (or `plan.json` by convention). Source-archive
-//! upload — required by the live API — lands in plan 5.
+//! This is the minimal, file-based path: the caller supplies a pre-rendered v0
+//! IR plan via `--plan-file` (or `plan.json` by convention) and **no source
+//! archive** is uploaded. The full local-worktree flow — rendering the DSL and
+//! archiving the working tree — is implemented by `hm run --cloud` (plan task
+//! E2), which lives in the `hm` crate where the renderer and archiver are.
 
 use std::collections::BTreeMap;
 
 use anyhow::Result;
 use clap::Parser;
+use harmont_cloud::builds::NewBuild;
 
-use crate::api::types::{Build, CreateBuildRequest};
-use crate::config::Config;
-use crate::creds;
-use crate::http::Client;
-use crate::state::CloudState;
+use crate::settings;
 
 #[derive(Debug, Clone, Parser)]
 pub struct RunArgs {
     /// Pipeline slug. Required.
     pub pipeline: String,
     /// Branch to record on the build.
-    #[arg(short, long)]
-    pub branch: Option<String>,
+    #[arg(short, long, default_value = "main")]
+    pub branch: String,
+    /// Commit SHA to record on the build.
+    #[arg(short, long, default_value = "0000000000000000000000000000000000000000")]
+    pub commit: String,
     /// Build message.
     #[arg(short, long)]
     pub message: Option<String>,
-    /// Path to a pre-rendered pipeline JSON file.
-    /// If unset, reads `plan.json`.
+    /// Path to a pre-rendered v0 IR plan file. Defaults to `plan.json`.
     #[arg(long)]
     pub plan_file: Option<String>,
-    /// Don't watch; print the build URL and exit.
+    /// Don't watch; print the build number and exit.
     #[arg(long)]
     pub no_watch: bool,
 }
 
 pub(crate) async fn run(env: &BTreeMap<String, String>, args: RunArgs) -> Result<()> {
-    let cfg = Config::from_env(env);
-    let token = creds::load_token(&cfg.api_base, env)
-        .ok_or_else(|| anyhow::anyhow!("not logged in; run `hm cloud login`"))?;
-    let client = Client::new(&cfg, Some(token));
-    let org = CloudState::load().active_org.ok_or_else(|| {
-        anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`")
-    })?;
+    let (client, ctx) = settings::client()?;
+    let org = ctx.org()?;
 
-    // Read the pipeline plan.
     let plan_path = args.plan_file.as_deref().unwrap_or("plan.json");
-    let bytes = std::fs::read(plan_path)
+    let pipeline_ir = std::fs::read_to_string(plan_path)
         .map_err(|e| anyhow::anyhow!("could not read plan file '{plan_path}': {e}"))?;
-    let plan_json: serde_json::Value = serde_json::from_slice(&bytes)
+    // Validate it parses as JSON before we ship it.
+    serde_json::from_str::<serde_json::Value>(&pipeline_ir)
         .map_err(|e| anyhow::anyhow!("invalid JSON in plan file '{plan_path}': {e}"))?;
 
-    let req = CreateBuildRequest {
-        pipeline_slug: args.pipeline.clone(),
-        branch: args.branch.clone(),
-        message: args.message.clone(),
-        env: env
-            .iter()
-            .filter(|(k, _)| k.starts_with("HM_RUN_ENV_"))
-            .map(|(k, v)| (k.trim_start_matches("HM_RUN_ENV_").to_string(), v.clone()))
-            .collect(),
-        plan_json,
-    };
-    let build: Build = client
-        .post(
-            &format!("/organizations/{org}/pipelines/{}/builds", args.pipeline),
-            &req,
-        )
+    let build = client
+        .submit_build(NewBuild {
+            org: org.clone(),
+            pipeline: args.pipeline.clone(),
+            branch: args.branch.clone(),
+            commit: args.commit.clone(),
+            message: args.message.clone(),
+            pipeline_ir,
+            // Full worktree archiving lands in `hm run --cloud` (task E2).
+            source_tgz: Vec::new(),
+            env: env
+                .iter()
+                .filter(|(k, _)| k.starts_with("HM_RUN_ENV_"))
+                .map(|(k, v)| (k.trim_start_matches("HM_RUN_ENV_").to_string(), v.clone()))
+                .collect(),
+        })
         .await?;
-    let url = format!(
-        "{}/{}/{}/builds/{}",
-        cfg.api_base.trim_end_matches("/api"),
-        org,
-        args.pipeline,
-        build.number
-    );
-    tracing::info!("submitted build #{}: {url}", build.number);
+
+    tracing::info!("submitted build #{}", build.number);
     if args.no_watch {
         return Ok(());
     }
-    // Watch loop: reuse build::run.
     crate::verbs::build::run(
         env,
         crate::cli::BuildCommand::Watch {

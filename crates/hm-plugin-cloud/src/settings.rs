@@ -10,9 +10,101 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use harmont_cloud::HarmontClient;
 use serde::{Deserialize, Serialize};
 
 const PROD_API_URL: &str = "https://api.harmont.dev";
+
+/// Resolved context shared by every authenticated verb: the API base and the
+/// configured defaults from `config.toml`.
+#[derive(Debug, Clone)]
+pub struct ResolvedCtx {
+    /// Effective API base URL.
+    pub api: String,
+    /// Default organization slug, if set.
+    pub default_org: Option<String>,
+    /// Default pipeline slug, if set.
+    pub default_pipeline: Option<String>,
+}
+
+impl ResolvedCtx {
+    /// Resolve the active organization slug or fail with a clear fix.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no default org is configured.
+    pub fn org(&self) -> Result<String> {
+        self.default_org.clone().ok_or_else(|| {
+            anyhow::anyhow!("no active organization\n  fix: `hm cloud org switch <slug>`")
+        })
+    }
+}
+
+/// Build an authenticated SDK client from local config + credentials.
+///
+/// Fails fast with a clear message when no token is present.
+///
+/// # Errors
+///
+/// Returns an error if config can't be loaded or no token is available.
+pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
+    migrate_legacy_state();
+    let cfg = CloudConfig::load()?;
+    let api = cfg.resolved_api_url(std::env::var("HARMONT_API_URL").ok());
+    let token = resolve_token(&api)?.ok_or_else(|| {
+        anyhow::anyhow!("not logged in — run `hm cloud login` or set HARMONT_API_TOKEN")
+    })?;
+    let client = HarmontClient::with_base_url(token, &api);
+    Ok((
+        client,
+        ResolvedCtx {
+            api,
+            default_org: cfg.default_org,
+            default_pipeline: cfg.default_pipeline,
+        },
+    ))
+}
+
+/// Build an anonymous SDK client for the login endpoints, returning the
+/// resolved API base alongside it.
+///
+/// # Errors
+///
+/// Returns an error if config can't be loaded.
+pub fn anon_client() -> Result<(HarmontClient, String)> {
+    let cfg = CloudConfig::load()?;
+    let api = cfg.resolved_api_url(std::env::var("HARMONT_API_URL").ok());
+    Ok((HarmontClient::anonymous(&api), api))
+}
+
+/// One-time migration of the legacy `cloud-state.json` (which stored the
+/// active org) into `config.toml`'s `default_org`. Best-effort: any error is
+/// ignored so a corrupt or unreadable legacy file never blocks the CLI.
+fn migrate_legacy_state() {
+    let Some(dir) = hm_util::dirs::harmont_config_dir() else {
+        return;
+    };
+    let legacy = dir.join("cloud-state.json");
+    let Ok(bytes) = std::fs::read(&legacy) else {
+        return; // no legacy file — nothing to do
+    };
+    #[derive(Deserialize)]
+    struct LegacyState {
+        active_org: Option<String>,
+    }
+    let active_org = serde_json::from_slice::<LegacyState>(&bytes)
+        .ok()
+        .and_then(|s| s.active_org);
+    if let Some(org) = active_org
+        && let Ok(mut cfg) = CloudConfig::load()
+        && cfg.default_org.is_none()
+    {
+        cfg.default_org = Some(org);
+        let _ = cfg.save();
+    }
+    // Remove the legacy file regardless, so this runs at most once.
+    let _ = std::fs::remove_file(&legacy);
+}
 
 /// Non-secret CLI config (`~/.harmont/config.toml`).
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -155,6 +247,47 @@ pub fn resolve_token(api_base: &str) -> Result<Option<String>> {
         return Ok(Some(t));
     }
     Ok(Credentials::load()?.token_for(api_base))
+}
+
+/// Persist a bearer token for `api_base` to the credentials file.
+///
+/// # Errors
+///
+/// Returns an error if the credentials file can't be loaded or written.
+pub fn store_token(api_base: &str, token: &str) -> Result<()> {
+    let mut creds = Credentials::load()?;
+    creds.set_token(api_base, token.to_string());
+    creds.save()
+}
+
+/// Remove any stored token for `api_base` from the credentials file.
+///
+/// # Errors
+///
+/// Returns an error if the credentials file can't be loaded or written.
+pub fn forget_token(api_base: &str) -> Result<()> {
+    let mut creds = Credentials::load()?;
+    creds.clear_token(api_base);
+    creds.save()
+}
+
+/// Set the active organization in `config.toml`.
+///
+/// # Errors
+///
+/// Returns an error if config can't be loaded or written.
+pub fn set_default_org(slug: &str) -> Result<()> {
+    let mut cfg = CloudConfig::load()?;
+    cfg.default_org = Some(slug.to_string());
+    cfg.save()
+}
+
+/// Map a raw generated-client error into an `anyhow` error with a readable
+/// message. The raw `Error<E>` renders the server's error body (status,
+/// headers, decoded value) via its `Display` impl, which holds for any
+/// `E: Debug` — true of the generated `types::Error` body.
+pub fn map_raw<E: std::fmt::Debug>(e: harmont_cloud_raw::Error<E>) -> anyhow::Error {
+    anyhow::anyhow!("{e}")
 }
 
 #[cfg(test)]

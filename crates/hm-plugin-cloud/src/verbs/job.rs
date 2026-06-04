@@ -3,20 +3,17 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
+use futures_util::StreamExt;
+use harmont_cloud::HarmontClient;
+use harmont_cloud::logs::{LogChunk, LogEvent};
+use uuid::Uuid;
 
-use crate::api::types::{Job, JobList, JobLog};
 use crate::cli::JobCommand;
-use crate::config::Config;
-use crate::creds;
-use crate::http::Client;
-use crate::state::CloudState;
+use crate::settings;
 
-pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: JobCommand) -> Result<()> {
-    let cfg = Config::from_env(env);
-    let token = creds::load_token(&cfg.api_base, env)
-        .ok_or_else(|| anyhow::anyhow!("not logged in; run `hm cloud login`"))?;
-    let client = Client::new(&cfg, Some(token));
-    let org = active_org()?;
+pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: JobCommand) -> Result<()> {
+    let (client, ctx) = settings::client()?;
+    let org = ctx.org()?;
 
     match cmd {
         JobCommand::List { pipeline, build } => list(&client, &org, &pipeline, build).await,
@@ -33,47 +30,63 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: JobCommand) -> Resu
     }
 }
 
-async fn list(client: &Client, org: &str, pipe: &str, build: i64) -> Result<()> {
-    let jobs: JobList = client
-        .get(&format!(
-            "/organizations/{org}/pipelines/{pipe}/builds/{build}/jobs"
-        ))
-        .await?;
-    for j in &jobs.data {
+async fn list(client: &HarmontClient, org: &str, pipe: &str, build: i64) -> Result<()> {
+    let jobs = client.list_jobs(org, pipe, build).await?;
+    for j in &jobs {
         tracing::info!(
             "{}  {:<10}  {}",
             j.id,
-            j.state,
-            j.label.as_deref().unwrap_or("")
+            j.state.to_string(),
+            j.name.as_deref().unwrap_or("")
         );
     }
     Ok(())
 }
 
-async fn show(client: &Client, org: &str, pipe: &str, build: i64, jid: &str) -> Result<()> {
-    let j: Job = client
-        .get(&format!(
-            "/organizations/{org}/pipelines/{pipe}/builds/{build}/jobs/{jid}"
-        ))
-        .await?;
+async fn show(client: &HarmontClient, org: &str, pipe: &str, build: i64, jid: &str) -> Result<()> {
+    let j = client
+        .raw()
+        .get_job(org, pipe, build, jid)
+        .await
+        .map_err(settings::map_raw)?
+        .into_inner();
     tracing::info!("{}", serde_json::to_string_pretty(&j).unwrap_or_default());
     Ok(())
 }
 
-async fn log_cmd(client: &Client, org: &str, pipe: &str, build: i64, jid: &str) -> Result<()> {
-    let log: JobLog = client
-        .get(&format!(
-            "/organizations/{org}/pipelines/{pipe}/builds/{build}/jobs/{jid}/log"
-        ))
+async fn log_cmd(
+    client: &HarmontClient,
+    org: &str,
+    pipe: &str,
+    build: i64,
+    jid: &str,
+) -> Result<()> {
+    let job_id = Uuid::parse_str(jid)
+        .map_err(|e| anyhow::anyhow!("job id '{jid}' is not a valid UUID: {e}"))?;
+    // Mint a build-scoped log token, then stream this job's logs to terminal.
+    let token = client.log_token(org, pipe, build).await?;
+    let log_base = client.base_url().to_string();
+    let stream = client
+        .stream_job_logs(&log_base, job_id, &token.token)
         .await?;
-    for chunk in &log.data {
-        tracing::info!("{}", chunk.line);
+    tokio::pin!(stream);
+    while let Some(item) = stream.next().await {
+        match item? {
+            LogEvent::History(chunks) => {
+                for c in &chunks {
+                    print_chunk(c);
+                }
+            }
+            LogEvent::Chunk(c) => print_chunk(&c),
+            LogEvent::Done => break,
+        }
     }
     Ok(())
 }
 
-fn active_org() -> Result<String> {
-    CloudState::load()
-        .active_org
-        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
+fn print_chunk(c: &LogChunk) {
+    // `content` may carry a trailing newline already; trim it so tracing's own
+    // line framing doesn't double-space the output.
+    let line = c.content.strip_suffix('\n').unwrap_or(&c.content);
+    tracing::info!("{line}");
 }
