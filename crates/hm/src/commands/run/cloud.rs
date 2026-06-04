@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use harmont_cloud::builds::NewBuild;
-use hm_plugin_cloud::reporter::{Level, PlainReporter, Reporter, TermReporter};
+use hm_plugin_cloud::reporter::{JsonReporter, Level, PlainReporter, Reporter, TermReporter};
 use hm_plugin_cloud::settings;
 use hm_plugin_cloud::ui::cloud_view::CloudJobView;
 use hm_plugin_cloud::watch::watch_build;
@@ -38,13 +38,43 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // 4. Git metadata (best-effort; this is a local run, not a push).
     let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
 
-    // 5. Archive the worktree.
-    tracing::info!("archiving worktree…");
-    let source_tgz = build_archive_bytes(&repo_root).context("archiving the worktree")?;
+    // 5. Archive + submit. In interactive mode an indeterminate spinner gives
+    //    feedback during the (multi-second) archive + upload; in non-interactive
+    //    mode (CI / `--format json`) we keep the quiet tracing breadcrumbs so
+    //    nothing animates into a pipe.
+    let uploading = if ctx.output.interactive() {
+        let pb = indicatif::ProgressBar::new_spinner();
+        let style = indicatif::ProgressStyle::with_template("{spinner:.cyan} {msg}")
+            .unwrap_or_else(|_| indicatif::ProgressStyle::default_spinner())
+            .tick_strings(&[
+                "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", "⠀",
+            ]);
+        pb.set_style(style);
+        pb.set_message("uploading worktree…");
+        pb.enable_steady_tick(std::time::Duration::from_millis(80));
+        Some(pb)
+    } else {
+        tracing::info!("archiving worktree…");
+        None
+    };
 
-    // 6. Submit.
-    tracing::info!("submitting build to {}…", rctx.api);
-    let build = client
+    // Archive the worktree. Clear the spinner before any error message prints.
+    let source_tgz = match build_archive_bytes(&repo_root).context("archiving the worktree") {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            if let Some(pb) = uploading {
+                pb.finish_and_clear();
+            }
+            return Err(e);
+        }
+    };
+
+    if uploading.is_none() {
+        tracing::info!("submitting build to {}…", rctx.api);
+    }
+    // Submit. On a `HarmontError`, surface the project's error doctrine rather
+    // than an opaque chain (see `explain`).
+    let submit = client
         .submit_build(NewBuild {
             org: org.clone(),
             pipeline: slug.clone(),
@@ -55,15 +85,26 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             source_tgz,
             env: parse_env(&args.env),
         })
-        .await
-        .context("submitting the build")?;
+        .await;
+    // Clear the spinner on BOTH paths before printing anything.
+    if let Some(pb) = uploading {
+        pb.finish_and_clear();
+    }
+    let build = submit.map_err(|e| anyhow::anyhow!("{}", explain(&e)))?;
 
     // 7. Build a reporter + a CloudJobView sharing its progress surface, then
     //    watch the build to completion (live log streaming).
     let color = ctx.output.color_enabled();
     let interactive = ctx.output.interactive();
 
-    let (reporter, view): (Arc<dyn Reporter>, CloudJobView) = if interactive {
+    let (reporter, view): (Arc<dyn Reporter>, CloudJobView) = if ctx.output.is_json() {
+        // `--format json`: machine-readable NDJSON to stdout, no progress UI.
+        // `std::io::stdout()` returns a fresh handle each call; both write to
+        // the same fd and serialize via the per-`writeln!` stdout lock.
+        let reporter = JsonReporter::new(std::io::stdout());
+        let view = CloudJobView::json(std::io::stdout());
+        (Arc::new(reporter), view)
+    } else if interactive {
         let term = TermReporter::new(color);
         // SHARE the reporter's MultiProgress so bars and lines never collide.
         let view = CloudJobView::new(term.multi(), color);
@@ -98,8 +139,33 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         reporter.clone(),
         view,
     )
-    .await?;
+    .await
+    // Re-render a wrapped `HarmontError` (log-token mint, status polls, stream
+    // setup) in the error doctrine; pass other anyhow chains through unchanged.
+    .map_err(|e| {
+        e.downcast_ref::<harmont_cloud::HarmontError>()
+            .map(|he| anyhow::anyhow!("{}", explain(he)))
+            .unwrap_or(e)
+    })?;
     Ok(code)
+}
+
+/// Render a `HarmontError` in the project's error doctrine: point precisely,
+/// say what was observed, say the fix, give a stable code + doc URL.
+fn explain(err: &harmont_cloud::HarmontError) -> String {
+    use harmont_cloud::HarmontError as E;
+    match err {
+        E::Unauthorized =>
+            "error[auth_required]: not authenticated\n  fix    run `hm login` (or set HARMONT_API_TOKEN)\n  docs   https://harmont.dev/docs/errors/auth_required".to_string(),
+        E::Api { status, code, message } =>
+            format!("error[{code}]: {message}\n  status {status}\n  docs   https://harmont.dev/docs/errors/{code}"),
+        E::NotFound(what) =>
+            format!("error[not_found]: {what}"),
+        E::LogStream(m) =>
+            format!("error[log_stream]: live logs interrupted — {m}\n  the build continues; check `hm cloud build show`"),
+        E::Transport(m) => format!("error[network]: {m}\n  fix    check your connection and the API URL"),
+        E::Decode(m) => format!("error[decode]: unexpected response from the API — {m}"),
+    }
 }
 
 fn parse_env(pairs: &[String]) -> std::collections::HashMap<String, String> {

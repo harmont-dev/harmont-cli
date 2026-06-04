@@ -2,6 +2,8 @@
 //! printed above via the shared MultiProgress, and per-job finish glyphs.
 
 use std::collections::HashMap;
+use std::io::Write;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -12,16 +14,36 @@ const TICKS: &[&str] = &[
     "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", "⠀",
 ];
 
+/// How a `CloudJobView` renders job lifecycle + logs.
+#[derive(Clone)]
+enum ViewMode {
+    /// Interactive (TTY): live steady-tick spinner bars per running job.
+    Interactive,
+    /// Plain (non-TTY/CI): prefixed log lines + glyphs, no animated bars.
+    Plain,
+    /// JSON (`--format json`): one compact JSON object per event to the writer.
+    Json(Arc<Mutex<dyn Write + Send>>),
+}
+
+impl std::fmt::Debug for ViewMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Interactive => f.write_str("Interactive"),
+            Self::Plain => f.write_str("Plain"),
+            Self::Json(_) => f.write_str("Json"),
+        }
+    }
+}
+
 /// Per-job live progress bars, sharing one `MultiProgress` with the reporter.
 #[derive(Debug)]
 pub struct CloudJobView {
     multi: MultiProgress,
     bars: HashMap<Uuid, (ProgressBar, Instant)>,
     color: bool,
-    /// Plain mode (non-TTY/CI): never create steady-tick spinner bars; print
-    /// prefixed log lines and status glyphs straight to the sink instead. This
-    /// guarantees no animated spinner frames leak into a pipe or log file.
-    plain: bool,
+    /// Render mode. Plain/JSON never create steady-tick spinner bars, so no
+    /// animated frames leak into a pipe, log file, or JSON stream.
+    mode: ViewMode,
 }
 
 impl CloudJobView {
@@ -35,7 +57,7 @@ impl CloudJobView {
             multi,
             bars: HashMap::new(),
             color,
-            plain: false,
+            mode: ViewMode::Interactive,
         }
     }
 
@@ -51,7 +73,32 @@ impl CloudJobView {
             multi,
             bars: HashMap::new(),
             color,
-            plain: true,
+            mode: ViewMode::Plain,
+        }
+    }
+
+    /// A JSON view (`--format json`): emit one compact JSON object per event to
+    /// `out` (typically `std::io::stdout()`), no animated bars. Job lifecycle
+    /// transitions and log lines become machine-readable records:
+    /// `{"type":"job",...}` and `{"type":"log",...}`.
+    #[must_use]
+    pub fn json<W: Write + Send + 'static>(out: W) -> Self {
+        Self {
+            // A hidden MultiProgress so no spinner frames are ever drawn; all
+            // output goes through the JSON writer below.
+            multi: MultiProgress::with_draw_target(indicatif::ProgressDrawTarget::hidden()),
+            bars: HashMap::new(),
+            color: false,
+            mode: ViewMode::Json(Arc::new(Mutex::new(out))),
+        }
+    }
+
+    /// Emit one compact JSON object to the JSON sink (no-op if not JSON mode).
+    fn emit_json(&self, obj: &serde_json::Value) {
+        if let ViewMode::Json(out) = &self.mode
+            && let Ok(mut w) = out.lock()
+        {
+            let _ = writeln!(w, "{obj}");
         }
     }
 
@@ -70,7 +117,14 @@ impl CloudJobView {
     ///
     /// In plain mode this prints a single status line and adds no animated bar.
     pub fn job_running(&mut self, id: Uuid, name: &str) {
-        if self.plain {
+        if let ViewMode::Json(_) = self.mode {
+            self.emit_json(&serde_json::json!({
+                "type": "job", "state": "running",
+                "job_id": id.to_string(), "name": name,
+            }));
+            return;
+        }
+        if matches!(self.mode, ViewMode::Plain) {
             let line = if self.color {
                 format!("{name} | running").dimmed().to_string()
             } else {
@@ -92,6 +146,13 @@ impl CloudJobView {
 
     /// A streaming log line for a job — printed above the live bars.
     pub fn job_log(&self, id: Uuid, name: &str, line: &str) {
+        if let ViewMode::Json(_) = self.mode {
+            self.emit_json(&serde_json::json!({
+                "type": "log",
+                "job_id": id.to_string(), "name": name, "line": line,
+            }));
+            return;
+        }
         let prefix = if self.color {
             format!("{name} |").dimmed().to_string()
         } else {
@@ -108,7 +169,15 @@ impl CloudJobView {
     ///
     /// In plain mode this prints a single terminal-state line (no bar exists).
     pub fn job_done(&mut self, id: Uuid, name: &str, passed: bool) {
-        if self.plain {
+        if let ViewMode::Json(_) = self.mode {
+            self.emit_json(&serde_json::json!({
+                "type": "job",
+                "state": if passed { "passed" } else { "failed" },
+                "job_id": id.to_string(), "name": name,
+            }));
+            return;
+        }
+        if matches!(self.mode, ViewMode::Plain) {
             let glyph = match (passed, self.color) {
                 (true, true) => "✓".green().to_string(),
                 (false, true) => "✗".red().to_string(),
@@ -202,5 +271,60 @@ mod tests {
         color_view.job_running(id, "fail-job");
         color_view.job_done(id, "fail-job", false);
         assert!(color_view.bars.is_empty());
+    }
+
+    // A Write that shares a Vec so the test can inspect JSON output.
+    struct SharedBuf(Arc<Mutex<Vec<u8>>>);
+    impl Write for SharedBuf {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn json_view_emits_parseable_records() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let mut view = CloudJobView::json(SharedBuf(buf.clone()));
+        let id = Uuid::new_v4();
+
+        view.job_running(id, "build");
+        view.job_log(id, "build", "compiling…");
+        view.job_done(id, "build", true);
+
+        // JSON mode never creates animated bars.
+        assert!(view.bars.is_empty(), "json mode adds no bars");
+
+        let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        let mut lines = out.lines();
+
+        let running: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
+        assert_eq!(running["type"], "job");
+        assert_eq!(running["state"], "running");
+        assert_eq!(running["job_id"], id.to_string());
+        assert_eq!(running["name"], "build");
+
+        let log: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
+        assert_eq!(log["type"], "log");
+        assert_eq!(log["line"], "compiling…");
+        assert_eq!(log["job_id"], id.to_string());
+
+        let done: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
+        assert_eq!(done["type"], "job");
+        assert_eq!(done["state"], "passed");
+    }
+
+    #[test]
+    fn json_view_done_failed_state() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let mut view = CloudJobView::json(SharedBuf(buf.clone()));
+        let id = Uuid::new_v4();
+        view.job_done(id, "t", false);
+        let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        let v: serde_json::Value = serde_json::from_str(out.lines().next().unwrap()).unwrap();
+        assert_eq!(v["state"], "failed");
     }
 }

@@ -119,6 +119,51 @@ impl Reporter for TermReporter {
     }
 }
 
+/// Emits one compact JSON object per event to an inner writer (stdout under
+/// `--format json`). Machine-readable transcript: humans read stderr, scripts
+/// pipe this stdout into `jq`. Each call writes one object + newline via
+/// `writeln!` (never the `println!` macro).
+pub struct JsonReporter<W: Write + Send> {
+    out: Mutex<W>,
+}
+
+impl<W: Write + Send> std::fmt::Debug for JsonReporter<W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `W` is often `std::io::Stdout`, which is not `Debug`; print a stable
+        // placeholder rather than constraining `W: Debug`.
+        f.debug_struct("JsonReporter").finish_non_exhaustive()
+    }
+}
+
+impl<W: Write + Send> JsonReporter<W> {
+    /// Create a new `JsonReporter` writing newline-delimited JSON to `out`.
+    pub fn new(out: W) -> Self {
+        Self { out: Mutex::new(out) }
+    }
+
+    fn emit(&self, obj: serde_json::Value) {
+        if let Ok(mut w) = self.out.lock() {
+            let _ = writeln!(w, "{obj}");
+        }
+    }
+}
+
+impl<W: Write + Send> Reporter for JsonReporter<W> {
+    fn line(&self, text: &str) {
+        self.emit(serde_json::json!({"type": "line", "message": text}));
+    }
+
+    fn status(&self, level: Level, text: &str) {
+        let lvl = match level {
+            Level::Info => "info",
+            Level::Warn => "warn",
+            Level::Error => "error",
+            Level::Success => "success",
+        };
+        self.emit(serde_json::json!({"type": "status", "level": lvl, "message": text}));
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -171,6 +216,25 @@ mod tests {
         let rc = TermReporter::new(true);
         rc.status(Level::Error, "colored error");
         rc.status(Level::Success, "colored success");
+    }
+
+    #[test]
+    fn json_reporter_emits_parseable_objects() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let r = JsonReporter::new(SharedBuf(buf.clone()));
+        r.line("hello");
+        r.status(Level::Error, "boom");
+        let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        let mut lines = out.lines();
+
+        let first: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
+        assert_eq!(first["type"], "line");
+        assert_eq!(first["message"], "hello");
+
+        let second: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
+        assert_eq!(second["type"], "status");
+        assert_eq!(second["level"], "error");
+        assert_eq!(second["message"], "boom");
     }
 
     #[test]
