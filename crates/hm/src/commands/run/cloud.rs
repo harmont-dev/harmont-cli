@@ -155,16 +155,41 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 fn explain(err: &harmont_cloud::HarmontError) -> String {
     use harmont_cloud::HarmontError as E;
     match err {
-        E::Unauthorized =>
-            "error[auth_required]: not authenticated\n  fix    run `hm login` (or set HARMONT_API_TOKEN)\n  docs   https://harmont.dev/docs/errors/auth_required".to_string(),
-        E::Api { status, code, message } =>
-            format!("error[{code}]: {message}\n  status {status}\n  docs   https://harmont.dev/docs/errors/{code}"),
-        E::NotFound(what) =>
-            format!("error[not_found]: {what}"),
-        E::LogStream(m) =>
-            format!("error[log_stream]: live logs interrupted — {m}\n  the build continues; check `hm cloud build show`"),
-        E::Transport(m) => format!("error[network]: {m}\n  fix    check your connection and the API URL"),
-        E::Decode(m) => format!("error[decode]: unexpected response from the API — {m}"),
+        E::Unauthorized => "\
+error[auth_required]: not authenticated
+  fix    run `hm cloud login` (or set HARMONT_API_TOKEN)
+  docs   https://harmont.dev/docs/errors/auth_required"
+            .to_string(),
+        E::Api { status, code, message } => format!(
+            "\
+error[{code}]: {message}
+  status {status}
+  docs   https://harmont.dev/docs/errors/{code}"
+        ),
+        E::NotFound(what) => format!(
+            "\
+error[not_found]: {what}
+  fix    check the org, pipeline, and build number are correct
+  docs   https://harmont.dev/docs/errors/not_found"
+        ),
+        E::LogStream(m) => format!(
+            "\
+error[log_stream]: live logs interrupted — {m}
+  fix    the build continues; re-attach with `hm cloud build show`
+  docs   https://harmont.dev/docs/errors/log_stream"
+        ),
+        E::Transport(m) => format!(
+            "\
+error[network]: {m}
+  fix    check your connection and the API URL (HARMONT_API_URL)
+  docs   https://harmont.dev/docs/errors/network"
+        ),
+        E::Decode(m) => format!(
+            "\
+error[decode]: unexpected response from the API — {m}
+  fix    update `hm` (the API contract may have changed) or report a bug
+  docs   https://harmont.dev/docs/errors/decode"
+        ),
     }
 }
 
@@ -217,5 +242,37 @@ mod tests {
         let (b, c) = git_metadata(std::path::Path::new("/"), None);
         assert!(!b.is_empty() && !c.is_empty());
         assert_eq!(c.len(), 40); // zero-sha fallback
+    }
+
+    #[test]
+    fn stable_codes_present() {
+        use harmont_cloud::HarmontError as E;
+        assert!(explain(&E::Unauthorized).contains("error[auth_required]"));
+        assert!(explain(&E::NotFound("x".into())).contains("error[not_found]"));
+        assert!(explain(&E::LogStream("x".into())).contains("error[log_stream]"));
+        assert!(explain(&E::Transport("x".into())).contains("error[network]"));
+        assert!(explain(&E::Decode("x".into())).contains("error[decode]"));
+        let api = explain(&E::Api {
+            status: 422,
+            code: "build_rejected".into(),
+            message: "bad".into(),
+        });
+        assert!(api.contains("error[build_rejected]"));
+        assert!(api.contains("422"));
+        assert!(api.contains("bad"));
+    }
+
+    #[test]
+    fn every_variant_has_docs() {
+        use harmont_cloud::HarmontError as E;
+        for s in [
+            explain(&E::Unauthorized),
+            explain(&E::NotFound("x".into())),
+            explain(&E::LogStream("x".into())),
+            explain(&E::Transport("x".into())),
+            explain(&E::Decode("x".into())),
+        ] {
+            assert!(s.contains("docs   https://harmont.dev/docs/errors/"));
+        }
     }
 }
