@@ -28,6 +28,7 @@ futures-util       = "0.3"
 webbrowser         = "1"
 dialoguer          = "0.11"
 tracing            = { workspace = true }
+owo-colors         = "4"
 
 [lints]
 workspace = true
