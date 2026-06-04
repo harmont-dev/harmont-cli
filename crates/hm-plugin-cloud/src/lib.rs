@@ -13,6 +13,7 @@
 )]
 
 pub mod cli;
+pub mod settings;
 
 mod api;
 mod auth;
