@@ -36,7 +36,7 @@ impl Drop for AbortGuard {
 
 /// Convert a unix-nanosecond timestamp to a UTC datetime, falling back to
 /// "now" when absent or out of range.
-fn ts_or_now(ts_unix_ns: Option<i64>) -> DateTime<Utc> {
+pub(crate) fn ts_or_now(ts_unix_ns: Option<i64>) -> DateTime<Utc> {
     ts_unix_ns
         .map(DateTime::<Utc>::from_timestamp_nanos)
         .unwrap_or_else(Utc::now)
@@ -88,8 +88,10 @@ pub async fn watch_build(
         return Ok(1);
     }
 
-    // Jobs we've started a log stream for, and jobs we've already ended.
+    // Jobs we've started a log stream for.
     let mut streaming: HashSet<Uuid> = HashSet::new();
+    // Deduplicates the post-drain StepEnd sweep: if `list_jobs` returns the
+    // same job ID more than once we emit only one StepEnd per job.
     let mut ended: HashSet<Uuid> = HashSet::new();
     // Stable chain-local index assigned in discovery order.
     let mut chain_idx: HashMap<Uuid, usize> = HashMap::new();
@@ -213,19 +215,28 @@ fn step_end(job: &harmont_cloud::models::Job) -> BuildEvent {
     }
 }
 
-/// Stream one job's logs until the `done` event, splitting content into lines
-/// and forwarding each complete line as a `StepLog` event on `tx`.
-async fn stream_one(
-    client: HarmontClient,
-    log_base: String,
-    job_id: Uuid,
-    token: String,
-    tx: tokio::sync::mpsc::Sender<BuildEvent>,
-) {
-    let stream = match client.stream_job_logs(&log_base, job_id, &token).await {
-        Ok(s) => s,
-        Err(_) => return,
-    };
+/// Stream one job's SSE logs, emitting a `StepLog` per complete line (keyed by
+/// `step_id`) to `tx`, until the job's `done` event. Buffers partial lines and
+/// flushes the trailing remainder. Used by both the multi-job watch loop and
+/// the single-job `hm cloud job log` tail.
+///
+/// Returns `Ok(())` on a clean `done` close. Returns `Err` on a transport or
+/// stream error. A dropped receiver (`tx.send` fails) is treated as a clean
+/// stop and returns `Ok(())` — the caller has gone away, not the job.
+///
+/// **Error semantics are caller-controlled:**
+/// - The multi-job watcher (`stream_one`) swallows the error (best-effort: log
+///   other jobs, keep watching).
+/// - The single-job tail (`hm cloud job log`) propagates it (`?`) so the
+///   command surfaces transport failures to the user.
+pub(crate) async fn stream_job_logs_as_events(
+    client: &HarmontClient,
+    log_base: &str,
+    step_id: Uuid,
+    token: &str,
+    tx: &tokio::sync::mpsc::Sender<BuildEvent>,
+) -> Result<()> {
+    let stream = client.stream_job_logs(log_base, step_id, token).await?;
     futures_util::pin_mut!(stream);
     let mut buf = String::new();
     let mut last_stream = StreamKind::Stdout;
@@ -234,44 +245,61 @@ async fn stream_one(
             Ok(LogEvent::History(chunks)) => {
                 for c in chunks {
                     last_stream = c.stream;
-                    if emit(&tx, job_id, c.stream, c.ts_unix_ns, &mut buf, &c.content)
+                    if emit(tx, step_id, c.stream, c.ts_unix_ns, &mut buf, &c.content)
                         .await
                         .is_err()
                     {
-                        return;
+                        // Receiver dropped — treat as clean stop.
+                        return Ok(());
                     }
                 }
             }
             Ok(LogEvent::Chunk(c)) => {
                 last_stream = c.stream;
-                if emit(&tx, job_id, c.stream, c.ts_unix_ns, &mut buf, &c.content)
+                if emit(tx, step_id, c.stream, c.ts_unix_ns, &mut buf, &c.content)
                     .await
                     .is_err()
                 {
-                    return;
+                    // Receiver dropped — treat as clean stop.
+                    return Ok(());
                 }
             }
             Ok(LogEvent::Done) => break,
-            Err(_) => break,
+            Err(e) => return Err(e.into()),
         }
     }
     // Flush any trailing partial line.
     if !buf.is_empty() {
         let line = std::mem::take(&mut buf);
+        // Ignore send failure: receiver dropping at flush time is still a
+        // clean stop.
         let _ = tx
             .send(BuildEvent::StepLog {
-                step_id: job_id,
+                step_id,
                 stream: map_stream(last_stream),
                 line,
                 ts: Utc::now(),
             })
             .await;
     }
+    Ok(())
+}
+
+/// Thin wrapper used by the multi-job watch loop. Errors are treated as
+/// best-effort (log stream for this job stops, other jobs continue).
+async fn stream_one(
+    client: HarmontClient,
+    log_base: String,
+    job_id: Uuid,
+    token: String,
+    tx: tokio::sync::mpsc::Sender<BuildEvent>,
+) {
+    let _ = stream_job_logs_as_events(&client, &log_base, job_id, &token, &tx).await;
 }
 
 /// Map the SDK stream kind onto the renderer's two-way stream: `Meta` folds
 /// into `Stderr` (it's out-of-band, not pipeline stdout).
-fn map_stream(kind: StreamKind) -> StdStream {
+pub(crate) fn map_stream(kind: StreamKind) -> StdStream {
     match kind {
         StreamKind::Stdout => StdStream::Stdout,
         StreamKind::Stderr | StreamKind::Meta => StdStream::Stderr,

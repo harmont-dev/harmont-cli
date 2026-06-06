@@ -3,15 +3,14 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
-use futures_util::StreamExt;
+use chrono::Utc;
 use harmont_cloud::HarmontClient;
-use harmont_cloud::logs::{LogChunk, LogEvent, StreamKind};
-use hm_plugin_protocol::events::{BuildEvent, PlanSummary, StdStream};
+use hm_plugin_protocol::events::{BuildEvent, PlanSummary};
 use uuid::Uuid;
 
 use crate::cli::JobCommand;
 use crate::settings;
+use crate::watch::stream_job_logs_as_events;
 
 pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: JobCommand) -> Result<()> {
     let (client, ctx) = settings::client()?;
@@ -108,43 +107,10 @@ async fn log_cmd(
         })
         .await;
 
-    let stream = client
-        .stream_job_logs(&log_base, job_id, &token.token)
-        .await?;
-    tokio::pin!(stream);
-    let mut buf = String::new();
-    let mut last_stream = StreamKind::Stdout;
-    'outer: while let Some(item) = stream.next().await {
-        match item? {
-            LogEvent::History(chunks) => {
-                for c in &chunks {
-                    last_stream = c.stream;
-                    if emit_chunk(&tx, job_id, c, &mut buf).await.is_err() {
-                        break 'outer;
-                    }
-                }
-            }
-            LogEvent::Chunk(c) => {
-                last_stream = c.stream;
-                if emit_chunk(&tx, job_id, &c, &mut buf).await.is_err() {
-                    break 'outer;
-                }
-            }
-            LogEvent::Done => break,
-        }
-    }
-    // Flush any trailing partial line.
-    if !buf.is_empty() {
-        let line = std::mem::take(&mut buf);
-        let _ = tx
-            .send(BuildEvent::StepLog {
-                step_id: job_id,
-                stream: map_stream(last_stream),
-                line,
-                ts: Utc::now(),
-            })
-            .await;
-    }
+    // Stream this job's logs. A transport error is fatal for a single-job
+    // tail (propagated via `?`), unlike the multi-job watcher which swallows
+    // per-job stream errors to keep watching remaining jobs.
+    stream_job_logs_as_events(client, &log_base, job_id, &token.token, &tx).await?;
 
     // Close the build so the renderer's `drive` loop returns.
     let _ = tx
@@ -165,39 +131,3 @@ async fn log_cmd(
     Ok(())
 }
 
-/// Map the SDK stream kind onto the renderer's two-way stream: `Meta` folds
-/// into `Stderr` (out-of-band, not pipeline stdout).
-fn map_stream(kind: StreamKind) -> StdStream {
-    match kind {
-        StreamKind::Stdout => StdStream::Stdout,
-        StreamKind::Stderr | StreamKind::Meta => StdStream::Stderr,
-    }
-}
-
-/// Buffer a chunk's content and forward each complete `\n`-terminated line as
-/// a `StepLog` event. Returns `Err(())` if the renderer's receiver dropped.
-async fn emit_chunk(
-    tx: &tokio::sync::mpsc::Sender<BuildEvent>,
-    job_id: Uuid,
-    c: &LogChunk,
-    buf: &mut String,
-) -> std::result::Result<(), ()> {
-    let ts = c
-        .ts_unix_ns
-        .map(DateTime::<Utc>::from_timestamp_nanos)
-        .unwrap_or_else(Utc::now);
-    buf.push_str(&c.content);
-    while let Some(nl) = buf.find('\n') {
-        let raw: String = buf.drain(..=nl).collect();
-        let line = raw.trim_end_matches(['\r', '\n']).to_string();
-        tx.send(BuildEvent::StepLog {
-            step_id: job_id,
-            stream: map_stream(c.stream),
-            line,
-            ts,
-        })
-        .await
-        .map_err(|_| ())?;
-    }
-    Ok(())
-}
