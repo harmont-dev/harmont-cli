@@ -292,6 +292,22 @@ pub fn set_default_org(slug: &str) -> Result<()> {
     cfg.save()
 }
 
+/// Render preferences for cloud commands that stream through `hm-render`.
+///
+/// Returns `(color, logs)`:
+/// - `color` — ANSI enabled when `NO_COLOR` is unset and stderr is a TTY
+///   (mirrors the host `RunContext`'s rule in `hm/src/context.rs`).
+/// - `logs` — force the streaming `HumanRenderer` over the live
+///   `ProgressRenderer`. True when stdout is **not** an interactive terminal
+///   (CI / pipe / log file), so nothing animates into a non-TTY sink.
+#[must_use]
+pub fn render_prefs() -> (bool, bool) {
+    use std::io::IsTerminal;
+    let color = std::env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal();
+    let interactive = std::io::stdout().is_terminal();
+    (color, !interactive)
+}
+
 /// Map a raw generated-client error into an `anyhow` error with a readable
 /// message. The raw `Error<E>` renders the server's error body (status,
 /// headers, decoded value) via its `Display` impl, which holds for any

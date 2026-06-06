@@ -1,12 +1,7 @@
-use std::sync::Arc;
-
 use anyhow::{Context, Result};
 use harmont_cloud::builds::NewBuild;
-use hm_plugin_cloud::reporter::{JsonReporter, Level, PlainReporter, Reporter, TermReporter};
 use hm_plugin_cloud::settings;
-use hm_plugin_cloud::ui::cloud_view::CloudJobView;
 use hm_plugin_cloud::watch::watch_build;
-use tokio::sync::Mutex;
 
 use crate::cli::RunArgs;
 use crate::commands::run::local::render_pipeline;
@@ -38,13 +33,14 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // 4. Git metadata (best-effort; this is a local run, not a push).
     let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
 
-    // Select the output mode up front. `--format json` is honored directly off
+    // Select the output up front. `--format json` is honored directly off
     // `args.format` (the host `RunContext` always reports `Human`, so
-    // `ctx.output.is_json()` is never true on the run path — see `cloud_output_mode`).
-    let mode = cloud_output_mode(&args.format, ctx.output.interactive());
-    let json = matches!(mode, Mode::Json);
+    // `ctx.output.is_json()` is never true on the run path). `format` selects
+    // the renderer family; `interactive` picks the live progress view vs the
+    // streaming log view within "human".
+    let json = args.format.eq_ignore_ascii_case("json");
     let color = ctx.output.color_enabled();
-    let interactive = matches!(mode, Mode::Interactive);
+    let interactive = !json && ctx.output.interactive();
 
     // 5. Archive + submit. In interactive mode an indeterminate spinner gives
     //    feedback during the (multi-second) archive + upload; in non-interactive
@@ -100,86 +96,40 @@ pub(super) async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     }
     let build = submit.map_err(|e| anyhow::anyhow!("{}", explain(&e)))?;
 
-    // 7. Build a reporter + a CloudJobView sharing its progress surface, then
-    //    watch the build to completion (live log streaming).
-    let (reporter, view): (Arc<dyn Reporter>, CloudJobView) = if json {
-        // `--format json`: machine-readable NDJSON to stdout, no progress UI.
-        // `std::io::stdout()` returns a fresh handle each call; both write to
-        // the same fd and serialize via the per-`writeln!` stdout lock.
-        let reporter = JsonReporter::new(std::io::stdout());
-        let view = CloudJobView::json(std::io::stdout());
-        (Arc::new(reporter), view)
-    } else if interactive {
-        let term = TermReporter::new(color);
-        // SHARE the reporter's MultiProgress so bars and lines never collide.
-        let view = CloudJobView::new(term.multi(), color);
-        (Arc::new(term), view)
-    } else {
-        // Non-TTY/CI: plain prefixed lines, no animated spinner bars. The plain
-        // view never enables steady-tick, so nothing animates into a pipe/log.
-        let reporter = PlainReporter::new(std::io::stderr(), color);
-        let view = CloudJobView::plain(indicatif::MultiProgress::new(), color);
-        (Arc::new(reporter), view)
-    };
-
-    reporter.status(
-        Level::Success,
-        &format!(
-            "Build #{} submitted ({}/{} on {})",
-            build.number, org, slug, rctx.api
-        ),
+    tracing::info!(
+        "Build #{} submitted ({}/{} on {})",
+        build.number,
+        org,
+        slug,
+        rctx.api
     );
 
     if args.no_watch {
         return Ok(0);
     }
 
-    let view = Arc::new(Mutex::new(view));
-    let code = watch_build(
-        &client,
-        &rctx.api,
-        &org,
-        &slug,
-        build.number,
-        reporter.clone(),
-        view,
-    )
-    .await
-    // Re-render a wrapped `HarmontError` (log-token mint, status polls, stream
-    // setup) in the error doctrine; pass other anyhow chains through unchanged.
-    .map_err(|e| {
-        e.downcast_ref::<harmont_cloud::HarmontError>()
-            .map(|he| anyhow::anyhow!("{}", explain(he)))
-            .unwrap_or(e)
-    })?;
+    // 7. Watch the build to completion, rendering through the shared
+    //    `hm-render` renderers. `watch_build` emits `BuildEvent`s on a channel;
+    //    `drive` consumes them with the renderer chosen here.
+    //    - `--format json`  → machine-readable NDJSON (JsonRenderer).
+    //    - interactive TTY   → live ProgressRenderer (logs = false).
+    //    - non-TTY / CI      → streaming HumanRenderer (logs = true).
+    let format = if json { "json" } else { "human" };
+    let renderer = hm_render::renderer_for(format, color, !interactive)?;
+    let (tx, rx) = tokio::sync::mpsc::channel(1024);
+    let driver = tokio::spawn(hm_render::drive(renderer, rx));
+
+    let code = watch_build(&client, &rctx.api, &org, &slug, build.number, tx)
+        .await
+        // Re-render a wrapped `HarmontError` (log-token mint, status polls, stream
+        // setup) in the error doctrine; pass other anyhow chains through unchanged.
+        .map_err(|e| {
+            e.downcast_ref::<harmont_cloud::HarmontError>()
+                .map(|he| anyhow::anyhow!("{}", explain(he)))
+                .unwrap_or(e)
+        })?;
+    let _ = driver.await;
     Ok(code)
-}
-
-/// The output surface chosen for a `hm run --cloud` invocation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Mode {
-    /// Machine-readable NDJSON to stdout, no progress UI or spinner.
-    Json,
-    /// Animated terminal bars/spinners on an interactive TTY.
-    Interactive,
-    /// Plain prefixed lines (non-TTY / CI), no animation.
-    Plain,
-}
-
-/// Decide the cloud output mode from the `--format` value and TTY state.
-///
-/// `--format json` (case-insensitive) always wins and suppresses the spinner;
-/// anything else falls back to interactive (on a TTY) or plain. This mirrors
-/// the local handler, where only the exact formatter name `json` selects JSON
-/// and every other value renders human output.
-const fn cloud_output_mode(format: &str, interactive: bool) -> Mode {
-    if format.eq_ignore_ascii_case("json") {
-        Mode::Json
-    } else if interactive {
-        Mode::Interactive
-    } else {
-        Mode::Plain
-    }
 }
 
 /// Render a `HarmontError` in the project's error doctrine: point precisely,
@@ -260,22 +210,6 @@ fn git_metadata(root: &std::path::Path, branch_override: Option<String>) -> (Str
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn cloud_output_mode_selection() {
-        // `--format json` (any case) → JSON, regardless of TTY.
-        assert_eq!(cloud_output_mode("json", true), Mode::Json);
-        assert_eq!(cloud_output_mode("json", false), Mode::Json);
-        assert_eq!(cloud_output_mode("JSON", false), Mode::Json);
-        assert_eq!(cloud_output_mode("Json", true), Mode::Json);
-        // Human (the default) on a TTY → interactive bars.
-        assert_eq!(cloud_output_mode("human", true), Mode::Interactive);
-        // Human off a TTY (CI / pipe) → plain prefixed lines.
-        assert_eq!(cloud_output_mode("human", false), Mode::Plain);
-        // An unknown/plugin formatter name is not JSON: falls back like human.
-        assert_eq!(cloud_output_mode("pretty", true), Mode::Interactive);
-        assert_eq!(cloud_output_mode("pretty", false), Mode::Plain);
-    }
 
     #[test]
     fn parse_env_splits_pairs() {

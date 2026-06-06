@@ -2,12 +2,12 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use harmont_cloud::HarmontClient;
-use harmont_cloud::models::build_is_terminal;
 
 use crate::cli::BuildCommand;
 use crate::settings;
+use crate::watch::watch_build;
 
 pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: BuildCommand) -> Result<()> {
     let (client, ctx) = settings::client()?;
@@ -53,20 +53,21 @@ async fn cancel(client: &HarmontClient, org: &str, pipe: &str, number: i64) -> R
 }
 
 async fn watch(client: &HarmontClient, org: &str, pipe: &str, number: i64) -> Result<()> {
-    let mut last_state = String::new();
-    loop {
-        let b = client.get_build(org, pipe, number).await?;
-        let state = b.state.to_string();
-        if state != last_state {
-            tracing::info!("state: {last_state} -> {state}");
-            last_state.clone_from(&state);
-        }
-        if build_is_terminal(&state) {
-            return match state.as_str() {
-                "passed" => Ok(()),
-                _ => bail!("build {state} (#{number})"),
-            };
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    // Render the live build through the shared `hm-render` renderers (the same
+    // ones a local `hm run` uses), driven by the `BuildEvent`s `watch_build`
+    // emits over an mpsc channel.
+    let (color, logs) = crate::settings::render_prefs();
+    let renderer = hm_render::renderer_for("human", color, logs)?;
+    let (tx, rx) = tokio::sync::mpsc::channel(1024);
+    let driver = tokio::spawn(hm_render::drive(renderer, rx));
+
+    let log_base = client.base_url().to_string();
+    let code = watch_build(client, &log_base, org, pipe, number, tx).await?;
+    let _ = driver.await;
+
+    if code == 0 {
+        Ok(())
+    } else {
+        anyhow::bail!("build #{number} did not pass")
     }
 }
