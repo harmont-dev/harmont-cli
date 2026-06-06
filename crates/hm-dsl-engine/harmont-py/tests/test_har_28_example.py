@@ -17,12 +17,7 @@ def _reset(tmp_path, monkeypatch):
     clear_registry()
     clear_target_cache()
     clear_target_names()
-    # Toolchain `.cabal` glob reads disk for *.cabal files -- give it an
-    # empty workspace so the test is hermetic.
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "api").mkdir()
-    (tmp_path / "freestyle").mkdir()
-    (tmp_path / "src").mkdir()
     yield
     clear_registry()
     clear_target_cache()
@@ -49,29 +44,24 @@ def test_har_28_example_renders():
 
     @hm.target()
     def api():
-        return hm.haskell(ghc="9.6.7").cabal(path="api")
+        return hm.go(path="api").build()
 
     @hm.target()
-    def freestyle():
-        return hm.haskell(ghc="9.6.7").cabal(path="freestyle")
-
-    @hm.target()
-    def frontend():
-        return hm.elm(path="src")
+    def web():
+        return hm.npm(path="web").run("build")
 
     @hm.pipeline("ci")
     def ci():
-        return (venv(), api(), freestyle(), frontend())
+        return (venv(), api(), web())
 
     out = json.loads(hm.dump_registry_json())
     p = out["pipelines"][0]
     nodes = _graph_nodes(p["definition"])
 
     cmds = [n["step"].get("cmd") for n in nodes]
-    # Each leaf landed in the IR.
     assert any("pytest -v" in (c or "") for c in cmds)
-    assert any("cabal build all" in (c or "") for c in cmds)
-    assert any("elm make src/Main.elm" in (c or "") for c in cmds)
+    assert any("go build" in (c or "") for c in cmds)
+    assert any("npm" in (c or "") for c in cmds)
 
     # apt-base used by the venv chain appears exactly once (memoized).
     apt_update_nodes = [n for n in nodes if n["step"].get("cmd") == "apt-get update"]

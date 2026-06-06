@@ -4,18 +4,14 @@ Used by ``@hm.target`` and by the envelope renderer when a pipeline's
 return value carries language-toolchain objects instead of bare Steps.
 Each toolchain has one unambiguous default action:
 
-  HaskellPackage  -> .build()
   RustToolchain   -> .build()
   NpmProject      -> .install()   (the npm-ci leaf - verifies deps)
-  ElmProject      -> .make("src/Main.elm")
 
 Authors who want a different default call the explicit action method.
 """
 
 from __future__ import annotations
 
-from ._elm import ElmProject
-from ._haskell import HaskellPackage
 from ._npm import NpmProject
 from ._rust import RustProject, RustToolchain
 from ._step import Step
@@ -27,14 +23,10 @@ def _one(obj: object) -> tuple[Step, ...]:
         return (obj,)
     if isinstance(obj, RustProject):
         return (obj.test(), obj.clippy(), obj.fmt())
-    if isinstance(obj, HaskellPackage):
-        return (obj.build(),)
     if isinstance(obj, RustToolchain):
         return (obj.build(),)
     if isinstance(obj, NpmProject):
         return (obj.install(),)
-    if isinstance(obj, ElmProject):
-        return (obj.make("src/Main.elm"),)
     if isinstance(obj, UvProject):
         return (obj.test(),)
     if isinstance(obj, (tuple, list)):
@@ -42,7 +34,7 @@ def _one(obj: object) -> tuple[Step, ...]:
     msg = (
         f"hm.target: cannot use {type(obj).__name__} as a pipeline leaf\n"
         "  → return one of: Step, tuple[Step, ...], RustProject, RustToolchain, "
-        "HaskellPackage, NpmProject, ElmProject, UvProject"
+        "NpmProject, UvProject"
     )
     raise TypeError(msg)
 

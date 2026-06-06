@@ -9,18 +9,11 @@ Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Ever
 | [typescript](./typescript) | tsc + Vitest + ESLint | `hm.npm(...)` |
 | [bun](./bun) | Bun + tsc + bun:test + ESLint | `hm.bun(...)` |
 | [rust](./rust) | cargo + clippy + rustfmt | `hm.rust(...)` |
-| [haskell](./haskell) | cabal + hlint + fourmolu | `hm.haskell(ghc="9.6.7")` |
 | [python-uv](./python-uv) | uv + pytest + ruff + mypy | `hm.python(...)` |
 | [go](./go) | go build/test/vet/fmt | `hm.go(...)` |
-| [java](./java) | Gradle + JUnit 5 | `hm.gradle(jdk="21")` |
-| [kotlin](./kotlin) | Gradle + kotlin.test | `hm.gradle(jdk="21", kotlin=True)` |
 | [c](./c) | CMake + CTest + clang-format | `hm.cmake(lang="c")` |
 | [cpp](./cpp) | CMake + CTest + clang-format | `hm.cmake(lang="cpp")` |
-| [csharp](./csharp) | dotnet + xunit + dotnet-format | `hm.dotnet(channel="8.0")` |
 | [ruby](./ruby) | Bundler + RSpec + Rubocop | `hm.ruby(...)` |
-| [perl](./perl) | cpanm + Test::More + Perl::Critic | `hm.perl(...)` |
-| [php-laravel](./php-laravel) | Composer + Laravel test + PHPStan | `hm.composer(laravel=True)` |
-| [ocaml](./ocaml) | opam + Dune + Alcotest | `hm.ocaml(compiler="5.1.1")` |
 | [zig](./zig) | zig build/test/fmt | `hm.zig(version="0.13.0")` |
 
 ## How to run an example locally

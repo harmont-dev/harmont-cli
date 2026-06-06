@@ -35,9 +35,7 @@ def py_project(shared_base: hm.Target[hm.Step]) -> tuple[hm.Step, ...]:
         project.fmt(),
         project.typecheck(paths="harmont"),
         project.run(
-            "pytest -v"
-            " --deselect tests/test_gradle.py"
-            " --deselect tests/test_haskell.py",
+            "pytest -v",
             label=":python: test",
         ),
     ])

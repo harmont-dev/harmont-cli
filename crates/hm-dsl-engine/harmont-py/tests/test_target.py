@@ -80,18 +80,15 @@ def test_composition_via_chaining_off_a_target():
     assert v.parent.cmd == "apt-get update"
 
 
-def test_target_with_toolchain_return_passes_through(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "api").mkdir()
-
+def test_target_with_toolchain_return_passes_through():
     @hm.target()
     def api():
-        return hm.haskell(ghc="9.6.7").cabal(path="api")
+        return hm.go(path="api")
 
-    from harmont._haskell import HaskellPackage
+    from harmont._go import GoToolchain
 
     result = api()
-    assert isinstance(result, HaskellPackage)
+    assert isinstance(result, GoToolchain)
     assert result.path == "api"
 
 

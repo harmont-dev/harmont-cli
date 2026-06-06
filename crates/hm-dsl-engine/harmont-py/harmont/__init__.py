@@ -32,16 +32,9 @@ from typing import TYPE_CHECKING, Any
 from . import _decorator, py
 from ._bun import bun
 from ._cmake import cmake
-from ._composer import composer
-from ._dotnet import dotnet
-from ._elm import elm
 from ._envelope import dump_registry_json
 from ._go import go
-from ._gradle import gradle
-from ._haskell import haskell
 from ._npm import npm
-from ._ocaml import ocaml
-from ._perl import perl
 from ._pipeline import pipeline as _pipeline_factory
 from ._pipeline import pipeline_to_json
 from ._python import python
@@ -267,19 +260,12 @@ __all__ = [
     "bun",
     "cmake",
     "compose",
-    "composer",
-    "dotnet",
     "dump_registry_json",
-    "elm",
     "forever",
     "go",
-    "gradle",
     "group",
-    "haskell",
     "npm",
-    "ocaml",
     "on_change",
-    "perl",
     "pipeline",
     "pipeline_to_json",
     "pr",

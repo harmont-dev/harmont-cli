@@ -14,18 +14,13 @@
         "builds_in"
       ],
       [
-        2,
+        1,
         3,
         "builds_in"
       ],
       [
-        2,
-        4,
-        "builds_in"
-      ],
-      [
         1,
-        5,
+        4,
         "builds_in"
       ],
       [
@@ -34,38 +29,18 @@
         "builds_in"
       ],
       [
-        5,
+        6,
         7,
         "builds_in"
       ],
       [
-        5,
+        7,
         8,
         "builds_in"
       ],
       [
-        5,
+        7,
         9,
-        "builds_in"
-      ],
-      [
-        10,
-        11,
-        "builds_in"
-      ],
-      [
-        11,
-        12,
-        "builds_in"
-      ],
-      [
-        11,
-        13,
-        "builds_in"
-      ],
-      [
-        11,
-        14,
         "builds_in"
       ]
     ],
@@ -73,140 +48,7 @@
     "nodes": [
       {
         "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cache": {
-            "duration_seconds": 86400,
-            "env_keys": [],
-            "policy": "ttl"
-          },
-          "cmd": "apt-get update && apt-get install -y curl ca-certificates build-essential libgmp-dev libffi-dev libncurses-dev zlib1g-dev",
-          "image": "ubuntu:24.04",
-          "key": "d9d2f7730236",
-          "label": ":haskell: apt-base"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cache": {
-            "env_keys": [],
-            "policy": "forever"
-          },
-          "cmd": "curl -fsSL https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup -o /usr/local/bin/ghcup && chmod +x /usr/local/bin/ghcup && ghcup install ghc 9.6.7 && ghcup install cabal latest && ghcup set ghc 9.6.7 && ghcup set cabal latest && ln -sf /root/.ghcup/bin/* /usr/local/bin/ && curl -fsSL https://github.com/fourmolu/fourmolu/releases/download/v0.18.0.0/fourmolu-0.18.0.0-linux-x86_64 -o /usr/local/bin/fourmolu && chmod +x /usr/local/bin/fourmolu",
-          "key": "ghcup",
-          "label": ":haskell: ghcup"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cache": {
-            "paths": [
-              "pkg-a/*.cabal"
-            ],
-            "policy": "on_change"
-          },
-          "cmd": "cabal update && cd pkg-a && cabal build all --only-dependencies",
-          "key": "pkg-a-deps",
-          "label": ":haskell: pkg-a deps"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cmd": "cd pkg-a && cabal build all",
-          "key": "pkg-a-build",
-          "label": ":haskell: pkg-a build"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cmd": "cd pkg-a && cabal test all",
-          "key": "pkg-a-test",
-          "label": ":haskell: pkg-a test"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cache": {
-            "paths": [
-              "pkg-b/*.cabal"
-            ],
-            "policy": "on_change"
-          },
-          "cmd": "cabal update && cd pkg-b && cabal build all --only-dependencies",
-          "key": "pkg-b-deps",
-          "label": ":haskell: pkg-b deps"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cmd": "cd pkg-b && cabal build all",
-          "key": "pkg-b-build",
-          "label": ":haskell: pkg-b build"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cmd": "cd pkg-b && cabal test all",
-          "key": "pkg-b-test",
-          "label": ":haskell: pkg-b test"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cmd": "hlint pkg-b",
-          "key": "pkg-b-hlint",
-          "label": ":haskell: pkg-b hlint"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
-        },
-        "step": {
-          "cmd": "fourmolu --mode check pkg-b",
-          "key": "pkg-b-fmt",
-          "label": ":haskell: pkg-b fmt"
-        }
-      },
-      {
-        "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
+          "CI": "true"
         },
         "step": {
           "cache": {
@@ -216,14 +58,13 @@
           },
           "cmd": "apt-get update && apt-get install -y build-essential cmake ninja-build clang-format",
           "image": "ubuntu:24.04",
-          "key": "6dc3a82f7a67",
+          "key": "c56a1dc5539c",
           "label": ":c: apt-base"
         }
       },
       {
         "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
+          "CI": "true"
         },
         "step": {
           "cache": {
@@ -237,8 +78,7 @@
       },
       {
         "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
+          "CI": "true"
         },
         "step": {
           "cmd": "cd infra/agent && cmake -S . -B build && cmake --build build",
@@ -248,24 +88,88 @@
       },
       {
         "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
+          "CI": "true"
         },
         "step": {
           "cmd": "cd infra/agent && cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure",
-          "key": "test",
+          "key": "4afb135f1765",
           "label": ":c: test"
         }
       },
       {
         "env": {
-          "CI": "true",
-          "STACK_ROOT": "/tmp/.stack"
+          "CI": "true"
         },
         "step": {
           "cmd": "cd infra/agent && find src tests -name '*.[ch]' -o -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror",
           "key": "fmt",
           "label": ":c: fmt"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "duration_seconds": 86400,
+            "env_keys": [],
+            "policy": "ttl"
+          },
+          "cmd": "apt-get update && apt-get install -y ruby-full build-essential git",
+          "image": "ubuntu:24.04",
+          "key": "3190b8df2046",
+          "label": ":ruby: apt-base"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "gem install bundler && bundle --version",
+          "key": "bundler",
+          "label": ":ruby: bundler"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "paths": [
+              "services/web/Gemfile.lock"
+            ],
+            "policy": "on_change"
+          },
+          "cmd": "cd services/web && bundle install",
+          "key": "deps",
+          "label": ":ruby: deps"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/web && bundle exec rspec",
+          "key": "e4df8cc48006",
+          "label": ":ruby: test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd services/web && bundle exec rubocop",
+          "key": "lint",
+          "label": ":ruby: lint"
         }
       }
     ]

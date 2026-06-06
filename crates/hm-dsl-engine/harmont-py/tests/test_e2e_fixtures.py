@@ -18,9 +18,9 @@ import pytest
 import harmont as hm
 from harmont._cmake import cmake
 from harmont._go import go
-from harmont._haskell import haskell
 from harmont._npm import npm
 from harmont._python import python as python_tc
+from harmont._ruby import ruby
 from harmont._rust import rust
 from harmont._zig import zig
 
@@ -109,23 +109,16 @@ def _build_zig_node_polyglot() -> dict:
 
 
 def _build_kitchen_sink() -> dict:
-    hs_tc = haskell(ghc="9.6.7")
-    pkg_a = hs_tc.cabal(path="pkg-a")
-    pkg_b = hs_tc.cabal(path="pkg-b")
-
     c_project = cmake(path="infra/agent", lang="c")
+    rb_project = ruby(path="services/web")
 
     return hm.pipeline(
-        pkg_a.build(),
-        pkg_a.test(),
-        pkg_b.build(),
-        pkg_b.test(),
-        pkg_b.hlint(),
-        pkg_b.fmt(),
         c_project.build(),
         c_project.test(),
         c_project.fmt(),
-        env={"CI": "true", "STACK_ROOT": "/tmp/.stack"},  # noqa: S108
+        rb_project.test(),
+        rb_project.lint(),
+        env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
 

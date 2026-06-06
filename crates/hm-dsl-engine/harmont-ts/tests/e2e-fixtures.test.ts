@@ -11,8 +11,8 @@ import { python } from "../src/toolchains/python.js";
 import { npm } from "../src/toolchains/npm.js";
 import { rust } from "../src/toolchains/rust.js";
 import { zig } from "../src/toolchains/zig.js";
-import { haskell } from "../src/toolchains/haskell.js";
 import { cmake } from "../src/toolchains/cmake.js";
+import { ruby } from "../src/toolchains/ruby.js";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = resolve(__dir, "../../../../tests/e2e/fixtures/ts");
@@ -121,22 +121,16 @@ describe("E2E pipeline fixtures", () => {
   });
 
   it("kitchen-sink", () => {
-    const hsTc = haskell({ ghc: "9.6.7" });
-    const pkgA = hsTc.cabal("pkg-a");
-    const pkgB = hsTc.cabal("pkg-b");
     const cProject = cmake({ path: "infra/agent", lang: "c" });
+    const rbProject = ruby({ path: "services/web" });
 
     const ir = pipeline(
-      pkgA.build(),
-      pkgA.test(),
-      pkgB.build(),
-      pkgB.test(),
-      pkgB.hlint(),
-      pkgB.fmt(),
       cProject.build(),
       cProject.test(),
       cProject.fmt(),
-      { env: { CI: "true", STACK_ROOT: "/tmp/.stack" }, defaultImage: "ubuntu:24.04" },
+      rbProject.test(),
+      rbProject.lint(),
+      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     );
 
     expect(ir.version).toBe("0");

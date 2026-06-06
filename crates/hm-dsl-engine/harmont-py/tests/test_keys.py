@@ -7,7 +7,7 @@ from harmont._step import scratch
 
 
 def test_slugify_strips_emoji_shortcodes():
-    assert slugify_label(":haskell: api build") == "api-build"
+    assert slugify_label(":rust: api build") == "api-build"
 
 
 def test_slugify_lowercases_and_dashes_non_alnum():
@@ -64,14 +64,14 @@ def test_resolve_keys_uses_explicit_override():
 
 
 def test_resolve_keys_uses_label_slug_when_unique():
-    s = scratch().sh("make", label=":haskell: build")
+    s = scratch().sh("make", label=":rust: build")
     keys = resolve_keys([s])
     assert keys[id(s)] == "build"
 
 
 def test_resolve_keys_falls_back_to_hash_when_label_collides():
-    a = scratch().sh("make a", label=":haskell: build")
-    b = scratch().sh("make b", label=":haskell: build")
+    a = scratch().sh("make a", label=":rust: build")
+    b = scratch().sh("make b", label=":rust: build")
     keys = resolve_keys([a, b])
     # Both colliding labels fall through to hash-derived keys.
     assert keys[id(a)] != "build"
@@ -87,8 +87,8 @@ def test_resolve_keys_falls_back_to_hash_when_no_label():
 
 
 def test_resolve_keys_explicit_override_wins_even_under_collision():
-    a = scratch().sh("make a", label=":haskell: build", key="explicit-a")
-    b = scratch().sh("make b", label=":haskell: build")
+    a = scratch().sh("make a", label=":rust: build", key="explicit-a")
+    b = scratch().sh("make b", label=":rust: build")
     keys = resolve_keys([a, b])
     assert keys[id(a)] == "explicit-a"
     # `b` had a label that would have been "build", but `a` claimed
