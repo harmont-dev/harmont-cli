@@ -11,8 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from croniter import croniter
-
 
 def _normalise_globs(value: str | list[str] | tuple[str, ...] | None) -> tuple[str, ...] | None:
     if value is None:
@@ -122,7 +120,14 @@ def schedule(cron: str) -> ScheduleTrigger:
     ``cron`` is a five-field crontab expression (minute hour day month
     dow). Always interpreted as UTC.
     """
-    if not croniter.is_valid(cron):
+    try:
+        from croniter import croniter as _cron_cls
+
+        is_valid = _cron_cls.is_valid(cron)
+    except ModuleNotFoundError:
+        is_valid = True
+
+    if not is_valid:
         msg = (
             f"hm.schedule: invalid cron expression {cron!r}\n"
             f"  → five-field crontab, UTC, e.g. '0 4 * * *'"

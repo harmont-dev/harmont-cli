@@ -13,7 +13,7 @@ import sys, json, pathlib, importlib.util
 try:
     import harmont as hm
 except ImportError as e:
-    print(f'error: {e}\\n  -> install with: pip install croniter python-dateutil', file=sys.stderr)
+    print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
 for p in sorted(pathlib.Path('.harmont').glob('*.py')):
     spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
@@ -28,7 +28,7 @@ import sys, pathlib, importlib.util
 try:
     import harmont as hm
 except ImportError as e:
-    print(f'error: {e}\\n  -> install with: pip install croniter python-dateutil', file=sys.stderr)
+    print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
 for p in sorted(pathlib.Path('.harmont').glob('*.py')):
     spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
@@ -42,7 +42,7 @@ import sys, json, pathlib, importlib.util
 try:
     import harmont as hm
 except ImportError as e:
-    print(f'error: {e}\\n  -> install with: pip install croniter python-dateutil', file=sys.stderr)
+    print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
 slug = sys.argv[1]
 for p in sorted(pathlib.Path('.harmont').glob('*.py')):
