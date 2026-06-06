@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use hm_render::OutputRenderer;
 
+mod cloud;
 mod local;
+pub use cloud::{CloudExecutor, parse_env};
 pub use local::LocalExecutor;
 
 /// A rendered pipeline ready to execute: the repo root (for source), the

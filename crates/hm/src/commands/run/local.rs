@@ -4,7 +4,6 @@ use hm_dsl_engine::detect;
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
-use crate::executor::{Executor, LocalExecutor, Rendered};
 
 /// Resolve repo root, detect the DSL, select the pipeline slug, and render
 /// the v0 IR JSON. Shared by local and cloud runs.
@@ -59,29 +58,4 @@ pub(crate) async fn render_pipeline(
         .map_err(|e| crate::error::HmError::PipelineRender(format!("{e:#}")))?;
 
     Ok((repo_root, slug, json_str))
-}
-
-/// Run a pipeline locally via Docker.
-///
-/// # Errors
-///
-/// Returns an error if the working directory cannot be resolved, no
-/// pipeline slug was given when more than one is declared (or none are
-/// declared), the Python DSL transpile or Scheme evaluator step fails,
-/// the resulting plan does not decode, the Docker daemon is unreachable,
-/// or the orchestrator surfaces an internal scheduler error. Non-zero
-/// step exit codes are returned as the `i32`, not as an Err.
-pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
-    let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;
-
-    let use_logs = args.logs || std::env::var_os("CI").is_some_and(|v| !v.is_empty());
-    let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
-
-    let parallelism = args.parallelism.unwrap_or_else(|| {
-        std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
-    });
-
-    LocalExecutor::new(parallelism)
-        .execute(Rendered { repo_root, slug, ir_json }, renderer)
-        .await
 }
