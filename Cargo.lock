@@ -1110,7 +1110,6 @@ dependencies = [
  "chrono",
  "clap",
  "comfy-table",
- "console 0.16.3",
  "daggy",
  "dialoguer",
  "flate2",
@@ -1123,12 +1122,12 @@ dependencies = [
  "hm-pipeline-ir",
  "hm-plugin-cloud",
  "hm-plugin-protocol",
+ "hm-render",
  "hm-util",
  "ignore",
  "indicatif",
  "is_ci",
  "once_cell",
- "owo-colors",
  "predicates",
  "rand 0.8.6",
  "reqwest",
@@ -1289,6 +1288,22 @@ dependencies = [
  "schemars 0.8.22",
  "serde",
  "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "hm-render"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "hm-plugin-protocol",
+ "indicatif",
+ "owo-colors",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-indicatif",
  "uuid",
 ]
 

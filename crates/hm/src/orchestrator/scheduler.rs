@@ -42,7 +42,8 @@ use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
 use crate::error::HmError;
 use crate::orchestrator::docker_client::DockerClient;
 use crate::orchestrator::source::build_archive_bytes;
-use crate::runner::{OutputRenderer, RunContext, RunnerRegistry};
+use crate::runner::{RunContext, RunnerRegistry};
+use hm_render::OutputRenderer;
 
 use super::archive::ArchiveStore;
 use super::cache;

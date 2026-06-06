@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 
 use super::events::EventBus;
-use crate::runner::OutputRenderer;
+use hm_render::OutputRenderer;
 
 /// Spawn the subscriber task. Returns a join handle the orchestrator
 /// awaits at shutdown so the `BuildEnd` event is fully drained.

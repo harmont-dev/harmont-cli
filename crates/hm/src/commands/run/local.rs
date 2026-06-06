@@ -91,18 +91,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
     let use_logs = args.logs || std::env::var_os("CI").is_some_and(|v| !v.is_empty());
 
-    let renderer: Box<dyn crate::runner::OutputRenderer> = match args.format.as_str() {
-        "json" => Box::new(crate::output::json::JsonRenderer::new(std::io::stdout())),
-        "human" if use_logs => Box::new(crate::output::human::HumanRenderer::new(
-            std::io::stderr(),
-            ctx.output.color_enabled(),
-        )),
-        "human" => Box::new(crate::output::progress::ProgressRenderer::new(
-            std::io::stderr(),
-            ctx.output.color_enabled(),
-        )),
-        other => anyhow::bail!("unknown --format '{other}'\n  available: human, json"),
-    };
+    let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
 
     let exit_code =
         crate::orchestrator::run(graph, repo_root, parallelism, runner_registry, renderer).await?;

@@ -18,7 +18,7 @@ use tracing::{Span, info_span};
 use tracing_indicatif::span_ext::IndicatifSpanExt;
 use uuid::Uuid;
 
-use crate::runner::OutputRenderer;
+use crate::OutputRenderer;
 
 fn styled(text: &str, style: Style, color: bool) -> String {
     if color {

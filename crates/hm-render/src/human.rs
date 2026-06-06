@@ -10,7 +10,7 @@ use hm_plugin_protocol::BuildEvent;
 use owo_colors::{AnsiColors, OwoColorize};
 use uuid::Uuid;
 
-use crate::runner::OutputRenderer;
+use crate::OutputRenderer;
 
 /// Renders [`BuildEvent`]s as human-readable log lines.
 ///

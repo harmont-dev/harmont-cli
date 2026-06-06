@@ -7,7 +7,7 @@ use std::io::Write;
 
 use hm_plugin_protocol::BuildEvent;
 
-use crate::runner::OutputRenderer;
+use crate::OutputRenderer;
 
 /// Renders [`BuildEvent`]s as newline-delimited JSON (one object per
 /// line). Suitable for piping into `jq` or other machine consumers.

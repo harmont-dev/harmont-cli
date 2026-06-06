@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::cli::Cli;
 use crate::config::Config;
-use crate::output::OutputMode;
+use hm_render::OutputMode;
 
 /// Runtime context that bundles resolved config and output preferences.
 ///

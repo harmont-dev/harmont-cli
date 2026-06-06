@@ -2,8 +2,9 @@
 //!
 //! This module replaces the old WASM plugin system with a static DI
 //! approach. Step executors implement [`StepRunner`]; output formatters
-//! implement [`OutputRenderer`]. A [`RunnerRegistry`] maps runner names
-//! to concrete implementations at startup.
+//! implement [`OutputRenderer`](hm_render::OutputRenderer) (defined in the
+//! `hm-render` crate). A [`RunnerRegistry`] maps runner names to concrete
+//! implementations at startup.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -12,7 +13,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::Result;
-use hm_plugin_protocol::{BuildEvent, ExecutorInput, StepResult};
+use hm_plugin_protocol::{ExecutorInput, StepResult};
 use tokio_util::sync::CancellationToken;
 
 use crate::orchestrator::archive::ArchiveStore;
@@ -58,15 +59,6 @@ pub trait StepRunner: Send + Sync + fmt::Debug {
         ctx: &RunContext,
         input: ExecutorInput,
     ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>>;
-}
-
-/// Synchronous observer of [`BuildEvent`]s.
-///
-/// Implementations format events for human consumption (progress bars,
-/// coloured log lines) or machine consumption (JSON-lines).
-pub trait OutputRenderer: Send + fmt::Debug {
-    /// Called once per event in emission order.
-    fn on_event(&mut self, event: &BuildEvent);
 }
 
 /// Maps runner names to [`StepRunner`] implementations.

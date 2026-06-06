@@ -20,5 +20,4 @@ pub mod context;
 pub mod creds_store;
 pub mod error;
 pub mod orchestrator;
-pub mod output;
 pub mod runner;
