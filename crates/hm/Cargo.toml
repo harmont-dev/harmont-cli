@@ -66,6 +66,7 @@ hm-plugin-cloud = { workspace = true }
 harmont-cloud   = { workspace = true }
 hm-dsl-engine   = { workspace = true }
 hm-render       = { workspace = true }
+async-trait     = { workspace = true }
 daggy          = { workspace = true }
 schemars = { workspace = true }
 semver = { workspace = true }

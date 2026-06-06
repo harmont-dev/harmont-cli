@@ -1,16 +1,10 @@
-use std::sync::Arc;
-
 use anyhow::{Context, Result};
 
 use hm_dsl_engine::detect;
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
-use crate::runner::{RunnerRegistry, docker::DockerRunner};
-
-fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::PipelineGraph> {
-    serde_json::from_slice(bytes).map_err(|e| anyhow::anyhow!("decode pipeline JSON: {e}"))
-}
+use crate::executor::{Executor, LocalExecutor, Rendered};
 
 /// Resolve repo root, detect the DSL, select the pipeline slug, and render
 /// the v0 IR JSON. Shared by local and cloud runs.
@@ -78,22 +72,16 @@ pub(crate) async fn render_pipeline(
 /// or the orchestrator surfaces an internal scheduler error. Non-zero
 /// step exit codes are returned as the `i32`, not as an Err.
 pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
-    let (repo_root, _slug, json_str) = render_pipeline(&args, &ctx).await?;
-    let json = json_str.into_bytes();
-    let graph = decode_plan_to_wire(&json)?;
+    let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;
+
+    let use_logs = args.logs || std::env::var_os("CI").is_some_and(|v| !v.is_empty());
+    let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
+
     let parallelism = args.parallelism.unwrap_or_else(|| {
         std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
     });
 
-    let mut runner_registry = RunnerRegistry::new();
-    runner_registry.register(Arc::new(DockerRunner), true);
-    let runner_registry = Arc::new(runner_registry);
-
-    let use_logs = args.logs || std::env::var_os("CI").is_some_and(|v| !v.is_empty());
-
-    let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
-
-    let exit_code =
-        crate::orchestrator::run(graph, repo_root, parallelism, runner_registry, renderer).await?;
-    Ok(exit_code)
+    LocalExecutor::new(parallelism)
+        .execute(Rendered { repo_root, slug, ir_json }, renderer)
+        .await
 }
