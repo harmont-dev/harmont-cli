@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded runs on rapid pushes — 17-leg matrix is expensive.
+# Cancel superseded runs on rapid pushes — 12-leg matrix is expensive.
 concurrency:
   group: examples-${{ github.ref }}
   cancel-in-progress: true
@@ -77,15 +77,11 @@ jobs:
       fail-fast: false
       matrix:
         example:
+          - bun
           - c
           - cpp
-          - csharp
           - go
-          - java
-          - kotlin
           - nextjs
-          - ocaml
-          - perl
           - python-uv
           - react
           - ruby
