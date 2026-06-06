@@ -39,7 +39,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             parse_env(&args.env),
             args.branch.clone(),
             args.no_watch,
-            ctx.output.interactive(),
+            ctx.output.interactive() && !args.format.eq_ignore_ascii_case("json"),
         ))
     } else {
         Box::new(LocalExecutor::new(resolve_parallelism(&args)))

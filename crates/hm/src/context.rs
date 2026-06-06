@@ -30,11 +30,10 @@ impl RunContext {
     pub fn from_cli(cli: &Cli) -> Result<Self> {
         let config = Config::load()?;
 
-        let color =
-            !cli.no_color && std::env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal();
-
         let output = OutputMode::Human {
-            color,
+            // Single source of truth for the color/TTY rule (still honors --no-color).
+            color: hm_render::color_enabled(cli.no_color),
+            // Interactive prompts/spinners key off stdout being a TTY.
             interactive: std::io::stdout().is_terminal(),
         };
 

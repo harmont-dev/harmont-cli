@@ -29,8 +29,10 @@ impl CloudExecutor {
     /// Construct a `CloudExecutor`.
     ///
     /// `client`/`api_base` come from `hm_plugin_cloud::settings::client()`;
-    /// `org` is the resolved organization; `interactive` is
-    /// `ctx.output.interactive()` (controls the upload spinner).
+    /// `org` is the resolved organization; `interactive` gates the upload
+    /// spinner — the caller passes `ctx.output.interactive()` AND-ed with
+    /// "not `--format json`", so JSON runs never animate the spinner even on
+    /// a TTY.
     #[must_use]
     #[allow(clippy::too_many_arguments)]
     pub const fn new(

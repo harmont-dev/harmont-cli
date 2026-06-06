@@ -294,18 +294,18 @@ pub fn set_default_org(slug: &str) -> Result<()> {
 
 /// Render preferences for cloud commands that stream through `hm-render`.
 ///
-/// Returns `(color, logs)`:
-/// - `color` — ANSI enabled when `NO_COLOR` is unset and stderr is a TTY
-///   (mirrors the host `RunContext`'s rule in `hm/src/context.rs`).
+/// Returns `(color, logs)`, both derived from `hm-render`'s shared TTY/color
+/// helpers (the single source of truth, also used by `hm/src/context.rs`):
+/// - `color` — ANSI enabled when `NO_COLOR` is unset and stderr is a TTY.
+///   The plugin verbs have no `--no-color` flag, so we pass `false` for the
+///   flag; the `--no-color` asymmetry vs. the host `hm run` path is explicit
+///   here at the call site.
 /// - `logs` — force the streaming `HumanRenderer` over the live
 ///   `ProgressRenderer`. True when stdout is **not** an interactive terminal
 ///   (CI / pipe / log file), so nothing animates into a non-TTY sink.
 #[must_use]
 pub fn render_prefs() -> (bool, bool) {
-    use std::io::IsTerminal;
-    let color = std::env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal();
-    let interactive = std::io::stdout().is_terminal();
-    (color, !interactive)
+    (hm_render::color_enabled(false), hm_render::stdout_piped())
 }
 
 /// Map a raw generated-client error into an `anyhow` error with a readable

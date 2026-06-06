@@ -155,9 +155,15 @@ hm run --cloud --org acme
 # Submit and exit without waiting for logs
 hm run --cloud --org acme --no-watch
 
-# Machine-readable NDJSON event stream to stdout (for scripting / CI wrappers)
+# Machine-readable NDJSON event stream to stdout (for scripting / CI wrappers).
+# Emits the same `BuildEvent` line stream as a local `hm run --format json`.
 hm run --cloud --org acme --format json
 ```
+
+With `--format json`, cloud runs emit the unified `BuildEvent` JSON stream
+(one event per line on stdout) — identical to a local `hm run --format json`,
+so the same wrappers parse both paths. The progress spinner is suppressed in
+JSON mode even on a TTY.
 
 **Flags added by `--cloud`:**
 
