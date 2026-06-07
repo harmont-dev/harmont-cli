@@ -17,7 +17,7 @@ use crate::types::SnapshotId;
 
 /// Persistent LRU cache mapping opaque keys to [`SnapshotId`]s.
 ///
-/// Backed by a single SQLite table with WAL journaling. The registry tracks
+/// Backed by a single `SQLite` table with WAL journaling. The registry tracks
 /// the last-access timestamp for every entry and evicts the oldest entries
 /// when the configured capacity is exceeded.
 ///
@@ -86,7 +86,6 @@ impl ImageRegistry {
         let now = epoch_secs();
         let conn = self.conn.lock().ok()?;
 
-        // Fetch the snapshot_id first.
         let snapshot: Option<String> = conn
             .query_row(
                 "SELECT snapshot_id FROM snapshots WHERE key = ?1",
@@ -96,15 +95,13 @@ impl ImageRegistry {
             .ok();
 
         if snapshot.is_some() {
-            // Touch the access time.
-            let _updated = conn
-                .execute(
-                    "UPDATE snapshots SET accessed_at = ?1 WHERE key = ?2",
-                    rusqlite::params![now, key],
-                )
-                .ok();
+            let _ = conn.execute(
+                "UPDATE snapshots SET accessed_at = ?1 WHERE key = ?2",
+                rusqlite::params![now, key],
+            );
         }
 
+        drop(conn);
         snapshot.map(SnapshotId)
     }
 
@@ -148,11 +145,10 @@ impl ImageRegistry {
             .ok();
 
         if snapshot.is_some() {
-            let _deleted = conn
-                .execute("DELETE FROM snapshots WHERE key = ?1", [key])
-                .ok();
+            let _ = conn.execute("DELETE FROM snapshots WHERE key = ?1", [key]);
         }
 
+        drop(conn);
         snapshot.map(SnapshotId)
     }
 
@@ -190,12 +186,10 @@ impl ImageRegistry {
             return Vec::new();
         };
 
-        // Select the oldest entries that will be evicted.
-        let mut stmt = match conn.prepare(
+        let Ok(mut stmt) = conn.prepare(
             "SELECT snapshot_id FROM snapshots ORDER BY accessed_at ASC LIMIT ?1",
-        ) {
-            Ok(s) => s,
-            Err(_) => return Vec::new(),
+        ) else {
+            return Vec::new();
         };
 
         let evicted: Vec<SnapshotId> = stmt

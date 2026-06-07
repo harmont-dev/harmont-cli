@@ -55,18 +55,17 @@ impl HmVm {
         sink: &dyn OutputSink,
     ) -> Result<ExecutionResult> {
         // 1. Cache check
-        if let CachingPolicy::Cache { ref key } = policy {
-            if let Some(snap) = self.registry.get(key) {
-                if self.backend.snapshot_exists(&snap).await? {
-                    return Ok(ExecutionResult {
-                        exit_code: 0,
-                        snapshot: Some(snap),
-                        cached: true,
-                    });
-                }
-                // Snapshot disappeared from backend -- evict stale entry.
-                let _ = self.registry.invalidate(key);
+        if let CachingPolicy::Cache { ref key } = policy
+            && let Some(snap) = self.registry.get(key)
+        {
+            if self.backend.snapshot_exists(&snap).await? {
+                return Ok(ExecutionResult {
+                    exit_code: 0,
+                    snapshot: Some(snap),
+                    cached: true,
+                });
             }
+            let _ = self.registry.invalidate(key);
         }
 
         // 2. Create or restore VM
@@ -83,12 +82,11 @@ impl HmVm {
         // 4. Execute command (with optional timeout)
         let exec_fut = vm.exec(&action.cmd, &action.env, &action.working_dir, sink);
         let exit_code = if let Some(timeout) = action.timeout {
-            match tokio::time::timeout(timeout, exec_fut).await {
-                Ok(result) => result?,
-                Err(_) => {
-                    vm.destroy().await.ok();
-                    anyhow::bail!("command timed out after {timeout:?}");
-                }
+            if let Ok(result) = tokio::time::timeout(timeout, exec_fut).await {
+                result?
+            } else {
+                vm.destroy().await.ok();
+                anyhow::bail!("command timed out after {timeout:?}");
             }
         } else {
             exec_fut.await?

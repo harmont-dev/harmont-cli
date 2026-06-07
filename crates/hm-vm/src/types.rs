@@ -18,7 +18,7 @@ pub struct Action {
     pub env: Vec<(String, String)>,
     pub working_dir: String,
     pub timeout: Option<Duration>,
-    /// Host directory to copy into working_dir before execution.
+    /// Host directory to copy into `working_dir` before execution.
     /// Skipped on cache hits (snapshot already contains prior state).
     pub inject: Option<PathBuf>,
 }

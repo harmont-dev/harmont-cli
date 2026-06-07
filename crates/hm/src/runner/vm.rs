@@ -30,7 +30,8 @@ pub struct VmRunner {
 
 impl VmRunner {
     /// Create a new `VmRunner` backed by the given VM orchestrator.
-    pub fn new(vm: Arc<HmVm>) -> Self {
+    #[must_use]
+    pub const fn new(vm: Arc<HmVm>) -> Self {
         Self { vm }
     }
 }
@@ -150,7 +151,7 @@ impl std::fmt::Debug for EventBusSink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EventBusSink")
             .field("step_id", &self.step_id)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

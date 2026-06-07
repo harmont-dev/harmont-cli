@@ -45,8 +45,8 @@ impl VmBackend for BoxliteBackend {
     async fn create(&self, image: &str, config: &VmConfig) -> Result<Box<dyn Vm>> {
         let options = BoxOptions {
             rootfs: RootfsSpec::Image(image.to_owned()),
-            cpus: config.cpus.map(|c| c.min(u32::from(u8::MAX)) as u8),
-            memory_mib: config.memory_mib.map(|m| m.min(u64::from(u32::MAX)) as u32),
+            cpus: config.cpus.and_then(|c| u8::try_from(c).ok()),
+            memory_mib: config.memory_mib.and_then(|m| u32::try_from(m).ok()),
             auto_remove: false,
             detach: true,
             ..BoxOptions::default()
