@@ -9,6 +9,7 @@ use boxlite::litebox::{BoxCommand, CopyOptions};
 use boxlite::runtime::options::{BoxOptions, CloneOptions, RootfsSpec};
 use boxlite::runtime::BoxliteRuntime;
 use futures::StreamExt;
+use tracing::instrument;
 
 use crate::backend::{Vm, VmBackend};
 use crate::types::{OutputSink, SnapshotId, VmConfig};
@@ -42,6 +43,7 @@ impl BoxliteBackend {
 
 #[async_trait]
 impl VmBackend for BoxliteBackend {
+    #[instrument(skip(self, config))]
     async fn create(&self, image: &str, config: &VmConfig) -> Result<Box<dyn Vm>> {
         let options = BoxOptions {
             rootfs: RootfsSpec::Image(image.to_owned()),
@@ -61,6 +63,7 @@ impl VmBackend for BoxliteBackend {
         Ok(Box::new(BoxliteVm { inner: litebox, stopped: false }))
     }
 
+    #[instrument(skip(self, _config))]
     async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
         let parent = self
             .runtime
@@ -77,6 +80,7 @@ impl VmBackend for BoxliteBackend {
         Ok(Box::new(BoxliteVm { inner: clone, stopped: false }))
     }
 
+    #[instrument(skip(self))]
     async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
         self.runtime
             .exists(&snapshot.0)
@@ -84,6 +88,7 @@ impl VmBackend for BoxliteBackend {
             .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
+    #[instrument(skip(self))]
     async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
         self.runtime
             .remove(&snapshot.0, true)
@@ -100,6 +105,7 @@ struct BoxliteVm {
 
 #[async_trait]
 impl Vm for BoxliteVm {
+    #[instrument(skip(self), fields(host = %host_path.display()))]
     async fn inject(&self, host_path: &Path, guest_path: &str) -> Result<()> {
         self.inner
             .copy_into(host_path, guest_path, CopyOptions::default())
@@ -107,6 +113,7 @@ impl Vm for BoxliteVm {
             .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
+    #[instrument(skip(self, env, sink))]
     async fn exec(
         &self,
         cmd: &str,
@@ -177,6 +184,7 @@ impl Vm for BoxliteVm {
         Ok(result.exit_code)
     }
 
+    #[instrument(skip(self))]
     async fn snapshot(&mut self, _label: &str) -> Result<SnapshotId> {
         self.inner
             .stop()
@@ -186,6 +194,7 @@ impl Vm for BoxliteVm {
         Ok(SnapshotId(self.inner.id().to_string()))
     }
 
+    #[instrument(skip(self))]
     async fn destroy(&mut self) -> Result<()> {
         if !self.stopped {
             let _ = self.inner.stop().await;

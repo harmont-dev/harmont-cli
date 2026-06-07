@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use tracing::warn;
+use tracing::{instrument, warn};
 
 use crate::backend::VmBackend;
 use crate::registry::ImageRegistry;
@@ -48,6 +48,7 @@ impl HmVm {
     ///
     /// Returns an error if the backend fails to create, restore, inject, or
     /// execute. Best-effort cleanup is performed even on failure paths.
+    #[instrument(skip(self, action, sink), fields(cmd = %action.cmd))]
     pub async fn execute(
         &self,
         action: Action,

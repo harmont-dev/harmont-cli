@@ -17,6 +17,7 @@ use bollard::exec::{CreateExecOptions, StartExecResults};
 use bollard::image::{CommitContainerOptions, CreateImageOptions, ListImagesOptions, RemoveImageOptions};
 use bollard::Docker;
 use futures::StreamExt;
+use tracing::instrument;
 
 use crate::backend::{Vm, VmBackend};
 use crate::types::{OutputSink, SnapshotId, VmConfig};
@@ -42,7 +43,7 @@ impl DockerBackend {
         Ok(Self { client })
     }
 
-    /// Pull an image if it is not already present locally.
+    #[instrument(skip(self))]
     async fn ensure_image(&self, image: &str) -> Result<()> {
         if self.image_exists_by_tag(image).await? {
             return Ok(());
@@ -76,7 +77,7 @@ impl DockerBackend {
         Ok(!images.is_empty())
     }
 
-    /// Create and start a long-lived container from the given image.
+    #[instrument(skip(self))]
     async fn start_container(&self, image: &str) -> Result<String> {
         let cfg = Config {
             image: Some(image.to_string()),
@@ -98,6 +99,7 @@ impl DockerBackend {
 
 #[async_trait]
 impl VmBackend for DockerBackend {
+    #[instrument(skip(self, _config))]
     async fn create(&self, image: &str, _config: &VmConfig) -> Result<Box<dyn Vm>> {
         self.ensure_image(image).await?;
         let container_id = self.start_container(image).await?;
@@ -107,6 +109,7 @@ impl VmBackend for DockerBackend {
         }))
     }
 
+    #[instrument(skip(self, _config))]
     async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
         let container_id = self.start_container(&snapshot.0).await?;
         Ok(Box::new(DockerVm {
@@ -115,10 +118,12 @@ impl VmBackend for DockerBackend {
         }))
     }
 
+    #[instrument(skip(self))]
     async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
         self.image_exists_by_tag(&snapshot.0).await
     }
 
+    #[instrument(skip(self))]
     async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
         self.client
             .remove_image(
@@ -158,6 +163,7 @@ fn tar_directory(host_path: &Path) -> Result<Vec<u8>> {
 
 #[async_trait]
 impl Vm for DockerVm {
+    #[instrument(skip(self), fields(host = %host_path.display()))]
     async fn inject(&self, host_path: &Path, guest_path: &str) -> Result<()> {
         let tar_bytes = tar_directory(host_path)?;
         let options = UploadToContainerOptions {
@@ -181,6 +187,7 @@ impl Vm for DockerVm {
         Ok(())
     }
 
+    #[instrument(skip(self, env, sink))]
     async fn exec(
         &self,
         cmd: &str,
@@ -247,6 +254,7 @@ impl Vm for DockerVm {
         Ok(exit_code)
     }
 
+    #[instrument(skip(self))]
     async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
         let parts: Vec<&str> = label.splitn(2, ':').collect();
         let (repo, tag) = match parts.as_slice() {
@@ -267,6 +275,7 @@ impl Vm for DockerVm {
         Ok(SnapshotId(full_tag))
     }
 
+    #[instrument(skip(self))]
     async fn destroy(&mut self) -> Result<()> {
         let _ = self
             .client

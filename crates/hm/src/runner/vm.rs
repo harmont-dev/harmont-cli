@@ -52,6 +52,7 @@ impl StepRunner for VmRunner {
     }
 }
 
+#[tracing::instrument(skip(vm, ctx), fields(step_key = %input.step.key))]
 async fn run_step_vm(
     vm: &HmVm,
     ctx: &RunContext,
