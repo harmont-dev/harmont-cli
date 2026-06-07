@@ -37,7 +37,7 @@ impl VmRunner {
 }
 
 impl StepRunner for VmRunner {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "vm"
     }
 

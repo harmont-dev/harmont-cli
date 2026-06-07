@@ -3,9 +3,7 @@ use anyhow::Result;
 /// # Errors
 /// Returns an error if workspace cache removal fails.
 pub async fn handle_clean() -> Result<i32> {
-    let mut cleaned = false;
-
-    if let Some(ws_cache) = hm_util::dirs::harmont_workspace_cache_dir()
+    let ws_cleaned = if let Some(ws_cache) = hm_util::dirs::harmont_workspace_cache_dir()
         && ws_cache.exists()
     {
         let size = dir_size(&ws_cache);
@@ -15,20 +13,25 @@ pub async fn handle_clean() -> Result<i32> {
             "removed workspace cache ({})",
             human_bytes(size),
         );
-        cleaned = true;
-    }
+        true
+    } else {
+        false
+    };
 
-    // Clean VM registry database.
-    if let Some(cache_dir) = hm_util::dirs::harmont_cache_dir() {
+    let db_cleaned = if let Some(cache_dir) = hm_util::dirs::harmont_cache_dir() {
         let db_path = cache_dir.join("registry.db");
         if db_path.exists() {
             std::fs::remove_file(&db_path)?;
             tracing::info!(path = %db_path.display(), "removed VM image registry");
-            cleaned = true;
+            true
+        } else {
+            false
         }
-    }
+    } else {
+        false
+    };
 
-    if !cleaned {
+    if !ws_cleaned && !db_cleaned {
         tracing::info!("nothing to clean");
     }
 

@@ -40,8 +40,8 @@ pub struct RunContext {
 /// The `execute` method returns a boxed future so the trait remains
 /// dyn-compatible (async fn in trait is not object-safe).
 pub trait StepRunner: Send + Sync + fmt::Debug {
-    /// Unique name for this runner (e.g. `"docker"`).
-    fn name(&self) -> &str;
+    /// Unique name for this runner (e.g. `"vm"`).
+    fn name(&self) -> &'static str;
 
     /// Execute a single pipeline step.
     ///
@@ -138,20 +138,18 @@ mod tests {
     /// Minimal stub runner for unit tests.
     #[derive(Debug)]
     struct StubRunner {
-        runner_name: String,
+        runner_name: &'static str,
     }
 
     impl StubRunner {
-        fn new(name: &str) -> Self {
-            Self {
-                runner_name: name.to_owned(),
-            }
+        fn new(name: &'static str) -> Self {
+            Self { runner_name: name }
         }
     }
 
     impl StepRunner for StubRunner {
-        fn name(&self) -> &str {
-            &self.runner_name
+        fn name(&self) -> &'static str {
+            self.runner_name
         }
 
         fn execute(
