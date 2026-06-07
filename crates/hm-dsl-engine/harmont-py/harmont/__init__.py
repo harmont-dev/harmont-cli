@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any
 from . import _decorator, py
 from ._bun import bun
 from ._cmake import cmake
+from ._elixir import elixir
 from ._envelope import dump_registry_json
 from ._go import go
 from ._npm import npm
@@ -261,6 +262,7 @@ __all__ = [
     "cmake",
     "compose",
     "dump_registry_json",
+    "elixir",
     "forever",
     "go",
     "group",
