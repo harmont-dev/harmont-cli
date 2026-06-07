@@ -1,0 +1,27 @@
+[package]
+name = "hm-vm"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+boxlite = { version = "0.9.5", optional = true }
+boxlite-shared = { version = "0.9.5", optional = true }
+bollard = { version = "0.18", optional = true }
+futures = { version = "0.3", optional = true }
+
+[features]
+default = ["boxlite-backend"]
+boxlite-backend = ["dep:boxlite", "dep:boxlite-shared", "dep:futures"]
+docker-backend = ["dep:bollard", "dep:futures"]
+
+[lints]
+workspace = true
