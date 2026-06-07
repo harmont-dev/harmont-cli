@@ -33,7 +33,7 @@ async fn main() {
 
     let trace_path = args.debug_trace.as_deref();
 
-    let _chrome_guard = if use_indicatif {
+    let chrome_guard = if use_indicatif {
         let max_bars =
             terminal_size::terminal_size().map_or(32, |(_, h)| u64::from(h.0.saturating_sub(2)));
         let indicatif_layer =
@@ -75,6 +75,10 @@ async fn main() {
         Ok(code) => code,
         Err(e) => handle_error(&e),
     };
+
+    // Drop the chrome trace guard before exit so it flushes the JSON file.
+    // std::process::exit skips destructors.
+    drop(chrome_guard);
 
     std::process::exit(code);
 }
