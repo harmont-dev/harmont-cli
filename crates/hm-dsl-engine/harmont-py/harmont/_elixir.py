@@ -30,7 +30,7 @@ APT_PACKAGES = (
 
 _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 
-_ELIXIR_ACTION_KWARGS = frozenset(("cover", "partitions", "setup_db", "strict", "mix_env"))
+_ELIXIR_ACTION_KWARGS = frozenset(("cover", "partitions", "strict", "mix_env"))
 
 ELIXIR_VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 OTP_VERSION_RE = re.compile(r"^[0-9]+(\.[0-9]+(\.[0-9]+)?)?$")
@@ -83,16 +83,12 @@ class ElixirProject:
     def test(self, **kw: Any) -> Step:
         cover = kw.pop("cover", False)
         partitions = kw.pop("partitions", None)
-        setup_db = kw.pop("setup_db", False)
 
         cmd = "mix test"
         if cover:
             cmd += " --cover"
         if partitions is not None:
             cmd += f" --partitions {partitions}"
-
-        if setup_db:
-            cmd = f"mix ecto.create --quiet && mix ecto.migrate && {cmd}"
 
         cmd = f"cd {self.path} && {cmd}"
         return self._emit(cmd, ":ex: test", **kw)
@@ -147,12 +143,8 @@ class ElixirProject:
             **kw,
         )
 
-    def assets_deploy(self, **kw: Any) -> Step:
-        return self._emit(
-            f"cd {self.path} && mix assets.deploy",
-            ":ex: assets-deploy",
-            **kw,
-        )
+    def mix(self, task: str, **kw: Any) -> Step:
+        return self._emit(f"cd {self.path} && mix {task}", f":ex: {task}", **kw)
 
 
 def _make_elixir(
@@ -281,9 +273,9 @@ class ElixirEntry:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS | _ELIXIR_ACTION_KWARGS}
         return self(**kw).release(**action_kw)
 
-    def assets_deploy(self, **kw: Any) -> Step:
-        action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS | _ELIXIR_ACTION_KWARGS}
-        return self(**kw).assets_deploy(**action_kw)
+    def mix(self, task: str, **kw: Any) -> Step:
+        action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
+        return self(**kw).mix(task, **action_kw)
 
 
 elixir: ElixirEntry = ElixirEntry()

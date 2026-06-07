@@ -13,7 +13,7 @@ const pipelines: PipelineDefinition[] = [
     triggers: [push({ branch: "main" }), pullRequest()],
     pipeline: pipeline(
       project.compile(),
-      project.test({ setupDb: true, cover: true }),
+      project.test({ cover: true }),
       project.format(),
       project.credo(),
       project.dialyzer(),
@@ -35,7 +35,7 @@ const pipelines: PipelineDefinition[] = [
     triggers: [push({ branch: "main" })],
     pipeline: pipeline(
       project.compile(),
-      project.assetsDeploy(),
+      project.mix("assets.deploy"),
       project.release(),
       { env: { MIX_ENV: "prod" }, defaultImage: "ubuntu:24.04" },
     ),

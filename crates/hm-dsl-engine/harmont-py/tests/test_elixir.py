@@ -86,7 +86,6 @@ def test_elixir_action_labels():
     assert ex.deps_audit().label == ":ex: deps-audit"
     assert ex.hex_audit().label == ":ex: hex-audit"
     assert ex.release().label == ":ex: release"
-    assert ex.assets_deploy().label == ":ex: assets-deploy"
 
 
 def test_elixir_with_base_skips_apt():
@@ -110,14 +109,6 @@ def test_elixir_test_partitions_flag():
     assert "--partitions 4" in (step.cmd or "")
 
 
-def test_elixir_test_setup_db():
-    ex = hm.elixir()
-    step = ex.test(setup_db=True)
-    assert "mix ecto.create" in (step.cmd or "")
-    assert "mix ecto.migrate" in (step.cmd or "")
-    assert "mix test" in (step.cmd or "")
-
-
 def test_elixir_credo_no_strict():
     ex = hm.elixir()
     step = ex.credo(strict=False)
@@ -131,7 +122,8 @@ def test_elixir_release_custom_env():
     assert "MIX_ENV=staging" in (step.cmd or "")
 
 
-def test_elixir_assets_deploy():
+def test_elixir_mix_escape_hatch():
     ex = hm.elixir()
-    step = ex.assets_deploy()
-    assert "mix assets.deploy" in (step.cmd or "")
+    step = ex.mix("phx.digest")
+    assert "mix phx.digest" in (step.cmd or "")
+    assert step.label == ":ex: phx.digest"

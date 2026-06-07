@@ -45,19 +45,16 @@ export class ElixirProject {
     );
   }
 
-  test(opts?: ActionOptions & { cover?: boolean; partitions?: number; setupDb?: boolean }): Step {
+  test(opts?: ActionOptions & { cover?: boolean; partitions?: number }): Step {
     const flags: string[] = [];
     if (opts?.cover) flags.push("--cover");
     if (opts?.partitions != null) flags.push(`--partitions ${opts.partitions}`);
-    const { cover: _, partitions: __, setupDb: ___, ...rest } = opts ?? {};
+    const { cover: _, partitions: __, ...rest } = opts ?? {};
     const flagStr = flags.length > 0 ? ` ${flags.join(" ")}` : "";
-    const dbSetup = opts?.setupDb
-      ? "mix ecto.create --quiet && mix ecto.migrate && "
-      : "";
-    return this._installed.sh(
-      `cd ${this.path} && ${dbSetup}mix test${flagStr}`,
-      { label: ":ex: test", ...rest },
-    );
+    return this._installed.sh(`cd ${this.path} && mix test${flagStr}`, {
+      label: ":ex: test",
+      ...rest,
+    });
   }
 
   format(opts?: ActionOptions): Step {
@@ -104,6 +101,13 @@ export class ElixirProject {
     });
   }
 
+  mix(task: string, opts?: ActionOptions): Step {
+    return this._installed.sh(`cd ${this.path} && mix ${task}`, {
+      label: `:ex: ${task}`,
+      ...opts,
+    });
+  }
+
   release(opts?: ActionOptions & { env?: string }): Step {
     const mixEnv = opts?.env ?? "prod";
     const { env: _, ...rest } = opts ?? {};
@@ -113,12 +117,6 @@ export class ElixirProject {
     );
   }
 
-  assetsDeploy(opts?: ActionOptions): Step {
-    return this._installed.sh(
-      `cd ${this.path} && mix assets.deploy`,
-      { label: ":ex: assets-deploy", ...opts },
-    );
-  }
 }
 
 export function elixir(opts?: ElixirOptions): ElixirProject {
