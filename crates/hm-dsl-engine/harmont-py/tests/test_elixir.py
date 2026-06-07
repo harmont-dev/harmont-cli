@@ -88,6 +88,24 @@ def test_elixir_action_labels():
     assert ex.release().label == ":ex: release"
 
 
+def test_elixir_plt_cached_forever():
+    ex = hm.elixir()
+    step = ex.plt()
+    assert "mix dialyzer --plt" in (step.cmd or "")
+    assert step.label == ":ex: plt"
+    p = hm.pipeline(step)
+    plt_ir = next(n["step"] for n in p["graph"]["nodes"] if "dialyzer --plt" in (n["step"].get("cmd") or ""))
+    assert plt_ir["cache"]["policy"] == "forever"
+
+
+def test_elixir_dialyzer_chains_through_plt():
+    ex = hm.elixir()
+    step = ex.dialyzer()
+    assert step.label == ":ex: dialyzer"
+    assert step.parent is not None
+    assert step.parent.label == ":ex: plt"
+
+
 def test_elixir_with_base_skips_apt():
     base = hm.scratch().sh("custom base", label="base")
     ex = hm.elixir(path=".", base=base)

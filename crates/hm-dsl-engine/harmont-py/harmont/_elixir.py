@@ -107,12 +107,17 @@ class ElixirProject:
             cmd += " --strict"
         return self._emit(f"cd {self.path} && {cmd}", ":ex: credo", **kw)
 
+    def plt(self, **kw: Any) -> Step:
+        if kw.get("label") is None:
+            kw["label"] = ":ex: plt"
+        if kw.get("cache") is None:
+            kw["cache"] = CacheForever(env_keys=())
+        return self.installed.sh(f"cd {self.path} && mix dialyzer --plt", **kw)
+
     def dialyzer(self, **kw: Any) -> Step:
-        return self._emit(
-            f"cd {self.path} && mix dialyzer",
-            ":ex: dialyzer",
-            **kw,
-        )
+        if kw.get("label") is None:
+            kw["label"] = ":ex: dialyzer"
+        return self.plt().sh(f"cd {self.path} && mix dialyzer", **kw)
 
     def sobelow(self, **kw: Any) -> Step:
         return self._emit(
@@ -252,6 +257,10 @@ class ElixirEntry:
     def credo(self, **kw: Any) -> Step:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS | _ELIXIR_ACTION_KWARGS}
         return self(**kw).credo(**action_kw)
+
+    def plt(self, **kw: Any) -> Step:
+        action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
+        return self(**kw).plt(**action_kw)
 
     def dialyzer(self, **kw: Any) -> Step:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS | _ELIXIR_ACTION_KWARGS}

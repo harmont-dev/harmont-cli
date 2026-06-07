@@ -42,8 +42,20 @@ describe("elixir actions", () => {
     expect(elixir().credo()._cmd).toContain("mix credo --strict");
   });
 
-  it("dialyzer runs mix dialyzer", () => {
-    expect(elixir().dialyzer()._cmd).toContain("mix dialyzer");
+  it("plt builds PLT with forever cache", () => {
+    const ex = elixir();
+    const step = ex.plt();
+    expect(step._cmd).toContain("mix dialyzer --plt");
+    expect(step._label).toBe(":ex: plt");
+    expect(step._cache).toEqual({ kind: "forever", envKeys: [] });
+  });
+
+  it("dialyzer chains through plt step", () => {
+    const ex = elixir();
+    const step = ex.dialyzer();
+    expect(step._cmd).toContain("mix dialyzer");
+    expect(step._cmd).not.toContain("--plt");
+    expect(step._parent!._label).toBe(":ex: plt");
   });
 
   it("sobelow runs mix sobelow --exit", () => {

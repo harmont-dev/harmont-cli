@@ -73,8 +73,16 @@ export class ElixirProject {
     });
   }
 
+  plt(opts?: ActionOptions): Step {
+    return this._installed.sh(`cd ${this.path} && mix dialyzer --plt`, {
+      label: ":ex: plt",
+      cache: forever(),
+      ...opts,
+    });
+  }
+
   dialyzer(opts?: ActionOptions): Step {
-    return this._installed.sh(`cd ${this.path} && mix dialyzer`, {
+    return this.plt().sh(`cd ${this.path} && mix dialyzer`, {
       label: ":ex: dialyzer",
       ...opts,
     });
