@@ -130,6 +130,28 @@ describe("elixir install chain", () => {
   });
 });
 
+describe("elixir phoenix options", () => {
+  it("test with setupDb prepends ecto create and migrate", () => {
+    const ex = elixir();
+    const step = ex.test({ setupDb: true });
+    expect(step._cmd).toContain("mix ecto.create --quiet");
+    expect(step._cmd).toContain("mix ecto.migrate");
+    expect(step._cmd).toContain("mix test");
+  });
+
+  it("test without setupDb has no ecto commands", () => {
+    const ex = elixir();
+    expect(ex.test()._cmd).not.toContain("ecto");
+  });
+
+  it("assetsDeploy runs mix assets.deploy", () => {
+    const ex = elixir();
+    const step = ex.assetsDeploy();
+    expect(step._cmd).toContain("mix assets.deploy");
+    expect(step._label).toBe(":ex: assets-deploy");
+  });
+});
+
 describe("elixir in pipeline", () => {
   it("produces valid IR", () => {
     const ex = elixir();

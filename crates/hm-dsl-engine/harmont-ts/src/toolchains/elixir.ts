@@ -45,16 +45,19 @@ export class ElixirProject {
     );
   }
 
-  test(opts?: ActionOptions & { cover?: boolean; partitions?: number }): Step {
+  test(opts?: ActionOptions & { cover?: boolean; partitions?: number; setupDb?: boolean }): Step {
     const flags: string[] = [];
     if (opts?.cover) flags.push("--cover");
     if (opts?.partitions != null) flags.push(`--partitions ${opts.partitions}`);
-    const { cover: _, partitions: __, ...rest } = opts ?? {};
+    const { cover: _, partitions: __, setupDb: ___, ...rest } = opts ?? {};
     const flagStr = flags.length > 0 ? ` ${flags.join(" ")}` : "";
-    return this._installed.sh(`cd ${this.path} && mix test${flagStr}`, {
-      label: ":ex: test",
-      ...rest,
-    });
+    const dbSetup = opts?.setupDb
+      ? "mix ecto.create --quiet && mix ecto.migrate && "
+      : "";
+    return this._installed.sh(
+      `cd ${this.path} && ${dbSetup}mix test${flagStr}`,
+      { label: ":ex: test", ...rest },
+    );
   }
 
   format(opts?: ActionOptions): Step {
@@ -107,6 +110,13 @@ export class ElixirProject {
     return this._installed.sh(
       `cd ${this.path} && MIX_ENV=${mixEnv} mix release`,
       { label: ":ex: release", ...rest },
+    );
+  }
+
+  assetsDeploy(opts?: ActionOptions): Step {
+    return this._installed.sh(
+      `cd ${this.path} && mix assets.deploy`,
+      { label: ":ex: assets-deploy", ...opts },
     );
   }
 }
