@@ -12,6 +12,7 @@ pub mod boxlite;
 #[cfg(feature = "docker-backend")]
 pub mod docker;
 
+pub use backend::{Vm, VmBackend};
 pub use types::{
     Action, CachingPolicy, ExecutionResult, ImageSource, NullSink, OutputSink, SnapshotId,
     VmConfig,
