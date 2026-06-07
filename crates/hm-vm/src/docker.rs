@@ -136,18 +136,11 @@ impl VmBackend for DockerBackend {
 }
 
 /// Handle to a running Docker container acting as a VM.
+#[derive(derive_more::Debug)]
 struct DockerVm {
+    #[debug(skip)]
     client: Docker,
     container_id: String,
-}
-
-// Manual Debug impl because `Docker` does not derive Debug.
-impl std::fmt::Debug for DockerVm {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DockerVm")
-            .field("container_id", &self.container_id)
-            .finish_non_exhaustive()
-    }
 }
 
 /// Build a tar archive from a host directory.

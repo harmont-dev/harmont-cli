@@ -5,7 +5,6 @@
 //! exceeded, returning the evicted snapshot IDs so the caller can clean up
 //! backend resources.
 
-use std::fmt;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -25,18 +24,11 @@ use crate::types::SnapshotId;
 /// The inner `Connection` is wrapped in a [`Mutex`] so that the registry
 /// (and any struct containing it, e.g. [`crate::vm::HmVm`]) satisfies
 /// `Send + Sync` for safe sharing across async tasks.
+#[derive(derive_more::Debug)]
 pub struct ImageRegistry {
+    #[debug(skip)]
     conn: Mutex<Connection>,
     capacity: u64,
-}
-
-impl fmt::Debug for ImageRegistry {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ImageRegistry")
-            .field("capacity", &self.capacity)
-            .field("len", &self.len())
-            .finish()
-    }
 }
 
 /// Returns the current Unix epoch in seconds.
