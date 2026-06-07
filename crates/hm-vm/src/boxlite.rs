@@ -49,6 +49,7 @@ impl VmBackend for BoxliteBackend {
             rootfs: RootfsSpec::Image(image.to_owned()),
             cpus: config.cpus.and_then(|c| u8::try_from(c).ok()),
             memory_mib: config.memory_mib.and_then(|m| u32::try_from(m).ok()),
+            disk_size_gb: config.disk_size_gb,
             auto_remove: false,
             detach: true,
             ..BoxOptions::default()

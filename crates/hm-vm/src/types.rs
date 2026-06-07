@@ -50,6 +50,7 @@ pub struct ExecutionResult {
 pub struct VmConfig {
     pub cpus: Option<u32>,
     pub memory_mib: Option<u64>,
+    pub disk_size_gb: Option<u64>,
 }
 
 /// Receives stdout/stderr lines during execution.

@@ -73,7 +73,11 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         .context("cannot resolve harmont cache directory")?
         .join("registry.db");
     let registry = ImageRegistry::open(&db_path, 64)?;
-    let vm = Arc::new(HmVm::new(backend, registry, VmConfig::default()));
+    let config = VmConfig {
+        disk_size_gb: Some(4),
+        ..VmConfig::default()
+    };
+    let vm = Arc::new(HmVm::new(backend, registry, config));
 
     let mut runner_registry = RunnerRegistry::new();
     runner_registry.register(Arc::new(VmRunner::new(vm)), true);
