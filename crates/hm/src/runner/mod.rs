@@ -16,26 +16,23 @@ use hm_plugin_protocol::{BuildEvent, ExecutorInput, StepResult};
 use tokio_util::sync::CancellationToken;
 
 use crate::orchestrator::archive::ArchiveStore;
-use crate::orchestrator::docker_client::DockerClient;
 use crate::orchestrator::events::EventBus;
 
-pub mod docker;
 pub mod vm;
 
 /// Shared context threaded into every runner invocation.
 ///
 /// Replaces the monolithic `OrchestratorState` that the old plugin
 /// system passed as opaque host memory. All fields are cheaply
-/// cloneable (`Arc` / `CancellationToken` / `DockerClient`).
+/// cloneable (`Arc` / `CancellationToken`).
 #[derive(Clone, Debug)]
 pub struct RunContext {
-    pub docker: DockerClient,
     pub event_bus: Arc<EventBus>,
     pub archives: Arc<ArchiveStore>,
     pub cancel: CancellationToken,
 }
 
-/// Async trait implemented by step executors (e.g. the Docker runner).
+/// Async trait implemented by step executors (e.g. the VM runner).
 ///
 /// Each runner is identified by a string [`Self::name`] that pipeline
 /// authors reference in their step definitions.
