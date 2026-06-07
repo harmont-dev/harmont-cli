@@ -18,3 +18,4 @@ pub use types::{
     Action, CachingPolicy, ExecutionResult, ImageSource, NullSink, OutputSink, SnapshotId,
     VmConfig,
 };
+pub use vm::HmVm;
