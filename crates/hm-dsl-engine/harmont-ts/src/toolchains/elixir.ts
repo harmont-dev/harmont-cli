@@ -28,6 +28,7 @@ type ActionOptions = Omit<StepOptions, "cwd">;
 export class ElixirProject {
   readonly path: string;
   private readonly _installed: Step;
+  private _plt: Step | null = null;
 
   constructor(path: string, installed: Step) {
     this.path = path;
@@ -73,12 +74,14 @@ export class ElixirProject {
     });
   }
 
-  plt(opts?: ActionOptions): Step {
-    return this._installed.sh(`cd ${this.path} && mix dialyzer --plt`, {
-      label: ":ex: plt",
-      cache: forever(),
-      ...opts,
-    });
+  plt(): Step {
+    if (this._plt == null) {
+      this._plt = this._installed.sh(`cd ${this.path} && mix dialyzer --plt`, {
+        label: ":ex: plt",
+        cache: forever(),
+      });
+    }
+    return this._plt;
   }
 
   dialyzer(opts?: ActionOptions): Step {

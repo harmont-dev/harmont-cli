@@ -9,7 +9,7 @@ mix-deps (cached on mix.lock) -> action leaves.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 from typing import TYPE_CHECKING, Any
 
 from ._toolchain import make_install_chain
@@ -67,6 +67,7 @@ class ElixirProject:
 
     path: str
     installed: Step
+    _plt_step: Step | None = dataclass_field(default=None, init=False, repr=False)
 
     def _emit(self, cmd: str, default_label: str, **kw: Any) -> Step:
         if kw.get("label") is None:
@@ -107,12 +108,15 @@ class ElixirProject:
             cmd += " --strict"
         return self._emit(f"cd {self.path} && {cmd}", ":ex: credo", **kw)
 
-    def plt(self, **kw: Any) -> Step:
-        if kw.get("label") is None:
-            kw["label"] = ":ex: plt"
-        if kw.get("cache") is None:
-            kw["cache"] = CacheForever(env_keys=())
-        return self.installed.sh(f"cd {self.path} && mix dialyzer --plt", **kw)
+    def plt(self) -> Step:
+        if self._plt_step is None:
+            step = self.installed.sh(
+                f"cd {self.path} && mix dialyzer --plt",
+                label=":ex: plt",
+                cache=CacheForever(env_keys=()),
+            )
+            object.__setattr__(self, "_plt_step", step)
+        return self._plt_step  # type: ignore[return-value]
 
     def dialyzer(self, **kw: Any) -> Step:
         if kw.get("label") is None:
@@ -259,8 +263,7 @@ class ElixirEntry:
         return self(**kw).credo(**action_kw)
 
     def plt(self, **kw: Any) -> Step:
-        action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
-        return self(**kw).plt(**action_kw)
+        return self(**kw).plt()
 
     def dialyzer(self, **kw: Any) -> Step:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS | _ELIXIR_ACTION_KWARGS}

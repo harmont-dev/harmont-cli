@@ -58,6 +58,11 @@ describe("elixir actions", () => {
     expect(step._parent!._label).toBe(":ex: plt");
   });
 
+  it("plt is memoized per project instance", () => {
+    const ex = elixir();
+    expect(ex.plt()).toBe(ex.plt());
+  });
+
   it("sobelow runs mix sobelow --exit", () => {
     expect(elixir().sobelow()._cmd).toContain("mix sobelow --exit");
   });
