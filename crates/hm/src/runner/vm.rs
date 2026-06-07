@@ -1,0 +1,173 @@
+//! VM-based step runner.
+//!
+//! Each step runs inside a lightweight VM managed by [`HmVm`]. The
+//! source archive is extracted to a host-side temp directory and
+//! injected into the VM before the step command runs. System-level
+//! state propagates via VM snapshots.
+
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Duration;
+
+use anyhow::{Context, Result};
+use hm_plugin_protocol::{
+    BuildEvent, CacheDecision, ExecutorInput, SnapshotRef, StdStream, StepResult,
+};
+use hm_vm::types::OutputSink;
+use hm_vm::{Action, CachingPolicy, HmVm, ImageSource, SnapshotId};
+use uuid::Uuid;
+
+use super::{RunContext, StepRunner};
+use crate::orchestrator::events::EventBus;
+
+/// Step runner that executes pipeline steps inside lightweight VMs
+/// via the [`HmVm`] orchestrator.
+#[derive(Debug)]
+pub struct VmRunner {
+    vm: Arc<HmVm>,
+}
+
+impl VmRunner {
+    /// Create a new `VmRunner` backed by the given VM orchestrator.
+    pub fn new(vm: Arc<HmVm>) -> Self {
+        Self { vm }
+    }
+}
+
+impl StepRunner for VmRunner {
+    fn name(&self) -> &str {
+        "vm"
+    }
+
+    fn execute(
+        &self,
+        ctx: &RunContext,
+        input: ExecutorInput,
+    ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>> {
+        let ctx = ctx.clone();
+        let vm = Arc::clone(&self.vm);
+        Box::pin(async move { run_step_vm(&vm, &ctx, input).await })
+    }
+}
+
+async fn run_step_vm(
+    vm: &HmVm,
+    ctx: &RunContext,
+    input: ExecutorInput,
+) -> Result<StepResult> {
+    // 1. Match on cache decision.
+    let policy = match &input.cache_lookup {
+        CacheDecision::Hit { tag } => {
+            return Ok(StepResult {
+                exit_code: 0,
+                committed_snapshot: Some(tag.clone()),
+                artifacts: vec![],
+            });
+        }
+        CacheDecision::MissBuildAs { tag } => CachingPolicy::Cache {
+            key: tag.0.clone(),
+        },
+        CacheDecision::MissNoCommit => CachingPolicy::None,
+    };
+
+    // 2. Build ImageSource from parent_snapshot or step.image.
+    let source = if let Some(ref snap) = input.parent_snapshot {
+        ImageSource::Snapshot(SnapshotId(snap.0.clone()))
+    } else {
+        ImageSource::Image(
+            input
+                .step
+                .image
+                .clone()
+                .unwrap_or_else(|| "alpine:latest".to_string()),
+        )
+    };
+
+    // 3. Extract workspace archive to temp dir.
+    let archive_bytes = ctx
+        .archives
+        .get_bytes(input.workspace_archive_id)
+        .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
+
+    let temp_dir =
+        extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
+
+    // 4. Build Action.
+    let action = Action {
+        source,
+        cmd: input.step.cmd.clone(),
+        env: input.env.into_iter().collect(),
+        working_dir: input.workdir.clone(),
+        timeout: input
+            .step
+            .timeout_seconds
+            .map(|s| Duration::from_secs(u64::from(s))),
+        inject: Some(temp_dir.path().to_path_buf()),
+    };
+
+    // 5. Create sink that forwards output to the EventBus.
+    let sink = EventBusSink {
+        step_id: input.step_id,
+        bus: Arc::clone(&ctx.event_bus),
+    };
+
+    // 6. Execute.
+    let result = vm
+        .execute(action, policy, &sink)
+        .await
+        .context("vm execute failed")?;
+
+    // 7. Map result.
+    Ok(StepResult {
+        exit_code: result.exit_code,
+        committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.0)),
+        artifacts: vec![],
+    })
+}
+
+/// Extracts a gzipped tar archive into a temporary directory.
+fn extract_archive_to_tempdir(archive_bytes: &[u8]) -> Result<tempfile::TempDir> {
+    let temp_dir = tempfile::tempdir().context("creating temp directory")?;
+    let decoder = flate2::read::GzDecoder::new(archive_bytes);
+    let mut archive = tar::Archive::new(decoder);
+    archive
+        .unpack(temp_dir.path())
+        .context("unpacking archive")?;
+    Ok(temp_dir)
+}
+
+/// [`OutputSink`] implementation that emits [`BuildEvent::StepLog`]
+/// events on the [`EventBus`].
+struct EventBusSink {
+    step_id: Uuid,
+    bus: Arc<EventBus>,
+}
+
+impl std::fmt::Debug for EventBusSink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EventBusSink")
+            .field("step_id", &self.step_id)
+            .finish()
+    }
+}
+
+impl OutputSink for EventBusSink {
+    fn on_stdout(&self, line: &str) {
+        self.bus.emit(BuildEvent::StepLog {
+            step_id: self.step_id,
+            stream: StdStream::Stdout,
+            line: line.to_owned(),
+            ts: chrono::Utc::now(),
+        });
+    }
+
+    fn on_stderr(&self, line: &str) {
+        self.bus.emit(BuildEvent::StepLog {
+            step_id: self.step_id,
+            stream: StdStream::Stderr,
+            line: line.to_owned(),
+            ts: chrono::Utc::now(),
+        });
+    }
+}

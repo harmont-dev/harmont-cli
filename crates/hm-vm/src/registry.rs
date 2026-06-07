@@ -9,6 +9,8 @@ use std::fmt;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use std::sync::Mutex;
+
 use anyhow::Result;
 use rusqlite::Connection;
 
@@ -19,8 +21,12 @@ use crate::types::SnapshotId;
 /// Backed by a single SQLite table with WAL journaling. The registry tracks
 /// the last-access timestamp for every entry and evicts the oldest entries
 /// when the configured capacity is exceeded.
+///
+/// The inner `Connection` is wrapped in a [`Mutex`] so that the registry
+/// (and any struct containing it, e.g. [`crate::vm::HmVm`]) satisfies
+/// `Send + Sync` for safe sharing across async tasks.
 pub struct ImageRegistry {
-    conn: Connection,
+    conn: Mutex<Connection>,
     capacity: u64,
 }
 
@@ -74,7 +80,10 @@ impl ImageRegistry {
              );",
         )?;
 
-        Ok(Self { conn, capacity })
+        Ok(Self {
+            conn: Mutex::new(conn),
+            capacity,
+        })
     }
 
     /// Look up a cached snapshot and update its access time.
@@ -83,10 +92,10 @@ impl ImageRegistry {
     #[must_use]
     pub fn get(&self, key: &str) -> Option<SnapshotId> {
         let now = epoch_secs();
+        let conn = self.conn.lock().ok()?;
 
         // Fetch the snapshot_id first.
-        let snapshot: Option<String> = self
-            .conn
+        let snapshot: Option<String> = conn
             .query_row(
                 "SELECT snapshot_id FROM snapshots WHERE key = ?1",
                 [key],
@@ -96,8 +105,7 @@ impl ImageRegistry {
 
         if snapshot.is_some() {
             // Touch the access time.
-            let _updated = self
-                .conn
+            let _updated = conn
                 .execute(
                     "UPDATE snapshots SET accessed_at = ?1 WHERE key = ?2",
                     rusqlite::params![now, key],
@@ -116,13 +124,18 @@ impl ImageRegistry {
     pub fn put(&self, key: &str, snapshot: &SnapshotId) -> Vec<SnapshotId> {
         let now = epoch_secs();
 
+        let Ok(conn) = self.conn.lock() else {
+            return Vec::new();
+        };
+
         // INSERT OR REPLACE handles both new and updated entries.
-        let _result = self.conn.execute(
+        let _result = conn.execute(
             "INSERT OR REPLACE INTO snapshots (key, snapshot_id, accessed_at)
              VALUES (?1, ?2, ?3)",
             rusqlite::params![key, snapshot.0, now],
         );
 
+        drop(conn);
         self.evict_overflow()
     }
 
@@ -132,8 +145,9 @@ impl ImageRegistry {
     /// resources, or `None` if the key was not present.
     #[must_use]
     pub fn invalidate(&self, key: &str) -> Option<SnapshotId> {
-        let snapshot: Option<String> = self
-            .conn
+        let conn = self.conn.lock().ok()?;
+
+        let snapshot: Option<String> = conn
             .query_row(
                 "SELECT snapshot_id FROM snapshots WHERE key = ?1",
                 [key],
@@ -142,8 +156,7 @@ impl ImageRegistry {
             .ok();
 
         if snapshot.is_some() {
-            let _deleted = self
-                .conn
+            let _deleted = conn
                 .execute("DELETE FROM snapshots WHERE key = ?1", [key])
                 .ok();
         }
@@ -154,13 +167,15 @@ impl ImageRegistry {
     /// Returns the number of cached entries.
     #[must_use]
     pub fn len(&self) -> u64 {
-        self.conn
-            .query_row("SELECT COUNT(*) FROM snapshots", [], |row| {
-                row.get::<_, i64>(0)
-            })
-            .unwrap_or(0)
-            .try_into()
-            .unwrap_or(0)
+        let Ok(conn) = self.conn.lock() else {
+            return 0;
+        };
+        conn.query_row("SELECT COUNT(*) FROM snapshots", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap_or(0)
+        .try_into()
+        .unwrap_or(0)
     }
 
     /// Returns `true` if the registry contains no entries.
@@ -179,8 +194,12 @@ impl ImageRegistry {
 
         let overflow = count - self.capacity;
 
+        let Ok(conn) = self.conn.lock() else {
+            return Vec::new();
+        };
+
         // Select the oldest entries that will be evicted.
-        let mut stmt = match self.conn.prepare(
+        let mut stmt = match conn.prepare(
             "SELECT snapshot_id FROM snapshots ORDER BY accessed_at ASC LIMIT ?1",
         ) {
             Ok(s) => s,
@@ -195,8 +214,11 @@ impl ImageRegistry {
             .map(|rows| rows.filter_map(Result::ok).collect())
             .unwrap_or_default();
 
+        // Drop stmt before using conn again for the delete.
+        drop(stmt);
+
         // Delete those entries.
-        let _deleted = self.conn.execute(
+        let _deleted = conn.execute(
             "DELETE FROM snapshots WHERE key IN (
                  SELECT key FROM snapshots ORDER BY accessed_at ASC LIMIT ?1
              )",

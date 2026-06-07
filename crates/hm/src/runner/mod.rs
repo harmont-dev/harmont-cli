@@ -20,6 +20,7 @@ use crate::orchestrator::docker_client::DockerClient;
 use crate::orchestrator::events::EventBus;
 
 pub mod docker;
+pub mod vm;
 
 /// Shared context threaded into every runner invocation.
 ///

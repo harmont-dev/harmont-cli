@@ -1552,6 +1552,7 @@ dependencies = [
  "hm-plugin-cloud",
  "hm-plugin-protocol",
  "hm-util",
+ "hm-vm",
  "ignore",
  "indicatif",
  "is_ci",
