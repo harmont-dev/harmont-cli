@@ -265,17 +265,17 @@ mod tests {
         reg.put("a", &SnapshotId("snap-a".into()));
 
         // Tiny sleep so timestamps differ.
-        std::thread::sleep(std::time::Duration::from_millis(1100));
+        std::thread::sleep(std::time::Duration::from_secs(1));
 
         reg.put("b", &SnapshotId("snap-b".into()));
 
         // Touch "a" so it becomes the most recently accessed.
-        std::thread::sleep(std::time::Duration::from_millis(1100));
+        std::thread::sleep(std::time::Duration::from_secs(1));
         let _ = reg.get("a");
 
         // Now insert "c" -- capacity is 2, so one must be evicted.
         // "b" should be evicted since "a" was touched more recently.
-        std::thread::sleep(std::time::Duration::from_millis(1100));
+        std::thread::sleep(std::time::Duration::from_secs(1));
         let evicted = reg.put("c", &SnapshotId("snap-c".into()));
 
         assert_eq!(evicted.len(), 1);
@@ -292,9 +292,9 @@ mod tests {
         let (reg, _dir) = open_temp(2);
 
         reg.put("x", &SnapshotId("snap-x".into()));
-        std::thread::sleep(std::time::Duration::from_millis(1100));
+        std::thread::sleep(std::time::Duration::from_secs(1));
         reg.put("y", &SnapshotId("snap-y".into()));
-        std::thread::sleep(std::time::Duration::from_millis(1100));
+        std::thread::sleep(std::time::Duration::from_secs(1));
 
         // This third insert should evict the oldest ("x").
         let evicted = reg.put("z", &SnapshotId("snap-z".into()));

@@ -1579,6 +1579,7 @@ dependencies = [
  "url",
  "uuid",
  "webbrowser",
+ "which",
  "wiremock",
 ]
 
@@ -1721,6 +1722,7 @@ dependencies = [
  "bollard",
  "boxlite",
  "boxlite-shared",
+ "derive_more",
  "futures",
  "rusqlite",
  "tar",

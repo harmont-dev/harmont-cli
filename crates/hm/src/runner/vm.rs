@@ -56,22 +56,13 @@ async fn run_step_vm(
     ctx: &RunContext,
     input: ExecutorInput,
 ) -> Result<StepResult> {
-    // 1. Match on cache decision.
     let policy = match &input.cache_lookup {
-        CacheDecision::Hit { tag } => {
-            return Ok(StepResult {
-                exit_code: 0,
-                committed_snapshot: Some(tag.clone()),
-                artifacts: vec![],
-            });
+        CacheDecision::Hit { tag } | CacheDecision::MissBuildAs { tag } => {
+            CachingPolicy::Cache { key: tag.0.clone() }
         }
-        CacheDecision::MissBuildAs { tag } => CachingPolicy::Cache {
-            key: tag.0.clone(),
-        },
         CacheDecision::MissNoCommit => CachingPolicy::None,
     };
 
-    // 2. Build ImageSource from parent_snapshot or step.image.
     let source = if let Some(ref snap) = input.parent_snapshot {
         ImageSource::Snapshot(SnapshotId(snap.0.clone()))
     } else {
@@ -84,7 +75,6 @@ async fn run_step_vm(
         )
     };
 
-    // 3. Extract workspace archive to temp dir.
     let archive_bytes = ctx
         .archives
         .get_bytes(input.workspace_archive_id)
@@ -93,7 +83,6 @@ async fn run_step_vm(
     let temp_dir =
         extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
 
-    // 4. Build Action.
     let action = Action {
         source,
         cmd: input.step.cmd.clone(),
@@ -106,19 +95,32 @@ async fn run_step_vm(
         inject: Some(temp_dir.path().to_path_buf()),
     };
 
-    // 5. Create sink that forwards output to the EventBus.
     let sink = EventBusSink {
         step_id: input.step_id,
         bus: Arc::clone(&ctx.event_bus),
     };
 
-    // 6. Execute.
     let result = vm
         .execute(action, policy, &sink)
         .await
         .context("vm execute failed")?;
 
-    // 7. Map result.
+    if result.cached {
+        ctx.event_bus.emit(BuildEvent::StepCacheHit {
+            step_id: input.step_id,
+            key: input
+                .step
+                .cache
+                .as_ref()
+                .and_then(|c| c.key.clone())
+                .unwrap_or_default(),
+            tag: result
+                .snapshot
+                .as_ref()
+                .map_or_else(String::new, |s| s.0.clone()),
+        });
+    }
+
     Ok(StepResult {
         exit_code: result.exit_code,
         committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.0)),

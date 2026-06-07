@@ -42,9 +42,11 @@ impl BoxliteBackend {
 
 #[async_trait]
 impl VmBackend for BoxliteBackend {
-    async fn create(&self, image: &str, _config: &VmConfig) -> Result<Box<dyn Vm>> {
+    async fn create(&self, image: &str, config: &VmConfig) -> Result<Box<dyn Vm>> {
         let options = BoxOptions {
             rootfs: RootfsSpec::Image(image.to_owned()),
+            cpus: config.cpus.map(|c| c.min(u32::from(u8::MAX)) as u8),
+            memory_mib: config.memory_mib.map(|m| m.min(u64::from(u32::MAX)) as u32),
             auto_remove: false,
             detach: true,
             ..BoxOptions::default()
@@ -56,7 +58,7 @@ impl VmBackend for BoxliteBackend {
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-        Ok(Box::new(BoxliteVm { inner: litebox }))
+        Ok(Box::new(BoxliteVm { inner: litebox, stopped: false }))
     }
 
     async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
@@ -72,7 +74,7 @@ impl VmBackend for BoxliteBackend {
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-        Ok(Box::new(BoxliteVm { inner: clone }))
+        Ok(Box::new(BoxliteVm { inner: clone, stopped: false }))
     }
 
     async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
@@ -93,6 +95,7 @@ impl VmBackend for BoxliteBackend {
 /// Handle to a running boxlite VM.
 struct BoxliteVm {
     inner: boxlite::litebox::LiteBox,
+    stopped: bool,
 }
 
 #[async_trait]
@@ -174,19 +177,19 @@ impl Vm for BoxliteVm {
         Ok(result.exit_code)
     }
 
-    async fn snapshot(&self, _label: &str) -> Result<SnapshotId> {
-        // The stopped box IS the snapshot -- stop the VM and return its id.
+    async fn snapshot(&mut self, _label: &str) -> Result<SnapshotId> {
         self.inner
             .stop()
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
-
+        self.stopped = true;
         Ok(SnapshotId(self.inner.id().to_string()))
     }
 
     async fn destroy(&mut self) -> Result<()> {
-        // Best-effort stop.
-        let _ = self.inner.stop().await;
+        if !self.stopped {
+            let _ = self.inner.stop().await;
+        }
         Ok(())
     }
 }

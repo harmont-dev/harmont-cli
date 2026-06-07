@@ -80,8 +80,19 @@ impl HmVm {
             vm.inject(host_path, &action.working_dir).await?;
         }
 
-        // 4. Execute command
-        let exit_code = vm.exec(&action.cmd, &action.env, &action.working_dir, sink).await?;
+        // 4. Execute command (with optional timeout)
+        let exec_fut = vm.exec(&action.cmd, &action.env, &action.working_dir, sink);
+        let exit_code = if let Some(timeout) = action.timeout {
+            match tokio::time::timeout(timeout, exec_fut).await {
+                Ok(result) => result?,
+                Err(_) => {
+                    vm.destroy().await.ok();
+                    anyhow::bail!("command timed out after {timeout:?}");
+                }
+            }
+        } else {
+            exec_fut.await?
+        };
 
         // 5. Snapshot and cache on success
         let snapshot = if exit_code == 0 {
@@ -221,7 +232,7 @@ mod tests {
             Ok(self.exit_code)
         }
 
-        async fn snapshot(&self, label: &str) -> Result<SnapshotId> {
+        async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
             self.calls.lock().map_or_else(
                 |_| {},
                 |mut c| c.push(format!("snapshot:{label}")),

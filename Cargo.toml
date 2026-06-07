@@ -6,7 +6,7 @@ members = [
     "crates/hm-pipeline-ir",
     "crates/hm-util",
     "crates/hm-plugin-cloud",
-    "crates/hm-dsl-engine",
+    "crates/hm-dsl-engine", "crates/hm-vm",
 ]
 default-members = [
     "crates/hm",

@@ -33,7 +33,8 @@ pub enum CachingPolicy {
 }
 
 /// Opaque snapshot handle. Backend-specific contents.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, derive_more::Display)]
+#[display("{_0}")]
 pub struct SnapshotId(pub String);
 
 /// Result of executing an action.

@@ -182,7 +182,7 @@ impl Vm for DockerVm {
                 format!(
                     "uploading '{}' to container '{}:{guest_path}'",
                     host_path.display(),
-                    &self.container_id[..12.min(self.container_id.len())],
+                    self.container_id.get(..12).unwrap_or(&self.container_id),
                 )
             })?;
         Ok(())
@@ -254,7 +254,7 @@ impl Vm for DockerVm {
         Ok(exit_code)
     }
 
-    async fn snapshot(&self, label: &str) -> Result<SnapshotId> {
+    async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
         let parts: Vec<&str> = label.splitn(2, ':').collect();
         let (repo, tag) = match parts.as_slice() {
             [r, v] => (*r, *v),

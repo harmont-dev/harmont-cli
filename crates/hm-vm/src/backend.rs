@@ -40,7 +40,7 @@ pub trait Vm: Send {
     ) -> Result<i32>;
 
     /// Capture the current VM state as a named snapshot.
-    async fn snapshot(&self, label: &str) -> Result<SnapshotId>;
+    async fn snapshot(&mut self, label: &str) -> Result<SnapshotId>;
 
     /// Tear down the VM and release all resources.
     async fn destroy(&mut self) -> Result<()>;
