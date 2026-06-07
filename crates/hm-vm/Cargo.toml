@@ -23,5 +23,8 @@ default = ["boxlite-backend"]
 boxlite-backend = ["dep:boxlite", "dep:boxlite-shared", "dep:futures"]
 docker-backend = ["dep:bollard", "dep:futures"]
 
+[dev-dependencies]
+tempfile = "3"
+
 [lints]
 workspace = true
