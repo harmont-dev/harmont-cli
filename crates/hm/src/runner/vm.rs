@@ -53,11 +53,7 @@ impl StepRunner for VmRunner {
 }
 
 #[tracing::instrument(skip(vm, ctx), fields(step_key = %input.step.key))]
-async fn run_step_vm(
-    vm: &HmVm,
-    ctx: &RunContext,
-    input: ExecutorInput,
-) -> Result<StepResult> {
+async fn run_step_vm(vm: &HmVm, ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> {
     let policy = match &input.cache_lookup {
         CacheDecision::Hit { tag } | CacheDecision::MissBuildAs { tag } => {
             CachingPolicy::Cache { key: tag.0.clone() }
@@ -77,24 +73,39 @@ async fn run_step_vm(
         )
     };
 
-    let archive_bytes = ctx
-        .archives
-        .get_bytes(input.workspace_archive_id)
-        .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
+    // Only inject workspace for root steps (no parent snapshot).
+    // Child steps inherit workspace from the parent via COW snapshot.
+    let _temp_dir;
+    let inject = if input.parent_snapshot.is_none() {
+        let archive_bytes = ctx
+            .archives
+            .get_bytes(input.workspace_archive_id)
+            .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
+        _temp_dir =
+            Some(extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?);
+        _temp_dir.as_ref().map(|d| d.path().to_path_buf())
+    } else {
+        _temp_dir = None;
+        None
+    };
 
-    let temp_dir =
-        extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
+    // Baseline env for shell operation inside VMs.
+    let mut env: Vec<(String, String)> = vec![
+        ("HOME".into(), "/root".into()),
+        ("PATH".into(), "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into()),
+    ];
+    env.extend(input.env);
 
     let action = Action {
         source,
         cmd: input.step.cmd.clone(),
-        env: input.env.into_iter().collect(),
+        env,
         working_dir: input.workdir.clone(),
         timeout: input
             .step
             .timeout_seconds
             .map(|s| Duration::from_secs(u64::from(s))),
-        inject: Some(temp_dir.path().to_path_buf()),
+        inject,
     };
 
     let sink = EventBusSink {

@@ -186,16 +186,14 @@ impl ImageRegistry {
             return Vec::new();
         };
 
-        let Ok(mut stmt) = conn.prepare(
-            "SELECT snapshot_id FROM snapshots ORDER BY accessed_at ASC LIMIT ?1",
-        ) else {
+        let Ok(mut stmt) =
+            conn.prepare("SELECT snapshot_id FROM snapshots ORDER BY accessed_at ASC LIMIT ?1")
+        else {
             return Vec::new();
         };
 
         let evicted: Vec<SnapshotId> = stmt
-            .query_map([overflow], |row| {
-                row.get::<_, String>(0).map(SnapshotId)
-            })
+            .query_map([overflow], |row| row.get::<_, String>(0).map(SnapshotId))
             .ok()
             .map(|rows| rows.filter_map(Result::ok).collect())
             .unwrap_or_default();

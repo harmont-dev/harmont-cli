@@ -23,11 +23,7 @@ pub struct HmVm {
 
 impl HmVm {
     /// Create a new orchestrator from the given backend, registry and config.
-    pub fn new(
-        backend: Arc<dyn VmBackend>,
-        registry: ImageRegistry,
-        config: VmConfig,
-    ) -> Self {
+    pub fn new(backend: Arc<dyn VmBackend>, registry: ImageRegistry, config: VmConfig) -> Self {
         Self {
             backend,
             registry,
@@ -164,10 +160,9 @@ mod tests {
     #[async_trait]
     impl VmBackend for MockBackend {
         async fn create(&self, image: &str, _config: &VmConfig) -> Result<Box<dyn Vm>> {
-            self.calls.lock().map_or_else(
-                |_| {},
-                |mut c| c.push(format!("create:{image}")),
-            );
+            self.calls
+                .lock()
+                .map_or_else(|_| {}, |mut c| c.push(format!("create:{image}")));
             Ok(Box::new(MockVm {
                 calls: Arc::clone(&self.calls),
                 exit_code: self.exit_code,
@@ -175,10 +170,9 @@ mod tests {
         }
 
         async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
-            self.calls.lock().map_or_else(
-                |_| {},
-                |mut c| c.push(format!("restore:{}", snapshot.0)),
-            );
+            self.calls
+                .lock()
+                .map_or_else(|_| {}, |mut c| c.push(format!("restore:{}", snapshot.0)));
             Ok(Box::new(MockVm {
                 calls: Arc::clone(&self.calls),
                 exit_code: self.exit_code,
@@ -224,26 +218,23 @@ mod tests {
             _working_dir: &str,
             _sink: &dyn OutputSink,
         ) -> Result<i32> {
-            self.calls.lock().map_or_else(
-                |_| {},
-                |mut c| c.push(format!("exec:{cmd}")),
-            );
+            self.calls
+                .lock()
+                .map_or_else(|_| {}, |mut c| c.push(format!("exec:{cmd}")));
             Ok(self.exit_code)
         }
 
         async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
-            self.calls.lock().map_or_else(
-                |_| {},
-                |mut c| c.push(format!("snapshot:{label}")),
-            );
+            self.calls
+                .lock()
+                .map_or_else(|_| {}, |mut c| c.push(format!("snapshot:{label}")));
             Ok(SnapshotId(format!("snap-{label}")))
         }
 
         async fn destroy(&mut self) -> Result<()> {
-            self.calls.lock().map_or_else(
-                |_| {},
-                |mut c| c.push("destroy".into()),
-            );
+            self.calls
+                .lock()
+                .map_or_else(|_| {}, |mut c| c.push("destroy".into()));
             Ok(())
         }
     }

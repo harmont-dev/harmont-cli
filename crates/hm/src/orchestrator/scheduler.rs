@@ -109,10 +109,7 @@ pub async fn run(
         plan: PlanSummary {
             step_count: graph.node_count(),
             chain_count: chain_info.chain_count,
-            default_runner: runner_registry
-                .default_runner_name()
-                .unwrap_or("vm")
-                .into(),
+            default_runner: runner_registry.default_runner_name().unwrap_or("vm").into(),
         },
         started_at,
     });

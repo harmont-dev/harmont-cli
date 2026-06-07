@@ -6,8 +6,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use boxlite::litebox::{BoxCommand, CopyOptions};
-use boxlite::runtime::options::{BoxOptions, CloneOptions, RootfsSpec};
 use boxlite::runtime::BoxliteRuntime;
+use boxlite::runtime::options::{BoxOptions, CloneOptions, RootfsSpec};
 use futures::StreamExt;
 use tracing::instrument;
 
@@ -35,8 +35,7 @@ impl BoxliteBackend {
     ///
     /// Returns an error if the runtime cannot be initialised.
     pub fn with_defaults() -> Result<Self> {
-        let runtime =
-            BoxliteRuntime::with_defaults().map_err(|e| anyhow::anyhow!("{e}"))?;
+        let runtime = BoxliteRuntime::with_defaults().map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(Self::new(runtime))
     }
 }
@@ -61,7 +60,10 @@ impl VmBackend for BoxliteBackend {
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-        Ok(Box::new(BoxliteVm { inner: litebox, stopped: false }))
+        Ok(Box::new(BoxliteVm {
+            inner: litebox,
+            stopped: false,
+        }))
     }
 
     #[instrument(skip(self, _config))]
@@ -78,7 +80,10 @@ impl VmBackend for BoxliteBackend {
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-        Ok(Box::new(BoxliteVm { inner: clone, stopped: false }))
+        Ok(Box::new(BoxliteVm {
+            inner: clone,
+            stopped: false,
+        }))
     }
 
     #[instrument(skip(self))]
@@ -108,8 +113,9 @@ struct BoxliteVm {
 impl Vm for BoxliteVm {
     #[instrument(skip(self), fields(host = %host_path.display()))]
     async fn inject(&self, host_path: &Path, guest_path: &str) -> Result<()> {
+        let opts = CopyOptions::default().include_parent(false);
         self.inner
-            .copy_into(host_path, guest_path, CopyOptions::default())
+            .copy_into(host_path, guest_path, opts)
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))
     }
@@ -177,10 +183,7 @@ impl Vm for BoxliteVm {
             (None, None) => {}
         }
 
-        let result = execution
-            .wait()
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let result = execution.wait().await.map_err(|e| anyhow::anyhow!("{e}"))?;
 
         Ok(result.exit_code)
     }

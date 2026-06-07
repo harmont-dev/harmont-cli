@@ -108,7 +108,8 @@ def test_command_includes_label_env_timeout_when_set():
     graph = _lower_to_graph([s])
     node = graph["nodes"][0]
     assert node["step"]["label"] == "build"
-    assert node["env"] == {"CI": "true"}
+    assert node["env"]["CI"] == "true"
+    assert node["env"]["DEBIAN_FRONTEND"] == "noninteractive"
     assert node["step"]["timeout_seconds"] == 600
 
 

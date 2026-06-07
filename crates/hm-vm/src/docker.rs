@@ -9,13 +9,15 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use bollard::Docker;
 use bollard::container::{
     Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
     StopContainerOptions, UploadToContainerOptions,
 };
 use bollard::exec::{CreateExecOptions, StartExecResults};
-use bollard::image::{CommitContainerOptions, CreateImageOptions, ListImagesOptions, RemoveImageOptions};
-use bollard::Docker;
+use bollard::image::{
+    CommitContainerOptions, CreateImageOptions, ListImagesOptions, RemoveImageOptions,
+};
 use futures::StreamExt;
 use tracing::instrument;
 
@@ -38,8 +40,8 @@ impl DockerBackend {
     ///
     /// Returns an error if bollard cannot resolve a Docker endpoint.
     pub fn connect() -> Result<Self> {
-        let client = Docker::connect_with_local_defaults()
-            .context("failed to connect to Docker daemon")?;
+        let client =
+            Docker::connect_with_local_defaults().context("failed to connect to Docker daemon")?;
         Ok(Self { client })
     }
 
@@ -171,11 +173,7 @@ impl Vm for DockerVm {
             ..Default::default()
         };
         self.client
-            .upload_to_container(
-                &self.container_id,
-                Some(options),
-                tar_bytes.into(),
-            )
+            .upload_to_container(&self.container_id, Some(options), tar_bytes.into())
             .await
             .with_context(|| {
                 format!(
@@ -279,10 +277,7 @@ impl Vm for DockerVm {
     async fn destroy(&mut self) -> Result<()> {
         let _ = self
             .client
-            .stop_container(
-                &self.container_id,
-                Some(StopContainerOptions { t: 0 }),
-            )
+            .stop_container(&self.container_id, Some(StopContainerOptions { t: 0 }))
             .await;
         self.client
             .remove_container(

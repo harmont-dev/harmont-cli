@@ -48,7 +48,9 @@
     "nodes": [
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -64,7 +66,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -78,7 +82,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd infra/agent && cmake -S . -B build && cmake --build build",
@@ -88,7 +94,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd infra/agent && cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure",
@@ -98,7 +106,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd infra/agent && find src tests -name '*.[ch]' -o -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror",
@@ -108,7 +118,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -124,7 +136,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -138,7 +152,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -154,7 +170,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/web && bundle exec rspec",
@@ -164,7 +182,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/web && bundle exec rubocop",

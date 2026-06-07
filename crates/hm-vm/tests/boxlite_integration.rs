@@ -4,9 +4,7 @@
 use std::sync::Arc;
 
 use hm_vm::boxlite::BoxliteBackend;
-use hm_vm::{
-    Action, CachingPolicy, HmVm, ImageRegistry, ImageSource, NullSink, VmConfig,
-};
+use hm_vm::{Action, CachingPolicy, HmVm, ImageRegistry, ImageSource, NullSink, VmConfig};
 
 fn skip_unless_enabled() -> bool {
     std::env::var("HM_VM_INTEGRATION").is_err()
@@ -33,7 +31,13 @@ async fn create_exec_snapshot_restore() {
         inject: None,
     };
     let result = vm
-        .execute(action, CachingPolicy::Cache { key: "test-1".into() }, &NullSink)
+        .execute(
+            action,
+            CachingPolicy::Cache {
+                key: "test-1".into(),
+            },
+            &NullSink,
+        )
         .await
         .unwrap();
     assert_eq!(result.exit_code, 0);
@@ -80,7 +84,9 @@ async fn cache_hit_returns_immediately() {
     let r1 = vm
         .execute(
             action.clone(),
-            CachingPolicy::Cache { key: "cached-test".into() },
+            CachingPolicy::Cache {
+                key: "cached-test".into(),
+            },
             &NullSink,
         )
         .await
@@ -91,7 +97,9 @@ async fn cache_hit_returns_immediately() {
     let r2 = vm
         .execute(
             action,
-            CachingPolicy::Cache { key: "cached-test".into() },
+            CachingPolicy::Cache {
+                key: "cached-test".into(),
+            },
             &NullSink,
         )
         .await
