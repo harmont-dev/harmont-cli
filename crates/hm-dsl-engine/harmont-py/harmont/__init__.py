@@ -246,14 +246,14 @@ def group(steps: list[Step] | tuple[Step, ...]) -> tuple[Step, ...]:
 
 __all__ = [
     "BaseImage",
+    "CMakeProject",
+    "CMakeToolchain",
     "CacheCompose",
     "CacheForever",
     "CacheNone",
     "CacheOnChange",
     "CachePolicy",
     "CacheTTL",
-    "CMakeProject",
-    "CMakeToolchain",
     "Pipeline",
     "RustProject",
     "Step",

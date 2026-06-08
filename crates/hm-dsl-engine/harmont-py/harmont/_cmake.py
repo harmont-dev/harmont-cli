@@ -46,6 +46,7 @@ _SANITIZER_FLAGS: dict[str, str] = {
 
 def _apt_packages(
     compiler: str | None,
+    *,
     ccache: bool,
     generator: str,
 ) -> tuple[str, ...]:
@@ -76,7 +77,7 @@ def _apt_packages(
     return tuple(pkgs)
 
 
-def _verify_cmd(compiler: str | None, ccache: bool, generator: str) -> str:
+def _verify_cmd(compiler: str | None, *, ccache: bool, generator: str) -> str:
     """Build the cmake-verify shell command."""
     parts = ["cmake --version"]
     if generator == "ninja":
@@ -204,10 +205,7 @@ class CMakeProject:
 
     def fmt(self, *, fix: bool = False, **kw: Any) -> Step:
         """clang-format check. Branches off ``toolchain.installed`` (NOT built)."""
-        if fix:
-            mode = "-i"
-        else:
-            mode = "--dry-run --Werror"
+        mode = "-i" if fix else "--dry-run --Werror"
         cmd = (
             f"cd {self.path} && find . -name '*.c' -o -name '*.h' "
             f"-o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | "
@@ -413,8 +411,8 @@ def _make_toolchain(
         )
         raise ValueError(msg)
 
-    apt_pkgs = _apt_packages(compiler, ccache, generator)
-    verify = _verify_cmd(compiler, ccache, generator)
+    apt_pkgs = _apt_packages(compiler, ccache=ccache, generator=generator)
+    verify = _verify_cmd(compiler, ccache=ccache, generator=generator)
 
     installed = make_install_chain(
         apt_packages=apt_pkgs,
