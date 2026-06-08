@@ -110,14 +110,15 @@ class ElixirProject:
         return self._emit(f"cd {self.path} && {cmd}", ":ex: credo", **kw)
 
     def plt(self) -> Step:
-        if self._plt_step is None:
-            step = self.installed.sh(
-                f"cd {self.path} && mix dialyzer --plt",
-                label=":ex: plt",
-                cache=CacheOnChange(paths=(f"{self.path}/mix.lock",)),
-            )
-            object.__setattr__(self, "_plt_step", step)
-        return self._plt_step  # type: ignore[return-value]
+        if self._plt_step is not None:
+            return self._plt_step
+        step = self.installed.sh(
+            f"cd {self.path} && mix dialyzer --plt",
+            label=":ex: plt",
+            cache=CacheOnChange(paths=(f"{self.path}/mix.lock",)),
+        )
+        object.__setattr__(self, "_plt_step", step)
+        return step
 
     def dialyzer(self, **kw: Any) -> Step:
         if kw.get("label") is None:
