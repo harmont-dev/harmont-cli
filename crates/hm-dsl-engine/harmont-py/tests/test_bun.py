@@ -34,7 +34,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_bun_full_chain():
     b = hm.bun(path="app/frontend")
-    p = hm.pipeline(b.install(), default_image="ubuntu:24.04")
+    p = hm.pipeline([b.install()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert any("apt-get install" in c for c in cmds)
     assert any("unzip" in c for c in cmds)
@@ -45,10 +45,7 @@ def test_bun_full_chain():
 def test_bun_actions_share_install():
     b = hm.bun(path="app/frontend")
     p = hm.pipeline(
-        b.run("build"),
-        b.test(),
-        b.lint(),
-        b.fmt(),
+        [b.run("build"), b.test(), b.lint(), b.fmt()],
         default_image="ubuntu:24.04",
     )
     cmds = _cmds(p)
@@ -68,7 +65,7 @@ def test_bun_run_script():
 
 def test_bun_version_in_install_cmd():
     b = hm.bun(path=".", version="1.2.0")
-    p = hm.pipeline(b.install())
+    p = hm.pipeline([b.install()])
     install = _step_by_substring(p, "bun.sh/install")
     assert "bun-v1.2.0" in install["cmd"]
 
@@ -80,14 +77,14 @@ def test_bun_invalid_version():
 
 def test_bun_install_cache_forever():
     b = hm.bun(path="app")
-    p = hm.pipeline(b.install())
+    p = hm.pipeline([b.install()])
     install = _step_by_substring(p, "bun.sh/install")
     assert install["cache"]["policy"] == "forever"
 
 
 def test_bun_deps_cache_on_lockfile():
     b = hm.bun(path="app/frontend")
-    p = hm.pipeline(b.install())
+    p = hm.pipeline([b.install()])
     deps = _step_by_substring(p, "bun install")
     assert deps["cache"]["policy"] == "on_change"
     assert "app/frontend/bun.lock" in deps["cache"]["paths"]
@@ -104,7 +101,7 @@ def test_bun_action_labels():
 def test_bun_with_base_skips_apt():
     base = hm.scratch().sh("base step", label="base")
     b = hm.bun(path="app", base=base)
-    p = hm.pipeline(b.install(), default_image="ubuntu:24.04")
+    p = hm.pipeline([b.install()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert not any("ca-certificates" in c for c in cmds)
     assert any("bun.sh/install" in c for c in cmds)
@@ -117,13 +114,13 @@ def test_bun_installed_is_deps_step():
 
 
 def test_bun_bare_form_install():
-    p = hm.pipeline(hm.bun.install())
+    p = hm.pipeline([hm.bun.install()])
     cmds = _cmds(p)
     assert any("cd . && bun install --frozen-lockfile" in c for c in cmds)
 
 
 def test_bun_bare_form_test():
-    p = hm.pipeline(hm.bun.test(path="app"))
+    p = hm.pipeline([hm.bun.test(path="app")])
     cmds = _cmds(p)
     assert any("cd app && bun test" in c for c in cmds)
 

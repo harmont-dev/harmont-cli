@@ -34,7 +34,7 @@ describe("examples render to v0 IR", () => {
         "pipeline.ts",
       );
       const mod = await import(pipelinePath);
-      const definitions = mod.default;
+      const definitions = mod.default ?? mod.pipelines;
 
       expect(Array.isArray(definitions)).toBe(true);
       expect(definitions.length).toBeGreaterThan(0);

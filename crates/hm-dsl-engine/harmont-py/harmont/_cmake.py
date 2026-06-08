@@ -431,7 +431,7 @@ class CMakeEntry:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.cmake(path=".", compiler="gcc-14")
-            >>> hm.pipeline(proj.build(), proj.test())
+            >>> hm.pipeline([proj.build(), proj.test()])
         """
         tc = _make_toolchain(
             compiler=compiler,

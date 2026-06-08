@@ -7,7 +7,7 @@ import { push, pullRequest } from "../src/triggers.js";
 function makeDef(overrides?: Partial<PipelineDefinition>): PipelineDefinition {
   return {
     slug: "ci",
-    pipeline: pipeline(sh("echo", { label: "test" })),
+    pipeline: pipeline([sh("echo", { label: "test" })]),
     ...overrides,
   };
 }

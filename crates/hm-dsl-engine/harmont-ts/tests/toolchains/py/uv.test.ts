@@ -131,7 +131,7 @@ describe("py.uv install chain", () => {
 describe("py.uv in pipeline", () => {
   it("produces valid IR", () => {
     const p = py.uv();
-    const ir = pipeline(p.test(), p.lint(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
     expect(ir.version).toBe("0");
   });

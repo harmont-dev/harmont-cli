@@ -13,7 +13,7 @@ def test_stack_npm_on_spec_step():
     """spec -> node install -> npm ci -> codegen. Used by dogfood."""
     spec = hm.scratch().sh("make openapi", label=":lock: spec")
     node = hm.npm(path="app/codegen", base=spec)
-    p = hm.pipeline(node.install())
+    p = hm.pipeline([node.install()])
     cmds = _cmds(p)
     assert any("make openapi" in c for c in cmds)
     assert any("deb.nodesource.com" in c for c in cmds)
@@ -37,7 +37,7 @@ def test_deterministic_emission():
 
     def build() -> dict:
         rust = hm.rust.toolchain(path="cli")
-        return hm.pipeline(rust.build(), rust.test(), default_image="ubuntu:24.04")
+        return hm.pipeline([rust.build(), rust.test()], default_image="ubuntu:24.04")
 
     assert build() == build()
 
@@ -48,11 +48,7 @@ def test_mixed_pipeline_compiles():
     node = hm.npm(path="app/codegen")
     go = hm.go(path="services/api")
     p = hm.pipeline(
-        rust.test(),
-        rust.clippy(),
-        node.install(),
-        go.build(),
-        go.test(),
+        [rust.test(), rust.clippy(), node.install(), go.build(), go.test()],
         default_image="ubuntu:24.04",
     )
     assert p["version"] == "0"
@@ -83,8 +79,7 @@ def test_apt_base_shared_across_toolchains():
     rust = hm.rust.toolchain(path=".", base=base)
     py = hm.py.uv(path="dsls/harmont-py", base=base)
     p = hm.pipeline(
-        rust.build(),
-        py.test(),
+        [rust.build(), py.test()],
         default_image="ubuntu:24.04",
     )
     cmds = _cmds(p)
@@ -101,7 +96,7 @@ def test_apt_base_default_label():
 def test_apt_base_custom_image():
     base = hm.apt_base(packages=("curl",), image="debian:bookworm")
     rust = hm.rust.toolchain(path=".", base=base)
-    p = hm.pipeline(rust.build(), default_image="ubuntu:24.04")
+    p = hm.pipeline([rust.build()], default_image="ubuntu:24.04")
     apt_step = _step_by_substring(p, "apt-get install")
     assert apt_step.get("image") == "debian:bookworm"
 

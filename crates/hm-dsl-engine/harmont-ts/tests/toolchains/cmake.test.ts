@@ -117,7 +117,7 @@ describe("cmake with vcpkg", () => {
 describe("cmake in pipeline", () => {
   it("produces valid IR", () => {
     const proj = cmake({ path: "." });
-    const ir = pipeline(proj.build(), proj.test(), {
+    const ir = pipeline([proj.build(), proj.test()], {
       defaultImage: "ubuntu:24.04",
     });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(3);

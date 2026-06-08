@@ -14,10 +14,8 @@ export {
   type Trigger,
   PushTrigger,
   PullRequestTrigger,
-  ScheduleTrigger,
   push,
   pullRequest,
-  schedule,
 } from "./triggers.js";
 export { pipeline, type PipelineIR, type PipelineOptions } from "./pipeline.js";
 export { target, clearTargetCache } from "./target.js";

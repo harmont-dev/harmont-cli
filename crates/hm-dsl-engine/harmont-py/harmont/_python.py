@@ -166,7 +166,7 @@ class PythonEntry:
         Examples:
             >>> import harmont as hm
             >>> tc = hm.python(path="services/api")
-            >>> hm.pipeline(tc.test(), tc.lint())
+            >>> hm.pipeline([tc.test(), tc.lint()])
         """
         return _make_python(path=path, uv_version=uv_version, image=image, base=base)
 

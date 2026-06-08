@@ -51,7 +51,7 @@ const defs = [];
 for (const file of tsFiles) {
   const filePath = resolve(harmontDir, file);
   const mod = await import(filePath);
-  const d = mod.default;
+  const d = mod.default ?? mod.pipelines;
   if (Array.isArray(d)) defs.push(...d);
   else if (d) defs.push(d);
 }
