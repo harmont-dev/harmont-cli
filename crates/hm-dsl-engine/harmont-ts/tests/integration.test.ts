@@ -14,10 +14,8 @@ import {
   renderEnvelope,
   push,
   pullRequest,
-  schedule,
   PushTrigger,
   PullRequestTrigger,
-  ScheduleTrigger,
   type PipelineDefinition,
 } from "../src/index.js";
 
@@ -134,7 +132,6 @@ describe("envelope", () => {
       triggers: [
         push({ branch: "main" }),
         pullRequest({ branches: "develop" }),
-        schedule("0 4 * * *"),
       ],
       pipeline: pipeline(sh("echo hello", { label: "hello" })),
     };
@@ -153,15 +150,13 @@ describe("envelope", () => {
     expect(p.allow_manual).toBe(false);
 
     // triggers
-    expect(p.triggers).toHaveLength(3);
+    expect(p.triggers).toHaveLength(2);
     expect(p.triggers[0]).toEqual({ event: "push", branches: ["main"] });
     expect(p.triggers[1]).toEqual({
       event: "pull_request",
       branches: ["develop"],
       types: ["opened", "synchronize", "reopened"],
     });
-    expect(p.triggers[2]).toEqual({ event: "schedule", cron: "0 4 * * *" });
-
     // definition is the IR
     expect(p.definition.version).toBe("0");
     expect(p.definition.graph.nodes).toHaveLength(1);
@@ -225,13 +220,9 @@ describe("public API completeness", () => {
     expect(typeof renderEnvelope).toBe("function");
     expect(typeof push).toBe("function");
     expect(typeof pullRequest).toBe("function");
-    expect(typeof schedule).toBe("function");
-
     // Trigger classes are exported as values for instanceof checks
     expect(PushTrigger).toBeDefined();
     expect(PullRequestTrigger).toBeDefined();
-    expect(ScheduleTrigger).toBeDefined();
-
     const t = push({ branch: "main" });
     expect(t instanceof PushTrigger).toBe(true);
   });

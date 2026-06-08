@@ -14,7 +14,6 @@ The whole public surface:
     @pipeline(slug, ..., triggers=[...], allow_manual=True)  -> decorator
     push(branch=..., tag=...)         -> PushTrigger
     pull_request(branches=..., types=...) -> PullRequestTrigger
-    schedule(cron=...)                 -> ScheduleTrigger
     dump_registry_json()              -> str  (HAR-9 envelope)
 
 Cache helpers: `ttl`, `on_change`, `forever`, `compose`.
@@ -54,7 +53,7 @@ from .cache import (
     CachePolicy,
     CacheTTL,
 )
-from .triggers import pull_request, push, schedule
+from .triggers import pull_request, push
 from .triggers import pull_request as pr
 from .types import Pipeline
 
@@ -277,7 +276,6 @@ __all__ = [
     "python",
     "ruby",
     "rust",
-    "schedule",
     "scratch",
     "sh",
     "target",

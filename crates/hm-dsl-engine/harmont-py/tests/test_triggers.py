@@ -1,4 +1,4 @@
-"""Trigger constructors — push/pull_request/schedule."""
+"""Trigger constructors — push/pull_request."""
 
 import pytest
 
@@ -62,16 +62,3 @@ def test_pull_request_empty_types():
         hm.pull_request(types=[])
 
 
-def test_schedule_valid_cron():
-    t = hm.schedule(cron="0 4 * * *")
-    assert t.to_dict() == {"event": "schedule", "cron": "0 4 * * *"}
-
-
-def test_schedule_invalid_cron_raises():
-    with pytest.raises(ValueError, match=r"hm\.schedule: invalid cron expression"):
-        hm.schedule(cron="not a cron")
-
-
-def test_schedule_empty_cron_raises():
-    with pytest.raises(ValueError, match=r"hm\.schedule: invalid cron expression"):
-        hm.schedule(cron="")
