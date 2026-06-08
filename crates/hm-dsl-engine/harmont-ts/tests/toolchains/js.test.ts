@@ -81,13 +81,13 @@ describe("js.project version validation", () => {
 describe("js.project PM/runtime validation", () => {
   it("rejects pm=npm with runtime=bun", () => {
     expect(() => js.project({ pm: "npm", runtime: "bun" })).toThrow(
-      'pm="npm" requires runtime="node"',
+      'runtime="bun" only supports pm="bun"',
     );
   });
 
   it("rejects pm=pnpm with runtime=bun", () => {
     expect(() => js.project({ pm: "pnpm", runtime: "bun" })).toThrow(
-      'pm="pnpm" requires runtime="node"',
+      'runtime="bun" only supports pm="bun"',
     );
   });
 
@@ -103,6 +103,17 @@ describe("js.project PM/runtime validation", () => {
 
   it("allows pm=bun with runtime=bun", () => {
     expect(() => js.project({ pm: "bun", runtime: "bun" })).not.toThrow();
+  });
+
+  it("allows yarn-classic / yarn-berry with runtime=node", () => {
+    expect(() => js.project({ pm: "yarn-classic" })).not.toThrow();
+    expect(() => js.project({ pm: "yarn-berry" })).not.toThrow();
+  });
+
+  it("rejects yarn with runtime=bun", () => {
+    expect(() => js.project({ pm: "yarn-berry", runtime: "bun" })).toThrow(
+      'runtime="bun" only supports pm="bun"',
+    );
   });
 });
 
@@ -133,15 +144,15 @@ describe("js install chain: node + npm", () => {
 // ---------------------------------------------------------------------------
 
 describe("js install chain: node + pnpm", () => {
-  it("chain is: scratch → apt-base → node-install → pnpm-global → pnpm-deps", () => {
+  it("chain is: scratch → apt-base → node-install → corepack-pnpm → pnpm-deps", () => {
     const p = js.project({ pm: "pnpm" });
     const pnpmDeps = p.install();
     expect(pnpmDeps._cmd).toContain("pnpm install --frozen-lockfile");
 
-    const pnpmGlobal = pnpmDeps._parent!;
-    expect(pnpmGlobal._cmd).toContain("npm install -g pnpm");
+    const corepack = pnpmDeps._parent!;
+    expect(corepack._cmd).toContain("corepack enable pnpm");
 
-    const nodeInstall = pnpmGlobal._parent!;
+    const nodeInstall = corepack._parent!;
     expect(nodeInstall._cmd).toContain("nodejs");
 
     const aptBase = nodeInstall._parent!;
@@ -149,6 +160,42 @@ describe("js install chain: node + pnpm", () => {
 
     const root = aptBase._parent!;
     expect(root._cmd).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Install chain structure — node + yarn (classic + berry)
+// ---------------------------------------------------------------------------
+
+describe("js install chain: node + yarn", () => {
+  it("yarn-classic: corepack enable → yarn install --frozen-lockfile", () => {
+    const p = js.project({ pm: "yarn-classic" });
+    const deps = p.install();
+    expect(deps._cmd).toContain("yarn install --frozen-lockfile");
+    expect(deps._cache).toBeDefined();
+
+    const corepack = deps._parent!;
+    expect(corepack._cmd).toContain("corepack enable");
+
+    const nodeInstall = corepack._parent!;
+    expect(nodeInstall._cmd).toContain("nodejs");
+  });
+
+  it("yarn-berry: corepack enable → yarn install --immutable", () => {
+    const p = js.project({ pm: "yarn-berry" });
+    const deps = p.install();
+    expect(deps._cmd).toContain("yarn install --immutable");
+
+    const corepack = deps._parent!;
+    expect(corepack._cmd).toContain("corepack enable");
+  });
+
+  it("both yarn variants watch yarn.lock", () => {
+    for (const pm of ["yarn-classic", "yarn-berry"] as const) {
+      const deps = js.project({ pm }).install();
+      const cache = deps._cache as { paths?: string[] };
+      expect(JSON.stringify(cache)).toContain("yarn.lock");
+    }
   });
 });
 
@@ -247,7 +294,7 @@ describe("js install chain: base step and custom image", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Actions
+// Actions — uniform run() across all PMs/runtimes
 // ---------------------------------------------------------------------------
 
 describe("js.project actions", () => {
@@ -259,47 +306,32 @@ describe("js.project actions", () => {
 
   it("run() uses pnpm run for pnpm PM", () => {
     const p = js.project({ pm: "pnpm" });
-    const r = p.run("typecheck");
-    expect(r._cmd).toContain("pnpm run typecheck");
+    expect(p.run("typecheck")._cmd).toContain("pnpm run typecheck");
+  });
+
+  it("run() uses yarn run for yarn PMs", () => {
+    expect(js.project({ pm: "yarn-classic" }).run("test")._cmd).toContain(
+      "yarn run test",
+    );
+    expect(js.project({ pm: "yarn-berry" }).run("test")._cmd).toContain(
+      "yarn run test",
+    );
   });
 
   it("run() uses bun run for bun runtime", () => {
     const p = js.project({ runtime: "bun" });
-    const r = p.run("typecheck");
-    expect(r._cmd).toContain("bun run typecheck");
+    expect(p.run("typecheck")._cmd).toContain("bun run typecheck");
   });
 
   it("run() uses deno task for deno runtime", () => {
     const p = js.project({ runtime: "deno" });
-    const r = p.run("typecheck");
-    expect(r._cmd).toContain("deno task typecheck");
+    expect(p.run("typecheck")._cmd).toContain("deno task typecheck");
   });
 
-  it("test is sugar for run('test')", () => {
+  it("actions attach to install (fan-out)", () => {
     const p = js.project();
-    const t = p.test();
-    expect(t._cmd).toContain("npm run test");
-    expect(t._parent).toBe(p.install());
-  });
-
-  it("build is sugar for run('build')", () => {
-    const p = js.project();
-    expect(p.build()._cmd).toContain("npm run build");
-  });
-
-  it("lint is sugar for run('lint')", () => {
-    const p = js.project();
-    expect(p.lint()._cmd).toContain("npm run lint");
-  });
-
-  it("fmt is sugar for run('fmt')", () => {
-    const p = js.project();
-    expect(p.fmt()._cmd).toContain("npm run fmt");
-  });
-
-  it("typecheck is sugar for run('typecheck')", () => {
-    const p = js.project();
-    expect(p.typecheck()._cmd).toContain("npm run typecheck");
+    expect(p.run("test")._parent).toBe(p.install());
+    expect(p.run("lint")._parent).toBe(p.install());
   });
 
   it("actions respect custom path", () => {
@@ -309,33 +341,15 @@ describe("js.project actions", () => {
 
   it("actions accept step options (label, timeoutSeconds)", () => {
     const p = js.project();
-    const t = p.test({ label: "my test", timeoutSeconds: 300 });
+    const t = p.run("test", { label: "my test", timeoutSeconds: 300 });
     expect(t._label).toBe("my test");
     expect(t._timeoutSeconds).toBe(300);
   });
 
-  it("default labels use :node: tag for node runtime", () => {
-    const p = js.project();
-    expect(p.test()._label).toBe(":node: test");
-    expect(p.lint()._label).toBe(":node: lint");
-  });
-
-  it("default labels use :bun: tag for bun runtime", () => {
-    const p = js.project({ runtime: "bun" });
-    expect(p.test()._label).toBe(":bun: test");
-    expect(p.lint()._label).toBe(":bun: lint");
-  });
-
-  it("default labels use :deno: tag for deno runtime", () => {
-    const p = js.project({ runtime: "deno" });
-    expect(p.test()._label).toBe(":deno: test");
-    expect(p.lint()._label).toBe(":deno: lint");
-  });
-
-  it("run label uses script name", () => {
-    const p = js.project();
-    expect(p.run("typecheck")._label).toBe(":node: typecheck");
-    expect(p.run("coverage")._label).toBe(":node: coverage");
+  it("default label is :<tag>: <script>", () => {
+    expect(js.project().run("test")._label).toBe(":node: test");
+    expect(js.project({ runtime: "bun" }).run("test")._label).toBe(":bun: test");
+    expect(js.project({ runtime: "deno" }).run("fmt")._label).toBe(":deno: fmt");
   });
 });
 
@@ -346,36 +360,53 @@ describe("js.project actions", () => {
 describe("js.project pipeline IR", () => {
   it("produces valid IR for node+npm", () => {
     const p = js.project();
-    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.run("test"), p.run("lint")], {
+      defaultImage: "ubuntu:24.04",
+    });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });
 
   it("produces valid IR for node+pnpm", () => {
     const p = js.project({ pm: "pnpm" });
-    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.run("test"), p.run("lint")], {
+      defaultImage: "ubuntu:24.04",
+    });
+    expect(ir.version).toBe("0");
+    expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("produces valid IR for node+yarn-berry", () => {
+    const p = js.project({ pm: "yarn-berry" });
+    const ir = pipeline([p.run("test"), p.run("lint")], {
+      defaultImage: "ubuntu:24.04",
+    });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(5);
   });
 
   it("produces valid IR for bun+bun", () => {
     const p = js.project({ runtime: "bun" });
-    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.run("test"), p.run("lint")], {
+      defaultImage: "ubuntu:24.04",
+    });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });
 
   it("produces valid IR for deno", () => {
     const p = js.project({ runtime: "deno" });
-    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.run("test"), p.run("lint")], {
+      defaultImage: "ubuntu:24.04",
+    });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });
 
   it("test and lint share install as parent (fan-out)", () => {
     const p = js.project();
-    const t = p.test();
-    const l = p.lint();
+    const t = p.run("test");
+    const l = p.run("lint");
     expect(t._parent).toBe(p.install());
     expect(l._parent).toBe(p.install());
   });

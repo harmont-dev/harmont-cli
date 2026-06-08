@@ -18,7 +18,7 @@ import pytest
 import harmont as hm
 from harmont._cmake import cmake
 from harmont._go import go
-from harmont._npm import npm
+from harmont._js import js
 from harmont._python import python as python_tc
 from harmont._ruby import ruby
 from harmont._rust import rust
@@ -51,7 +51,7 @@ def _assert_fixture(name: str, ir: dict) -> None:
 def _build_monorepo_ci() -> dict:
     go_project = go(path="services/api")
     py_project = python_tc(path="services/ml")
-    web_project = npm(path="web")
+    web_project = js.project(path="web")
 
     return hm.pipeline(
         [
@@ -91,7 +91,7 @@ def _build_zig_node_polyglot() -> dict:
     zig_tc = zig(base=base)
     proj_a = zig_tc.project(path="zig-a")
     proj_b = zig_tc.project(path="zig-b")
-    web = npm(path="web", base=base)
+    web = js.project(path="web", base=base)
 
     return hm.pipeline(
         [

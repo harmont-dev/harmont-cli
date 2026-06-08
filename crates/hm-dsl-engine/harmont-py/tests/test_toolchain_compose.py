@@ -12,7 +12,7 @@ def _cmds(p: dict) -> list[str]:
 def test_stack_npm_on_spec_step():
     """spec -> node install -> npm ci -> codegen. Used by dogfood."""
     spec = hm.scratch().sh("make openapi", label=":lock: spec")
-    node = hm.npm(path="app/codegen", base=spec)
+    node = hm.js.project(path="app/codegen", base=spec)
     p = hm.pipeline([node.install()])
     cmds = _cmds(p)
     assert any("make openapi" in c for c in cmds)
@@ -27,7 +27,7 @@ def test_stack_npm_on_spec_step():
 def test_escape_hatch_consistent_across_toolchains():
     """Every toolchain exposes .installed as a public Step."""
     rust = hm.rust.toolchain(path=".")
-    node = hm.npm(path=".")
+    node = hm.js.project(path=".")
     assert isinstance(rust.installed, hm.Step)
     assert isinstance(node.installed, hm.Step)
 
@@ -45,7 +45,7 @@ def test_deterministic_emission():
 def test_mixed_pipeline_compiles():
     """A pipeline mixing multiple toolchains lowers without error."""
     rust = hm.rust.toolchain(path="cli")
-    node = hm.npm(path="app/codegen")
+    node = hm.js.project(path="app/codegen")
     go = hm.go(path="services/api")
     p = hm.pipeline(
         [rust.test(), rust.clippy(), node.install(), go.build(), go.test()],
