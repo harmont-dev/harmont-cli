@@ -8,7 +8,7 @@ import { sh } from "../src/step.js";
 import { ttl } from "../src/cache.js";
 import { go } from "../src/toolchains/go.js";
 import { python } from "../src/toolchains/python.js";
-import { npm } from "../src/toolchains/npm.js";
+import { js } from "../src/toolchains/js.js";
 import { rust } from "../src/toolchains/rust.js";
 import { zig } from "../src/toolchains/zig.js";
 import { cmake } from "../src/toolchains/cmake.js";
@@ -57,7 +57,7 @@ describe("E2E pipeline fixtures", () => {
   it("monorepo-ci", () => {
     const goProject = go({ path: "services/api" });
     const pyProject = python({ path: "services/ml" });
-    const webProject = npm({ path: "web" });
+    const webProject = js.project({ path: "web" });
 
     const ir = pipeline(
       goProject.build(),
@@ -103,7 +103,7 @@ describe("E2E pipeline fixtures", () => {
     const zigTc = zig({ base });
     const projA = zigTc.project("zig-a");
     const projB = zigTc.project("zig-b");
-    const web = npm({ path: "web", base });
+    const web = js.project({ path: "web", base });
 
     const ir = pipeline(
       projA.build(),

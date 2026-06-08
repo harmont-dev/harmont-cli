@@ -1,7 +1,7 @@
 import { pipeline, push, type PipelineDefinition } from "harmont";
-import { npm } from "harmont/toolchains";
+import { js } from "harmont/toolchains";
 
-const project = npm({ path: "." });
+const project = js.project({ path: "." });
 
 const pipelines: PipelineDefinition[] = [
   {

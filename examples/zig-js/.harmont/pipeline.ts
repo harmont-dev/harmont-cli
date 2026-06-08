@@ -1,5 +1,5 @@
 import { pipeline, push, scratch, target, ttl, type PipelineDefinition } from "harmont";
-import { npm, zig } from "harmont/toolchains";
+import { js, zig } from "harmont/toolchains";
 
 const aptBase = target("apt-base", () =>
   scratch({ image: "ubuntu:24.04" }).sh(
@@ -11,7 +11,7 @@ const aptBase = target("apt-base", () =>
 const zigTc = target("zig", () => zig({ base: aptBase() }));
 const zigLibA = target("zig-lib-a", () => zigTc().project("zig-a"));
 const zigLibB = target("zig-lib-b", () => zigTc().project("zig-b"));
-const webProject = target("web-project", () => npm({ path: "web", base: aptBase() }));
+const webProject = target("web-project", () => js.project({ path: "web", base: aptBase() }));
 
 const pipelines: PipelineDefinition[] = [
   {

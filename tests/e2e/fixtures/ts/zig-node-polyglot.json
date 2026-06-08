@@ -135,8 +135,8 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs",
-          "key": "e1242026cf31",
+          "cmd": "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs",
+          "key": "a8f0d9d99460",
           "label": ":node: install"
         }
       },
