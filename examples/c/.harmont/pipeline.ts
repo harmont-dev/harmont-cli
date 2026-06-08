@@ -1,7 +1,7 @@
 import { pipeline, push, type PipelineDefinition } from "harmont";
 import { cmake } from "harmont/toolchains";
 
-const project = cmake({ path: ".", buildType: "Release" });
+const project = cmake({ path: ".", defines: { CMAKE_BUILD_TYPE: "Release" } });
 
 const pipelines: PipelineDefinition[] = [
   {
