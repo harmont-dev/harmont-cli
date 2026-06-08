@@ -11,7 +11,6 @@ def _cmds(p: dict) -> list[str]:
     return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
 
 
-
 # ---------------------------------------------------------------------------
 # TestCMakeToolchain
 # ---------------------------------------------------------------------------
@@ -274,7 +273,6 @@ class TestCMakeLabels:
     def test_lint_label(self):
         proj = hm.cmake(path="svc")
         assert proj.lint().label == ":cmake: lint"
-
 
 
 # ---------------------------------------------------------------------------

@@ -36,6 +36,7 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 
 _COMPILER_RE = re.compile(r"^(gcc|clang)(-\d+)?$")
 
+
 def _apt_packages(
     compiler: str | None,
     *,
@@ -255,10 +256,7 @@ class CMakeToolchain:
             A ``CMakeProject`` ready for action methods.
         """
         if deps is not None and deps != "vcpkg":
-            msg = (
-                f"hm.cmake: invalid deps {deps!r}\n"
-                '  → use "vcpkg" or None'
-            )
+            msg = f'hm.cmake: invalid deps {deps!r}\n  → use "vcpkg" or None'
             raise ValueError(msg)
         configure = _configure_cmd(
             path=path,
@@ -322,10 +320,7 @@ def _make_toolchain(
 ) -> CMakeToolchain:
     """Build the apt-base + cmake-verify chain and return a CMakeToolchain."""
     if generator not in ("ninja", "make"):
-        msg = (
-            f"hm.cmake: invalid generator {generator!r}\n"
-            '  → use "ninja" or "make"'
-        )
+        msg = f'hm.cmake: invalid generator {generator!r}\n  → use "ninja" or "make"'
         raise ValueError(msg)
     if compiler is not None and not _COMPILER_RE.match(compiler):
         msg = (
