@@ -192,8 +192,9 @@ class CMakeProject:
         """clang-format check. Branches off ``toolchain.installed`` (NOT built)."""
         mode = "-i" if fix else "--dry-run --Werror"
         cmd = (
-            f"cd {self.path} && find . -name '*.c' -o -name '*.h' "
-            f"-o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | "
+            f"cd {self.path} && find . -not -path './build/*'"
+            f" -name '*.c' -o -name '*.h'"
+            f" -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | "
             f"xargs clang-format {mode}"
         )
         if kw.get("label") is None:
@@ -253,6 +254,12 @@ class CMakeToolchain:
         Returns:
             A ``CMakeProject`` ready for action methods.
         """
+        if deps is not None and deps != "vcpkg":
+            msg = (
+                f"hm.cmake: invalid deps {deps!r}\n"
+                '  → use "vcpkg" or None'
+            )
+            raise ValueError(msg)
         configure = _configure_cmd(
             path=path,
             preset=preset,

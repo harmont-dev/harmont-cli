@@ -182,6 +182,7 @@ class TestCMakeProject:
         cmds = _cmds(p)
         fmt_cmd = next(c for c in cmds if "xargs clang-format" in c)
         assert "--dry-run --Werror" in fmt_cmd
+        assert "-not -path './build/*'" in fmt_cmd
 
     def test_fmt_parent_is_toolchain_installed(self):
         proj = hm.cmake(path="svc")
@@ -217,6 +218,10 @@ class TestCMakeVcpkg:
         p = hm.pipeline(proj.built, default_image="ubuntu:24.04")
         cmds = _cmds(p)
         assert any("bootstrap-vcpkg" in c for c in cmds)
+
+    def test_invalid_deps_raises_valueerror(self):
+        with pytest.raises(ValueError, match="deps"):
+            hm.cmake(path="svc", deps="conan")
 
     def test_vcpkg_step_has_on_change_cache_policy(self):
         proj = hm.cmake(path="svc", deps="vcpkg")

@@ -263,7 +263,8 @@ export class CMakeProject {
     const mode = opts?.fix ? "-i" : "--dry-run --Werror";
     const { fix: _, ...rest } = opts ?? {};
     const cmd = [
-      `cd ${this.path} && find . -name '*.c' -o -name '*.h'`,
+      `cd ${this.path} && find . -not -path './build/*'`,
+      `-name '*.c' -o -name '*.h'`,
       `-o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' |`,
       `xargs clang-format ${mode}`,
     ].join(" ");
