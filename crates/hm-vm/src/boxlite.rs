@@ -2,6 +2,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,15 +10,19 @@ use boxlite::litebox::{BoxCommand, CopyOptions};
 use boxlite::runtime::BoxliteRuntime;
 use boxlite::runtime::options::{BoxOptions, CloneOptions, RootfsSpec};
 use futures::StreamExt;
+use tokio::sync::Semaphore;
 use tracing::instrument;
 
 use crate::backend::{Vm, VmBackend};
 use crate::types::{OutputSink, SnapshotId, VmConfig};
 
 /// Boxlite-backed VM factory.
-#[derive(Debug, Clone)]
+#[derive(derive_more::Debug, Clone)]
 pub struct BoxliteBackend {
     runtime: Arc<BoxliteRuntime>,
+    /// Serialises VM starts so only one libkrun boot proceeds at a time.
+    #[debug(skip)]
+    start_gate: Arc<Semaphore>,
 }
 
 impl BoxliteBackend {
@@ -26,6 +31,7 @@ impl BoxliteBackend {
     pub fn new(runtime: BoxliteRuntime) -> Self {
         Self {
             runtime: Arc::new(runtime),
+            start_gate: Arc::new(Semaphore::new(1)),
         }
     }
 
@@ -63,6 +69,8 @@ impl VmBackend for BoxliteBackend {
         Ok(Box::new(BoxliteVm {
             inner: litebox,
             stopped: false,
+            start_gate: Arc::clone(&self.start_gate),
+            started: AtomicBool::new(false),
         }))
     }
 
@@ -83,6 +91,8 @@ impl VmBackend for BoxliteBackend {
         Ok(Box::new(BoxliteVm {
             inner: clone,
             stopped: false,
+            start_gate: Arc::clone(&self.start_gate),
+            started: AtomicBool::new(false),
         }))
     }
 
@@ -107,6 +117,10 @@ impl VmBackend for BoxliteBackend {
 struct BoxliteVm {
     inner: boxlite::litebox::LiteBox,
     stopped: bool,
+    /// Shared gate that serialises VM starts across sibling VMs.
+    start_gate: Arc<Semaphore>,
+    /// Whether this VM has been started at least once.
+    started: AtomicBool,
 }
 
 #[async_trait]
@@ -204,5 +218,39 @@ impl Vm for BoxliteVm {
             let _ = self.inner.stop().await;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn start_gate_serializes_access() {
+        let gate = Arc::new(tokio::sync::Semaphore::new(1));
+        let concurrent_count = Arc::new(AtomicUsize::new(0));
+        let max_concurrent = Arc::new(AtomicUsize::new(0));
+
+        let mut handles = vec![];
+        for _ in 0..5 {
+            let gate = Arc::clone(&gate);
+            let concurrent = Arc::clone(&concurrent_count);
+            let max = Arc::clone(&max_concurrent);
+
+            handles.push(tokio::spawn(async move {
+                let _permit = gate.acquire().await.unwrap();
+                let prev = concurrent.fetch_add(1, Ordering::SeqCst);
+                max.fetch_max(prev + 1, Ordering::SeqCst);
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                concurrent.fetch_sub(1, Ordering::SeqCst);
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        assert_eq!(max_concurrent.load(Ordering::SeqCst), 1);
     }
 }
