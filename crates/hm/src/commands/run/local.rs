@@ -64,9 +64,10 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         .map_err(|e| crate::error::HmError::PipelineRender(format!("{e:#}")))?;
     let json = json_str.into_bytes();
     let graph = decode_plan_to_wire(&json)?;
-    let parallelism = args.parallelism.unwrap_or_else(|| {
-        std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
-    });
+    // macOS Hypervisor.framework limits concurrent VMs (~2-4).
+    // Default to 2 unless the user explicitly overrides.
+    const VM_DEFAULT_PARALLELISM: usize = 2;
+    let parallelism = args.parallelism.unwrap_or(VM_DEFAULT_PARALLELISM);
 
     let backend = Arc::new(BoxliteBackend::with_defaults()?);
     let db_path = hm_util::dirs::harmont_cache_dir()

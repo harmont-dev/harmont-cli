@@ -81,8 +81,9 @@ async fn run_step_vm(vm: &HmVm, ctx: &RunContext, input: ExecutorInput) -> Resul
             .archives
             .get_bytes(input.workspace_archive_id)
             .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
-        _temp_dir =
-            Some(extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?);
+        _temp_dir = Some(
+            extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?,
+        );
         _temp_dir.as_ref().map(|d| d.path().to_path_buf())
     } else {
         _temp_dir = None;
@@ -92,7 +93,10 @@ async fn run_step_vm(vm: &HmVm, ctx: &RunContext, input: ExecutorInput) -> Resul
     // Baseline env for shell operation inside VMs.
     let mut env: Vec<(String, String)> = vec![
         ("HOME".into(), "/root".into()),
-        ("PATH".into(), "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into()),
+        (
+            "PATH".into(),
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into(),
+        ),
     ];
     env.extend(input.env);
 
