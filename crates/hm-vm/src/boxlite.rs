@@ -2,7 +2,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -123,10 +123,43 @@ struct BoxliteVm {
     started: AtomicBool,
 }
 
+impl BoxliteVm {
+    /// Serialize VM initialization across all VMs in this backend.
+    ///
+    /// Acquires the shared start gate, calls `LiteBox::start()`, then
+    /// releases. Already-started VMs skip the gate entirely.
+    #[instrument(skip(self), fields(box_id = %self.inner.id()))]
+    async fn ensure_started(&self) -> Result<()> {
+        if self.started.load(Ordering::Acquire) {
+            return Ok(());
+        }
+
+        let _permit = self
+            .start_gate
+            .acquire()
+            .await
+            .map_err(|_| anyhow::anyhow!("start gate closed"))?;
+
+        // Double-check: another caller may have started us while we waited.
+        if self.started.load(Ordering::Acquire) {
+            return Ok(());
+        }
+
+        self.inner
+            .start()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+        self.started.store(true, Ordering::Release);
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl Vm for BoxliteVm {
     #[instrument(skip(self), fields(host = %host_path.display()))]
     async fn inject(&self, host_path: &Path, guest_path: &str) -> Result<()> {
+        self.ensure_started().await?;
         let opts = CopyOptions::default().include_parent(false);
         self.inner
             .copy_into(host_path, guest_path, opts)
@@ -142,6 +175,7 @@ impl Vm for BoxliteVm {
         working_dir: &str,
         sink: &dyn OutputSink,
     ) -> Result<i32> {
+        self.ensure_started().await?;
         let mut command = BoxCommand::new("sh")
             .args(["-c", cmd])
             .working_dir(working_dir);
