@@ -6,6 +6,7 @@ const APT_PACKAGES = [
   "curl",
   "ca-certificates",
   "git",
+  "unzip",
   "build-essential",
   "autoconf",
   "libncurses-dev",
