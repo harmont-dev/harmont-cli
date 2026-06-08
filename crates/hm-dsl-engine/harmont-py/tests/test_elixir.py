@@ -21,7 +21,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_elixir_object_form_full_chain():
     ex = hm.elixir(path="apps/api")
-    p = hm.pipeline(ex.compile(), default_image="ubuntu:24.04")
+    p = hm.pipeline([ex.compile()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert any("apt-get install" in c for c in cmds)
     assert any("erlang" in c.lower() for c in cmds)
@@ -31,7 +31,7 @@ def test_elixir_object_form_full_chain():
 
 def test_elixir_actions_share_install_step():
     ex = hm.elixir(path=".")
-    p = hm.pipeline(ex.compile(), ex.test(), ex.format(), ex.credo(), default_image="ubuntu:24.04")
+    p = hm.pipeline([ex.compile(), ex.test(), ex.format(), ex.credo()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert len([c for c in cmds if "mix deps.get" in c]) == 1
     assert any("mix compile --warnings-as-errors" in c for c in cmds)
@@ -42,7 +42,7 @@ def test_elixir_actions_share_install_step():
 
 def test_elixir_install_cache_forever():
     ex = hm.elixir(path=".")
-    p = hm.pipeline(ex.compile())
+    p = hm.pipeline([ex.compile()])
     erlang = _step_by_substring(p, "erlang")
     assert erlang["cache"]["policy"] == "forever"
     elixir_step = _step_by_substring(p, "elixir --version")
@@ -51,7 +51,7 @@ def test_elixir_install_cache_forever():
 
 def test_elixir_version_in_install_cmd():
     ex = hm.elixir(elixir_version="1.18.3", otp_version="27.3.3")
-    p = hm.pipeline(ex.compile())
+    p = hm.pipeline([ex.compile()])
     elixir_step = _step_by_substring(p, "elixir-otp")
     assert "1.18.3" in elixir_step["cmd"]
     assert "27" in elixir_step["cmd"]
@@ -68,7 +68,7 @@ def test_elixir_invalid_otp_version_rejected():
 
 
 def test_elixir_bare_form_actions():
-    p = hm.pipeline(hm.elixir.compile(), hm.elixir.test(), hm.elixir.format())
+    p = hm.pipeline([hm.elixir.compile(), hm.elixir.test(), hm.elixir.format()])
     cmds = _cmds(p)
     assert any("mix compile" in c for c in cmds)
     assert any("mix test" in c for c in cmds)
@@ -93,7 +93,7 @@ def test_elixir_plt_cached_on_lock():
     step = ex.plt()
     assert "mix dialyzer --plt" in (step.cmd or "")
     assert step.label == ":ex: plt"
-    p = hm.pipeline(step)
+    p = hm.pipeline([step])
     plt_ir = next(
         n["step"] for n in p["graph"]["nodes"] if "dialyzer --plt" in (n["step"].get("cmd") or "")
     )
@@ -112,7 +112,7 @@ def test_elixir_dialyzer_chains_through_plt():
 def test_elixir_with_base_skips_apt():
     base = hm.scratch().sh("custom base", label="base")
     ex = hm.elixir(path=".", base=base)
-    p = hm.pipeline(ex.compile(), default_image="ubuntu:24.04")
+    p = hm.pipeline([ex.compile()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert not any("apt-get update && apt-get install -y" in c for c in cmds)
     assert any("custom base" in c for c in cmds)

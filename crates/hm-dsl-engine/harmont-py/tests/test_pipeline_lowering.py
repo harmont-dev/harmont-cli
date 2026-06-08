@@ -132,7 +132,7 @@ def test_pipeline_factory_collects_reachable_via_parent():
     base = scratch().sh("install", label="install")
     leaf_a = base.fork(label="a").sh("test-a", label="test-a")
     leaf_b = base.fork(label="b").sh("test-b", label="test-b")
-    p = pipeline(leaf_a, leaf_b, env={"CI": "true"})
+    p = pipeline([leaf_a, leaf_b], env={"CI": "true"})
     keys = _step_keys(p["graph"])
     assert set(keys) == {"install", "test-a", "test-b"}
     # Pipeline-level env is merged into every node.
@@ -143,14 +143,14 @@ def test_pipeline_factory_collects_reachable_via_parent():
 
 def test_pipeline_with_no_leaves_raises():
     with pytest.raises(ValueError, match="at least one leaf"):
-        pipeline()
+        pipeline([])
 
 
 def test_dedup_when_step_reachable_from_multiple_leaves():
     base = scratch().sh("install", label="install")
     a = base.sh("a", label="a")
     b = base.sh("b", label="b")
-    p = pipeline(a, b)
+    p = pipeline([a, b])
     keys = _step_keys(p["graph"])
     # `install` appears once even though it's reachable from both leaves.
     assert keys.count("install") == 1

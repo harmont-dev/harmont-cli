@@ -54,15 +54,17 @@ def _build_monorepo_ci() -> dict:
     web_project = npm(path="web")
 
     return hm.pipeline(
-        go_project.build(),
-        go_project.test(),
-        go_project.vet(),
-        py_project.test(),
-        py_project.lint(),
-        py_project.typecheck(),
-        web_project.run("build"),
-        web_project.run("test"),
-        web_project.run("lint"),
+        [
+            go_project.build(),
+            go_project.test(),
+            go_project.vet(),
+            py_project.test(),
+            py_project.lint(),
+            py_project.typecheck(),
+            web_project.run("build"),
+            web_project.run("test"),
+            web_project.run("lint"),
+        ],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
@@ -72,11 +74,7 @@ def _build_rust_release() -> dict:
     project = rust.toolchain(path=".")
 
     return hm.pipeline(
-        project.build(),
-        project.test(),
-        project.clippy(),
-        project.fmt(),
-        project.doc(),
+        [project.build(), project.test(), project.clippy(), project.fmt(), project.doc()],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
@@ -96,13 +94,15 @@ def _build_zig_node_polyglot() -> dict:
     web = npm(path="web", base=base)
 
     return hm.pipeline(
-        proj_a.build(),
-        proj_a.test(),
-        proj_b.build(),
-        proj_b.test(),
-        web.run("build"),
-        web.run("test"),
-        web.run("lint"),
+        [
+            proj_a.build(),
+            proj_a.test(),
+            proj_b.build(),
+            proj_b.test(),
+            web.run("build"),
+            web.run("test"),
+            web.run("lint"),
+        ],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
@@ -113,11 +113,7 @@ def _build_kitchen_sink() -> dict:
     rb_project = ruby(path="services/web")
 
     return hm.pipeline(
-        c_project.build(),
-        c_project.test(),
-        c_project.fmt(),
-        rb_project.test(),
-        rb_project.lint(),
+        [c_project.build(), c_project.test(), c_project.fmt(), rb_project.test(), rb_project.lint()],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )

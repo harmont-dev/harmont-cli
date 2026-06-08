@@ -61,7 +61,7 @@ def _builds_in_parent_key(out, child_key):
 
 
 def test_minimal_command():
-    p = pipeline(scratch().sh("echo hi", label="hello"))
+    p = pipeline([scratch().sh("echo hi", label="hello")])
     out = _emit(p)
     assert out["version"] == "0"
     assert len(_nodes(out)) == 1
@@ -79,13 +79,13 @@ def test_minimal_command():
 def test_chain_parent_key_in_builds_in_edge():
     a = scratch().sh("install", label="install")
     b = a.sh("build", label="build")
-    out = _emit(pipeline(b))
+    out = _emit(pipeline([b]))
     assert _builds_in_parent_key(out, "install") is None
     assert _builds_in_parent_key(out, "build") == "install"
 
 
 def test_wait_step_becomes_depends_on_edges():
-    out = _emit(pipeline(scratch().sh("a", label="a"), wait()))
+    out = _emit(pipeline([scratch().sh("a", label="a"), wait()]))
     # Wait produces no nodes; only the command step "a" is present.
     # (No post-wait steps in this case, so no depends_on edges either.)
     assert len(_nodes(out)) == 1
@@ -95,7 +95,7 @@ def test_wait_step_becomes_depends_on_edges():
 def test_wait_emits_depends_on_edges():
     a = scratch().sh("a", label="a")
     b = scratch().sh("b", label="b")
-    out = _emit(pipeline(a, wait(), b))
+    out = _emit(pipeline([a, wait(), b]))
     keys = [n["step"]["key"] for n in _nodes(out)]
     idx_a = keys.index("a")
     idx_b = keys.index("b")
@@ -104,18 +104,18 @@ def test_wait_emits_depends_on_edges():
 
 
 def test_pipeline_env_merged_into_node_env():
-    out = _emit(pipeline(scratch().sh("a", label="a"), env={"CI": "true"}))
+    out = _emit(pipeline([scratch().sh("a", label="a")], env={"CI": "true"}))
     assert _nodes(out)[0]["env"] == {"CI": "true"}
 
 
 def test_default_image_emitted_when_set():
-    out = _emit(pipeline(scratch().sh("a", label="a"), default_image="alpine:3"))
+    out = _emit(pipeline([scratch().sh("a", label="a")], default_image="alpine:3"))
     assert out["default_image"] == "alpine:3"
 
 
 def test_cache_ttl_resolves_key():
     p = pipeline(
-        scratch().sh("apt-get install -y curl", label="apt", cache=ttl(timedelta(days=1)))
+        [scratch().sh("apt-get install -y curl", label="apt", cache=ttl(timedelta(days=1)))]
     )
     out = _emit(p)
     s = _nodes(out)[0]["step"]
@@ -127,7 +127,7 @@ def test_cache_ttl_resolves_key():
 
 def test_cache_forever_with_env_keys_emitted():
     out = _emit(
-        pipeline(scratch().sh("x", label="x", cache=forever(env_keys=("FOO", "BAR")))),
+        pipeline([scratch().sh("x", label="x", cache=forever(env_keys=("FOO", "BAR")))]),
         env={"FOO": "1", "BAR": "2"},
     )
     s = _nodes(out)[0]["step"]
@@ -141,7 +141,7 @@ def test_cache_on_change_paths_round_trip(tmp_path):
     (tmp_path / "b.txt").write_bytes(b"other")
     out = json.loads(
         pipeline_to_json(
-            pipeline(scratch().sh("make", label="m", cache=on_change("a.txt", "b.txt"))),
+            pipeline([scratch().sh("make", label="m", cache=on_change("a.txt", "b.txt"))]),
             now=0,
             base_path=tmp_path,
             env={},
@@ -154,7 +154,7 @@ def test_cache_on_change_paths_round_trip(tmp_path):
 
 
 def test_no_optional_fields_when_not_set():
-    out = _emit(pipeline(scratch().sh("x", label="x")))
+    out = _emit(pipeline([scratch().sh("x", label="x")]))
     s = _nodes(out)[0]["step"]
     assert "image" not in s
     assert "timeout_seconds" not in s
@@ -162,25 +162,25 @@ def test_no_optional_fields_when_not_set():
 
 
 def test_timeout_seconds_emitted_when_set():
-    out = _emit(pipeline(scratch().sh("x", label="x", timeout_seconds=300)))
+    out = _emit(pipeline([scratch().sh("x", label="x", timeout_seconds=300)]))
     assert _nodes(out)[0]["step"]["timeout_seconds"] == 300
 
 
 def test_image_emitted_when_set():
-    out = _emit(pipeline(scratch().sh("x", label="x", image="alpine:3.19")))
+    out = _emit(pipeline([scratch().sh("x", label="x", image="alpine:3.19")]))
     assert _nodes(out)[0]["step"]["image"] == "alpine:3.19"
 
 
 def test_command_emits_runner_and_runner_args():
     out = _emit(
         pipeline(
-            scratch().sh(
+            [scratch().sh(
                 "cargo test",
                 label="t",
                 image="rust:1.82",
                 runner="freestyle",
                 runner_args={"region": "us"},
-            )
+            )]
         )
     )
     step = _nodes(out)[0]["step"]
@@ -189,7 +189,7 @@ def test_command_emits_runner_and_runner_args():
 
 
 def test_command_omits_runner_when_unset():
-    out = _emit(pipeline(scratch().sh("echo hi", label="hi")))
+    out = _emit(pipeline([scratch().sh("echo hi", label="hi")]))
     step = _nodes(out)[0]["step"]
     assert "runner" not in step
     assert "runner_args" not in step
@@ -198,7 +198,7 @@ def test_command_omits_runner_when_unset():
 def test_multi_leaf_pipeline_emits_all_command_steps():
     a = scratch().sh("a", label="a")
     b = scratch().sh("b", label="b")
-    out = _emit(pipeline(a, b))
+    out = _emit(pipeline([a, b]))
     keys = sorted(n["step"]["key"] for n in _nodes(out))
     assert keys == ["a", "b"]
 
@@ -206,7 +206,7 @@ def test_multi_leaf_pipeline_emits_all_command_steps():
 def test_pipeline_org_and_slug_threaded_through_to_cache_key():
     """Different (org, slug) pairs produce different cache keys for the
     same step. Mirrors the namespacing in harmont_macros.scm."""
-    p = pipeline(scratch().sh("x", label="x", cache=forever()))
+    p = pipeline([scratch().sh("x", label="x", cache=forever())])
     k1 = json.loads(
         pipeline_to_json(
             p,

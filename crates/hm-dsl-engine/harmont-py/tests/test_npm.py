@@ -21,7 +21,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_npm_full_chain():
     node = hm.npm(path="app/codegen")
-    p = hm.pipeline(node.install(), default_image="ubuntu:24.04")
+    p = hm.pipeline([node.install()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert any("apt-get install" in c for c in cmds)
     assert any("deb.nodesource.com/setup_20" in c for c in cmds)
@@ -31,10 +31,7 @@ def test_npm_full_chain():
 def test_npm_actions_share_install():
     node = hm.npm(path="app/codegen")
     p = hm.pipeline(
-        node.run("build"),
-        node.test(),
-        node.lint(),
-        node.fmt(),
+        [node.run("build"), node.test(), node.lint(), node.fmt()],
         default_image="ubuntu:24.04",
     )
     cmds = _cmds(p)
@@ -54,7 +51,7 @@ def test_npm_run_script():
 
 def test_npm_version_in_install_cmd():
     node = hm.npm(path=".", version="22")
-    p = hm.pipeline(node.install())
+    p = hm.pipeline([node.install()])
     install = _step_by_substring(p, "deb.nodesource.com")
     assert "setup_22.x" in install["cmd"]
 
@@ -66,14 +63,14 @@ def test_npm_invalid_version():
 
 def test_npm_node_install_cache_forever():
     node = hm.npm(path="app/codegen")
-    p = hm.pipeline(node.install())
+    p = hm.pipeline([node.install()])
     install = _step_by_substring(p, "deb.nodesource.com")
     assert install["cache"]["policy"] == "forever"
 
 
 def test_npm_ci_cache_on_package_lock():
     node = hm.npm(path="app/codegen")
-    p = hm.pipeline(node.install())
+    p = hm.pipeline([node.install()])
     npm_ci = _step_by_substring(p, "npm ci")
     assert npm_ci["cache"]["policy"] == "on_change"
     assert "app/codegen/package-lock.json" in npm_ci["cache"]["paths"]
@@ -90,7 +87,7 @@ def test_npm_action_labels():
 def test_npm_with_base_skips_apt():
     base = hm.scratch().sh("base step", label="base")
     node = hm.npm(path="app", base=base)
-    p = hm.pipeline(node.install(), default_image="ubuntu:24.04")
+    p = hm.pipeline([node.install()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     # apt-base step (installing curl + ca-certificates) is skipped; the
     # nodesource install still runs `apt-get install -y nodejs` though.
@@ -105,13 +102,13 @@ def test_npm_installed_is_npm_ci_step():
 
 
 def test_npm_bare_form_install():
-    p = hm.pipeline(hm.npm.install())
+    p = hm.pipeline([hm.npm.install()])
     cmds = _cmds(p)
     assert any("cd . && npm ci" in c for c in cmds)
 
 
 def test_npm_bare_form_test():
-    p = hm.pipeline(hm.npm.test(path="app"))
+    p = hm.pipeline([hm.npm.test(path="app")])
     cmds = _cmds(p)
     assert any("cd app && npm test" in c for c in cmds)
 
