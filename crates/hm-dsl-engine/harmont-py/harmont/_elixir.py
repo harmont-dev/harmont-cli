@@ -9,7 +9,8 @@ mix-deps (cached on mix.lock) -> action leaves.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import TYPE_CHECKING, Any
 
 from ._toolchain import make_install_chain
@@ -40,7 +41,7 @@ def _erlang_install_cmd(otp_version: str) -> str:
     return (
         f"curl -fsSL https://binaries2.erlang-solutions.com/debian/pool/contrib/e/"
         f"esl-erlang/esl-erlang_{otp_version}-1~debian~bookworm_amd64.deb "
-        f"-o /tmp/erlang.deb && dpkg -i /tmp/erlang.deb || apt-get install -fy && "
+        f"-o /tmp/erlang.deb && (dpkg -i /tmp/erlang.deb || apt-get install -fy) && "
         f"erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().' -noshell"
     )
 
@@ -113,7 +114,7 @@ class ElixirProject:
             step = self.installed.sh(
                 f"cd {self.path} && mix dialyzer --plt",
                 label=":ex: plt",
-                cache=CacheForever(env_keys=()),
+                cache=CacheOnChange(paths=(f"{self.path}/mix.lock",)),
             )
             object.__setattr__(self, "_plt_step", step)
         return self._plt_step  # type: ignore[return-value]
@@ -171,10 +172,7 @@ def _make_elixir(
         )
         raise ValueError(msg)
     if not OTP_VERSION_RE.match(otp_version):
-        msg = (
-            f"hm.elixir: invalid otp version {otp_version!r}\n"
-            '  → use a version like "27.3.3"'
-        )
+        msg = f'hm.elixir: invalid otp version {otp_version!r}\n  → use a version like "27.3.3"'
         raise ValueError(msg)
 
     otp_major = otp_version.split(".")[0]

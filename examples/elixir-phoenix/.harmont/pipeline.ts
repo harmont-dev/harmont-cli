@@ -24,7 +24,6 @@ const pipelines: PipelineDefinition[] = [
         env: {
           CI: "true",
           MIX_ENV: "test",
-          DATABASE_URL: "postgres://postgres:postgres@localhost/app_test",
         },
         defaultImage: "ubuntu:24.04",
       },

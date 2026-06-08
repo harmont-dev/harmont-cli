@@ -78,7 +78,7 @@ export class ElixirProject {
     if (this._plt == null) {
       this._plt = this._installed.sh(`cd ${this.path} && mix dialyzer --plt`, {
         label: ":ex: plt",
-        cache: forever(),
+        cache: onChange(`${this.path}/mix.lock`),
       });
     }
     return this._plt;
@@ -119,11 +119,11 @@ export class ElixirProject {
     });
   }
 
-  release(opts?: ActionOptions & { env?: string }): Step {
-    const mixEnv = opts?.env ?? "prod";
-    const { env: _, ...rest } = opts ?? {};
+  release(opts?: ActionOptions & { mixEnv?: string }): Step {
+    const env = opts?.mixEnv ?? "prod";
+    const { mixEnv: _, ...rest } = opts ?? {};
     return this._installed.sh(
-      `cd ${this.path} && MIX_ENV=${mixEnv} mix release`,
+      `cd ${this.path} && MIX_ENV=${env} mix release`,
       { label: ":ex: release", ...rest },
     );
   }
@@ -151,7 +151,7 @@ export function elixir(opts?: ElixirOptions): ElixirProject {
 
   const erlangInstallCmd = [
     `curl -fsSL https://binaries2.erlang-solutions.com/debian/pool/contrib/e/esl-erlang/esl-erlang_${otpVersion}-1~debian~bookworm_amd64.deb -o /tmp/erlang.deb`,
-    "dpkg -i /tmp/erlang.deb || apt-get install -fy",
+    "(dpkg -i /tmp/erlang.deb || apt-get install -fy)",
     "erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().' -noshell",
   ].join(" && ");
 

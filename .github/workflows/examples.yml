@@ -80,6 +80,8 @@ jobs:
           - bun
           - c
           - cpp
+          - elixir
+          - elixir-phoenix
           - go
           - nextjs
           - python-uv

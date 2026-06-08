@@ -88,14 +88,17 @@ def test_elixir_action_labels():
     assert ex.release().label == ":ex: release"
 
 
-def test_elixir_plt_cached_forever():
+def test_elixir_plt_cached_on_lock():
     ex = hm.elixir()
     step = ex.plt()
     assert "mix dialyzer --plt" in (step.cmd or "")
     assert step.label == ":ex: plt"
     p = hm.pipeline(step)
-    plt_ir = next(n["step"] for n in p["graph"]["nodes"] if "dialyzer --plt" in (n["step"].get("cmd") or ""))
-    assert plt_ir["cache"]["policy"] == "forever"
+    plt_ir = next(
+        n["step"] for n in p["graph"]["nodes"] if "dialyzer --plt" in (n["step"].get("cmd") or "")
+    )
+    assert plt_ir["cache"]["policy"] == "on_change"
+    assert "./mix.lock" in plt_ir["cache"]["paths"]
 
 
 def test_elixir_dialyzer_chains_through_plt():

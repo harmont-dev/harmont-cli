@@ -42,12 +42,12 @@ describe("elixir actions", () => {
     expect(elixir().credo()._cmd).toContain("mix credo --strict");
   });
 
-  it("plt builds PLT with forever cache", () => {
+  it("plt builds PLT with onChange cache", () => {
     const ex = elixir();
     const step = ex.plt();
     expect(step._cmd).toContain("mix dialyzer --plt");
     expect(step._label).toBe(":ex: plt");
-    expect(step._cache).toEqual({ kind: "forever", envKeys: [] });
+    expect(step._cache).toEqual({ kind: "on_change", paths: ["./mix.lock"] });
   });
 
   it("dialyzer chains through plt step", () => {
@@ -89,7 +89,7 @@ describe("elixir actions", () => {
   });
 
   it("release with custom env", () => {
-    expect(elixir().release({ env: "staging" })._cmd).toContain("MIX_ENV=staging");
+    expect(elixir().release({ mixEnv: "staging" })._cmd).toContain("MIX_ENV=staging");
   });
 
   it("actions chain from install step", () => {
