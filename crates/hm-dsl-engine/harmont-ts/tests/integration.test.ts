@@ -34,7 +34,7 @@ describe("full pipeline build", () => {
     const test = build
       .sh("npm test", { label: "test", timeoutSeconds: 300 });
 
-    const ir = pipeline(test, {
+    const ir = pipeline([test], {
       env: { CI: "true" },
       defaultImage: "node:22-alpine",
     });
@@ -77,7 +77,7 @@ describe("wait barrier", () => {
     const a = scratch().sh("step a", { label: "a" });
     const b = scratch().sh("step b", { label: "b" });
     const c = scratch().sh("step c", { label: "c" });
-    const ir = pipeline(a, b, wait(), c);
+    const ir = pipeline([a, b, wait(), c]);
 
     const keys = ir.graph.nodes.map((n) => n.step.key);
     const idxA = keys.indexOf("a");
@@ -105,7 +105,7 @@ describe("target memoization", () => {
     const branchA = nodeBase().sh("npm run lint", { label: "lint" });
     const branchB = nodeBase().sh("npm test", { label: "test" });
 
-    const ir = pipeline(branchA, branchB);
+    const ir = pipeline([branchA, branchB]);
 
     // node-base should appear exactly once (memoized)
     const keys = ir.graph.nodes.map((n) => n.step.key);
@@ -136,7 +136,7 @@ describe("envelope", () => {
         pullRequest({ branches: "develop" }),
         schedule("0 4 * * *"),
       ],
-      pipeline: pipeline(sh("echo hello", { label: "hello" })),
+      pipeline: pipeline([sh("echo hello", { label: "hello" })]),
     };
 
     const json = renderEnvelope([def]);
@@ -175,7 +175,7 @@ describe("JSON snake_case output", () => {
       timeoutSeconds: 600,
       cache: onChange("src/", "lib/"),
     });
-    const ir = pipeline(s, { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
     const json = JSON.stringify(ir);
 
     // Must contain snake_case keys
@@ -197,7 +197,7 @@ describe("JSON snake_case output", () => {
     const def: PipelineDefinition = {
       slug: "ci",
       allowManual: true,
-      pipeline: pipeline(sh("echo")),
+      pipeline: pipeline([sh("echo")]),
     };
     const json = renderEnvelope([def]);
 

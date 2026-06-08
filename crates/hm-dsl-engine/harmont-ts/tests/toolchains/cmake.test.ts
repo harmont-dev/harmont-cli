@@ -48,7 +48,7 @@ describe("cmake actions", () => {
 describe("cmake in pipeline", () => {
   it("produces valid IR", () => {
     const c = cmake();
-    const ir = pipeline(c.build(), c.test(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([c.build(), c.test()], { defaultImage: "ubuntu:24.04" });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(3);
   });
 });

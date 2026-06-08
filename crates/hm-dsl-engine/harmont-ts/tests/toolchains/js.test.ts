@@ -346,28 +346,28 @@ describe("js.project actions", () => {
 describe("js.project pipeline IR", () => {
   it("produces valid IR for node+npm", () => {
     const p = js.project();
-    const ir = pipeline(p.test(), p.lint(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });
 
   it("produces valid IR for node+pnpm", () => {
     const p = js.project({ pm: "pnpm" });
-    const ir = pipeline(p.test(), p.lint(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(5);
   });
 
   it("produces valid IR for bun+bun", () => {
     const p = js.project({ runtime: "bun" });
-    const ir = pipeline(p.test(), p.lint(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });
 
   it("produces valid IR for deno", () => {
     const p = js.project({ runtime: "deno" });
-    const ir = pipeline(p.test(), p.lint(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });

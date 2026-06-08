@@ -27,6 +27,10 @@ export function pipeline(
   leaves: Step[],
   opts?: PipelineOptions,
 ): PipelineIR {
+  if (!Array.isArray(leaves)) {
+    throw new Error("pipeline() expects an array of steps as its first argument");
+  }
+
   if (leaves.length === 0) {
     throw new Error(
       "pipeline must have at least one leaf — pass the terminal step(s) of each branch as the first argument",
