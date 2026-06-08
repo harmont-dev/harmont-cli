@@ -15,6 +15,9 @@ fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::PipelineG
     serde_json::from_slice(bytes).map_err(|e| anyhow::anyhow!("decode pipeline JSON: {e}"))
 }
 
+// macOS Hypervisor.framework limits concurrent VMs (~2-4).
+const VM_DEFAULT_PARALLELISM: usize = 2;
+
 /// Run a pipeline locally via the VM runner.
 ///
 /// # Errors
@@ -64,9 +67,6 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         .map_err(|e| crate::error::HmError::PipelineRender(format!("{e:#}")))?;
     let json = json_str.into_bytes();
     let graph = decode_plan_to_wire(&json)?;
-    // macOS Hypervisor.framework limits concurrent VMs (~2-4).
-    // Default to 2 unless the user explicitly overrides.
-    const VM_DEFAULT_PARALLELISM: usize = 2;
     let parallelism = args.parallelism.unwrap_or(VM_DEFAULT_PARALLELISM);
 
     let backend = Arc::new(BoxliteBackend::with_defaults()?);
@@ -75,7 +75,8 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         .join("registry.db");
     let registry = ImageRegistry::open(&db_path, 64)?;
     let config = VmConfig {
-        disk_size_gb: Some(4),
+        memory_mib: Some(8192),
+        disk_size_gb: Some(10),
         ..VmConfig::default()
     };
     let vm = Arc::new(HmVm::new(backend, registry, config));

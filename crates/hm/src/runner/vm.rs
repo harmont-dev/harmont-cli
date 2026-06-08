@@ -75,19 +75,17 @@ async fn run_step_vm(vm: &HmVm, ctx: &RunContext, input: ExecutorInput) -> Resul
 
     // Only inject workspace for root steps (no parent snapshot).
     // Child steps inherit workspace from the parent via COW snapshot.
-    let _temp_dir;
-    let inject = if input.parent_snapshot.is_none() {
+    let (inject, _temp_guard) = if input.parent_snapshot.is_none() {
         let archive_bytes = ctx
             .archives
             .get_bytes(input.workspace_archive_id)
             .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
-        _temp_dir = Some(
-            extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?,
-        );
-        _temp_dir.as_ref().map(|d| d.path().to_path_buf())
+        let dir =
+            extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
+        let path = dir.path().to_path_buf();
+        (Some(path), Some(dir))
     } else {
-        _temp_dir = None;
-        None
+        (None, None)
     };
 
     // Baseline env for shell operation inside VMs.

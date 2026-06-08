@@ -1,5 +1,6 @@
 //! Integration tests for the boxlite backend.
-//! Gate: set HM_VM_INTEGRATION=1 to run.
+//! Gate: set `HM_VM_INTEGRATION=1` to run.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::sync::Arc;
 
