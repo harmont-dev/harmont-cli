@@ -113,7 +113,13 @@ def _build_kitchen_sink() -> dict:
     rb_project = ruby(path="services/web")
 
     return hm.pipeline(
-        [c_project.build(), c_project.test(), c_project.fmt(), rb_project.test(), rb_project.lint()],
+        [
+            c_project.build(),
+            c_project.test(),
+            c_project.fmt(),
+            rb_project.test(),
+            rb_project.lint(),
+        ],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
