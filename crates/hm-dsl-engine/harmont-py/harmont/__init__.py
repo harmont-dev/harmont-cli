@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 from . import _decorator, py
 from ._bun import bun
-from ._cmake import cmake
+from ._cmake import CMakeProject, CMakeToolchain, cmake
 from ._envelope import dump_registry_json
 from ._go import go
 from ._npm import npm
@@ -252,6 +252,8 @@ __all__ = [
     "CacheOnChange",
     "CachePolicy",
     "CacheTTL",
+    "CMakeProject",
+    "CMakeToolchain",
     "Pipeline",
     "RustProject",
     "Step",

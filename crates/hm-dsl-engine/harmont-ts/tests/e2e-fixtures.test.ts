@@ -121,7 +121,7 @@ describe("E2E pipeline fixtures", () => {
   });
 
   it("kitchen-sink", () => {
-    const cProject = cmake({ path: "infra/agent", lang: "c" });
+    const cProject = cmake({ path: "infra/agent" });
     const rbProject = ruby({ path: "services/web" });
 
     const ir = pipeline(
@@ -135,5 +135,22 @@ describe("E2E pipeline fixtures", () => {
 
     expect(ir.version).toBe("0");
     assertFixture("kitchen-sink", ir);
+  });
+
+  it("cmake-advanced", () => {
+    const project = cmake({ path: ".", compiler: "clang-18", buildType: "Release", std: 20 });
+
+    const ir = pipeline(
+      project.test(),
+      project.lint(),
+      project.fmt(),
+      project.sanitize("asan"),
+      project.coverage(),
+      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
+    );
+
+    expect(ir.version).toBe("0");
+    expect(ir.graph.nodes.length).toBeGreaterThan(3);
+    assertFixture("cmake-advanced", ir);
   });
 });
