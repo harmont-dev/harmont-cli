@@ -57,7 +57,7 @@ for (const file of tsFiles) {
 }
 
 const { renderEnvelope } = await import('harmont');
-const envelope = JSON.parse(renderEnvelope(defs));
+const envelope = JSON.parse(renderEnvelope(defs, { basePath: projectDir }));
 
 if (mode === 'render') {
   const match = envelope.pipelines.find(p => p.slug === slug);

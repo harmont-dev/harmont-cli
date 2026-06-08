@@ -1,4 +1,8 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { forever } from "../src/cache.js";
 import { renderEnvelope, type PipelineDefinition } from "../src/envelope.js";
 import { pipeline } from "../src/pipeline.js";
 import { sh } from "../src/step.js";
@@ -56,5 +60,29 @@ describe("renderEnvelope", () => {
     expect(parsed.pipelines).toHaveLength(2);
     expect(parsed.pipelines[0].slug).toBe("ci");
     expect(parsed.pipelines[1].slug).toBe("deploy");
+  });
+
+  it("resolves cache keys when basePath is provided", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "envelope-test-"));
+    const def: PipelineDefinition = {
+      slug: "ci",
+      pipeline: pipeline([sh("apt-get update", { label: "apt", cache: forever() })]),
+    };
+    const json = renderEnvelope([def], { basePath: tmp, now: 1000000 });
+    const parsed = JSON.parse(json);
+    const cache = parsed.pipelines[0].definition.graph.nodes[0].step.cache;
+    expect(cache.key).toBeTypeOf("string");
+    expect(cache.key.length).toBe(64);
+  });
+
+  it("skips cache key resolution when basePath is absent", () => {
+    const def: PipelineDefinition = {
+      slug: "ci",
+      pipeline: pipeline([sh("apt-get update", { label: "apt", cache: forever() })]),
+    };
+    const json = renderEnvelope([def]);
+    const parsed = JSON.parse(json);
+    const cache = parsed.pipelines[0].definition.graph.nodes[0].step.cache;
+    expect(cache.key).toBeUndefined();
   });
 });
