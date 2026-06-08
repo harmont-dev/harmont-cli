@@ -3,7 +3,7 @@ import { js } from "harmont/toolchains";
 
 const project = js.project({ path: "." });
 
-const pipelines: PipelineDefinition[] = [
+export const pipelines: PipelineDefinition[] = [
   {
     slug: "ci",
     triggers: [push({ branch: "main" })],
@@ -14,4 +14,3 @@ const pipelines: PipelineDefinition[] = [
   },
 ];
 
-export default pipelines;
