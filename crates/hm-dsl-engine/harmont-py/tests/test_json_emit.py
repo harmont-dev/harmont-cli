@@ -174,13 +174,15 @@ def test_image_emitted_when_set():
 def test_command_emits_runner_and_runner_args():
     out = _emit(
         pipeline(
-            [scratch().sh(
-                "cargo test",
-                label="t",
-                image="rust:1.82",
-                runner="freestyle",
-                runner_args={"region": "us"},
-            )]
+            [
+                scratch().sh(
+                    "cargo test",
+                    label="t",
+                    image="rust:1.82",
+                    runner="freestyle",
+                    runner_args={"region": "us"},
+                )
+            ]
         )
     )
     step = _nodes(out)[0]["step"]

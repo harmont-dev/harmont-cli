@@ -60,5 +60,3 @@ def test_pull_request_invalid_type():
 def test_pull_request_empty_types():
     with pytest.raises(ValueError, match=r"hm\.pull_request: types must be non-empty"):
         hm.pull_request(types=[])
-
-

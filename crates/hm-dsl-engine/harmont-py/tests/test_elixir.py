@@ -31,7 +31,10 @@ def test_elixir_object_form_full_chain():
 
 def test_elixir_actions_share_install_step():
     ex = hm.elixir(path=".")
-    p = hm.pipeline([ex.compile(), ex.test(), ex.format(), ex.credo()], default_image="ubuntu:24.04")
+    p = hm.pipeline(
+        [ex.compile(), ex.test(), ex.format(), ex.credo()],
+        default_image="ubuntu:24.04",
+    )
     cmds = _cmds(p)
     assert len([c for c in cmds if "mix deps.get" in c]) == 1
     assert any("mix compile --warnings-as-errors" in c for c in cmds)

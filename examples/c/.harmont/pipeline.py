@@ -11,9 +11,8 @@ import harmont as hm
     triggers=[hm.push(branch="main")],
 )
 def ci() -> tuple[hm.Step, ...]:
-    project = hm.cmake(path=".", lang="c")
+    project = hm.cmake(path=".", defines={"CMAKE_BUILD_TYPE": "Release"})
     return (
-        project.build(),
         project.test(),
         project.fmt(),
     )

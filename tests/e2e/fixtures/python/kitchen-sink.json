@@ -14,7 +14,7 @@
         "builds_in"
       ],
       [
-        1,
+        2,
         3,
         "builds_in"
       ],
@@ -56,10 +56,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y build-essential cmake ninja-build clang-format",
+          "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy",
           "image": "ubuntu:24.04",
-          "key": "c56a1dc5539c",
-          "label": ":c: apt-base"
+          "key": "fdcc2fd62363",
+          "label": ":cmake: apt-base"
         }
       },
       {
@@ -71,9 +71,9 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "cmake --version && clang-format --version",
-          "key": "cmake-verify",
-          "label": ":c: cmake-verify"
+          "cmd": "cmake --version && ninja --version && ccache --version",
+          "key": "verify",
+          "label": ":cmake: verify"
         }
       },
       {
@@ -81,9 +81,15 @@
           "CI": "true"
         },
         "step": {
-          "cmd": "cd infra/agent && cmake -S . -B build && cmake --build build",
+          "cache": {
+            "paths": [
+              "infra/agent/CMakeLists.txt"
+            ],
+            "policy": "on_change"
+          },
+          "cmd": "cd infra/agent && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && cmake --build build --parallel $(nproc)",
           "key": "build",
-          "label": ":c: build"
+          "label": ":cmake: build"
         }
       },
       {
@@ -91,9 +97,9 @@
           "CI": "true"
         },
         "step": {
-          "cmd": "cd infra/agent && cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure",
-          "key": "4afb135f1765",
-          "label": ":c: test"
+          "cmd": "cmake --build infra/agent/build --parallel $(nproc) && ctest --test-dir infra/agent/build --output-on-failure --parallel $(nproc)",
+          "key": "431f35b84318",
+          "label": ":cmake: test"
         }
       },
       {
@@ -101,9 +107,9 @@
           "CI": "true"
         },
         "step": {
-          "cmd": "cd infra/agent && find src tests -name '*.[ch]' -o -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror",
+          "cmd": "cd infra/agent && find . -not -path './build/*' -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | xargs clang-format --dry-run --Werror",
           "key": "fmt",
-          "label": ":c: fmt"
+          "label": ":cmake: fmt"
         }
       },
       {
