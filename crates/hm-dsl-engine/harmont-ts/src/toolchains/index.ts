@@ -1,5 +1,4 @@
-export { npm, NpmProject, type NpmOptions } from "./npm.js";
-export { bun, BunProject, type BunOptions } from "./bun.js";
+export { js, ts, JsProject, type JsOptions } from "./js.js";
 export { go, GoToolchain, type GoOptions } from "./go.js";
 export { rust, RustToolchain, RustProject, type RustToolchainOptions, type RustProjectOptions } from "./rust.js";
 export { python, PythonToolchain, type PythonOptions } from "./python.js";
