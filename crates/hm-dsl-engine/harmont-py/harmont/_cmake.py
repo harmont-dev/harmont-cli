@@ -16,7 +16,7 @@ The chain is:
 
 ``CMakeToolchain`` holds the verified install step.  ``CMakeProject``
 holds a pre-built warmup step and exposes action methods (test, install,
-fmt, lint, coverage, sanitize, package).
+fmt, lint, package).
 """
 
 from __future__ import annotations
@@ -36,14 +36,6 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 
 _COMPILER_RE = re.compile(r"^(gcc|clang)(-\d+)?$")
 
-_SANITIZER_FLAGS: dict[str, str] = {
-    "asan": "address,undefined",
-    "tsan": "thread",
-    "ubsan": "undefined",
-    "msan": "memory",
-}
-
-
 def _apt_packages(
     compiler: str | None,
     *,
@@ -58,7 +50,6 @@ def _apt_packages(
         pkgs.append("ccache")
     pkgs.append("clang-format")
     pkgs.append("clang-tidy")
-    pkgs.append("lcov")
     if compiler is not None:
         m = _COMPILER_RE.match(compiler)
         if m is None:
@@ -172,7 +163,6 @@ class CMakeProject:
     toolchain: CMakeToolchain
     built: Step
     path: str
-    _configure_cmd: str
     _build_cmd: str
 
     def build(self) -> Step:
@@ -216,60 +206,6 @@ class CMakeProject:
         if kw.get("label") is None:
             kw["label"] = ":cmake: lint"
         return self.built.sh(cmd, **kw)
-
-    def coverage(self, **kw: Any) -> Step:
-        """Separate Debug build with --coverage + lcov. Branches off ``toolchain.installed``."""
-        cov_configure = _configure_cmd(
-            path=self.path,
-            preset=None,
-            defines={"CMAKE_BUILD_TYPE": "Debug"},
-            compiler=self.toolchain.compiler,
-            ccache=self.toolchain.ccache,
-            generator=self.toolchain.generator,
-            build_dir="build-cov",
-        )
-        # Append coverage flags via CMAKE_C_FLAGS / CMAKE_CXX_FLAGS
-        cov_flags = "--coverage -fno-omit-frame-pointer"
-        cov_configure += f" -DCMAKE_C_FLAGS='{cov_flags}' -DCMAKE_CXX_FLAGS='{cov_flags}'"
-        cov_build = _build_cmd(self.path, target=None, build_dir="build-cov", relative=True)
-        cmd = (
-            f"{cov_configure} && {cov_build} && "
-            f"ctest --test-dir build-cov --output-on-failure && "
-            f"lcov --capture --directory build-cov --output-file coverage.info && "
-            f"lcov --remove coverage.info '/usr/*' --output-file coverage.info"
-        )
-        if kw.get("label") is None:
-            kw["label"] = ":cmake: coverage"
-        return self.toolchain.installed.sh(cmd, **kw)
-
-    def sanitize(self, kind: str = "asan", **kw: Any) -> Step:
-        """Separate Debug build with sanitizer flags. Branches off ``toolchain.installed``."""
-        if kind not in _SANITIZER_FLAGS:
-            msg = (
-                f"hm.cmake: unknown sanitizer kind {kind!r}\n"
-                f'  → use one of: {", ".join(sorted(_SANITIZER_FLAGS))}'
-            )
-            raise ValueError(msg)
-        san_flags = f"-fsanitize={_SANITIZER_FLAGS[kind]} -fno-omit-frame-pointer -g"
-        build_dir = f"build-{kind}"
-        san_configure = _configure_cmd(
-            path=self.path,
-            preset=None,
-            defines={"CMAKE_BUILD_TYPE": "Debug"},
-            compiler=self.toolchain.compiler,
-            ccache=self.toolchain.ccache,
-            generator=self.toolchain.generator,
-            build_dir=build_dir,
-        )
-        san_configure += f" -DCMAKE_C_FLAGS='{san_flags}' -DCMAKE_CXX_FLAGS='{san_flags}'"
-        san_build = _build_cmd(self.path, target=None, build_dir=build_dir, relative=True)
-        cmd = (
-            f"{san_configure} && {san_build} && "
-            f"ctest --test-dir {build_dir} --output-on-failure"
-        )
-        if kw.get("label") is None:
-            kw["label"] = f":cmake: {kind}"
-        return self.toolchain.installed.sh(cmd, **kw)
 
     def package(self, *, generator: str | None = None, **kw: Any) -> Step:
         """cpack. Branches off ``built``."""
@@ -365,7 +301,6 @@ class CMakeToolchain:
             toolchain=self,
             built=built,
             path=path,
-            _configure_cmd=configure,
             _build_cmd=build_abs,
         )
 
@@ -543,14 +478,6 @@ class CMakeEntry:
     def install(self, **kw: Any) -> Step:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
         return self._project(**kw).install(**action_kw)
-
-    def coverage(self, **kw: Any) -> Step:
-        action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
-        return self._project(**kw).coverage(**action_kw)
-
-    def sanitize(self, **kw: Any) -> Step:
-        action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}
-        return self._project(**kw).sanitize(**action_kw)
 
     def package(self, **kw: Any) -> Step:
         action_kw = {k: kw.pop(k) for k in list(kw) if k in _ACTION_KWARGS}

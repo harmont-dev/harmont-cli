@@ -207,85 +207,6 @@ class TestCMakeProject:
 
 
 # ---------------------------------------------------------------------------
-# TestCMakeSanitizers
-# ---------------------------------------------------------------------------
-
-
-class TestCMakeSanitizers:
-    def test_asan_uses_address_undefined_flags(self):
-        proj = hm.cmake(path="svc")
-        p = hm.pipeline(proj.sanitize("asan"), default_image="ubuntu:24.04")
-        cmds = _cmds(p)
-        san_cmd = next(c for c in cmds if "fsanitize" in c)
-        assert "-fsanitize=address,undefined" in san_cmd
-        assert "-fno-omit-frame-pointer" in san_cmd
-
-    def test_tsan_uses_thread_flag(self):
-        proj = hm.cmake(path="svc")
-        p = hm.pipeline(proj.sanitize("tsan"), default_image="ubuntu:24.04")
-        cmds = _cmds(p)
-        san_cmd = next(c for c in cmds if "fsanitize" in c)
-        assert "-fsanitize=thread" in san_cmd
-
-    def test_sanitize_runs_in_build_kind_dir(self):
-        proj = hm.cmake(path="svc")
-        p = hm.pipeline(proj.sanitize("asan"), default_image="ubuntu:24.04")
-        cmds = _cmds(p)
-        san_cmd = next(c for c in cmds if "fsanitize" in c)
-        assert "build-asan" in san_cmd
-
-    def test_sanitize_uses_debug_build_type(self):
-        proj = hm.cmake(path="svc")
-        p = hm.pipeline(proj.sanitize("asan"), default_image="ubuntu:24.04")
-        cmds = _cmds(p)
-        san_cmd = next(c for c in cmds if "fsanitize" in c)
-        assert "CMAKE_BUILD_TYPE=Debug" in san_cmd
-
-    def test_invalid_sanitizer_raises_valueerror(self):
-        proj = hm.cmake(path="svc")
-        with pytest.raises(ValueError, match="sanitizer"):
-            proj.sanitize("invalid")
-
-    def test_sanitize_parent_is_toolchain_installed(self):
-        proj = hm.cmake(path="svc")
-        san_step = proj.sanitize("asan")
-        assert san_step.parent is proj.toolchain.installed
-
-
-# ---------------------------------------------------------------------------
-# TestCMakeCoverage
-# ---------------------------------------------------------------------------
-
-
-class TestCMakeCoverage:
-    def test_coverage_uses_coverage_flags(self):
-        proj = hm.cmake(path="svc")
-        p = hm.pipeline(proj.coverage(), default_image="ubuntu:24.04")
-        cmds = _cmds(p)
-        cov_cmd = next(c for c in cmds if "--coverage" in c)
-        assert "--coverage" in cov_cmd
-
-    def test_coverage_runs_lcov(self):
-        proj = hm.cmake(path="svc")
-        p = hm.pipeline(proj.coverage(), default_image="ubuntu:24.04")
-        cmds = _cmds(p)
-        cov_cmd = next(c for c in cmds if "lcov" in c)
-        assert "lcov" in cov_cmd
-
-    def test_coverage_uses_build_cov_dir(self):
-        proj = hm.cmake(path="svc")
-        p = hm.pipeline(proj.coverage(), default_image="ubuntu:24.04")
-        cmds = _cmds(p)
-        cov_cmd = next(c for c in cmds if "--coverage" in c)
-        assert "build-cov" in cov_cmd
-
-    def test_coverage_parent_is_toolchain_installed(self):
-        proj = hm.cmake(path="svc")
-        cov_step = proj.coverage()
-        assert cov_step.parent is proj.toolchain.installed
-
-
-# ---------------------------------------------------------------------------
 # TestCMakeVcpkg
 # ---------------------------------------------------------------------------
 
@@ -349,13 +270,6 @@ class TestCMakeLabels:
         proj = hm.cmake(path="svc")
         assert proj.lint().label == ":cmake: lint"
 
-    def test_sanitize_tsan_label(self):
-        proj = hm.cmake(path="svc")
-        assert proj.sanitize("tsan").label == ":cmake: tsan"
-
-    def test_coverage_label(self):
-        proj = hm.cmake(path="svc")
-        assert proj.coverage().label == ":cmake: coverage"
 
 
 # ---------------------------------------------------------------------------
