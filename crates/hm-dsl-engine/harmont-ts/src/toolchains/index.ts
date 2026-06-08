@@ -19,3 +19,4 @@ export {
   type ZigOptions,
 } from "./zig.js";
 export * as py from "./py/index.js";
+export { elixir, ElixirProject, type ElixirOptions } from "./elixir.js";
