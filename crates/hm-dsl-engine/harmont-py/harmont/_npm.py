@@ -123,7 +123,7 @@ class NpmEntry:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.npm(path="frontend", version="20")
-            >>> hm.pipeline(proj.test())
+            >>> hm.pipeline([proj.test()])
         """
         return _make_npm(path=path, version=version, image=image, base=base)
 

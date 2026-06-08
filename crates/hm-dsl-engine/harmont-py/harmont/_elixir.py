@@ -243,7 +243,7 @@ class ElixirEntry:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.elixir(elixir_version="1.18.3")
-            >>> hm.pipeline(proj.compile(), proj.test())
+            >>> hm.pipeline([proj.compile(), proj.test()])
         """
         return _make_elixir(
             path=path,

@@ -135,7 +135,7 @@ class CMakeEntry:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.cmake(lang="cpp")
-            >>> hm.pipeline(proj.build(), proj.test())
+            >>> hm.pipeline([proj.build(), proj.test()])
         """
         return _make_cmake(path=path, lang=lang, image=image, base=base)
 
