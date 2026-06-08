@@ -8,7 +8,7 @@ The whole public surface:
     Step.fork(label=None)    -> Step
     wait(*, continue_on_failure=False) -> Step
 
-    pipeline(*leaves, env=None, default_image=None) -> dict (v0 IR)
+    pipeline(leaves, *, env=None, default_image=None) -> dict (v0 IR)
     pipeline_to_json(p, **kw) -> str
 
     @pipeline(slug, ..., triggers=[...], allow_manual=True)  -> decorator
@@ -67,9 +67,9 @@ def pipeline(*args: Any, **kwargs: Any) -> Any:
 
     This function is polymorphic based on the type of its positional arguments.
 
-    Factory form — every positional is a ``Step``:
+    Factory form — first positional is a list/tuple of ``Step``s:
 
-        pipeline(*leaves, env=None, default_image=None) -> dict
+        pipeline([step1, step2, ...], env=None, default_image=None) -> dict
 
     Decorator form — no positionals or a string slug:
 
@@ -77,16 +77,15 @@ def pipeline(*args: Any, **kwargs: Any) -> Any:
                   env=None, default_image=None)
         def my_pipeline() -> Step: ...
 
-    The decorator registers the wrapped function in the module-level
-    pipeline registry (HAR-9). The discriminant is the type of the
-    positional arguments: any non-``Step`` positional (including a string
-    slug, or no positional at all) routes to the decorator path.
+    The discriminant is the type of the first positional argument:
+    a list or tuple routes to the factory path; anything else
+    (including no positionals) routes to the decorator path.
 
     Returns:
         A v0 IR ``dict`` in factory form, or a decorator in decorator form.
     """
-    if args and all(isinstance(a, Step) for a in args):
-        return _pipeline_factory(*args, **kwargs)
+    if args and isinstance(args[0], (list, tuple)):
+        return _pipeline_factory(args[0], **kwargs)
     return _decorator.pipeline(*args, **kwargs)
 
 
