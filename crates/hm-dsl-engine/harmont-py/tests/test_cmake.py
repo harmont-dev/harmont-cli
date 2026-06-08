@@ -11,9 +11,6 @@ def _cmds(p: dict) -> list[str]:
     return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
 
 
-def _labels(p: dict) -> list[str]:
-    return [n["step"].get("label", "") for n in p["graph"]["nodes"]]
-
 
 # ---------------------------------------------------------------------------
 # TestCMakeToolchain
