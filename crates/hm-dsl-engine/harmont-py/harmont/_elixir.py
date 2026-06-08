@@ -34,6 +34,8 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 
 _ELIXIR_ACTION_KWARGS = frozenset(("cover", "partitions", "strict", "mix_env"))
 
+_ELIXIR_ENV = {"ELIXIR_ERL_OPTIONS": "+fnu"}
+
 ELIXIR_VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 OTP_VERSION_RE = re.compile(r"^[0-9]+(\.[0-9]+(\.[0-9]+)?)?$")
 
@@ -74,6 +76,7 @@ class ElixirProject:
     def _emit(self, cmd: str, default_label: str, **kw: Any) -> Step:
         if kw.get("label") is None:
             kw["label"] = default_label
+        kw["env"] = {**_ELIXIR_ENV, **(kw.get("env") or {})}
         return self.installed.sh(cmd, **kw)
 
     def compile(self, **kw: Any) -> Step:
@@ -117,6 +120,7 @@ class ElixirProject:
             f"cd {self.path} && mix dialyzer --plt",
             label=":ex: plt",
             cache=CacheOnChange(paths=(f"{self.path}/mix.lock",)),
+            env=_ELIXIR_ENV,
         )
         object.__setattr__(self, "_plt_step", step)
         return step
@@ -124,6 +128,7 @@ class ElixirProject:
     def dialyzer(self, **kw: Any) -> Step:
         if kw.get("label") is None:
             kw["label"] = ":ex: dialyzer"
+        kw["env"] = {**_ELIXIR_ENV, **(kw.get("env") or {})}
         return self.plt().sh(f"cd {self.path} && mix dialyzer", **kw)
 
     def sobelow(self, **kw: Any) -> Step:
@@ -192,11 +197,13 @@ def _make_elixir(
         _elixir_install_cmd(elixir_version, otp_major),
         label=":ex: elixir-install",
         cache=CacheForever(env_keys=()),
+        env=_ELIXIR_ENV,
     )
     deps = elixir_installed.sh(
         f"cd {path} && mix deps.get && mix deps.compile",
         label=":ex: mix-deps",
         cache=CacheOnChange(paths=(f"{path}/mix.lock",)),
+        env=_ELIXIR_ENV,
     )
     return ElixirProject(path=path, installed=deps)
 

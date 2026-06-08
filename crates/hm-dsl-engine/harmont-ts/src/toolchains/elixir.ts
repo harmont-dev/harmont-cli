@@ -13,6 +13,8 @@ const APT_PACKAGES = [
   "libssl-dev",
 ] as const;
 
+const ELIXIR_ENV = { ELIXIR_ERL_OPTIONS: "+fnu" } as const;
+
 const ELIXIR_VERSION_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const OTP_VERSION_RE = /^[0-9]+(\.[0-9]+(\.[0-9]+)?)?$/;
 
@@ -40,8 +42,13 @@ export class ElixirProject {
     return this._installed;
   }
 
+  private _sh(parent: Step, cmd: string, opts?: ActionOptions): Step {
+    const { env: userEnv, ...rest } = opts ?? {};
+    return parent.sh(cmd, { env: { ...ELIXIR_ENV, ...userEnv }, ...rest });
+  }
+
   compile(opts?: ActionOptions): Step {
-    return this._installed.sh(
+    return this._sh(this._installed,
       `cd ${this.path} && mix compile --warnings-as-errors`,
       { label: ":ex: compile", ...opts },
     );
@@ -53,14 +60,14 @@ export class ElixirProject {
     if (opts?.partitions != null) flags.push(`--partitions ${opts.partitions}`);
     const { cover: _, partitions: __, ...rest } = opts ?? {};
     const flagStr = flags.length > 0 ? ` ${flags.join(" ")}` : "";
-    return this._installed.sh(`cd ${this.path} && mix test${flagStr}`, {
+    return this._sh(this._installed, `cd ${this.path} && mix test${flagStr}`, {
       label: ":ex: test",
       ...rest,
     });
   }
 
   format(opts?: ActionOptions): Step {
-    return this._installed.sh(
+    return this._sh(this._installed,
       `cd ${this.path} && mix format --check-formatted`,
       { label: ":ex: format", ...opts },
     );
@@ -69,7 +76,7 @@ export class ElixirProject {
   credo(opts?: ActionOptions & { strict?: boolean }): Step {
     const strict = opts?.strict !== false ? " --strict" : "";
     const { strict: _, ...rest } = opts ?? {};
-    return this._installed.sh(`cd ${this.path} && mix credo${strict}`, {
+    return this._sh(this._installed, `cd ${this.path} && mix credo${strict}`, {
       label: ":ex: credo",
       ...rest,
     });
@@ -77,7 +84,7 @@ export class ElixirProject {
 
   plt(): Step {
     if (this._plt == null) {
-      this._plt = this._installed.sh(`cd ${this.path} && mix dialyzer --plt`, {
+      this._plt = this._sh(this._installed, `cd ${this.path} && mix dialyzer --plt`, {
         label: ":ex: plt",
         cache: onChange(`${this.path}/mix.lock`),
       });
@@ -86,35 +93,35 @@ export class ElixirProject {
   }
 
   dialyzer(opts?: ActionOptions): Step {
-    return this.plt().sh(`cd ${this.path} && mix dialyzer`, {
+    return this._sh(this.plt(), `cd ${this.path} && mix dialyzer`, {
       label: ":ex: dialyzer",
       ...opts,
     });
   }
 
   sobelow(opts?: ActionOptions): Step {
-    return this._installed.sh(`cd ${this.path} && mix sobelow --exit`, {
+    return this._sh(this._installed, `cd ${this.path} && mix sobelow --exit`, {
       label: ":ex: sobelow",
       ...opts,
     });
   }
 
   depsAudit(opts?: ActionOptions): Step {
-    return this._installed.sh(`cd ${this.path} && mix deps.audit`, {
+    return this._sh(this._installed, `cd ${this.path} && mix deps.audit`, {
       label: ":ex: deps-audit",
       ...opts,
     });
   }
 
   hexAudit(opts?: ActionOptions): Step {
-    return this._installed.sh(`cd ${this.path} && mix hex.audit`, {
+    return this._sh(this._installed, `cd ${this.path} && mix hex.audit`, {
       label: ":ex: hex-audit",
       ...opts,
     });
   }
 
   mix(task: string, opts?: ActionOptions): Step {
-    return this._installed.sh(`cd ${this.path} && mix ${task}`, {
+    return this._sh(this._installed, `cd ${this.path} && mix ${task}`, {
       label: `:ex: ${task}`,
       ...opts,
     });
@@ -123,7 +130,7 @@ export class ElixirProject {
   release(opts?: ActionOptions & { mixEnv?: string }): Step {
     const env = opts?.mixEnv ?? "prod";
     const { mixEnv: _, ...rest } = opts ?? {};
-    return this._installed.sh(
+    return this._sh(this._installed,
       `cd ${this.path} && MIX_ENV=${env} mix release`,
       { label: ":ex: release", ...rest },
     );
@@ -177,7 +184,7 @@ export function elixir(opts?: ElixirOptions): ElixirProject {
       "mix local.rebar --force",
       "elixir --version",
     ].join(" && "),
-    { label: ":ex: elixir-install", cache: forever() },
+    { label: ":ex: elixir-install", cache: forever(), env: ELIXIR_ENV },
   );
 
   const depsInstalled = elixirInstalled.sh(
@@ -185,6 +192,7 @@ export function elixir(opts?: ElixirOptions): ElixirProject {
     {
       label: ":ex: mix-deps",
       cache: onChange(`${path}/mix.lock`),
+      env: ELIXIR_ENV,
     },
   );
 
