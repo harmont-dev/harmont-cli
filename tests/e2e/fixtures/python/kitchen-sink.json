@@ -56,9 +56,9 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy lcov",
+          "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy",
           "image": "ubuntu:24.04",
-          "key": "a4290371daf4",
+          "key": "fdcc2fd62363",
           "label": ":cmake: apt-base"
         }
       },
@@ -87,7 +87,7 @@
             ],
             "policy": "on_change"
           },
-          "cmd": "cd infra/agent && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && cmake --build build --parallel $(nproc)",
+          "cmd": "cd infra/agent && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && cmake --build build --parallel $(nproc)",
           "key": "build",
           "label": ":cmake: build"
         }
