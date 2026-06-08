@@ -51,7 +51,7 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy clang-18 lld-18",
+          "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy lcov clang-18 lld-18",
           "image": "ubuntu:24.04",
           "key": "apt-base",
           "label": ":cmake: apt-base"
@@ -82,7 +82,7 @@
             ],
             "policy": "on_change"
           },
-          "cmd": "cd . && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_CXX_STANDARD=20 && cmake --build ./build --parallel $(nproc)",
+          "cmd": "cd . && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_CXX_STANDARD=20 && cmake --build build --parallel $(nproc)",
           "key": "build",
           "label": ":cmake: build"
         }
@@ -122,7 +122,7 @@
           "CI": "true"
         },
         "step": {
-          "cmd": "cd . && cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' && cmake --build ./build-asan --parallel $(nproc) && ctest --test-dir ./build-asan --output-on-failure",
+          "cmd": "cd . && cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' && cmake --build build-asan --parallel $(nproc) && ctest --test-dir build-asan --output-on-failure",
           "key": "asan",
           "label": ":cmake: asan"
         }
@@ -132,7 +132,7 @@
           "CI": "true"
         },
         "step": {
-          "cmd": "cd . && cmake -S . -B build-cov -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_C_FLAGS='--coverage -fno-omit-frame-pointer' -DCMAKE_CXX_FLAGS='--coverage -fno-omit-frame-pointer' && cmake --build ./build-cov --parallel $(nproc) && ctest --test-dir ./build-cov --output-on-failure && lcov --capture --directory ./build-cov --output-file coverage.info && lcov --remove coverage.info '/usr/*' --output-file coverage.info",
+          "cmd": "cd . && cmake -S . -B build-cov -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_C_FLAGS='--coverage -fno-omit-frame-pointer' -DCMAKE_CXX_FLAGS='--coverage -fno-omit-frame-pointer' && cmake --build build-cov --parallel $(nproc) && ctest --test-dir build-cov --output-on-failure && lcov --capture --directory build-cov --output-file coverage.info && lcov --remove coverage.info '/usr/*' --output-file coverage.info",
           "key": "coverage",
           "label": ":cmake: coverage"
         }

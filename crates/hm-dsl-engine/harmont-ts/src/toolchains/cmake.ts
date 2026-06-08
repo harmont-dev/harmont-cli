@@ -17,7 +17,6 @@ export interface CMakeToolchainOptions {
   readonly compiler?: string;
   readonly generator?: "ninja" | "make";
   readonly ccache?: boolean;
-  readonly extras?: readonly string[];
   readonly image?: string;
   readonly base?: Step;
 }
@@ -29,7 +28,7 @@ export interface CMakeProjectOptions {
   readonly defines?: Record<string, string>;
   readonly shared?: boolean;
   readonly std?: number;
-  readonly deps?: "auto" | "vcpkg" | null;
+  readonly deps?: "vcpkg" | null;
   readonly target?: string;
   readonly cache?: CachePolicy;
 }
@@ -50,6 +49,7 @@ function aptPackages(
   if (ccache) pkgs.push("ccache");
   pkgs.push("clang-format");
   pkgs.push("clang-tidy");
+  pkgs.push("lcov");
   if (compiler != null) {
     const m = COMPILER_RE.exec(compiler);
     if (m == null) {
@@ -157,8 +157,10 @@ function buildCmd(
   path: string,
   target: string | undefined,
   buildDir: string = "build",
+  relative: boolean = false,
 ): string {
-  let cmd = `cmake --build ${path}/${buildDir} --parallel $(nproc)`;
+  const prefix = relative ? buildDir : `${path}/${buildDir}`;
+  let cmd = `cmake --build ${prefix} --parallel $(nproc)`;
   if (target != null) {
     cmd += ` --target ${target}`;
   }
@@ -213,8 +215,7 @@ export class CMakeToolchain {
       ccache: this.ccache,
       generator: this.generator,
     });
-    const build = buildCmd(path, target);
-    const warmupCmd = `${configure} && ${build}`;
+    const warmupCmd = `${configure} && ${buildCmd(path, target, "build", true)}`;
 
     // Determine warmup cache policy
     let warmupCache: CachePolicy;
@@ -268,13 +269,7 @@ export class CMakeProject {
     this.path = path;
   }
 
-  build(opts?: ActionOptions): Step {
-    if (opts) {
-      return this._built.sh(
-        buildCmd(this.path, undefined),
-        { label: ":cmake: build", ...opts },
-      );
-    }
+  build(): Step {
     return this._built;
   }
 
@@ -286,18 +281,22 @@ export class CMakeProject {
     return this._built.sh(cmd, { label: ":cmake: test", ...opts });
   }
 
-  install(opts?: ActionOptions): Step {
-    const cmd = `cmake --install ${this.path}/build`;
-    return this._built.sh(cmd, { label: ":cmake: install", ...opts });
+  install(opts?: ActionOptions & { prefix?: string }): Step {
+    const prefixFlag = opts?.prefix ? ` --prefix ${opts.prefix}` : "";
+    const { prefix: _, ...rest } = opts ?? {};
+    const cmd = `cmake --install ${this.path}/build${prefixFlag}`;
+    return this._built.sh(cmd, { label: ":cmake: install", ...rest });
   }
 
-  fmt(opts?: ActionOptions): Step {
+  fmt(opts?: ActionOptions & { fix?: boolean }): Step {
+    const mode = opts?.fix ? "-i" : "--dry-run --Werror";
+    const { fix: _, ...rest } = opts ?? {};
     const cmd = [
       `cd ${this.path} && find . -name '*.c' -o -name '*.h'`,
       `-o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' |`,
-      `xargs clang-format --dry-run --Werror`,
+      `xargs clang-format ${mode}`,
     ].join(" ");
-    return this.toolchain.install().sh(cmd, { label: ":cmake: fmt", ...opts });
+    return this.toolchain.install().sh(cmd, { label: ":cmake: fmt", ...rest });
   }
 
   lint(opts?: ActionOptions): Step {
@@ -319,12 +318,12 @@ export class CMakeProject {
       buildDir: "build-cov",
     });
     const covFlags = "--coverage -fno-omit-frame-pointer";
-    const covBuild = buildCmd(this.path, undefined, "build-cov");
+    const covBuild = buildCmd(this.path, undefined, "build-cov", true);
     const cmd = [
       `${covConfigure} -DCMAKE_C_FLAGS='${covFlags}' -DCMAKE_CXX_FLAGS='${covFlags}'`,
       covBuild,
-      `ctest --test-dir ${this.path}/build-cov --output-on-failure`,
-      `lcov --capture --directory ${this.path}/build-cov --output-file coverage.info`,
+      `ctest --test-dir build-cov --output-on-failure`,
+      `lcov --capture --directory build-cov --output-file coverage.info`,
       `lcov --remove coverage.info '/usr/*' --output-file coverage.info`,
     ].join(" && ");
     return this.toolchain.install().sh(cmd, {
@@ -353,11 +352,11 @@ export class CMakeProject {
       generator: this.toolchain.generator,
       buildDir,
     });
-    const sanBuild = buildCmd(this.path, undefined, buildDir);
+    const sanBuild = buildCmd(this.path, undefined, buildDir, true);
     const cmd = [
       `${sanConfigure} -DCMAKE_C_FLAGS='${sanFlags}' -DCMAKE_CXX_FLAGS='${sanFlags}'`,
       sanBuild,
-      `ctest --test-dir ${this.path}/${buildDir} --output-on-failure`,
+      `ctest --test-dir ${buildDir} --output-on-failure`,
     ].join(" && ");
     return this.toolchain.install().sh(cmd, {
       label: `:cmake: ${kind}`,

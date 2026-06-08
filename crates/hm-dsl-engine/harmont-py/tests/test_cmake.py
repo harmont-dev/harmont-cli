@@ -83,6 +83,15 @@ class TestCMakeProject:
         assert any("cmake -S . -B build" in c for c in cmds)
         assert any("cmake --build" in c for c in cmds)
 
+    def test_warmup_uses_relative_build_dir_after_cd(self):
+        proj = hm.cmake(path="infra/agent")
+        p = hm.pipeline(proj.built, default_image="ubuntu:24.04")
+        cmds = _cmds(p)
+        warmup = next(c for c in cmds if "cmake -S . -B build" in c)
+        assert "cd infra/agent" in warmup
+        assert "cmake --build build " in warmup
+        assert "infra/agent/build" not in warmup
+
     def test_uses_ninja_generator_by_default(self):
         proj = hm.cmake(path="svc")
         p = hm.pipeline(proj.built, default_image="ubuntu:24.04")
@@ -155,6 +164,13 @@ class TestCMakeProject:
         cmds = _cmds(p)
         test_cmd = next(c for c in cmds if "ctest" in c)
         assert "cmake --build" in test_cmd
+
+    def test_test_uses_absolute_path_for_standalone_step(self):
+        proj = hm.cmake(path="infra/agent")
+        p = hm.pipeline(proj.test(), default_image="ubuntu:24.04")
+        cmds = _cmds(p)
+        test_cmd = next(c for c in cmds if "ctest" in c)
+        assert "cmake --build infra/agent/build" in test_cmd
 
     def test_install_with_prefix(self):
         proj = hm.cmake(path="svc")

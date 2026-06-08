@@ -58,6 +58,7 @@ def _apt_packages(
         pkgs.append("ccache")
     pkgs.append("clang-format")
     pkgs.append("clang-tidy")
+    pkgs.append("lcov")
     if compiler is not None:
         m = _COMPILER_RE.match(compiler)
         if m is None:
@@ -150,9 +151,20 @@ def _configure_cmd(
     return " ".join(parts)
 
 
-def _build_cmd(path: str, target: str | None, build_dir: str = "build") -> str:
-    """Build the cmake --build command."""
-    cmd = f"cmake --build {path}/{build_dir} --parallel $(nproc)"
+def _build_cmd(
+    path: str,
+    target: str | None,
+    build_dir: str = "build",
+    *,
+    relative: bool = False,
+) -> str:
+    """Build the cmake --build command.
+
+    When ``relative=True``, omit the ``path/`` prefix — for use inside a shell
+    that already ``cd``-ed into ``path``.
+    """
+    prefix = build_dir if relative else f"{path}/{build_dir}"
+    cmd = f"cmake --build {prefix} --parallel $(nproc)"
     if target is not None:
         cmd += f" --target {target}"
     return cmd
@@ -173,15 +185,8 @@ class CMakeProject:
     _configure_cmd: str
     _build_cmd: str
 
-    def build(self, **kw: Any) -> Step:
+    def build(self) -> Step:
         """Return the warmup step (configure+build, cached)."""
-        # The warmup is already `self.built`; just return it.
-        # If the caller passes overrides we re-emit, but default is the cached warmup.
-        if kw.get("label") is None:
-            kw["label"] = ":cmake: build"
-        if not kw:
-            return self.built
-        # Allow label override on the existing step by re-wrapping
         return self.built
 
     def test(self, *, parallel: bool = True, **kw: Any) -> Step:
@@ -239,11 +244,11 @@ class CMakeProject:
         # Append coverage flags via CMAKE_C_FLAGS / CMAKE_CXX_FLAGS
         cov_flags = "--coverage -fno-omit-frame-pointer"
         cov_configure += f" -DCMAKE_C_FLAGS='{cov_flags}' -DCMAKE_CXX_FLAGS='{cov_flags}'"
-        cov_build = _build_cmd(self.path, target=None, build_dir="build-cov")
+        cov_build = _build_cmd(self.path, target=None, build_dir="build-cov", relative=True)
         cmd = (
             f"{cov_configure} && {cov_build} && "
-            f"ctest --test-dir {self.path}/build-cov --output-on-failure && "
-            f"lcov --capture --directory {self.path}/build-cov --output-file coverage.info && "
+            f"ctest --test-dir build-cov --output-on-failure && "
+            f"lcov --capture --directory build-cov --output-file coverage.info && "
             f"lcov --remove coverage.info '/usr/*' --output-file coverage.info"
         )
         if kw.get("label") is None:
@@ -273,10 +278,10 @@ class CMakeProject:
             build_dir=build_dir,
         )
         san_configure += f" -DCMAKE_C_FLAGS='{san_flags}' -DCMAKE_CXX_FLAGS='{san_flags}'"
-        san_build = _build_cmd(self.path, target=None, build_dir=build_dir)
+        san_build = _build_cmd(self.path, target=None, build_dir=build_dir, relative=True)
         cmd = (
             f"{san_configure} && {san_build} && "
-            f"ctest --test-dir {self.path}/{build_dir} --output-on-failure"
+            f"ctest --test-dir {build_dir} --output-on-failure"
         )
         if kw.get("label") is None:
             kw["label"] = f":cmake: {kind}"
@@ -345,8 +350,9 @@ class CMakeToolchain:
             ccache=self.ccache,
             generator=self.generator,
         )
-        build = _build_cmd(path, target=target)
-        warmup_cmd = f"{configure} && {build}"
+        build_abs = _build_cmd(path, target=target)
+        build_rel = _build_cmd(path, target=target, relative=True)
+        warmup_cmd = f"{configure} && {build_rel}"
 
         # Determine warmup cache policy
         if cache is not None:
@@ -385,7 +391,7 @@ class CMakeToolchain:
             built=built,
             path=path,
             _configure_cmd=configure,
-            _build_cmd=build,
+            _build_cmd=build_abs,
         )
 
 
