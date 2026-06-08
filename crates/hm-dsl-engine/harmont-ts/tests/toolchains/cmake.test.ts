@@ -88,29 +88,6 @@ describe("cmake project actions", () => {
     expect(step._label).toBe(":cmake: lint");
   });
 
-  it("coverage builds a separate chain off toolchain.install()", () => {
-    const proj = cmake({ path: "." });
-    const step = proj.coverage();
-    expect(step._cmd).toContain("--coverage");
-    expect(step._cmd).toContain("build-cov");
-    expect(step._label).toBe(":cmake: coverage");
-    expect(step._parent).toBe(proj.toolchain.install());
-  });
-
-  it("sanitize builds a separate chain off toolchain.install()", () => {
-    const proj = cmake({ path: "." });
-    const step = proj.sanitize("tsan");
-    expect(step._cmd).toContain("-fsanitize=thread");
-    expect(step._cmd).toContain("build-tsan");
-    expect(step._label).toBe(":cmake: tsan");
-    expect(step._parent).toBe(proj.toolchain.install());
-  });
-
-  it("sanitize rejects invalid kind", () => {
-    const proj = cmake({ path: "." });
-    expect(() => proj.sanitize("invalid")).toThrow("unknown sanitizer kind");
-  });
-
   it("package runs cpack off built", () => {
     const proj = cmake({ path: "." });
     const step = proj.package();

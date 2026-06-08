@@ -4,13 +4,6 @@ import { makeInstallChain } from "./shared.js";
 
 const COMPILER_RE = /^(gcc|clang)(-\d+)?$/;
 
-const SANITIZER_FLAGS: Record<string, string> = {
-  asan: "address,undefined",
-  tsan: "thread",
-  ubsan: "undefined",
-  msan: "memory",
-};
-
 type ActionOptions = Omit<StepOptions, "cwd">;
 
 export interface CMakeToolchainOptions {
@@ -23,11 +16,8 @@ export interface CMakeToolchainOptions {
 
 export interface CMakeProjectOptions {
   readonly path?: string;
-  readonly buildType?: string;
   readonly preset?: string;
   readonly defines?: Record<string, string>;
-  readonly shared?: boolean;
-  readonly std?: number;
   readonly deps?: "vcpkg" | null;
   readonly target?: string;
   readonly cache?: CachePolicy;
@@ -49,7 +39,6 @@ function aptPackages(
   if (ccache) pkgs.push("ccache");
   pkgs.push("clang-format");
   pkgs.push("clang-tidy");
-  pkgs.push("lcov");
   if (compiler != null) {
     const m = COMPILER_RE.exec(compiler);
     if (m == null) {
@@ -93,11 +82,8 @@ function verifyCmd(
 
 function configureCmd(opts: {
   path: string;
-  buildType: string;
   preset: string | undefined;
   defines: Record<string, string> | undefined;
-  shared: boolean | undefined;
-  std: number | undefined;
   compiler: string | undefined;
   ccache: boolean;
   generator: string;
@@ -112,7 +98,6 @@ function configureCmd(opts: {
   const parts: string[] = [
     `cd ${opts.path} && cmake -S . -B ${buildDir}`,
     `-G ${genFlag}`,
-    `-DCMAKE_BUILD_TYPE=${opts.buildType}`,
     "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
   ];
 
@@ -134,14 +119,6 @@ function configureCmd(opts: {
         parts.push(`-DCMAKE_CXX_COMPILER=clang++${suffix}`);
       }
     }
-  }
-
-  if (opts.shared != null) {
-    parts.push(`-DBUILD_SHARED_LIBS=${opts.shared ? "ON" : "OFF"}`);
-  }
-
-  if (opts.std != null) {
-    parts.push(`-DCMAKE_CXX_STANDARD=${opts.std}`);
   }
 
   if (opts.defines) {
@@ -195,22 +172,16 @@ export class CMakeToolchain {
 
   project(opts?: CMakeProjectOptions): CMakeProject {
     const path = opts?.path ?? ".";
-    const buildType = opts?.buildType ?? "Release";
     const preset = opts?.preset;
     const defines = opts?.defines;
-    const shared = opts?.shared;
-    const std = opts?.std;
     const deps = opts?.deps;
     const target = opts?.target;
     const cache = opts?.cache;
 
     const configure = configureCmd({
       path,
-      buildType,
       preset,
       defines,
-      shared,
-      std,
       compiler: this.compiler,
       ccache: this.ccache,
       generator: this.generator,
@@ -304,66 +275,6 @@ export class CMakeProject {
     return this._built.sh(cmd, { label: ":cmake: lint", ...opts });
   }
 
-  coverage(opts?: ActionOptions): Step {
-    const covConfigure = configureCmd({
-      path: this.path,
-      buildType: "Debug",
-      preset: undefined,
-      defines: undefined,
-      shared: undefined,
-      std: undefined,
-      compiler: this.toolchain.compiler,
-      ccache: this.toolchain.ccache,
-      generator: this.toolchain.generator,
-      buildDir: "build-cov",
-    });
-    const covFlags = "--coverage -fno-omit-frame-pointer";
-    const covBuild = buildCmd(this.path, undefined, "build-cov", true);
-    const cmd = [
-      `${covConfigure} -DCMAKE_C_FLAGS='${covFlags}' -DCMAKE_CXX_FLAGS='${covFlags}'`,
-      covBuild,
-      `ctest --test-dir build-cov --output-on-failure`,
-      `lcov --capture --directory build-cov --output-file coverage.info`,
-      `lcov --remove coverage.info '/usr/*' --output-file coverage.info`,
-    ].join(" && ");
-    return this.toolchain.install().sh(cmd, {
-      label: ":cmake: coverage",
-      ...opts,
-    });
-  }
-
-  sanitize(kind: string = "asan", opts?: ActionOptions): Step {
-    if (!(kind in SANITIZER_FLAGS)) {
-      throw new Error(
-        `hm.cmake: unknown sanitizer kind "${kind}"\n  → use one of: ${Object.keys(SANITIZER_FLAGS).sort().join(", ")}`,
-      );
-    }
-    const sanFlags = `-fsanitize=${SANITIZER_FLAGS[kind]} -fno-omit-frame-pointer -g`;
-    const buildDir = `build-${kind}`;
-    const sanConfigure = configureCmd({
-      path: this.path,
-      buildType: "Debug",
-      preset: undefined,
-      defines: undefined,
-      shared: undefined,
-      std: undefined,
-      compiler: this.toolchain.compiler,
-      ccache: this.toolchain.ccache,
-      generator: this.toolchain.generator,
-      buildDir,
-    });
-    const sanBuild = buildCmd(this.path, undefined, buildDir, true);
-    const cmd = [
-      `${sanConfigure} -DCMAKE_C_FLAGS='${sanFlags}' -DCMAKE_CXX_FLAGS='${sanFlags}'`,
-      sanBuild,
-      `ctest --test-dir ${buildDir} --output-on-failure`,
-    ].join(" && ");
-    return this.toolchain.install().sh(cmd, {
-      label: `:cmake: ${kind}`,
-      ...opts,
-    });
-  }
-
   package(opts?: ActionOptions): Step {
     const cmd = `cd ${this.path}/build && cpack`;
     return this._built.sh(cmd, { label: ":cmake: package", ...opts });
@@ -411,11 +322,8 @@ export function cmake(opts?: CMakeOptions): CMakeToolchain | CMakeProject {
   if (opts?.path != null) {
     return toolchain.project({
       path: opts.path,
-      buildType: (opts as CMakeProjectOptions).buildType,
       preset: (opts as CMakeProjectOptions).preset,
       defines: (opts as CMakeProjectOptions).defines,
-      shared: (opts as CMakeProjectOptions).shared,
-      std: (opts as CMakeProjectOptions).std,
       deps: (opts as CMakeProjectOptions).deps,
       target: (opts as CMakeProjectOptions).target,
       cache: (opts as CMakeProjectOptions).cache,

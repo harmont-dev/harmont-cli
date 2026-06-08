@@ -109,7 +109,7 @@ def _build_zig_node_polyglot() -> dict:
 
 
 def _build_kitchen_sink() -> dict:
-    c_project = cmake(path="infra/agent")
+    c_project = cmake(path="infra/agent", lang="c")
     rb_project = ruby(path="services/web")
 
     return hm.pipeline(
@@ -123,25 +123,11 @@ def _build_kitchen_sink() -> dict:
     )
 
 
-def _build_cmake_advanced() -> dict:
-    project = cmake(path=".", compiler="clang-18", build_type="Release", std=20)
-    return hm.pipeline(
-        project.test(),
-        project.lint(),
-        project.fmt(),
-        project.sanitize("asan"),
-        project.coverage(),
-        env={"CI": "true"},
-        default_image="ubuntu:24.04",
-    )
-
-
 SCENARIOS = {
     "monorepo-ci": _build_monorepo_ci,
     "rust-release": _build_rust_release,
     "zig-node-polyglot": _build_zig_node_polyglot,
     "kitchen-sink": _build_kitchen_sink,
-    "cmake-advanced": _build_cmake_advanced,
 }
 
 
