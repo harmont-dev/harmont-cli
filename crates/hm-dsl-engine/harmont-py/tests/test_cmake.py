@@ -96,15 +96,15 @@ class TestCMakeProject:
         configure_cmd = next(c for c in cmds if "cmake -S" in c)
         assert "-G Ninja" in configure_cmd
 
-    def test_defaults_to_release_build_type(self):
+    def test_no_build_type_by_default(self):
         proj = hm.cmake(path="svc")
         p = hm.pipeline(proj.built, default_image="ubuntu:24.04")
         cmds = _cmds(p)
         configure_cmd = next(c for c in cmds if "cmake -S" in c)
-        assert "CMAKE_BUILD_TYPE=Release" in configure_cmd
+        assert "CMAKE_BUILD_TYPE" not in configure_cmd
 
-    def test_build_type_debug(self):
-        proj = hm.cmake(path="svc", build_type="Debug")
+    def test_defines_cmake_build_type(self):
+        proj = hm.cmake(path="svc", defines={"CMAKE_BUILD_TYPE": "Debug"})
         p = hm.pipeline(proj.built, default_image="ubuntu:24.04")
         cmds = _cmds(p)
         configure_cmd = next(c for c in cmds if "cmake -S" in c)
@@ -117,15 +117,15 @@ class TestCMakeProject:
         configure_cmd = next(c for c in cmds if "cmake -S" in c)
         assert "-DBUILD_TESTING=ON" in configure_cmd
 
-    def test_shared_true_produces_build_shared_libs(self):
-        proj = hm.cmake(path="svc", shared=True)
+    def test_defines_build_shared_libs(self):
+        proj = hm.cmake(path="svc", defines={"BUILD_SHARED_LIBS": "ON"})
         p = hm.pipeline(proj.built, default_image="ubuntu:24.04")
         cmds = _cmds(p)
         configure_cmd = next(c for c in cmds if "cmake -S" in c)
         assert "-DBUILD_SHARED_LIBS=ON" in configure_cmd
 
-    def test_std_20_produces_cmake_cxx_standard(self):
-        proj = hm.cmake(path="svc", std=20)
+    def test_defines_cmake_cxx_standard(self):
+        proj = hm.cmake(path="svc", defines={"CMAKE_CXX_STANDARD": "20"})
         p = hm.pipeline(proj.built, default_image="ubuntu:24.04")
         cmds = _cmds(p)
         configure_cmd = next(c for c in cmds if "cmake -S" in c)

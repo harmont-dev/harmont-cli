@@ -100,11 +100,8 @@ def _verify_cmd(compiler: str | None, *, ccache: bool, generator: str) -> str:
 def _configure_cmd(
     *,
     path: str,
-    build_type: str,
     preset: str | None,
     defines: dict[str, str] | None,
-    shared: bool | None,
-    std: int | None,
     compiler: str | None,
     ccache: bool,
     generator: str,
@@ -118,7 +115,6 @@ def _configure_cmd(
     parts = [
         f"cd {path} && cmake -S . -B {build_dir}",
         f"-G {gen_flag}",
-        f"-DCMAKE_BUILD_TYPE={build_type}",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
     ]
 
@@ -137,12 +133,6 @@ def _configure_cmd(
             else:
                 parts.append(f"-DCMAKE_C_COMPILER=clang{suffix}")
                 parts.append(f"-DCMAKE_CXX_COMPILER=clang++{suffix}")
-
-    if shared is not None:
-        parts.append(f"-DBUILD_SHARED_LIBS={'ON' if shared else 'OFF'}")
-
-    if std is not None:
-        parts.append(f"-DCMAKE_CXX_STANDARD={std}")
 
     if defines:
         for k, v in defines.items():
@@ -231,11 +221,8 @@ class CMakeProject:
         """Separate Debug build with --coverage + lcov. Branches off ``toolchain.installed``."""
         cov_configure = _configure_cmd(
             path=self.path,
-            build_type="Debug",
             preset=None,
-            defines=None,
-            shared=None,
-            std=None,
+            defines={"CMAKE_BUILD_TYPE": "Debug"},
             compiler=self.toolchain.compiler,
             ccache=self.toolchain.ccache,
             generator=self.toolchain.generator,
@@ -267,11 +254,8 @@ class CMakeProject:
         build_dir = f"build-{kind}"
         san_configure = _configure_cmd(
             path=self.path,
-            build_type="Debug",
             preset=None,
-            defines=None,
-            shared=None,
-            std=None,
+            defines={"CMAKE_BUILD_TYPE": "Debug"},
             compiler=self.toolchain.compiler,
             ccache=self.toolchain.ccache,
             generator=self.toolchain.generator,
@@ -314,11 +298,8 @@ class CMakeToolchain:
         self,
         *,
         path: str = ".",
-        build_type: str = "Release",
         preset: str | None = None,
         defines: dict[str, str] | None = None,
-        shared: bool | None = None,
-        std: int | None = None,
         deps: str | None = None,
         target: str | None = None,
         cache: CachePolicy | None = None,
@@ -327,11 +308,8 @@ class CMakeToolchain:
 
         Args:
             path: Path to the project root (where ``CMakeLists.txt`` lives).
-            build_type: CMAKE_BUILD_TYPE value (Release, Debug, etc.).
             preset: CMake preset name. When set, configure uses ``--preset``.
-            defines: Extra -D key=value pairs passed to cmake configure.
-            shared: Set BUILD_SHARED_LIBS. None = omit.
-            std: Set CMAKE_CXX_STANDARD. None = omit.
+            defines: ``-D`` key=value pairs passed to cmake configure.
             deps: Dependency manager. ``"vcpkg"`` inserts a vcpkg-install step.
             target: Build only this target (``--target``).
             cache: Override the warmup step's cache policy.
@@ -341,11 +319,8 @@ class CMakeToolchain:
         """
         configure = _configure_cmd(
             path=path,
-            build_type=build_type,
             preset=preset,
             defines=defines,
-            shared=shared,
-            std=std,
             compiler=self.compiler,
             ccache=self.ccache,
             generator=self.generator,
@@ -467,11 +442,8 @@ class CMakeEntry:
         compiler: str | None = ...,
         ccache: bool = ...,
         generator: str = ...,
-        build_type: str = ...,
         preset: str | None = ...,
         defines: dict[str, str] | None = ...,
-        shared: bool | None = ...,
-        std: int | None = ...,
         deps: str | None = ...,
         target: str | None = ...,
         cache: CachePolicy | None = ...,
@@ -486,11 +458,8 @@ class CMakeEntry:
         compiler: str | None = None,
         ccache: bool = True,
         generator: str = "ninja",
-        build_type: str = "Release",
         preset: str | None = None,
         defines: dict[str, str] | None = None,
-        shared: bool | None = None,
-        std: int | None = None,
         deps: str | None = None,
         target: str | None = None,
         cache: CachePolicy | None = None,
@@ -510,11 +479,9 @@ class CMakeEntry:
             ccache: Enable ccache (default True).
             generator: Build system generator: ``"ninja"`` (default) or
                 ``"make"``.
-            build_type: CMAKE_BUILD_TYPE (default ``"Release"``).
             preset: CMake preset name (overrides manual configure flags).
-            defines: Extra ``-D`` key=value pairs.
-            shared: Set ``BUILD_SHARED_LIBS``. None = omit.
-            std: Set ``CMAKE_CXX_STANDARD``. None = omit.
+            defines: ``-D`` key=value pairs (e.g.
+                ``{"CMAKE_BUILD_TYPE": "Release"}``).
             deps: Dependency manager (``"vcpkg"`` supported).
             target: Build only this target.
             cache: Override warmup cache policy.
@@ -540,11 +507,8 @@ class CMakeEntry:
             return tc
         return tc.project(
             path=path,
-            build_type=build_type,
             preset=preset,
             defines=defines,
-            shared=shared,
-            std=std,
             deps=deps,
             target=target,
             cache=cache,
