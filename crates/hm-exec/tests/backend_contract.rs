@@ -63,6 +63,14 @@ async fn handle_yields_events_then_outcome() {
     assert_eq!(outcome.status, BuildStatus::Passed);
 }
 
+#[tokio::test]
+async fn local_backend_reports_capabilities() {
+    let b = hm_exec::LocalDockerBackend::new(4);
+    assert_eq!(b.name(), "local-docker");
+    assert!(b.capabilities().honors_parallelism);
+    assert!(!b.capabilities().is_observer);
+}
+
 fn fake_request() -> RunRequest {
     RunRequest {
         plan: Plan::parse(r#"{"version":"0","graph":{"nodes":[],"node_holes":[],"edge_property":"directed","edges":[]}}"#.into()).unwrap(),

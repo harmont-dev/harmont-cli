@@ -80,6 +80,7 @@ type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 pub(crate) async fn run(
     graph: PipelineGraph,
     repo_root: PathBuf,
+    pipeline_slug: String,
     parallelism: usize,
     runner_registry: Arc<RunnerRegistry>,
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
@@ -150,8 +151,6 @@ pub(crate) async fn run(
     })?;
 
     let started_at = chrono::Utc::now();
-    // The graph carries no pipeline slug; local builds are unnamed.
-    let pipeline_slug = "local".to_string();
     bus.emit(BuildEvent::BuildStart {
         run_id,
         plan: PlanSummary {
