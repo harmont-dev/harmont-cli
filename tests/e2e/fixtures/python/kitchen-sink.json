@@ -134,10 +134,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y ruby-full build-essential git",
+          "cmd": "apt-get update && apt-get install -y curl ca-certificates python3 python3-venv",
           "image": "ubuntu:24.04",
-          "key": "3190b8df2046",
-          "label": ":ruby: apt-base"
+          "key": "c8d9fda86ff3",
+          "label": ":python: apt-base"
         }
       },
       {
@@ -151,9 +151,9 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "gem install bundler && bundle --version",
-          "key": "bundler",
-          "label": ":ruby: bundler"
+          "cmd": "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -sf /root/.local/bin/uv /usr/local/bin/uv && uv --version",
+          "key": "uv-install",
+          "label": ":python: uv-install"
         }
       },
       {
@@ -165,13 +165,14 @@
         "step": {
           "cache": {
             "paths": [
-              "services/web/Gemfile.lock"
+              "services/web/uv.lock",
+              "services/web/pyproject.toml"
             ],
             "policy": "on_change"
           },
-          "cmd": "cd services/web && bundle install",
-          "key": "deps",
-          "label": ":ruby: deps"
+          "cmd": "cd services/web && uv sync --all-extras",
+          "key": "uv-sync",
+          "label": ":python: uv-sync"
         }
       },
       {
@@ -181,9 +182,9 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/web && bundle exec rspec",
-          "key": "e4df8cc48006",
-          "label": ":ruby: test"
+          "cmd": "cd services/web && uv run pytest",
+          "key": "239c4926568b",
+          "label": ":python: test"
         }
       },
       {
@@ -193,9 +194,9 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/web && bundle exec rubocop",
+          "cmd": "cd services/web && uv run ruff check .",
           "key": "lint",
-          "label": ":ruby: lint"
+          "label": ":python: lint"
         }
       }
     ]

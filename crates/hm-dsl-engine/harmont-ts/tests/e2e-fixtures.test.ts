@@ -12,7 +12,6 @@ import { js } from "../src/toolchains/js.js";
 import { rust } from "../src/toolchains/rust.js";
 import { zig } from "../src/toolchains/zig.js";
 import { cmake } from "../src/toolchains/cmake.js";
-import { ruby } from "../src/toolchains/ruby.js";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = resolve(__dir, "../../../../tests/e2e/fixtures/ts");
@@ -122,10 +121,10 @@ describe("E2E pipeline fixtures", () => {
 
   it("kitchen-sink", () => {
     const cProject = cmake({ path: "infra/agent" });
-    const rbProject = ruby({ path: "services/web" });
+    const pyWeb = python({ path: "services/web" });
 
     const ir = pipeline(
-      [cProject.build(), cProject.test(), cProject.fmt(), rbProject.test(), rbProject.lint()],
+      [cProject.build(), cProject.test(), cProject.fmt(), pyWeb.test(), pyWeb.lint()],
       { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     );
 

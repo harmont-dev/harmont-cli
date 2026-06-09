@@ -1088,6 +1088,7 @@ dependencies = [
  "clap",
  "daggy",
  "dialoguer",
+ "dirs",
  "figment",
  "fs2",
  "futures",

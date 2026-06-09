@@ -39,7 +39,6 @@ from ._js import JsProject, js, ts
 from ._pipeline import pipeline as _pipeline_factory
 from ._pipeline import pipeline_to_json
 from ._python import python
-from ._ruby import ruby
 from ._rust import RustProject, rust
 from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
@@ -310,7 +309,6 @@ __all__ = [
     "push",
     "py",
     "python",
-    "ruby",
     "rust",
     "scratch",
     "sh",
