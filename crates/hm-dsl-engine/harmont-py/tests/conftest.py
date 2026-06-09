@@ -2,9 +2,7 @@
 
 The :func:`_chdir_to_repo_root` autouse fixture anchors every test's
 working directory at the repo root so that toolchain abstractions
-which glob the filesystem at construction time
-(e.g. :func:`harmont.haskell.HaskellToolchain.package`) resolve real
-files in ``api/``, ``freestyle/``, ``app/``, etc.
+which glob the filesystem at construction time resolve real files.
 """
 
 from __future__ import annotations

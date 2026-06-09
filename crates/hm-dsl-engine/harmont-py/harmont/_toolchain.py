@@ -1,14 +1,14 @@
 """Shared helpers for language toolchain abstractions (HAR-15).
 
-Each language module (rust.py, haskell.py, npm.py, elm.py) builds its
-toolchain chain via ``make_install_chain``. The chain is:
+Each language module builds its toolchain chain via
+``make_install_chain``. The chain is:
 
     scratch (no Step) -> apt-base -> tool-install -> (action leaves)
 
 When ``base`` is provided the apt-base step is skipped and the chain
 forks off ``base`` directly. This is the explicit composition primitive
-that lets toolchains stack (``hm.elm(base=node.installed)``) or share a
-content-producing parent (``hm.npm(base=spec)``).
+that lets toolchains stack or share a content-producing parent
+(``hm.npm(base=spec)``).
 """
 
 from __future__ import annotations
@@ -43,6 +43,21 @@ def node_install_cmd(version: str) -> str:
     return (
         f"curl -fsSL https://deb.nodesource.com/setup_{major}.x | bash - && "
         "apt-get install -y nodejs"
+    )
+
+
+def bun_install_cmd(version: str | None = None) -> str:
+    """Bun install command. Installs to /usr/local/bin for PATH availability."""
+    version_arg = f' -s "bun-v{version}"' if version is not None else ""
+    return f"curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash{version_arg}"
+
+
+def deno_install_cmd(version: str | None = None) -> str:
+    """Deno install command. Symlinks into /usr/local/bin for PATH availability."""
+    version_arg = f' -s "v{version}"' if version is not None else ""
+    return (
+        f"curl -fsSL https://deno.land/install.sh | sh{version_arg} && "
+        "ln -sf $HOME/.deno/bin/deno /usr/local/bin/deno"
     )
 
 

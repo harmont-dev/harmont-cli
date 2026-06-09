@@ -1,4 +1,7 @@
+pub mod init;
+pub mod pipelines;
 pub mod plugin;
+pub mod render;
 pub mod run;
 pub mod version;
 
@@ -42,8 +45,17 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Initialize a .harmont/ pipeline from a project template.
+    Init(init::InitArgs),
+
     /// Run a pipeline locally via Docker.
     Run(RunArgs),
+
+    /// Print the pipeline discovery envelope (JSON) for every pipeline in the repo.
+    Pipelines(pipelines::PipelinesArgs),
+
+    /// Render one pipeline's v0 IR (JSON) without running it.
+    Render(render::RenderArgs),
 
     /// Show hm version.
     Version,
@@ -90,7 +102,10 @@ pub struct CacheRestoreArgs {
 /// Returns an error if the dispatched handler fails.
 pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
     match command {
+        Command::Init(args) => crate::commands::init::handle(args).await.map(|()| 0),
         Command::Run(args) => crate::commands::run::handle(args, ctx).await,
+        Command::Pipelines(args) => crate::cli::pipelines::run(args).await.map(|()| 0),
+        Command::Render(args) => crate::cli::render::run(args).await.map(|()| 0),
         Command::Cache(cmd) => match cmd {
             CacheCommand::Save(args) => crate::commands::cache::handle_save(&args.dir).await,
             CacheCommand::Restore(args) => crate::commands::cache::handle_restore(&args.dir).await,

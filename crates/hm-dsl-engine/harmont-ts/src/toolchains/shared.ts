@@ -12,6 +12,16 @@ export function nodeInstallCmd(version: string): string {
   return `curl -fsSL https://deb.nodesource.com/setup_${major}.x | bash - && apt-get install -y nodejs`;
 }
 
+export function bunInstallCmd(version?: string): string {
+  const versionArg = version != null ? ` -s "bun-v${version}"` : "";
+  return `curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash${versionArg}`;
+}
+
+export function denoInstallCmd(version?: string): string {
+  const versionArg = version != null ? ` -s "v${version}"` : "";
+  return `curl -fsSL https://deno.land/install.sh | sh${versionArg} && ln -sf $HOME/.deno/bin/deno /usr/local/bin/deno`;
+}
+
 export function aptBase(opts: {
   packages: readonly string[];
   image?: string;

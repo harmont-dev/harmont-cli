@@ -18,9 +18,9 @@ import pytest
 import harmont as hm
 from harmont._cmake import cmake
 from harmont._go import go
-from harmont._haskell import haskell
-from harmont._npm import npm
+from harmont._js import js
 from harmont._python import python as python_tc
+from harmont._ruby import ruby
 from harmont._rust import rust
 from harmont._zig import zig
 
@@ -51,18 +51,20 @@ def _assert_fixture(name: str, ir: dict) -> None:
 def _build_monorepo_ci() -> dict:
     go_project = go(path="services/api")
     py_project = python_tc(path="services/ml")
-    web_project = npm(path="web")
+    web_project = js.project(path="web")
 
     return hm.pipeline(
-        go_project.build(),
-        go_project.test(),
-        go_project.vet(),
-        py_project.test(),
-        py_project.lint(),
-        py_project.typecheck(),
-        web_project.run("build"),
-        web_project.run("test"),
-        web_project.run("lint"),
+        [
+            go_project.build(),
+            go_project.test(),
+            go_project.vet(),
+            py_project.test(),
+            py_project.lint(),
+            py_project.typecheck(),
+            web_project.run("build"),
+            web_project.run("test"),
+            web_project.run("lint"),
+        ],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
@@ -72,11 +74,7 @@ def _build_rust_release() -> dict:
     project = rust.toolchain(path=".")
 
     return hm.pipeline(
-        project.build(),
-        project.test(),
-        project.clippy(),
-        project.fmt(),
-        project.doc(),
+        [project.build(), project.test(), project.clippy(), project.fmt(), project.doc()],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
@@ -93,39 +91,52 @@ def _build_zig_node_polyglot() -> dict:
     zig_tc = zig(base=base)
     proj_a = zig_tc.project(path="zig-a")
     proj_b = zig_tc.project(path="zig-b")
-    web = npm(path="web", base=base)
+    web = js.project(path="web", base=base)
 
     return hm.pipeline(
-        proj_a.build(),
-        proj_a.test(),
-        proj_b.build(),
-        proj_b.test(),
-        web.run("build"),
-        web.run("test"),
-        web.run("lint"),
+        [
+            proj_a.build(),
+            proj_a.test(),
+            proj_b.build(),
+            proj_b.test(),
+            web.run("build"),
+            web.run("test"),
+            web.run("lint"),
+        ],
         env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
 
 
 def _build_kitchen_sink() -> dict:
-    hs_tc = haskell(ghc="9.6.7")
-    pkg_a = hs_tc.cabal(path="pkg-a")
-    pkg_b = hs_tc.cabal(path="pkg-b")
-
-    c_project = cmake(path="infra/agent", lang="c")
+    c_project = cmake(path="infra/agent")
+    rb_project = ruby(path="services/web")
 
     return hm.pipeline(
-        pkg_a.build(),
-        pkg_a.test(),
-        pkg_b.build(),
-        pkg_b.test(),
-        pkg_b.hlint(),
-        pkg_b.fmt(),
-        c_project.build(),
-        c_project.test(),
-        c_project.fmt(),
-        env={"CI": "true", "STACK_ROOT": "/tmp/.stack"},  # noqa: S108
+        [
+            c_project.build(),
+            c_project.test(),
+            c_project.fmt(),
+            rb_project.test(),
+            rb_project.lint(),
+        ],
+        env={"CI": "true"},
+        default_image="ubuntu:24.04",
+    )
+
+
+def _build_cmake_advanced() -> dict:
+    project = cmake(
+        path=".",
+        compiler="clang-18",
+        defines={
+            "CMAKE_BUILD_TYPE": "Release",
+            "CMAKE_CXX_STANDARD": "20",
+        },
+    )
+    return hm.pipeline(
+        [project.test(), project.lint(), project.fmt()],
+        env={"CI": "true"},
         default_image="ubuntu:24.04",
     )
 
@@ -135,6 +146,7 @@ SCENARIOS = {
     "rust-release": _build_rust_release,
     "zig-node-polyglot": _build_zig_node_polyglot,
     "kitchen-sink": _build_kitchen_sink,
+    "cmake-advanced": _build_cmake_advanced,
 }
 
 

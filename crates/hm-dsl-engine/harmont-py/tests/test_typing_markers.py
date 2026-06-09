@@ -21,11 +21,11 @@ def test_target_subscript_returns_annotated_with_marker():
 
 
 def test_target_with_different_types():
-    from harmont._haskell import HaskellPackage
+    from harmont._rust import RustProject
 
-    annot = Target[HaskellPackage]
+    annot = Target[RustProject]
     args = get_args(annot)
-    assert args[0] is HaskellPackage
+    assert args[0] is RustProject
 
 
 def test_target_used_as_param_annotation_resolves_via_get_type_hints():

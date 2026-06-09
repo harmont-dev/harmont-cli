@@ -39,6 +39,7 @@ harmont-cloud-raw = "0.1"
 anyhow      = "1"
 async-trait = "0.1"
 dirs        = "6"
+figment     = { version = "0.10", features = ["toml", "env"] }
 daggy       = { version = "0.9", features = ["serde-1"] }
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"

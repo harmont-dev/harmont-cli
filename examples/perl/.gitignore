@@ -1,6 +1,0 @@
-# The repo-level .gitignore inherits Python conventions (lib/, build/,
-# dist/, etc.) that conflict with this example's tree. Un-ignore them
-# here so the source archive shipped to the Docker step contains the
-# project files.
-!lib/
-!lib/**

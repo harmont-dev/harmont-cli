@@ -1,6 +1,6 @@
 """Trigger DSL constructors and types.
 
-Three triggers in v1: push, pull_request, schedule. Each constructor
+Two triggers in v1: push, pull_request. Each constructor
 returns a frozen dataclass with a ``to_dict()`` method that produces the
 wire-format JSON object documented in
 docs/superpowers/specs/2026-05-10-har-9-imperfect-dsl-design.md.
@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-
-from croniter import croniter
 
 
 def _normalise_globs(value: str | list[str] | tuple[str, ...] | None) -> tuple[str, ...] | None:
@@ -106,26 +104,3 @@ def pull_request(
         branches=_normalise_globs(branches),
         types=resolved_types,
     )
-
-
-@dataclass(frozen=True)
-class ScheduleTrigger(Trigger):
-    cron: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"event": "schedule", "cron": self.cron}
-
-
-def schedule(cron: str) -> ScheduleTrigger:
-    """Trigger on a UTC cron schedule.
-
-    ``cron`` is a five-field crontab expression (minute hour day month
-    dow). Always interpreted as UTC.
-    """
-    if not croniter.is_valid(cron):
-        msg = (
-            f"hm.schedule: invalid cron expression {cron!r}\n"
-            f"  → five-field crontab, UTC, e.g. '0 4 * * *'"
-        )
-        raise ValueError(msg)
-    return ScheduleTrigger(cron=cron)

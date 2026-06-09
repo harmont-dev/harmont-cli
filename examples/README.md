@@ -1,31 +1,25 @@
 # Harmont examples
 
-Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Every example lives in its own subdirectory with a `.harmont/pipeline.py` you can read, copy, and run via `hm run <slug> --local`.
+Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Every example lives in its own subdirectory with a `.hm/pipeline.py` you can read, copy, and run via `hm run <slug> --local`.
 
 | Example | Toolchain | Pipeline |
 |---|---|---|
 | [react](./react) | npm + Vite + Vitest + ESLint | `hm.npm(...)` |
 | [nextjs](./nextjs) | npm + Jest + ESLint | `hm.npm(...)` |
 | [typescript](./typescript) | tsc + Vitest + ESLint | `hm.npm(...)` |
+| [bun](./bun) | Bun + tsc + bun:test + ESLint | `hm.bun(...)` |
 | [rust](./rust) | cargo + clippy + rustfmt | `hm.rust(...)` |
-| [haskell](./haskell) | cabal + hlint + fourmolu | `hm.haskell(ghc="9.6.7")` |
 | [python-uv](./python-uv) | uv + pytest + ruff + mypy | `hm.python(...)` |
 | [go](./go) | go build/test/vet/fmt | `hm.go(...)` |
-| [java](./java) | Gradle + JUnit 5 | `hm.gradle(jdk="21")` |
-| [kotlin](./kotlin) | Gradle + kotlin.test | `hm.gradle(jdk="21", kotlin=True)` |
 | [c](./c) | CMake + CTest + clang-format | `hm.cmake(lang="c")` |
 | [cpp](./cpp) | CMake + CTest + clang-format | `hm.cmake(lang="cpp")` |
-| [csharp](./csharp) | dotnet + xunit + dotnet-format | `hm.dotnet(channel="8.0")` |
 | [ruby](./ruby) | Bundler + RSpec + Rubocop | `hm.ruby(...)` |
-| [perl](./perl) | cpanm + Test::More + Perl::Critic | `hm.perl(...)` |
-| [php-laravel](./php-laravel) | Composer + Laravel test + PHPStan | `hm.composer(laravel=True)` |
-| [ocaml](./ocaml) | opam + Dune + Alcotest | `hm.ocaml(compiler="5.1.1")` |
 | [zig](./zig) | zig build/test/fmt | `hm.zig(version="0.13.0")` |
 
 ## How to run an example locally
 
 1. Install the Harmont CLI (`cli/` in this repo, or `cargo install harmont-cli` once published).
-2. `cd examples/<lang>` and run `hm run ci --local`. The CLI uses the project's `.harmont/pipeline.py` and executes each step in a local Docker container, sharing caches across runs.
+2. `cd examples/<lang>` and run `hm run ci --local`. The CLI uses the project's `.hm/pipeline.py` and executes each step in a local Docker container, sharing caches across runs.
 
 Every pipeline uses `default_image="ubuntu:24.04"` and the apt-base / language-install steps are cached forever — only the action leaves (`test`, `lint`, etc.) re-run after a code change.
 

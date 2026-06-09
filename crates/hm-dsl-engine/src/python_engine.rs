@@ -13,9 +13,9 @@ import sys, json, pathlib, importlib.util
 try:
     import harmont as hm
 except ImportError as e:
-    print(f'error: {e}\\n  -> install with: pip install croniter python-dateutil', file=sys.stderr)
+    print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
-for p in sorted(pathlib.Path('.harmont').glob('*.py')):
+for p in sorted(pathlib.Path('.hm').glob('*.py')):
     spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -23,15 +23,29 @@ envelope = json.loads(hm.dump_registry_json())
 print(json.dumps([{'slug': p['slug'], 'name': p['name']} for p in envelope['pipelines']]))
 ";
 
+const REGISTRY_JSON_SCRIPT: &str = "\
+import sys, pathlib, importlib.util
+try:
+    import harmont as hm
+except ImportError as e:
+    print(f'error: {e}', file=sys.stderr)
+    sys.exit(1)
+for p in sorted(pathlib.Path('.hm').glob('*.py')):
+    spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+sys.stdout.write(hm.dump_registry_json())
+";
+
 const RENDER_PIPELINE_SCRIPT: &str = "\
 import sys, json, pathlib, importlib.util
 try:
     import harmont as hm
 except ImportError as e:
-    print(f'error: {e}\\n  -> install with: pip install croniter python-dateutil', file=sys.stderr)
+    print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
 slug = sys.argv[1]
-for p in sorted(pathlib.Path('.harmont').glob('*.py')):
+for p in sorted(pathlib.Path('.hm').glob('*.py')):
     spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -113,5 +127,11 @@ impl DslEngine for SubprocessPythonEngine {
         self.run_script(project_dir, RENDER_PIPELINE_SCRIPT, &[slug])
             .await
             .context("rendering pipeline via python3")
+    }
+
+    async fn registry_json(&self, project_dir: &Path) -> Result<String> {
+        self.run_script(project_dir, REGISTRY_JSON_SCRIPT, &[])
+            .await
+            .context("dumping pipeline registry via python3")
     }
 }

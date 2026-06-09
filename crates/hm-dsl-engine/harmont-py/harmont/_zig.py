@@ -34,8 +34,18 @@ _ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
 _VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 
+_NEW_URL_FORMAT_VERSION = (0, 14, 1)
+
+
+def _parse_version(version: str) -> tuple[int, ...]:
+    return tuple(int(p) for p in version.split("."))
+
+
 def _zig_install_cmd(version: str) -> str:
-    tarball = f"zig-linux-x86_64-{version}.tar.xz"
+    if _parse_version(version) >= _NEW_URL_FORMAT_VERSION:
+        tarball = f"zig-x86_64-linux-{version}.tar.xz"
+    else:
+        tarball = f"zig-linux-x86_64-{version}.tar.xz"
     url = f"https://ziglang.org/download/{version}/{tarball}"
     return (
         f"curl -fsSL {url} -o /tmp/zig.tar.xz && "
@@ -108,10 +118,10 @@ class ZigToolchain:
 
         Examples:
             >>> import harmont as hm
-            >>> tc = hm.zig(version="0.13.0")
+            >>> tc = hm.zig(version="0.14.1")
             >>> lib = tc.project("lib-a")
             >>> app = tc.project("app")
-            >>> hm.pipeline(lib.test(), app.test())
+            >>> hm.pipeline([lib.test(), app.test()])
         """
         return ZigProject(path=path, installed=self.installed)
 
@@ -123,7 +133,7 @@ def _make_toolchain(
     base: Step | None,
 ) -> ZigToolchain:
     if not _VERSION_RE.match(version):
-        msg = f'hm.zig: invalid version {version!r}\n  → use a Zig version like "0.13.0"'
+        msg = f'hm.zig: invalid version {version!r}\n  → use a Zig version like "0.14.1"'
         raise ValueError(msg)
     installed = make_install_chain(
         apt_packages=APT_PACKAGES,
@@ -142,7 +152,7 @@ class ZigEntry:
 
     Supports three usage forms:
 
-    - Toolchain form: ``hm.zig(version="0.13.0")`` returns a ``ZigToolchain``
+    - Toolchain form: ``hm.zig(version="0.14.1")`` returns a ``ZigToolchain``
       shared across multiple projects.
     - Project form: ``hm.zig(path=".")`` returns a ``ZigProject`` directly.
     - Bare form: ``hm.zig.build()``, ``hm.zig.test()``, etc. for one-shot leaves.
@@ -171,7 +181,7 @@ class ZigEntry:
         self,
         *,
         path: str | None = None,
-        version: str = "0.13.0",
+        version: str = "0.14.1",
         image: str | None = None,
         base: Step | None = None,
     ) -> ZigToolchain | ZigProject:
@@ -183,7 +193,7 @@ class ZigEntry:
         Args:
             path: Zig project root. Omit to get a reusable ``ZigToolchain``
                 from which multiple projects can be spawned.
-            version: Zig release version (e.g. ``"0.13.0"``). Must be a
+            version: Zig release version (e.g. ``"0.14.1"``). Must be a
                 full ``MAJOR.MINOR.PATCH`` string.
             image: Local-mode Docker base image override.
             base: Existing ``Step`` to attach to instead of emitting a fresh
@@ -195,8 +205,8 @@ class ZigEntry:
 
         Examples:
             >>> import harmont as hm
-            >>> proj = hm.zig(path=".", version="0.13.0")
-            >>> hm.pipeline(proj.build(), proj.test())
+            >>> proj = hm.zig(path=".", version="0.14.1")
+            >>> hm.pipeline([proj.build(), proj.test()])
         """
         toolchain = _make_toolchain(version=version, image=image, base=base)
         if path is None:

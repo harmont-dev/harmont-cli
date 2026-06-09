@@ -82,7 +82,6 @@ def test_pipeline_with_triggers():
         triggers=[
             hm.push(branch="main"),
             hm.pull_request(branches="main"),
-            hm.schedule(cron="0 4 * * *"),
         ],
     )
     def ci() -> hm.Step:
@@ -97,7 +96,6 @@ def test_pipeline_with_triggers():
             "branches": ["main"],
             "types": ["opened", "synchronize", "reopened"],
         },
-        {"event": "schedule", "cron": "0 4 * * *"},
     ]
 
 
@@ -145,19 +143,17 @@ def test_envelope_resolves_cache_keys(tmp_path):
     assert len(step["cache"]["key"]) == 64
 
 
-def test_envelope_auto_unwraps_haskell_package(tmp_path, monkeypatch):
-    """A pipeline returning a HaskellPackage emits the build leaf."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "api").mkdir()
+def test_envelope_auto_unwraps_go_toolchain():
+    """A pipeline returning a GoToolchain emits the build leaf."""
 
     @hm.pipeline("ci")
     def ci():
-        return hm.haskell(ghc="9.6.7").cabal(path="api")
+        return hm.go(path="api").build()
 
     out = json.loads(hm.dump_registry_json())
     nodes = _graph_nodes(out["pipelines"][0]["definition"])
     cmds = [n["step"].get("cmd") for n in nodes]
-    assert any("cabal build all" in (c or "") for c in cmds)
+    assert any("go build" in (c or "") for c in cmds)
 
 
 def test_envelope_composes_targets_with_dedup(tmp_path, monkeypatch):

@@ -1,0 +1,6 @@
+!lib/
+!lib/**
+!test/
+!test/**
+/_build/
+/deps/

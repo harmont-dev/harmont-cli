@@ -5,7 +5,7 @@ Two markers are public surface:
   ``Target[T]``    — declares a dependency on a registered target by
                      parameter name. The resolved value is typed ``T``
                      (whatever the target returns — ``Step``,
-                     ``HaskellPackage``, ``ElmProject``, etc.).
+                     ``RustProject``, ``GoToolchain``, etc.).
 
   ``BaseImage(X)`` — used in ``Annotated[Step, BaseImage("X")]``. Declares
                      a scratch-rooted Step in image "X" as the parameter
@@ -14,7 +14,7 @@ Two markers are public surface:
                      carries it in the v0 wire format.
 
 Both surface as PEP 593 ``Annotated[...]`` so static type-checkers see
-the concrete type (``Step``, ``HaskellPackage``, etc.) while the runtime
+the concrete type (``Step``, ``RustProject``, etc.) while the runtime
 decorator reads the marker from ``typing.get_type_hints(include_extras=True)``.
 
 Examples:

@@ -172,7 +172,7 @@ async fn render_pipeline(
             [only] => only.clone(),
             [] => anyhow::bail!(
                 "no pipelines declared in this repo\n  \
-                 hint: define one with `@hm.pipeline(\"slug\")` in `.harmont/pipeline.py`"
+                 hint: define one with `@hm.pipeline(\"slug\")` in `.hm/pipeline.py`"
             ),
             many => anyhow::bail!(
                 "this repo declares pipelines: {}\n  → pass one as the first argument",

@@ -4,6 +4,18 @@ import { makeInstallChain } from "./shared.js";
 
 const APT_PACKAGES = ["curl", "ca-certificates", "xz-utils"] as const;
 const VERSION_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+const NEW_URL_FORMAT_VERSION = [0, 14, 1] as const;
+
+function versionAtLeast(
+  version: string,
+  min: readonly [number, number, number],
+): boolean {
+  const parts = version.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((parts[i] ?? 0) !== min[i]) return (parts[i] ?? 0) > min[i];
+  }
+  return true;
+}
 
 export interface ZigOptions {
   readonly path?: string;
@@ -68,16 +80,20 @@ export class ZigProject {
 export function zig(opts: ZigOptions & { path: string }): ZigProject;
 export function zig(opts?: ZigOptions): ZigToolchain;
 export function zig(opts?: ZigOptions): ZigToolchain | ZigProject {
-  const version = opts?.version ?? "0.13.0";
+  const version = opts?.version ?? "0.14.1";
 
   if (!VERSION_RE.test(version)) {
     throw new Error(
-      `hm.zig: invalid version "${version}"\n  → use a semver like "0.13.0"`,
+      `hm.zig: invalid version "${version}"\n  → use a semver like "0.14.1"`,
     );
   }
 
+  const tarball = versionAtLeast(version, NEW_URL_FORMAT_VERSION)
+    ? `zig-x86_64-linux-${version}.tar.xz`
+    : `zig-linux-x86_64-${version}.tar.xz`;
+
   const installCmd = [
-    `curl -fsSL https://ziglang.org/download/${version}/zig-linux-x86_64-${version}.tar.xz -o /tmp/zig.tar.xz`,
+    `curl -fsSL https://ziglang.org/download/${version}/${tarball} -o /tmp/zig.tar.xz`,
     "rm -rf /usr/local/zig && mkdir -p /usr/local/zig",
     "tar -xJf /tmp/zig.tar.xz -C /usr/local/zig --strip-components=1",
     "ln -sf /usr/local/zig/zig /usr/local/bin/zig",

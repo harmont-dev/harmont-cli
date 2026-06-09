@@ -1,4 +1,0 @@
-requires 'Test::More';
-on 'develop' => sub {
-    requires 'Perl::Critic';
-};

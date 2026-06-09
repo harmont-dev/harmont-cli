@@ -14,8 +14,8 @@ use std::time::Instant;
 use tempfile::tempdir;
 
 fn write_pipeline(dir: &Path) {
-    let harmont = dir.join(".harmont");
-    fs::create_dir_all(&harmont).expect("mkdir .harmont");
+    let harmont = dir.join(".hm");
+    fs::create_dir_all(&harmont).expect("mkdir .hm");
     fs::write(dir.join("placeholder.txt"), "x").expect("placeholder");
     fs::write(
         harmont.join("pipeline.py"),

@@ -49,10 +49,10 @@ fn cow_chain_inherits_workspace() {
         .expect("CARGO_MANIFEST_DIR must have a parent (repo root)");
 
     let tmp = tempfile::tempdir().expect("mktempdir");
-    let harmont_dir = tmp.path().join(".harmont");
-    std::fs::create_dir(&harmont_dir).expect("mkdir .harmont");
+    let harmont_dir = tmp.path().join(".hm");
+    std::fs::create_dir(&harmont_dir).expect("mkdir .hm");
     std::fs::copy(fixture("cow_chain.py"), harmont_dir.join("cow_chain.py"))
-        .expect("copy fixture into .harmont/");
+        .expect("copy fixture into .hm/");
 
     let out = Command::new(bin)
         .args(["run", "--logs", "--dir"])
