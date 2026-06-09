@@ -1,4 +1,4 @@
-//! File-backed credential store at `~/.harmont/credentials.toml`.
+//! File-backed credential store at `~/.config/hm/credentials.toml`.
 //!
 //! Replaces the OS keyring as the sole backend. The file is written with
 //! mode 0o600 (parent dir 0o700) via [`hm_util::os::fs::blocking::write_atomic_restricted`].
@@ -16,7 +16,9 @@ struct CredentialFile {
 }
 
 fn path() -> Result<PathBuf> {
-    Ok(crate::user_config_dir()?.join("credentials.toml"))
+    let dir = hm_util::dirs::hm_config_dir()
+        .context("could not determine config directory")?;
+    Ok(dir.join("credentials.toml"))
 }
 
 fn load() -> CredentialFile {
