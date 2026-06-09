@@ -370,6 +370,20 @@ jobs:
 See the [action repo](https://github.com/harmont-dev/actions-hm) for the full
 input reference, sub-actions, and caching details.
 
+## Examples
+
+The [`examples/`](./examples) directory has a complete, runnable pipeline for
+each stack — every one shipped in **both** Python and TypeScript:
+
+| | | |
+|---|---|---|
+| [Rust](./examples/rust) | [Go](./examples/go) | [Python (uv)](./examples/python-uv) |
+| [Ruby](./examples/ruby) | [Elixir](./examples/elixir) · [Phoenix](./examples/elixir-phoenix) | [Zig](./examples/zig) |
+| [C](./examples/c) · [C++](./examples/cpp) | [TypeScript](./examples/typescript) · [Bun](./examples/bun) | [React](./examples/react) · [Next.js](./examples/nextjs) |
+
+Don't see your stack? Toolchains compose from raw steps (`hm.sh(...)`), so you
+can build a pipeline for anything that runs in a container.
+
 ## Documentation
 
 For the full pipeline reference, richer examples, and more - see the
