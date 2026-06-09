@@ -117,7 +117,7 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd infra/agent && find . -not -path './build/*' -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | xargs clang-format --dry-run --Werror",
+          "cmd": "cd infra/agent && find . -not -path './build/*' \\( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' \\) | xargs clang-format --dry-run --Werror",
           "key": "fmt",
           "label": ":cmake: fmt"
         }

@@ -264,8 +264,8 @@ export class CMakeProject {
     const { fix: _, ...rest } = opts ?? {};
     const cmd = [
       `cd ${this.path} && find . -not -path './build/*'`,
-      `-name '*.c' -o -name '*.h'`,
-      `-o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' |`,
+      `\\( -name '*.c' -o -name '*.h'`,
+      `-o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' \\) |`,
       `xargs clang-format ${mode}`,
     ].join(" ");
     return this.toolchain.install().sh(cmd, { label: ":cmake: fmt", ...rest });

@@ -194,8 +194,8 @@ class CMakeProject:
         mode = "-i" if fix else "--dry-run --Werror"
         cmd = (
             f"cd {self.path} && find . -not -path './build/*'"
-            f" -name '*.c' -o -name '*.h'"
-            f" -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | "
+            r" \( -name '*.c' -o -name '*.h'"
+            r" -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' \) | "
             f"xargs clang-format {mode}"
         )
         if kw.get("label") is None:
