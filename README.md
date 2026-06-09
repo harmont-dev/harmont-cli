@@ -65,7 +65,7 @@ https://github.com/user-attachments/assets/114bc825-2889-4654-91d5-f830c3631b4c
 
 ## Quick Start
 
-### 0. Install `hm`
+### Install `hm`
 
 ```sh
 curl -fsSL https://get.harmont.dev/install.sh | sh
@@ -77,9 +77,32 @@ Or via Cargo:
 cargo install harmont-cli
 ```
 
-### 1. Create a pipeline
+### The 30-second path: `hm init`
 
-Save this as `.hm/pipeline.py` (or `.hm/pipeline.ts`):
+```sh
+hm init
+```
+
+`hm init` detects your project, scaffolds a working `.hm/pipeline.{py,ts}`, and
+offers to install Claude Code skills that can write and maintain your pipeline
+for you. Pick a template explicitly with `-t`:
+
+```sh
+hm init -t rust      # cmake · elixir · nextjs · js · rust · zig · python
+```
+
+Then run it:
+
+```sh
+hm run
+```
+
+If the repo declares only one pipeline, the slug is optional. Otherwise name it:
+`hm run ci`.
+
+### Or write it by hand
+
+A pipeline is just code. Save this as `.hm/pipeline.py` (or `.hm/pipeline.ts`):
 
 <details open>
 <summary><b>Python</b></summary>
@@ -122,10 +145,12 @@ const pipelines: PipelineDefinition[] = [
     slug: "ci",
     triggers: [push({ branch: "main" })],
     pipeline: pipeline(
-      project.test(),
-      project.lint(),
-      project.fmt(),
-      project.typecheck(),
+      [
+        project.test(),
+        project.lint(),
+        project.fmt(),
+        project.typecheck(),
+      ],
       { defaultImage: "ubuntu:24.04" },
     ),
   },
@@ -136,16 +161,12 @@ export default pipelines;
 
 </details>
 
-### 2. Run it
-
 ```sh
 hm run ci
 ```
 
-If the repo declares only one pipeline, the slug is optional - just `hm run`.
-
-Browse the [example projects](./examples) for idiomatic pipelines in Rust,
-Go, Python, Java, C++, React, Next.js, and more.
+Browse the [example projects](./examples) for idiomatic pipelines in Rust, Go,
+Python, Ruby, Elixir, Zig, C/C++, TypeScript, React, and Next.js.
 
 ## Cloud (`hm run --cloud`)
 
