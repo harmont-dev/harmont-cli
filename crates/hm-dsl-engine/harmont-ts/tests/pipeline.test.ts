@@ -211,3 +211,15 @@ describe("lowering: graph structure", () => {
     expect(ir.graph.edge_property).toBe("directed");
   });
 });
+
+describe("pipeline: timeout", () => {
+  it("emits a top-level timeout_seconds when set", () => {
+    const ir = pipeline(sh("x"), { timeout: "30m" });
+    expect(ir.timeout_seconds).toBe(1800);
+  });
+
+  it("omits timeout_seconds when unset", () => {
+    const ir = pipeline(sh("x"));
+    expect(ir.timeout_seconds).toBeUndefined();
+  });
+});
