@@ -31,10 +31,11 @@
 
 ## What is Harmont?
 
-Harmont lets you define CI/CD workflows in TypeScript or Python and run them
-instantly on your machine in Docker containers. **No YAML.** No `commit -m "run
-ci" --allow-empty` spam. Each pipeline step runs in an isolated container with
-built-in caching, parallel execution, and consistent environments.
+Harmont lets you define CI/CD pipelines in **TypeScript or Python** and run them
+instantly on your machine in Docker containers. **No YAML.** No
+`git commit -m "fix ci" --allow-empty` spam to debug a pipeline. Each step runs
+in an isolated container with built-in caching, DAG parallelism, and consistent
+environments — the *same* pipeline runs locally and in the cloud.
 
 
 
@@ -43,15 +44,23 @@ https://github.com/user-attachments/assets/114bc825-2889-4654-91d5-f830c3631b4c
 
 
 
-**Features:**
+**Why teams switch:**
 
-- **Pipelines as real code** - Python or TypeScript, not YAML.
-- **Instant local runs** - `hm run` executes in Docker on your machine.
-- **DAG-based parallelism** - independent chains run concurrently.
-- **Layer caching** - Docker snapshots are reused across runs; only changed steps
-                      re-execute.
-- **Typed toolchains** - first-class presets for Rust, Go, Python, Java, C++,
-                         React, and more.
+- **Run CI locally** — `hm run` executes your real pipeline in Docker on your
+  machine. No push-and-pray.
+- **Pipelines are real code** — Python or TypeScript with autocomplete and
+  types, not YAML.
+- **DAG-based parallelism** — independent steps run concurrently; `hm` figures
+  out the dependency graph.
+- **Automatic layer caching** — Docker snapshots are reused across runs; only
+  changed steps re-execute. No `actions/cache` boilerplate.
+- **Typed toolchains** — first-class presets for Rust, Go, Python, JavaScript/
+  TypeScript, C/C++, Ruby, Zig, and Elixir — each handles setup, build, test,
+  lint, and format for you.
+- **Local *and* cloud** — the same pipeline runs with `hm run` or
+  `hm run --cloud`, byte-for-byte.
+- **Claude writes it for you** — `hm init` installs Claude Code skills that
+  author your pipeline and migrate your GitHub Actions (see below).
 
 
 ## Quick Start
