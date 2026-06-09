@@ -8,7 +8,18 @@ struct Template {
     label: &'static str,
     filename: &'static str,
     content: &'static str,
+    /// Optional companion file (e.g. package.json for TS templates).
+    companion: Option<(&'static str, &'static str)>,
 }
+
+const HARMONT_PACKAGE_JSON: &str = r#"{
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "harmont": "latest"
+  }
+}
+"#;
 
 impl TemplateKind {
     const fn meta(self) -> Template {
@@ -17,36 +28,43 @@ impl TemplateKind {
                 label: "CMake",
                 filename: "pipeline.py",
                 content: include_str!("init_templates/cmake.py"),
+                companion: None,
             },
             Self::Elixir => Template {
                 label: "Elixir",
                 filename: "pipeline.py",
                 content: include_str!("init_templates/elixir.py"),
+                companion: None,
             },
             Self::Nextjs => Template {
                 label: "Next.js",
                 filename: "pipeline.ts",
                 content: include_str!("init_templates/nextjs.ts"),
+                companion: Some(("package.json", HARMONT_PACKAGE_JSON)),
             },
             Self::Js => Template {
                 label: "JavaScript / TypeScript",
                 filename: "pipeline.ts",
                 content: include_str!("init_templates/js.ts"),
+                companion: Some(("package.json", HARMONT_PACKAGE_JSON)),
             },
             Self::Rust => Template {
                 label: "Rust",
                 filename: "pipeline.py",
                 content: include_str!("init_templates/rust.py"),
+                companion: None,
             },
             Self::Zig => Template {
                 label: "Zig",
                 filename: "pipeline.ts",
                 content: include_str!("init_templates/zig.ts"),
+                companion: Some(("package.json", HARMONT_PACKAGE_JSON)),
             },
             Self::Python => Template {
                 label: "Python",
                 filename: "pipeline.py",
                 content: include_str!("init_templates/python.py"),
+                companion: None,
             },
         }
     }
@@ -91,6 +109,11 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<()> {
     let dest = harmont_dir.join(tmpl.filename);
     std::fs::write(&dest, tmpl.content)
         .with_context(|| format!("writing {}", dest.display()))?;
+    if let Some((companion_name, companion_content)) = tmpl.companion {
+        let companion_dest = harmont_dir.join(companion_name);
+        std::fs::write(&companion_dest, companion_content)
+            .with_context(|| format!("writing {}", companion_dest.display()))?;
+    }
     Ok(())
 }
 
@@ -113,6 +136,19 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         _ => "Python",
     };
     tracing::info!("created .harmont/{} ({dsl} pipeline, template: {kind:?})", tmpl.filename);
+
+    match dsl {
+        "TypeScript" => {
+            tracing::info!("for IDE type support, install the SDK:");
+            tracing::info!("  cd .harmont && npm install");
+        }
+        "Python" => {
+            tracing::info!("for IDE type support, install the SDK:");
+            tracing::info!("  pip install harmont");
+        }
+        _ => {}
+    }
+
     tracing::info!("next step: run `hm run` to execute your pipeline locally");
     Ok(())
 }
