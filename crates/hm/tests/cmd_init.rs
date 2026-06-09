@@ -297,3 +297,35 @@ fn skill_validate_ci_content_is_well_formed() {
         "skill must have 'Procedure' section"
     );
 }
+
+#[test]
+fn skill_write_pipeline_content_is_well_formed() {
+    let content = include_str!(
+        "../src/commands/init_templates/skill_write_pipeline.md"
+    );
+    assert!(!content.is_empty(), "skill template must not be empty");
+    assert!(
+        content.contains("docs.harmont.dev"),
+        "skill must reference documentation site"
+    );
+    assert!(
+        content.contains("hm run"),
+        "skill must reference `hm run` for validation"
+    );
+    assert!(
+        content.contains("## When to use"),
+        "skill must have 'When to use' section"
+    );
+    assert!(
+        content.contains("## When NOT to use"),
+        "skill must have 'When NOT to use' section"
+    );
+    assert!(
+        content.contains("## Procedure"),
+        "skill must have 'Procedure' section"
+    );
+    assert!(
+        content.contains("gh issue create"),
+        "skill must include gh issue filing instructions"
+    );
+}
