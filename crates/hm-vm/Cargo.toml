@@ -14,15 +14,12 @@ derive_more = { workspace = true }
 
 rusqlite = { version = "0.37", features = ["bundled"] }
 
-boxlite = { version = "0.9.5", optional = true }
-boxlite-shared = { version = "0.9.5", optional = true }
 bollard = { version = "0.18", optional = true }
 futures = { version = "0.3", optional = true }
 tar = { version = "0.4", optional = true }
 
 [features]
-default = ["boxlite-backend"]
-boxlite-backend = ["dep:boxlite", "dep:boxlite-shared", "dep:futures"]
+default = ["docker-backend"]
 docker-backend = ["dep:bollard", "dep:futures", "dep:tar"]
 
 [dev-dependencies]
