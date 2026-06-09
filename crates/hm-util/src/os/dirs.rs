@@ -16,3 +16,11 @@ pub(crate) fn config_dir() -> Option<PathBuf> {
         home_dir().map(|h| h.join(".config"))
     }
 }
+
+pub(crate) fn cache_dir() -> Option<PathBuf> {
+    if cfg!(windows) {
+        dirs::cache_dir()
+    } else {
+        home_dir().map(|h| h.join(".cache"))
+    }
+}
