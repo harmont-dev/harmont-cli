@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::cli::OrgCommand;
 use crate::settings;
@@ -27,7 +27,9 @@ async fn switch(client: &harmont_cloud::HarmontClient, slug: &str) -> Result<()>
         .iter()
         .find(|o| o.slug == slug)
         .ok_or_else(|| anyhow::anyhow!("no organization with slug '{slug}'"))?;
-    settings::set_default_org(&found.slug)?;
+    let mut cfg = hm_config::Config::load(None)?;
+    cfg.cloud.org = Some(found.slug.clone());
+    cfg.save_user().context("saving config")?;
     tracing::info!("active organization: {} ({})", found.name, found.slug);
     Ok(())
 }
