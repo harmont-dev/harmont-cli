@@ -182,7 +182,7 @@ jobs:
         working-directory: crates/hm-dsl-engine/harmont-py
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if pip index versions harmont 2>/dev/null | grep -q "$VERSION"; then
+          if curl -sf "https://pypi.org/pypi/harmont/$VERSION/json" > /dev/null 2>&1; then
             echo "harmont@$VERSION already published, skipping"
           else
             twine upload dist/*
