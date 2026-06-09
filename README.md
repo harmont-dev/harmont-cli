@@ -12,30 +12,17 @@
 </p>
 
 <p>
-  <b>CI/CD you can run locally. Pipelines in real Python or TypeScript — no YAML. Each step runs in an isolated Docker container with automatic layer caching and DAG parallelism.</b>
+  <b>CI/CD you can run locally. Define your pipelines in real Python or TypeScript and run them in isolated Docker containers, with automatic layer caching and DAG parallelism.</b>
 </p>
-
-> [!WARNING]
-> Harmont is in **early alpha**. APIs will change.
->
-> Today `hm` is a fast, local-first task runner — think `make` or `just`, but
-> with DAG-based parallel execution, Docker isolation, layer caching, and typed
-> toolchain presets for many languages. The hosted CI/CD platform at
-> [harmont.dev](https://harmont.dev) is under active development.
->
-> Cross-run caching and code-quality polish are in progress. We'd love your
-> feedback — [join the community](#community).
->
-> **`hm` will always remain open-source, and pluggable into any CI/CD
-> provider.**
 
 ## What is Harmont?
 
 Harmont lets you define CI/CD pipelines in **TypeScript or Python** and run them
-instantly on your machine in Docker containers. **No YAML.** No
-`git commit -m "fix ci" --allow-empty` spam to debug a pipeline. Each step runs
-in an isolated container with built-in caching, DAG parallelism, and consistent
-environments — the *same* pipeline runs locally and in the cloud.
+instantly on your machine in Docker containers. Your pipeline is real code in a
+language you already use, and the exact run you debug locally is the one that
+runs in CI — so you stop pushing throwaway commits just to find out what breaks.
+Each step runs in an isolated container with built-in caching, DAG parallelism,
+and consistent environments — the *same* pipeline runs locally and in the cloud.
 
 
 
@@ -47,13 +34,13 @@ https://github.com/user-attachments/assets/114bc825-2889-4654-91d5-f830c3631b4c
 **Why teams switch:**
 
 - **Run CI locally** — `hm run` executes your real pipeline in Docker on your
-  machine. No push-and-pray.
-- **Pipelines are real code** — Python or TypeScript with autocomplete and
-  types, not YAML.
+  machine, so you catch failures before you push.
+- **Pipelines are real code** — Python or TypeScript, with the autocomplete,
+  types, and abstractions your editor already gives you.
 - **DAG-based parallelism** — independent steps run concurrently; `hm` figures
-  out the dependency graph.
-- **Automatic layer caching** — Docker snapshots are reused across runs; only
-  changed steps re-execute. No `actions/cache` boilerplate.
+  out the dependency graph for you.
+- **Automatic layer caching** — Docker snapshots are reused across runs, so only
+  changed steps re-execute. Caching works out of the box.
 - **Typed toolchains** — first-class presets for Rust, Go, Python, JavaScript/
   TypeScript, C/C++, Ruby, Zig, and Elixir — each handles setup, build, test,
   lint, and format for you.
@@ -83,9 +70,9 @@ cargo install harmont-cli
 hm init
 ```
 
-`hm init` detects your project, scaffolds a working `.hm/pipeline.{py,ts}`, and
-offers to install Claude Code skills that can write and maintain your pipeline
-for you. Pick a template explicitly with `-t`:
+`hm init` scaffolds a working `.hm/pipeline.{py,ts}` from a template and offers
+to install Claude Code skills that write and maintain your pipeline. Run it and
+pick your stack from the menu, or name a template up front with `-t`:
 
 ```sh
 hm init -t rust      # cmake · elixir · nextjs · js · rust · zig · python
@@ -327,8 +314,8 @@ jobs:
 ```
 
 The action installs `hm`, runs your pipeline, and caches Docker images in GitHub
-Container Registry so subsequent runs skip unchanged steps. No `actions/cache`
-configuration required.
+Container Registry so subsequent runs skip unchanged steps — the caching is wired
+up for you.
 
 <details>
 <summary><b>Multiple pipelines</b></summary>
