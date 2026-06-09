@@ -46,7 +46,11 @@ Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py` (Pyth
 
 1. **Identify the project's language and build system.** Look at the project root for `Cargo.toml` (Rust), `package.json` (JS/TS), `pyproject.toml` or `setup.py` (Python), `go.mod` (Go), `CMakeLists.txt` (C/C++), `mix.exs` (Elixir), `build.zig` (Zig), `Gemfile` (Ruby).
 
-2. **Check for an existing pipeline.** Look for `.hm/pipeline.py` or `.hm/pipeline.ts`. If none exists, ask the user whether they prefer the Python or TypeScript DSL, then either run `hm init --template <kind>` to scaffold or write the pipeline file directly.
+2. **Check for an existing pipeline.** Look for `.hm/pipeline.py` or `.hm/pipeline.ts`. If none exists, pick the DSL that matches the project's ecosystem before asking the user to confirm:
+   - **TypeScript DSL** if the project already has `package.json`, `tsconfig.json`, or is primarily TypeScript/JavaScript (the team is already comfortable with the TS toolchain).
+   - **Python DSL** for everything else — Rust, Go, C/C++, Elixir, Zig, Ruby, Python, or mixed-language projects (Python is the simpler, more universal choice).
+   - Present your recommendation and rationale, then let the user override if they prefer the other DSL.
+   Then either run `hm init --template <kind>` to scaffold or write the pipeline file directly.
 
 3. **Fetch the relevant documentation** (see "Before you start" above). Always fetch the patterns guide first. Then fetch the toolchain reference for the detected language.
 
