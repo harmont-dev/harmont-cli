@@ -25,10 +25,10 @@ Validate that the project's CI pipeline passes. Run the pipeline locally with `h
 
 ## Procedure
 
-1. Run `hm run` from the project root
+1. Run `hm run -k --logs` from the project root (`-k` continues past failures so you see every broken step in one run; `--logs` streams full build logs for easier diagnosis)
 2. If it exits 0 — pipeline passed. Inform the user and proceed with push if requested.
-3. If it exits non-zero — pipeline failed. Read the output, diagnose the failure, fix the issue, and re-run `hm run` until it passes.
-4. Only after local CI is green: push to remote. If the user wants cloud validation too, they can run `hm run --backend cloud` or wait for the remote CI triggered by the push.
+3. If it exits non-zero — pipeline failed. Read the output, diagnose ALL failures (not just the first), fix every issue, and re-run `hm run -k --logs` until it passes.
+4. Only after local CI is green: push to remote. If the user wants cloud validation too, they can run `hm run --backend cloud --logs` or wait for the remote CI triggered by the push.
 
 ## Important
 
