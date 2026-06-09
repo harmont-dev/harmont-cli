@@ -120,6 +120,9 @@ jobs:
     name: Publish to npm
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -149,15 +152,16 @@ jobs:
           if npm view @harmont/hm@"$VERSION" version 2>/dev/null; then
             echo "@harmont/hm@$VERSION already published, skipping"
           else
-            npm publish --access public
+            npm publish --access public --provenance
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   pypi:
     name: Publish to PyPI
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -166,7 +170,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        run: pip install build twine
+        run: pip install build
 
       - name: Set version from tag
         working-directory: crates/hm-dsl-engine/harmont-py
@@ -178,18 +182,21 @@ jobs:
         working-directory: crates/hm-dsl-engine/harmont-py
         run: python -m build
 
-      - name: Publish
+      - name: Check if already published
+        id: check
         working-directory: crates/hm-dsl-engine/harmont-py
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           if curl -sf "https://pypi.org/pypi/harmont/$VERSION/json" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "harmont@$VERSION already published, skipping"
-          else
-            twine upload dist/*
           fi
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+
+      - name: Publish
+        if: steps.check.outputs.exists != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: crates/hm-dsl-engine/harmont-py/dist/
 
   build-binary:
     name: Build ${{ matrix.target }}
