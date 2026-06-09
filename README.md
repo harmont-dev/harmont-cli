@@ -389,6 +389,17 @@ can build a pipeline for anything that runs in a container.
 For the full pipeline reference, richer examples, and more - see the
 [docs](https://docs.harmont.dev).
 
+## Community
+
+Harmont is built in the open and we want your feedback while the APIs are still
+moving.
+
+- **Discord** — [discord.gg/hm-dev](https://discord.gg/hm-dev)
+- **Slack** — [join the workspace](https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A)
+- **Issues** — [github.com/harmont-dev/harmont-cli/issues](https://github.com/harmont-dev/harmont-cli/issues)
+
+File bugs, request toolchains, or tell us what made you bounce — all of it helps.
+
 ## License
 
 The CLI is dual-licensed under either of
