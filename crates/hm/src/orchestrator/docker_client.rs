@@ -22,7 +22,6 @@ use bollard::models::HostConfig;
 use futures_util::StreamExt;
 use tokio::io::AsyncWrite;
 
-use crate::error::HmError;
 
 /// Build a [`HostConfig`] with optional bind mounts and Linux capabilities.
 ///
@@ -54,12 +53,12 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] when bollard cannot resolve a
+    /// Returns an error when bollard cannot resolve a
     /// local Docker endpoint (no socket on `DOCKER_HOST`, no Windows
     /// pipe, etc.).
     pub fn connect() -> Result<Self> {
         let d = Docker::connect_with_local_defaults()
-            .map_err(|e| HmError::Docker(format!("connect: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("connect: {e}"))?;
         Ok(Self { inner: Arc::new(d) })
     }
 
@@ -67,13 +66,13 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the ping request fails (daemon
+    /// Returns an error if the ping request fails (daemon
     /// stopped, socket revoked, version negotiation failure).
     pub async fn ping(&self) -> Result<()> {
         self.inner
             .ping()
             .await
-            .map_err(|e| HmError::Docker(format!("ping failed: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("ping failed: {e}"))?;
         Ok(())
     }
 
@@ -81,7 +80,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the `list_images` API call
+    /// Returns an error if the `list_images` API call
     /// fails (daemon unreachable, malformed filter).
     pub async fn image_exists(&self, tag: &str) -> Result<bool> {
         let mut filters = HashMap::new();
@@ -93,7 +92,7 @@ impl DockerClient {
                 ..Default::default()
             }))
             .await
-            .map_err(|e| HmError::Docker(format!("list_images: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("list_images: {e}"))?;
         Ok(!images.is_empty())
     }
 
@@ -103,7 +102,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the `list_images` API call fails.
+    /// Returns an error if the `list_images` API call fails.
     pub async fn list_images_by_reference(&self, reference: &str) -> Result<Vec<String>> {
         let mut filters = HashMap::new();
         filters.insert("reference".to_string(), vec![format!("{reference}:*")]);
@@ -114,7 +113,7 @@ impl DockerClient {
                 ..Default::default()
             }))
             .await
-            .map_err(|e| HmError::Docker(format!("list_images: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("list_images: {e}"))?;
         Ok(images.into_iter().flat_map(|img| img.repo_tags).collect())
     }
 
@@ -123,7 +122,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if any chunk of the pull stream
+    /// Returns an error if any chunk of the pull stream
     /// reports an error (registry not reachable, image not found,
     /// auth required).
     pub async fn pull_image(&self, tag: &str) -> Result<()> {
@@ -136,7 +135,7 @@ impl DockerClient {
             None,
         );
         while let Some(item) = s.next().await {
-            item.map_err(|e| HmError::Docker(format!("pull {tag}: {e}")))?;
+            item.map_err(|e| anyhow::anyhow!("pull {tag}: {e}"))?;
         }
         Ok(())
     }
@@ -146,7 +145,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the container cannot be created
+    /// Returns an error if the container cannot be created
     /// (image not pulled, name conflict, OCI runtime failure) or if
     /// `start_container` rejects the create.
     pub async fn start_long_lived(
@@ -167,7 +166,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the container cannot be created
+    /// Returns an error if the container cannot be created
     /// (image not pulled, name conflict, OCI runtime failure) or if
     /// `start_container` rejects the create.
     pub async fn start_long_lived_with_mounts(
@@ -196,11 +195,11 @@ impl DockerClient {
                 cfg,
             )
             .await
-            .map_err(|e| HmError::Docker(format!("create_container: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("create_container: {e}"))?;
         self.inner
             .start_container(&create.id, None::<StartContainerOptions<String>>)
             .await
-            .map_err(|e| HmError::Docker(format!("start_container: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("start_container: {e}"))?;
         Ok(create.id)
     }
 
@@ -209,7 +208,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if `create_exec` / `start_exec` /
+    /// Returns an error if `create_exec` / `start_exec` /
     /// `inspect_exec` fail, or surfaces an `anyhow` error if writing a
     /// log frame to `out` fails.
     pub async fn exec_streaming(
@@ -237,16 +236,16 @@ impl DockerClient {
                 },
             )
             .await
-            .map_err(|e| HmError::Docker(format!("create_exec: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("create_exec: {e}"))?;
         match self
             .inner
             .start_exec(&exec.id, None)
             .await
-            .map_err(|e| HmError::Docker(format!("start_exec: {e}")))?
+            .map_err(|e| anyhow::anyhow!("start_exec: {e}"))?
         {
             StartExecResults::Attached { mut output, .. } => {
                 while let Some(item) = output.next().await {
-                    let chunk = item.map_err(|e| HmError::Docker(format!("exec stream: {e}")))?;
+                    let chunk = item.map_err(|e| anyhow::anyhow!("exec stream: {e}"))?;
                     let (LogOutput::StdOut { message: bytes }
                     | LogOutput::StdErr { message: bytes }
                     | LogOutput::Console { message: bytes }) = chunk
@@ -263,7 +262,7 @@ impl DockerClient {
             .inner
             .inspect_exec(&exec.id)
             .await
-            .map_err(|e| HmError::Docker(format!("inspect_exec: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("inspect_exec: {e}"))?;
         Ok(inspect.exit_code.unwrap_or(0))
     }
 
@@ -274,7 +273,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if any of the exec lifecycle calls
+    /// Returns an error if any of the exec lifecycle calls
     /// fail, or surfaces an `anyhow` error if writing stdin or output
     /// frames fails.
     pub async fn exec_streaming_stdin(
@@ -304,12 +303,12 @@ impl DockerClient {
                 },
             )
             .await
-            .map_err(|e| HmError::Docker(format!("create_exec: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("create_exec: {e}"))?;
         match self
             .inner
             .start_exec(&exec.id, None)
             .await
-            .map_err(|e| HmError::Docker(format!("start_exec: {e}")))?
+            .map_err(|e| anyhow::anyhow!("start_exec: {e}"))?
         {
             StartExecResults::Attached {
                 mut output,
@@ -323,7 +322,7 @@ impl DockerClient {
                 // Drop the writer to fully release the half-duplex.
                 drop(input);
                 while let Some(item) = output.next().await {
-                    let chunk = item.map_err(|e| HmError::Docker(format!("exec stream: {e}")))?;
+                    let chunk = item.map_err(|e| anyhow::anyhow!("exec stream: {e}"))?;
                     let (LogOutput::StdOut { message: bytes }
                     | LogOutput::StdErr { message: bytes }
                     | LogOutput::Console { message: bytes }) = chunk
@@ -340,7 +339,7 @@ impl DockerClient {
             .inner
             .inspect_exec(&exec.id)
             .await
-            .map_err(|e| HmError::Docker(format!("inspect_exec: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("inspect_exec: {e}"))?;
         Ok(inspect.exit_code.unwrap_or(0))
     }
 
@@ -355,7 +354,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if `commit_container` fails (paused
+    /// Returns an error if `commit_container` fails (paused
     /// container, daemon I/O failure).
     ///
     /// # Panics
@@ -379,7 +378,7 @@ impl DockerClient {
         self.inner
             .commit_container(opts, Config::<String>::default())
             .await
-            .map_err(|e| HmError::Docker(format!("commit_container: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("commit_container: {e}"))?;
         Ok(tag.to_string())
     }
 
@@ -390,7 +389,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if `remove_image` fails (image
+    /// Returns an error if `remove_image` fails (image
     /// missing, still referenced by a running container, daemon I/O
     /// failure).
     pub async fn remove_image(&self, image: &str) -> Result<()> {
@@ -404,7 +403,7 @@ impl DockerClient {
                 None,
             )
             .await
-            .map_err(|e| HmError::Docker(format!("remove_image '{image}': {e}")))?;
+            .map_err(|e| anyhow::anyhow!("remove_image '{image}': {e}"))?;
         Ok(())
     }
 
@@ -416,7 +415,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if `tag_image` fails (source image
+    /// Returns an error if `tag_image` fails (source image
     /// not found, daemon I/O failure).
     pub async fn tag_image(&self, source: &str, new_tag: &str) -> Result<()> {
         let parts: Vec<&str> = new_tag.splitn(2, ':').collect();
@@ -428,7 +427,7 @@ impl DockerClient {
         self.inner
             .tag_image(source, Some(TagImageOptions { repo, tag }))
             .await
-            .map_err(|e| HmError::Docker(format!("tag_image '{source}' -> '{new_tag}': {e}")))?;
+            .map_err(|e| anyhow::anyhow!("tag_image '{source}' -> '{new_tag}': {e}"))?;
         Ok(())
     }
 
@@ -439,7 +438,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the daemon's export stream fails,
+    /// Returns an error if the daemon's export stream fails,
     /// or an I/O error if writing to `dest` fails.
     pub async fn export_image(&self, image: &str, dest: &std::path::Path) -> Result<()> {
         use tokio::io::AsyncWriteExt;
@@ -451,7 +450,7 @@ impl DockerClient {
         let mut writer = tokio::io::BufWriter::new(file);
         while let Some(chunk) = stream.next().await {
             let bytes =
-                chunk.map_err(|e| HmError::Docker(format!("export_image '{image}': {e}")))?;
+                chunk.map_err(|e| anyhow::anyhow!("export_image '{image}': {e}"))?;
             writer
                 .write_all(&bytes)
                 .await
@@ -471,7 +470,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the daemon rejects the import
+    /// Returns an error if the daemon rejects the import
     /// stream, or an I/O error if reading `src` fails.
     pub async fn import_image(&self, src: &std::path::Path) -> Result<()> {
         let body = tokio::fs::read(src)
@@ -481,7 +480,7 @@ impl DockerClient {
             self.inner
                 .import_image(ImportImageOptions { quiet: true }, body.into(), None);
         while let Some(item) = stream.next().await {
-            item.map_err(|e| HmError::Docker(format!("import_image '{}': {e}", src.display())))?;
+            item.map_err(|e| anyhow::anyhow!("import_image '{}': {e}", src.display()))?;
         }
         Ok(())
     }
@@ -494,7 +493,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] if the `list_images` API call
+    /// Returns an error if the `list_images` API call
     /// fails (daemon unreachable, malformed filter).
     pub async fn list_images_by_prefix(&self, prefix: &str) -> Result<Vec<String>> {
         let mut filters = HashMap::new();
@@ -506,7 +505,7 @@ impl DockerClient {
                 ..Default::default()
             }))
             .await
-            .map_err(|e| HmError::Docker(format!("list_images: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("list_images: {e}"))?;
         let mut tags: Vec<String> = images
             .iter()
             .flat_map(|img| &img.repo_tags)
@@ -552,7 +551,7 @@ impl DockerClient {
     ///
     /// # Errors
     ///
-    /// Returns [`HmError::Docker`] when `list_containers` fails.
+    /// Returns an error when `list_containers` fails.
     pub async fn list_containers_by_label(
         &self,
         k: &str,
@@ -570,7 +569,7 @@ impl DockerClient {
                 ..Default::default()
             }))
             .await
-            .map_err(|e| HmError::Docker(format!("list_containers: {e}")))?;
+            .map_err(|e| anyhow::anyhow!("list_containers: {e}"))?;
         Ok(out)
     }
 }

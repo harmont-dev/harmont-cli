@@ -39,7 +39,8 @@ use uuid::Uuid;
 
 use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
 
-use crate::error::HmError;
+/// Exit code returned when any build step exits non-zero.
+const EXIT_BUILD_FAILED: i32 = 1;
 use crate::orchestrator::docker_client::DockerClient;
 use crate::orchestrator::source::build_archive_bytes;
 use crate::runner::{RunContext, RunnerRegistry};
@@ -59,7 +60,7 @@ struct StepOutcome {
 type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 
 /// Entry point: run a parsed pipeline locally end-to-end. Returns
-/// the overall exit code (0 = success, [`crate::error::EXIT_BUILD_FAILED`]
+/// the overall exit code (0 = success, [`EXIT_BUILD_FAILED`]
 /// when any step exited non-zero).
 ///
 /// # Errors
@@ -81,11 +82,11 @@ pub async fn run(
     let _ctrlc = super::signal::install_ctrlc(cancel.clone());
     // _ctrlc dropped at end of `run`; runtime tear-down kills the task.
     let docker = DockerClient::connect()
-        .map_err(|e| HmError::Docker(format!("daemon unreachable — is Docker running? ({e})")))?;
+        .map_err(|e| anyhow::anyhow!("daemon unreachable — is Docker running? ({e})"))?;
     docker
         .ping()
         .await
-        .map_err(|e| HmError::Docker(format!("daemon ping failed: {e}")))?;
+        .map_err(|e| anyhow::anyhow!("daemon ping failed: {e}"))?;
     let run_id = Uuid::new_v4();
 
     // Build the source archive once.
@@ -213,7 +214,7 @@ pub async fn run(
 
     let outcomes: Vec<StepOutcome> = join_all(done.into_values()).await;
     let overall = if outcomes.iter().any(|o| o.exit_code != 0) {
-        crate::error::EXIT_BUILD_FAILED
+        EXIT_BUILD_FAILED
     } else {
         0
     };
@@ -343,16 +344,20 @@ async fn execute_step(
         image: input.step.image.clone(),
     });
 
+    let available: Vec<String> = runner_registry
+        .runner_names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
     let runner = runner_registry
         .resolve(input.step.runner.as_deref())
-        .ok_or_else(|| HmError::UnknownRunner {
-            step_key: input.step.key.clone(),
-            runner: runner_name.clone(),
-            available: runner_registry
-                .runner_names()
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "step '{}' requested runner '{}', but no runner provides it (available: {:?})",
+                input.step.key,
+                runner_name,
+                available,
+            )
         })?;
 
     let result: Result<StepResult> = runner.execute(&run_ctx, input).await;
