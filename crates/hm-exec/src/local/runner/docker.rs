@@ -16,8 +16,8 @@ use hm_plugin_protocol::{
 };
 use uuid::Uuid;
 
-use super::{RunContext, StepRunner};
-use crate::orchestrator::events::EventBus;
+use super::{StepContext, StepRunner};
+use crate::local::events::EventBus;
 
 /// Step runner that executes pipeline steps inside Docker containers
 /// via the local daemon (Bollard).
@@ -31,7 +31,7 @@ impl StepRunner for DockerRunner {
 
     fn execute(
         &self,
-        ctx: &RunContext,
+        ctx: &StepContext,
         input: ExecutorInput,
     ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>> {
         let ctx = ctx.clone();
@@ -48,7 +48,7 @@ fn resolve_image(step: &CommandStep, input: &ExecutorInput) -> String {
         .unwrap_or_else(|| "alpine:latest".to_string())
 }
 
-async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> {
+async fn run_step(ctx: &StepContext, input: ExecutorInput) -> Result<StepResult> {
     let plan = decision_plan(&input.cache_lookup);
 
     if !plan.run_command {
@@ -114,7 +114,7 @@ async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> 
 }
 
 async fn run_in_container(
-    ctx: &RunContext,
+    ctx: &StepContext,
     cid: &str,
     input: &ExecutorInput,
     env_vec: &[String],

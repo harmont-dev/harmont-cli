@@ -14,6 +14,13 @@ pub use outcome::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};
 mod capabilities;
 pub use capabilities::Capabilities;
 
+// The local backend is fully wired internally but not yet *driven*: the
+// `LocalDockerBackend` that calls `local::run` lands in the next task. Until
+// then the scheduler chain reads as dead/over-`pub` to the compiler. Scoped
+// allow, removed when the backend is added.
+#[allow(dead_code, unreachable_pub)]
+pub mod local;
+
 pub use hm_plugin_protocol::events::BuildRef;
 
 use futures::StreamExt as _;

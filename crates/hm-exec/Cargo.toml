@@ -32,6 +32,7 @@ daggy = { workspace = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tempfile = "3"
 
 [lints]
 workspace = true
