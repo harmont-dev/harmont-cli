@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { js, ts, JsProject } from "../../src/toolchains/js.js";
 import { sh } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 // ---------------------------------------------------------------------------
 // Factory defaults
@@ -378,6 +381,86 @@ describe("js.project pipeline IR", () => {
     const l = p.lint();
     expect(t._parent).toBe(p.install());
     expect(l._parent).toBe(p.install());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auto-detection
+// ---------------------------------------------------------------------------
+
+describe("js.project auto-detection", () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "hm-js-detect-"));
+    writeFileSync(join(tmp, "package.json"), "{}");
+  });
+
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("detects pnpm from pnpm-lock.yaml", () => {
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("pnpm install --frozen-lockfile");
+  });
+
+  it("detects bun runtime + pm from bun.lock", () => {
+    writeFileSync(join(tmp, "bun.lock"), "");
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("bun install --frozen-lockfile");
+    const bunSetup = p.install()._parent!;
+    expect(bunSetup._cmd).toContain("bun.sh/install");
+  });
+
+  it("detects bun from engines.bun in package.json", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ engines: { bun: ">=1.0" } }),
+    );
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("bun install --frozen-lockfile");
+    const bunSetup = p.install()._parent!;
+    expect(bunSetup._cmd).toContain("bun.sh/install");
+  });
+
+  it("detects deno from deno.lock", () => {
+    writeFileSync(join(tmp, "deno.lock"), "");
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("deno install");
+  });
+
+  it("detects pnpm from packageManager field", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "pnpm@8.15.4" }),
+    );
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("pnpm install --frozen-lockfile");
+  });
+
+  it("explicit opts skip detection entirely", () => {
+    writeFileSync(join(tmp, "bun.lock"), "");
+    const p = js.project({ path: tmp, pm: "npm", runtime: "node" });
+    expect(p.install()._cmd).toContain("npm ci");
+  });
+
+  it("defaults to node + npm when no detection signals", () => {
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("npm ci");
+  });
+
+  it("skips detection when only runtime is set", () => {
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp, runtime: "node" });
+    expect(p.install()._cmd).toContain("npm ci");
+  });
+
+  it("skips detection when only pm is set", () => {
+    writeFileSync(join(tmp, "bun.lock"), "");
+    const p = js.project({ path: tmp, pm: "pnpm" });
+    expect(p.install()._cmd).toContain("pnpm install --frozen-lockfile");
   });
 });
 
