@@ -362,7 +362,9 @@ async fn execute_step(
     cancel: CancellationToken,
     keep_going: bool,
 ) -> anyhow::Result<StepOutcome> {
-    let step_wire = transition.step;
+    let step_wire = transition.step.into_command().ok_or_else(|| {
+        anyhow::anyhow!("dynamic step expansion is not implemented by the local backend yet")
+    })?;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
         let cmd = step_wire.cmd.trim();

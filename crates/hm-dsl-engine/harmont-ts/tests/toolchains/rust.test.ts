@@ -4,11 +4,14 @@ import { sh, timeout } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
 
 const cmds = (ir: ReturnType<typeof pipeline>) =>
-  ir.graph.nodes.map((n: { step: { cmd: string } }) => n.step.cmd);
+  ir.graph.nodes.map(
+    (n: { step: { eval: { cmd: string } } }) => n.step.eval.cmd,
+  );
 
 const stepBySubstring = (ir: ReturnType<typeof pipeline>, needle: string) => {
-  const node = ir.graph.nodes.find((n: { step: { cmd: string } }) =>
-    n.step.cmd.includes(needle),
+  const node = ir.graph.nodes.find(
+    (n: { step: { eval: { cmd: string } } }) =>
+      n.step.eval.cmd.includes(needle),
   );
   if (!node) throw new Error(`no command step containing "${needle}"`);
   return node.step;
@@ -268,6 +271,6 @@ describe("rust.project", () => {
     const proj = rust.project({ path: ".", version: "1.81.0" });
     const ir = pipeline([proj.test()]);
     const rustup = stepBySubstring(ir, "sh.rustup.rs");
-    expect(rustup.cmd).toContain("--default-toolchain 1.81.0");
+    expect(rustup.eval.cmd).toContain("--default-toolchain 1.81.0");
   });
 });

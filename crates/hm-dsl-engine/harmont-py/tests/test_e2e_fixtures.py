@@ -160,7 +160,8 @@ def test_e2e_fixture(name: str) -> None:
 
     for node in ir["graph"]["nodes"]:
         assert "key" in node["step"]
-        assert "cmd" in node["step"]
+        assert node["step"]["eval"]["type"] == "cmd"
+        assert "cmd" in node["step"]["eval"]
         assert isinstance(node["env"], dict)
 
     for src, dst, kind in ir["graph"]["edges"]:

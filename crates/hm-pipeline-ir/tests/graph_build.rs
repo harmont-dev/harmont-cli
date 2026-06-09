@@ -32,9 +32,9 @@ fn builds_simple_chain() {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
-                {"step": {"key": "c", "cmd": "echo c"}, "env": {}}
+                {"step": {"key": "a", "eval": {"type": "cmd", "cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "eval": {"type": "cmd", "cmd": "echo b"}}, "env": {}},
+                {"step": {"key": "c", "eval": {"type": "cmd", "cmd": "echo c"}}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": [
@@ -56,7 +56,7 @@ fn root_inherits_default_image() {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}}
+                {"step": {"key": "a", "eval": {"type": "cmd", "cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": []
@@ -75,8 +75,8 @@ fn child_does_not_inherit_default_image() {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                {"step": {"key": "b", "cmd": "echo b"}, "env": {}}
+                {"step": {"key": "a", "eval": {"type": "cmd", "cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "eval": {"type": "cmd", "cmd": "echo b"}}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": [
@@ -96,9 +96,9 @@ fn wait_inserts_implicit_deps() {
         "version": "0",
         "graph": {
             "nodes": [
-                {"step": {"key": "a", "cmd": "echo a"}, "env": {}},
-                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
-                {"step": {"key": "c", "cmd": "echo c"}, "env": {}}
+                {"step": {"key": "a", "eval": {"type": "cmd", "cmd": "echo a"}}, "env": {}},
+                {"step": {"key": "b", "eval": {"type": "cmd", "cmd": "echo b"}}, "env": {}},
+                {"step": {"key": "c", "eval": {"type": "cmd", "cmd": "echo c"}}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": [

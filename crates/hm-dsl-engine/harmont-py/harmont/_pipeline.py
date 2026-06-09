@@ -114,10 +114,12 @@ def _lower_to_graph(
         node_idx = idx_by_id[id(s)]
         step_key = keys[id(s)]
 
-        # Build the CommandStep dict (no "type" or "builds_in" fields).
         step_dict: dict[str, Any] = {
             "key": step_key,
-            "cmd": s.cmd,
+            "eval": {
+                "type": "cmd",
+                "cmd": s.cmd,
+            },
         }
         if s.label is not None:
             step_dict["label"] = s.label

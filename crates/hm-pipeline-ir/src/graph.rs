@@ -107,13 +107,13 @@ pub struct Cache {
     pub key: Option<String>,
 }
 
-/// A graph node: a [`CommandStep`] paired with its resolved environment.
+/// A graph node paired with its resolved environment.
 ///
 /// The `env` map is the final merged result of pipeline-level defaults
 /// and per-step overrides — ready to hand to the executor as-is.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transition {
-    pub step: CommandStep,
+    pub step: PipelineStep,
     pub env: BTreeMap<String, String>,
 }
 

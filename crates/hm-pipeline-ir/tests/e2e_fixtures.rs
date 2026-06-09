@@ -149,8 +149,9 @@ fn all_fixtures_have_valid_structure() {
 
             for (_, t) in g.dag().graph().node_references() {
                 assert!(!t.step.key.is_empty(), "{dsl}/{scenario}: empty key");
+                let step = t.step.clone().into_command().expect("fixture command");
                 assert!(
-                    !t.step.cmd.is_empty(),
+                    !step.cmd.is_empty(),
                     "{dsl}/{scenario}: empty cmd for {}",
                     t.step.key,
                 );

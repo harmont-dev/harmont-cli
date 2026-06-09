@@ -20,7 +20,7 @@ fn decode(json: &[u8]) -> PipelineGraph {
     serde_json::from_slice::<PipelineGraph>(json).unwrap()
 }
 
-fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::CommandStep {
+fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::PipelineStep {
     let dag = g.dag();
     let (_, t) = dag
         .graph()
@@ -37,7 +37,7 @@ fn root_step_inherits_default_image() {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "apt-base", "cmd": "apt-get update", "image": "ubuntu:24.04"}, "env": {}}
+                {"step": {"key": "apt-base", "eval": {"type": "cmd", "cmd": "apt-get update"}, "image": "ubuntu:24.04"}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": []
@@ -59,7 +59,7 @@ fn root_step_explicit_image_wins() {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "rust", "cmd": "cargo build", "image": "rust:1.82"}, "env": {}}
+                {"step": {"key": "rust", "eval": {"type": "cmd", "cmd": "cargo build"}, "image": "rust:1.82"}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": []
@@ -85,8 +85,8 @@ fn child_step_unchanged_by_default_image() {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "parent", "cmd": "echo p", "image": "ubuntu:24.04"}, "env": {}},
-                {"step": {"key": "child",  "cmd": "echo c"}, "env": {}}
+                {"step": {"key": "parent", "eval": {"type": "cmd", "cmd": "echo p"}, "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "child", "eval": {"type": "cmd", "cmd": "echo c"}}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": [
@@ -109,7 +109,7 @@ fn no_default_image_leaves_root_alone() {
         "version": "0",
         "graph": {
             "nodes": [
-                {"step": {"key": "k", "cmd": "true"}, "env": {}}
+                {"step": {"key": "k", "eval": {"type": "cmd", "cmd": "true"}}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": []

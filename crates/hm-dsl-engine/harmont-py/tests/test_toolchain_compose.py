@@ -6,7 +6,7 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["eval"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def test_stack_npm_on_spec_step():
@@ -57,7 +57,7 @@ def test_mixed_pipeline_compiles():
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("eval", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)

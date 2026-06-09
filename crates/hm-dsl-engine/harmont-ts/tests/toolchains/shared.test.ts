@@ -52,7 +52,7 @@ describe("aptBase", () => {
     const p = uv({ path: "dsls/harmont-py", base });
     const ir = pipeline([r.build(), p.test()], { defaultImage: "ubuntu:24.04" });
     const cmds = ir.graph.nodes.map(
-      (n: { step: { cmd: string } }) => n.step.cmd,
+      (n: { step: { eval: { cmd: string } } }) => n.step.eval.cmd,
     );
     const aptSteps = cmds.filter((c: string) => c.includes("apt-get install"));
     expect(aptSteps).toHaveLength(1);

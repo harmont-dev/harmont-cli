@@ -135,7 +135,7 @@ describe("lowering: optional fields", () => {
     const ir = pipeline([s]);
     const step = ir.graph.nodes[0].step;
     expect(step.key).toBeDefined();
-    expect(step.cmd).toBe("make");
+    expect(step.eval).toEqual({ type: "cmd", cmd: "make" });
     expect("label" in step).toBe(false);
     expect("timeout_seconds" in step).toBe(false);
     expect("cache" in step).toBe(false);

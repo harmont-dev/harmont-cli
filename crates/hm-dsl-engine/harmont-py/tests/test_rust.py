@@ -9,12 +9,12 @@ from harmont.cache import CacheOnChange
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["eval"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("eval", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
@@ -62,20 +62,20 @@ class TestRustToolchain:
         tc = hm.rust.toolchain(path=".")
         p = hm.pipeline([tc.build()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
-        assert "--component clippy,rustfmt" in rustup["cmd"]
+        assert "--component clippy,rustfmt" in rustup["eval"]["cmd"]
 
     def test_components_override(self):
         tc = hm.rust.toolchain(path=".", components=("clippy",))
         p = hm.pipeline([tc.build()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
-        assert "--component clippy" in rustup["cmd"]
-        assert "rustfmt" not in rustup["cmd"]
+        assert "--component clippy" in rustup["eval"]["cmd"]
+        assert "rustfmt" not in rustup["eval"]["cmd"]
 
     def test_version_in_rustup_cmd(self):
         tc = hm.rust.toolchain(path=".", version="1.81.0")
         p = hm.pipeline([tc.build()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
-        assert "--default-toolchain 1.81.0" in rustup["cmd"]
+        assert "--default-toolchain 1.81.0" in rustup["eval"]["cmd"]
 
     def test_invalid_version_rejected(self):
         with pytest.raises(ValueError, match="version"):
@@ -259,4 +259,4 @@ class TestRustProject:
         proj = hm.rust.project(path=".", version="1.81.0")
         p = hm.pipeline([proj.test()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
-        assert "--default-toolchain 1.81.0" in rustup["cmd"]
+        assert "--default-toolchain 1.81.0" in rustup["eval"]["cmd"]

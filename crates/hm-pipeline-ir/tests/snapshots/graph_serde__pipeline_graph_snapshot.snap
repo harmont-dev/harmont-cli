@@ -1,6 +1,6 @@
 ---
 source: crates/hm-pipeline-ir/tests/graph_serde.rs
-assertion_line: 88
+assertion_line: 181
 expression: json
 ---
 {
@@ -20,8 +20,11 @@ expression: json
         "env": {},
         "step": {
           "cache": null,
-          "cmd": "echo a",
           "env": null,
+          "eval": {
+            "cmd": "echo a",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "a",
           "label": null,
@@ -32,8 +35,11 @@ expression: json
         "env": {},
         "step": {
           "cache": null,
-          "cmd": "echo b",
           "env": null,
+          "eval": {
+            "cmd": "echo b",
+            "type": "cmd"
+          },
           "image": null,
           "key": "b",
           "label": null,
@@ -44,8 +50,11 @@ expression: json
         "env": {},
         "step": {
           "cache": null,
-          "cmd": "echo c",
           "env": null,
+          "eval": {
+            "cmd": "echo c",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "c",
           "label": null,

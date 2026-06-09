@@ -84,7 +84,10 @@ function lowerToGraph(
 
     const stepDict: Record<string, unknown> = {
       key: stepKey,
-      cmd: s._cmd,
+      eval: {
+        type: "cmd",
+        cmd: s._cmd,
+      },
     };
     if (s._label != null) stepDict.label = s._label;
     if (s._cache != null) stepDict.cache = cachePolicyToDict(s._cache);

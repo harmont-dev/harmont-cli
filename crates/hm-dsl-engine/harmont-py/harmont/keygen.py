@@ -61,7 +61,8 @@ def resolve_pipeline_keys(
         cache = step.get("cache")
         if not cache or cache["policy"] == "none":
             continue
-        cmd = step.get("cmd", "")
+        evaluation = step["eval"]
+        cmd = evaluation["cmd"] if evaluation["type"] == "cmd" else ""
         parent = parent_key_map.get(step["key"])
         parent_resolved = _lookup_parent(parent, resolved)
         policy_res = _resolve_policy(cache, cmd, now, base_path, env)

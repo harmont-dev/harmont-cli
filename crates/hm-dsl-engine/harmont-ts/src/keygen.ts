@@ -44,7 +44,8 @@ export function resolvePipelineCacheKeys(
     const cache = step.cache as Record<string, unknown> | undefined;
     if (!cache || cache.policy === "none") continue;
 
-    const cmd = (step.cmd as string) ?? "";
+    const evaluation = step.eval as Record<string, unknown>;
+    const cmd = evaluation.type === "cmd" ? (evaluation.cmd as string) : "";
     const stepKey = step.key as string;
     const parentStepKey = parentKeyMap.get(stepKey);
     const parentResolved = lookupParent(parentStepKey, resolved);

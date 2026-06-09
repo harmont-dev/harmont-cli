@@ -22,7 +22,7 @@ TypeScript pipeline DSL — equivalent of `harmont-py/` (sibling directory).
 ## IR Compatibility
 
 Output must match the v0 IR that `crates/hm-pipeline-ir/` deserializes.
-The Rust `CommandStep` accepts: key, cmd, label?, image?, env?, timeout_seconds?, cache?, runner?, runner_args?.
+The Rust `PipelineStep` accepts: key, eval, label?, image?, env?, timeout_seconds?, cache?, runner?, runner_args?. Static commands use `eval: { type: "cmd", cmd }`.
 The Rust `Cache` accepts: policy, key?.
 Edge kinds: `builds_in`, `depends_on`.
 Envelope: `{ schema_version: "1", pipelines: [...] }`.

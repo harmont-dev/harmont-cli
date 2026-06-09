@@ -49,7 +49,7 @@ describe.skipIf(examples.length === 0)("examples render to v0 IR", () => {
       // Verify all nodes have required fields
       for (const node of ci.pipeline.graph.nodes) {
         expect(node.step.key).toBeDefined();
-        expect(node.step.cmd).toBeDefined();
+        expect(node.step.eval).toMatchObject({ type: "cmd" });
         expect(typeof node.env).toBe("object");
       }
 

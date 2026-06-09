@@ -68,7 +68,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates xz-utils",
+          "eval": {
+            "cmd": "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates xz-utils",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "base",
           "label": ":apt: base"
@@ -85,7 +88,10 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl -fsSL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz -o /tmp/zig.tar.xz && rm -rf /usr/local/zig && mkdir -p /usr/local/zig && tar -xJf /tmp/zig.tar.xz -C /usr/local/zig --strip-components=1 && ln -sf /usr/local/zig/zig /usr/local/bin/zig && zig version",
+          "eval": {
+            "cmd": "curl -fsSL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz -o /tmp/zig.tar.xz && rm -rf /usr/local/zig && mkdir -p /usr/local/zig && tar -xJf /tmp/zig.tar.xz -C /usr/local/zig --strip-components=1 && ln -sf /usr/local/zig/zig /usr/local/bin/zig && zig version",
+            "type": "cmd"
+          },
           "key": "3083a531d11a",
           "label": ":zig: install"
         }
@@ -97,7 +103,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd zig-a && zig build",
+          "eval": {
+            "cmd": "cd zig-a && zig build",
+            "type": "cmd"
+          },
           "key": "zig-a-build",
           "label": ":zig: zig-a build"
         }
@@ -109,7 +118,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd zig-a && zig build test",
+          "eval": {
+            "cmd": "cd zig-a && zig build test",
+            "type": "cmd"
+          },
           "key": "zig-a-test",
           "label": ":zig: zig-a test"
         }
@@ -121,7 +133,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd zig-b && zig build",
+          "eval": {
+            "cmd": "cd zig-b && zig build",
+            "type": "cmd"
+          },
           "key": "zig-b-build",
           "label": ":zig: zig-b build"
         }
@@ -133,7 +148,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd zig-b && zig build test",
+          "eval": {
+            "cmd": "cd zig-b && zig build test",
+            "type": "cmd"
+          },
           "key": "zig-b-test",
           "label": ":zig: zig-b test"
         }
@@ -149,7 +167,10 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs",
+          "eval": {
+            "cmd": "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs",
+            "type": "cmd"
+          },
           "key": "a8f0d9d99460",
           "label": ":node: install"
         }
@@ -167,7 +188,10 @@
             ],
             "policy": "on_change"
           },
-          "cmd": "cd web && npm ci",
+          "eval": {
+            "cmd": "cd web && npm ci",
+            "type": "cmd"
+          },
           "key": "deps",
           "label": ":node: deps"
         }
@@ -179,7 +203,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd web && npm run build",
+          "eval": {
+            "cmd": "cd web && npm run build",
+            "type": "cmd"
+          },
           "key": "build",
           "label": ":node: build"
         }
@@ -191,7 +218,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd web && npm run test",
+          "eval": {
+            "cmd": "cd web && npm run test",
+            "type": "cmd"
+          },
           "key": "test",
           "label": ":node: test"
         }
@@ -203,7 +233,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd web && npm run lint",
+          "eval": {
+            "cmd": "cd web && npm run lint",
+            "type": "cmd"
+          },
           "key": "lint",
           "label": ":node: lint"
         }

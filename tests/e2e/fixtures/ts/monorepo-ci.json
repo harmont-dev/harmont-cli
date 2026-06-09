@@ -88,7 +88,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y curl ca-certificates git",
+          "eval": {
+            "cmd": "apt-get update && apt-get install -y curl ca-certificates git",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "334b29e96b76",
           "label": ":go: apt-base"
@@ -105,7 +108,10 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl -fsSL https://go.dev/dl/go1.23.2.linux-amd64.tar.gz -o /tmp/go.tgz && rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/go.tgz && ln -sf /usr/local/go/bin/go /usr/local/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt && go version",
+          "eval": {
+            "cmd": "curl -fsSL https://go.dev/dl/go1.23.2.linux-amd64.tar.gz -o /tmp/go.tgz && rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/go.tgz && ln -sf /usr/local/go/bin/go /usr/local/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt && go version",
+            "type": "cmd"
+          },
           "key": "e0b494124562",
           "label": ":go: install"
         }
@@ -117,7 +123,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/api && go build ./...",
+          "eval": {
+            "cmd": "cd services/api && go build ./...",
+            "type": "cmd"
+          },
           "key": "6f9493b7219f",
           "label": ":go: build"
         }
@@ -129,7 +138,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/api && go test ./...",
+          "eval": {
+            "cmd": "cd services/api && go test ./...",
+            "type": "cmd"
+          },
           "key": "1ad6d86b2c0a",
           "label": ":go: test"
         }
@@ -141,7 +153,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/api && go vet ./...",
+          "eval": {
+            "cmd": "cd services/api && go vet ./...",
+            "type": "cmd"
+          },
           "key": "vet",
           "label": ":go: vet"
         }
@@ -158,7 +173,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y curl ca-certificates python3 python3-venv",
+          "eval": {
+            "cmd": "apt-get update && apt-get install -y curl ca-certificates python3 python3-venv",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "c8d9fda86ff3",
           "label": ":python: apt-base"
@@ -175,7 +193,10 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -sf /root/.local/bin/uv /usr/local/bin/uv && uv --version",
+          "eval": {
+            "cmd": "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -sf /root/.local/bin/uv /usr/local/bin/uv && uv --version",
+            "type": "cmd"
+          },
           "key": "uv-install",
           "label": ":python: uv-install"
         }
@@ -194,7 +215,10 @@
             ],
             "policy": "on_change"
           },
-          "cmd": "cd services/ml && uv sync --all-extras",
+          "eval": {
+            "cmd": "cd services/ml && uv sync --all-extras",
+            "type": "cmd"
+          },
           "key": "uv-sync",
           "label": ":python: uv-sync"
         }
@@ -206,7 +230,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/ml && uv run pytest",
+          "eval": {
+            "cmd": "cd services/ml && uv run pytest",
+            "type": "cmd"
+          },
           "key": "847020e744bc",
           "label": ":python: test"
         }
@@ -218,7 +245,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/ml && uv run ruff check .",
+          "eval": {
+            "cmd": "cd services/ml && uv run ruff check .",
+            "type": "cmd"
+          },
           "key": "6c48498afb84",
           "label": ":python: lint"
         }
@@ -230,7 +260,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/ml && uv run ty check .",
+          "eval": {
+            "cmd": "cd services/ml && uv run ty check .",
+            "type": "cmd"
+          },
           "key": "typecheck",
           "label": ":python: typecheck"
         }
@@ -247,7 +280,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y curl ca-certificates",
+          "eval": {
+            "cmd": "apt-get update && apt-get install -y curl ca-certificates",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "3c2cfedcad46",
           "label": ":node: apt-base"
@@ -264,7 +300,10 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs",
+          "eval": {
+            "cmd": "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs",
+            "type": "cmd"
+          },
           "key": "ed974519b390",
           "label": ":node: install"
         }
@@ -282,7 +321,10 @@
             ],
             "policy": "on_change"
           },
-          "cmd": "cd web && npm ci",
+          "eval": {
+            "cmd": "cd web && npm ci",
+            "type": "cmd"
+          },
           "key": "deps",
           "label": ":node: deps"
         }
@@ -294,7 +336,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd web && npm run build",
+          "eval": {
+            "cmd": "cd web && npm run build",
+            "type": "cmd"
+          },
           "key": "a94a0f84e711",
           "label": ":node: build"
         }
@@ -306,7 +351,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd web && npm run test",
+          "eval": {
+            "cmd": "cd web && npm run test",
+            "type": "cmd"
+          },
           "key": "d2438adde70d",
           "label": ":node: test"
         }
@@ -318,7 +366,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd web && npm run lint",
+          "eval": {
+            "cmd": "cd web && npm run lint",
+            "type": "cmd"
+          },
           "key": "74c52c9e5ef6",
           "label": ":node: lint"
         }
