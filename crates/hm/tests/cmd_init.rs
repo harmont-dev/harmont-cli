@@ -68,6 +68,10 @@ fn init_force_overwrites_existing() {
         .success();
 
     assert!(dir.path().join(".harmont/pipeline.py").exists());
+    assert!(
+        !harmont.join("old.py").exists(),
+        "stale file should be removed on --force"
+    );
 }
 
 #[test]

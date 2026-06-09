@@ -79,6 +79,10 @@ fn write_template(dir: &std::path::Path, template: &Template, force: bool) -> Re
             dir.display()
         );
     }
+    if harmont_dir.exists() {
+        std::fs::remove_dir_all(&harmont_dir)
+            .with_context(|| format!("removing {}", harmont_dir.display()))?;
+    }
     std::fs::create_dir_all(&harmont_dir)
         .with_context(|| format!("creating {}", harmont_dir.display()))?;
     let dest = harmont_dir.join(template.filename);
