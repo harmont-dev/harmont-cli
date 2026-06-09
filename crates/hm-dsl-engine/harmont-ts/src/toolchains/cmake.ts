@@ -244,12 +244,15 @@ export class CMakeProject {
     return this._built;
   }
 
-  test(opts?: ActionOptions): Step {
+  test(opts?: ActionOptions & { parallel?: boolean }): Step {
+    const parallel = opts?.parallel ?? true;
+    const { parallel: _, ...rest } = opts ?? {};
+    const parallelFlag = parallel ? " --parallel $(nproc)" : "";
     const cmd = [
       buildCmd(this.path, undefined),
-      `ctest --test-dir ${this.path}/build --output-on-failure --parallel $(nproc)`,
+      `ctest --test-dir ${this.path}/build --output-on-failure${parallelFlag}`,
     ].join(" && ");
-    return this._built.sh(cmd, { label: ":cmake: test", ...opts });
+    return this._built.sh(cmd, { label: ":cmake: test", ...rest });
   }
 
   install(opts?: ActionOptions & { prefix?: string }): Step {
@@ -276,9 +279,11 @@ export class CMakeProject {
     return this._built.sh(cmd, { label: ":cmake: lint", ...opts });
   }
 
-  package(opts?: ActionOptions): Step {
-    const cmd = `cd ${this.path}/build && cpack`;
-    return this._built.sh(cmd, { label: ":cmake: package", ...opts });
+  package(opts?: ActionOptions & { generator?: string }): Step {
+    const { generator, ...rest } = opts ?? {};
+    const genFlag = generator ? ` -G ${generator}` : "";
+    const cmd = `cd ${this.path}/build && cpack${genFlag}`;
+    return this._built.sh(cmd, { label: ":cmake: package", ...rest });
   }
 }
 
