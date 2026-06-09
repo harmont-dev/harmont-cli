@@ -39,31 +39,32 @@ describe("detectFromPackageJson", () => {
   it("detects pm=pnpm from packageManager field", () => {
     expect(
       detectFromPackageJson({ packageManager: "pnpm@8.15.4" }),
-    ).toEqual({ pm: "pnpm" });
+    ).toEqual({ pm: "pnpm", pmVersion: "8.15.4" });
   });
 
   it("detects pm=bun from packageManager field", () => {
     expect(detectFromPackageJson({ packageManager: "bun@1.1.0" })).toEqual({
       pm: "bun",
+      pmVersion: "1.1.0",
     });
   });
 
   it("detects pm=npm from packageManager field", () => {
     expect(
       detectFromPackageJson({ packageManager: "npm@10.2.4" }),
-    ).toEqual({ pm: "npm" });
+    ).toEqual({ pm: "npm", pmVersion: "10.2.4" });
   });
 
   it("detects yarn-classic from packageManager yarn@1.x", () => {
     expect(
       detectFromPackageJson({ packageManager: "yarn@1.22.22" }),
-    ).toEqual({ pm: "yarn-classic" });
+    ).toEqual({ pm: "yarn-classic", pmVersion: "1.22.22" });
   });
 
   it("detects yarn-berry from packageManager yarn@4.x", () => {
     expect(
       detectFromPackageJson({ packageManager: "yarn@4.0.0" }),
-    ).toEqual({ pm: "yarn-berry" });
+    ).toEqual({ pm: "yarn-berry", pmVersion: "4.0.0" });
   });
 
   it("engines.bun overrides packageManager for pm", () => {
@@ -81,7 +82,13 @@ describe("detectFromPackageJson", () => {
         engines: { node: ">=18" },
         packageManager: "pnpm@8",
       }),
-    ).toEqual({ runtime: "node", pm: "pnpm" });
+    ).toEqual({ runtime: "node", pm: "pnpm", pmVersion: "8" });
+  });
+
+  it("omits pmVersion when packageManager has no @version", () => {
+    expect(
+      detectFromPackageJson({ packageManager: "pnpm" }),
+    ).toEqual({ pm: "pnpm" });
   });
 });
 
@@ -174,6 +181,7 @@ describe("detect", () => {
     const result = detect(tmp);
     expect(result.pm).toBe("pnpm");
     expect(result.runtime).toBe("bun");
+    expect(result.pmVersion).toBe("8");
   });
 
   it("merges package.json runtime with lockfile pm", () => {
@@ -195,6 +203,21 @@ describe("detect", () => {
       JSON.stringify({ packageManager: "yarn@4.5.0" }),
     );
     writeFileSync(join(tmp, "yarn.lock"), "");
-    expect(detect(tmp)).toEqual({ pm: "yarn-berry" });
+    expect(detect(tmp)).toEqual({ pm: "yarn-berry", pmVersion: "4.5.0" });
+  });
+
+  it("passes pmVersion through from package.json", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "pnpm@9.1.0" }),
+    );
+    const result = detect(tmp);
+    expect(result.pmVersion).toBe("9.1.0");
+  });
+
+  it("omits pmVersion when no packageManager field", () => {
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const result = detect(tmp);
+    expect(result.pmVersion).toBeUndefined();
   });
 });
