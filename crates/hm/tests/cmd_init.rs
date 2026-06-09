@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
 
 fn hm() -> Command {
@@ -395,4 +396,27 @@ fn skill_convert_gha_content_is_well_formed() {
         content.contains("actions/checkout"),
         "skill must mention actions/checkout is not needed"
     );
+}
+
+#[test]
+fn init_no_gha_hint_without_workflows_dir() {
+    let dir = tempfile::tempdir().unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("convert-gha").not());
+}
+
+#[test]
+fn init_no_gha_hint_with_empty_workflows_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".github/workflows")).unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("convert-gha").not());
 }
