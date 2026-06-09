@@ -2,36 +2,34 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
-use crate::api::types::OrganizationList;
 use crate::cli::OrgCommand;
-use crate::config::Config;
-use crate::creds;
-use crate::http::Client;
-use crate::state::CloudState;
+use crate::settings;
 
-pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: OrgCommand) -> Result<()> {
-    let cfg = Config::from_env(env);
-    let token = creds::load_token(&cfg.api_base, env)
-        .ok_or_else(|| anyhow::anyhow!("not logged in; run `hm cloud login`"))?;
-    let client = Client::new(&cfg, Some(token));
+pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: OrgCommand) -> Result<()> {
+    let (client, _ctx) = settings::client()?;
 
     match cmd {
         OrgCommand::Switch { slug } => switch(&client, &slug).await,
     }
 }
 
-async fn switch(client: &Client, slug: &str) -> Result<()> {
-    let orgs: OrganizationList = client.get("/organizations").await?;
+async fn switch(client: &harmont_cloud::HarmontClient, slug: &str) -> Result<()> {
+    let orgs = client
+        .raw()
+        .list_organizations(None, None)
+        .await
+        .map_err(settings::map_raw)?
+        .into_inner();
     let found = orgs
         .data
         .iter()
         .find(|o| o.slug == slug)
         .ok_or_else(|| anyhow::anyhow!("no organization with slug '{slug}'"))?;
-    let mut state = CloudState::load();
-    state.active_org = Some(found.slug.clone());
-    state.save();
+    let mut cfg = hm_config::Config::load(None)?;
+    cfg.cloud.org = Some(found.slug.clone());
+    cfg.save_user().context("saving config")?;
     tracing::info!("active organization: {} ({})", found.name, found.slug);
     Ok(())
 }

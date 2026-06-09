@@ -138,6 +138,125 @@ If the repo declares only one pipeline, the slug is optional - just `hm run`.
 Browse the [example projects](./examples) for idiomatic pipelines in Rust,
 Go, Python, Java, C++, React, Next.js, and more.
 
+## Cloud (`hm run --cloud`)
+
+`hm run --cloud` runs your **local working tree** in Harmont Cloud without
+committing or pushing first. The CLI renders the pipeline locally (fast DSL
+failure before any upload), archives the worktree (respects `.gitignore`,
+strips `.git`), uploads the tarball, and streams live job logs.
+
+```sh
+# One-time login (opens a browser tab; token stored in ~/.harmont/credentials.toml)
+hm cloud login
+
+# Run the current worktree against the "acme" org in the cloud
+hm run --cloud --org acme
+
+# Submit and exit without waiting for logs
+hm run --cloud --org acme --no-watch
+
+# Machine-readable NDJSON event stream to stdout (for scripting / CI wrappers).
+# Emits the same `BuildEvent` line stream as a local `hm run --format json`.
+hm run --cloud --org acme --format json
+```
+
+With `--format json`, cloud runs emit the unified `BuildEvent` JSON stream
+(one event per line on stdout) — identical to a local `hm run --format json`,
+so the same wrappers parse both paths. The progress spinner is suppressed in
+JSON mode even on a TTY.
+
+**Flags added by `--cloud`:**
+
+| Flag | Description |
+|------|-------------|
+| `--cloud` | Run in Harmont Cloud instead of locally. |
+| `--org <ORG>` | Cloud organization slug. Defaults to `default_org` in `~/.harmont/config.toml`. |
+
+The shared flags `--branch`, `--message`, `--env KEY=VALUE`, `--dir`,
+`--no-watch`, and `--format` all apply to cloud runs.
+
+### Authentication
+
+**Browser login (default):**
+
+```sh
+hm cloud login
+```
+
+Binds a loopback listener, opens `app.harmont.dev/cli-login`, and polls for
+the token. On success, stores it in `~/.harmont/credentials.toml` (mode 0600).
+
+**Paste-code flow (no browser):**
+
+```sh
+hm cloud login --paste
+```
+
+Prints a URL; you open it, copy the short code, paste it back.
+
+**Token via env (CI):**
+
+```sh
+export HARMONT_API_TOKEN=hm_live_...
+hm run --cloud --org acme
+```
+
+`HARMONT_API_TOKEN` takes precedence over the credentials file.
+
+### Config files
+
+All config lives under `~/.harmont/`:
+
+| File | Mode | Contents |
+|------|------|----------|
+| `config.toml` | 0644 | `api_url`, `default_org`, `default_pipeline` |
+| `credentials.toml` | 0600 | Bearer tokens keyed by API base URL |
+
+**Env overrides:**
+
+| Env var | Overrides |
+|---------|-----------|
+| `HARMONT_API_URL` | `api_url` in `config.toml` |
+| `HARMONT_API_TOKEN` | Token in `credentials.toml` |
+
+Set `default_org` to avoid typing `--org` every time:
+
+```sh
+hm cloud org switch acme   # writes default_org = "acme" into config.toml
+```
+
+### Other cloud commands
+
+```sh
+hm cloud whoami                              # show authenticated user
+hm cloud logout                              # remove stored credentials
+hm cloud pipeline list                       # list pipelines for the active org
+hm cloud build list --pipeline ci            # list builds
+hm cloud build watch --pipeline ci 42        # tail logs for build #42
+hm cloud job log --pipeline ci --build 42 <job-id>
+hm cloud billing balance                     # credit balance
+```
+
+### Example session
+
+```sh
+# 1. Authenticate
+hm cloud login
+# → Logged in as alice (alice@example.com)
+
+# 2. Set a default org so you don't need --org every time
+hm cloud org switch acme
+
+# 3. Run your local tree in the cloud
+hm run --cloud
+# ⠹ uploading worktree…
+# ✓ Build #17 submitted (acme/ci on https://api.harmont.dev)
+# [step 1/3] test  …  ✓ passed
+# [step 2/3] lint  …  ✓ passed
+# [step 3/3] fmt   …  ✓ passed
+# Build #17 passed.
+```
+
 ## GitHub Actions
 
 Use [`harmont-dev/actions-hm`](https://github.com/harmont-dev/actions-hm) to run

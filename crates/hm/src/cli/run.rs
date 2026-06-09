@@ -1,6 +1,9 @@
 use clap::Parser;
 use std::path::PathBuf;
 
+// RunArgs uses several bool flags (no_watch, logs, cloud): each is an
+// independent clap switch and a state-machine or enum would be more confusing.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Parser)]
 pub struct RunArgs {
     /// Pipeline slug. Required when the repo declares more than one
@@ -43,7 +46,19 @@ pub struct RunArgs {
     #[arg(long)]
     pub logs: bool,
 
-    /// VM backend. Currently only `docker` is supported.
-    #[arg(long, value_name = "NAME", default_value = "docker")]
-    pub backend: String,
+    /// Execution backend. `docker` (default) runs the build locally on the
+    /// Docker VM backend; `cloud` submits it to Harmont Cloud and streams
+    /// live logs. Layers over the `backend` config key when omitted.
+    #[arg(long, value_name = "NAME")]
+    pub backend: Option<String>,
+
+    /// Deprecated alias for `--backend cloud`. Uploads the working tree
+    /// (respecting .gitignore, excluding .git) and streams live logs.
+    #[arg(long, hide = true)]
+    pub cloud: bool,
+
+    /// Cloud organization (defaults to the configured default org or
+    /// `[cloud] org` in config). Used when the backend resolves to cloud.
+    #[arg(long)]
+    pub org: Option<String>,
 }

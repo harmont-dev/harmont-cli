@@ -13,11 +13,7 @@
 )]
 
 pub mod cli;
+pub mod settings;
 
-mod api;
 mod auth;
-mod config;
-mod creds;
-mod http;
-mod state;
 mod verbs;

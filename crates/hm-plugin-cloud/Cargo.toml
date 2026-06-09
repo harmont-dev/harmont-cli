@@ -12,19 +12,19 @@ categories = ["command-line-utilities"]
 path = "src/lib.rs"
 
 [dependencies]
-hm-util            = { workspace = true }
-serde              = { workspace = true }
+harmont-cloud      = { workspace = true }
+harmont-cloud-raw  = { workspace = true }
+hm-exec            = { workspace = true }
+hm-render          = { workspace = true }
+hm-config          = { workspace = true }
+hm-plugin-protocol = { workspace = true }
 serde_json         = { workspace = true }
 chrono             = { workspace = true }
 uuid               = { workspace = true }
 clap               = { version = "4", features = ["derive"] }
 anyhow             = "1"
-url                = "2"
 base64             = "0.22"
-sha2               = "0.10"
-toml               = "0.8"
-reqwest            = { version = "0.13", default-features = false, features = ["rustls", "json"] }
-tokio              = { version = "1", features = ["net", "time", "sync"] }
+tokio              = { version = "1", features = ["net", "rt", "time", "sync", "macros"] }
 webbrowser         = "1"
 dialoguer          = "0.11"
 tracing            = { workspace = true }

@@ -1,0 +1,25 @@
+[package]
+name = "hm-render"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Build-event renderers (human / progress / JSON) shared by the hm CLI and the cloud plugin."
+
+[dependencies]
+hm-plugin-protocol = { workspace = true }
+anyhow = "1"
+indicatif = "0.18"
+owo-colors = "4"
+tracing-indicatif = "0.3"
+uuid = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tokio = { version = "1", features = ["sync", "rt", "macros"] }
+futures = "0.3"
+
+[dev-dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+
+[lints]
+workspace = true

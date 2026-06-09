@@ -3,20 +3,14 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
+use harmont_cloud::HarmontClient;
 
-use crate::api::types::{Pipeline, PipelineList};
 use crate::cli::PipelineCommand;
-use crate::config::Config;
-use crate::creds;
-use crate::http::Client;
-use crate::state::CloudState;
+use crate::settings;
 
-pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: PipelineCommand) -> Result<()> {
-    let cfg = Config::from_env(env);
-    let token = creds::load_token(&cfg.api_base, env)
-        .ok_or_else(|| anyhow::anyhow!("not logged in; run `hm cloud login`"))?;
-    let client = Client::new(&cfg, Some(token));
-    let org = active_org()?;
+pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: PipelineCommand) -> Result<()> {
+    let (client, ctx) = settings::client()?;
+    let org = ctx.org()?;
 
     match cmd {
         PipelineCommand::List => list(&client, &org).await,
@@ -24,37 +18,35 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, cmd: PipelineCommand) ->
     }
 }
 
-async fn list(client: &Client, org: &str) -> Result<()> {
-    let pipes: PipelineList = client
-        .get(&format!("/organizations/{org}/pipelines"))
-        .await?;
+async fn list(client: &HarmontClient, org: &str) -> Result<()> {
+    let pipes = client
+        .raw()
+        .list_pipelines(org, None, None)
+        .await
+        .map_err(settings::map_raw)?
+        .into_inner();
     for p in &pipes.data {
-        tracing::info!(
-            "{:<24} {}",
-            p.slug,
-            p.label.as_deref().unwrap_or("(no label)")
-        );
+        tracing::info!("{:<24} {}", p.slug, p.name);
     }
     Ok(())
 }
 
-async fn show(client: &Client, org: &str, slug: &str) -> Result<()> {
-    let p: Pipeline = client
-        .get(&format!("/organizations/{org}/pipelines/{slug}"))
-        .await?;
+async fn show(client: &HarmontClient, org: &str, slug: &str) -> Result<()> {
+    let p = client
+        .raw()
+        .get_pipeline(org, slug)
+        .await
+        .map_err(settings::map_raw)?
+        .into_inner();
     let json = serde_json::to_string_pretty(&serde_json::json!({
-        "id": p.id,
         "slug": p.slug,
-        "label": p.label,
+        "name": p.name,
         "default_branch": p.default_branch,
+        "repository": p.repository,
+        "visibility": p.visibility.to_string(),
+        "description": p.description,
     }))
     .unwrap_or_default();
     tracing::info!("{json}");
     Ok(())
-}
-
-fn active_org() -> Result<String> {
-    CloudState::load()
-        .active_org
-        .ok_or_else(|| anyhow::anyhow!("no active organization; run `hm cloud org switch <slug>`"))
 }

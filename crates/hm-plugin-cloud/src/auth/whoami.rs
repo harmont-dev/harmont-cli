@@ -4,23 +4,21 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 
-use crate::api::types::User;
-use crate::config::Config;
-use crate::creds;
-use crate::http::Client;
+use crate::settings;
 
-pub(crate) async fn run(env: &BTreeMap<String, String>) -> Result<()> {
-    let cfg = Config::from_env(env);
-    let token = creds::load_token(&cfg.api_base, env).ok_or_else(|| {
-        anyhow::anyhow!("not logged in to {}\n  fix: `hm cloud login`", cfg.api_base)
-    })?;
-    let client = Client::new(&cfg, Some(token));
-    let me: User = client.get("/auth/me").await?;
+pub(crate) async fn run(_env: &BTreeMap<String, String>) -> Result<()> {
+    let (client, _ctx) = settings::client()?;
+    let me = client
+        .raw()
+        .get_current_user()
+        .await
+        .map_err(settings::map_raw)?
+        .into_inner();
     tracing::info!(
         "{} <{}> (id {})",
-        me.display_name.clone().unwrap_or_else(|| me.email.clone()),
+        me.name.clone().unwrap_or_else(|| me.email.clone()),
         me.email,
-        me.id,
+        me.uuid,
     );
     Ok(())
 }

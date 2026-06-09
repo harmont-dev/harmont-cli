@@ -1,35 +1,49 @@
-## Orchestrator
+## Execution backends (`hm-exec`)
 
-`cli/crates/hm/src/orchestrator/` is the entry point for local builds.
-`hm run` calls into `orchestrator::run()`, which:
+Local and cloud execution both go through `crates/hm-exec/` — the
+`ExecutionBackend` trait + two impls:
 
-- Builds a wire-typed `Graph` (`graph.rs`) from the parsed `Pipeline`
-  and partitions it into chains for scheduling.
-- Receives a `RunnerRegistry` (containing `VmRunner` and any
-  future runners) and resolves each step's `runner` field to a
-  registered runner in `scheduler.rs`.
-- Publishes `BuildEvent`s on a `tokio::sync::broadcast` (`events.rs`);
-  the `output_subscriber` task drains the bus and invokes the selected
-  `OutputRenderer` (human or JSON, both in `src/output/`).
-- Reads the workspace archive once into memory (`archive.rs` +
-  `source.rs`).
-- The `VmRunner` (`src/runner/vm.rs`) executes steps inside
-  containers via the `hm-vm` crate (Docker backend).
-- Owns run-wide cancellation (`tokio_util::sync::CancellationToken`)
-  via `signal.rs`.
+- `LocalBackend` — runs the whole build in-process via a DAG scheduler,
+  executing each step inside a lightweight VM. It composes the per-step
+  `hm-vm` crate: it builds an `hm_vm::HmVm` (a `VmBackend` + snapshot
+  `ImageRegistry`), registers a `VmRunner` as the default runner, and
+  hands it to `scheduler::run`. The VM backend is injected (`docker` is
+  the only one wired today). Snapshot caching is owned by `hm-vm`, not
+  the scheduler.
+- `CloudBackend` — submits the build to Harmont cloud and watches it
+  over the REST SDK, emitting the same `BuildEvent` stream.
 
-## Runner system (static DI)
+`hm run` resolves the backend by name (`--backend`, the deprecated
+`--cloud` alias, or the `backend` config key — default `docker`):
+`cloud` → `CloudBackend`; any other name → `LocalBackend` on that
+`hm_vm::VmBackend`. It then calls `ExecutionBackend::start(req) ->
+BackendHandle`, splits the handle via `into_parts()` into an
+`EventStream` (handed to `hm-render::drive_stream`) and a `Control`
+(Ctrl-C + `wait()`). Auth is injected: this crate takes a pre-built
+`HarmontClient`; it never reads credentials from disk.
 
-`src/runner/mod.rs` defines `StepRunner` (async trait), `OutputRenderer`,
-`RunContext`, and `RunnerRegistry`. `VmRunner` is the default executor,
-backed by the `hm-vm` crate. The registry is constructed in
-`commands/run/local.rs` and passed to `scheduler::run` — no global
-state, no plugin loading.
+### Per-step mechanism (`hm-exec`'s `local` module + `hm-vm`)
+
+The whole-build `ExecutionBackend` and the per-step `hm_vm::VmBackend`
+are two separate traits. Inside `LocalBackend`, `crates/hm-exec/src/local/`:
+- Builds the source archive once into memory (`source.rs` + `archive.rs`).
+- Walks the DAG in `scheduler.rs`, resolving each step's `runner` field
+  against a `RunnerRegistry` (default: `VmRunner`).
+- `runner/vm.rs`'s `VmRunner` drives `hm_vm::HmVm::execute` per step,
+  streaming stdout/stderr as `BuildEvent::StepLog` via an `OutputSink`
+  that emits onto the build's `EventBus` (`events.rs`).
+- Publishes `BuildEvent`s on a `tokio::sync::broadcast` (`events.rs`),
+  forwarded to the caller's mpsc stream.
+- Run-wide cancellation (`tokio_util::sync::CancellationToken`) is owned
+  by the CLI and threaded into `scheduler::run`.
+
+`runner/mod.rs` defines `StepRunner` (async trait), `StepContext`, and
+`RunnerRegistry` — static DI, no global state, no plugin loading.
 
 ## Cloud functionality
 
-`hm cloud` subcommands are implemented in the `hm-plugin-cloud` library
-crate (direct dependency, no FFI). HTTP goes through `reqwest`,
+`hm cloud` subcommands (login, token, org) are in `src/commands/cloud/`.
+HTTP goes through `reqwest` via the `harmont-cloud` SDK crate;
 credentials are file-backed at `~/.harmont/credentials.toml`, and
 organization state lives in `~/.harmont/cloud-state.json`.
 

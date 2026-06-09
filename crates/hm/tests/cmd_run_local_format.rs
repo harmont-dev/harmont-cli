@@ -77,5 +77,6 @@ fn unknown_format_fails_fast_with_listing() {
         .current_dir(temp.path())
         .assert()
         .failure()
-        .stdout(contains("unknown --format 'nope'"));
+        // The doctrine error is reported through `tracing` (stderr).
+        .stderr(contains("unknown --format 'nope'"));
 }

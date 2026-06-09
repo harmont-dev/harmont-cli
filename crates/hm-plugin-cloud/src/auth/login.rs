@@ -1,107 +1,125 @@
-//! `hm cloud login` — browser-loopback or paste-in flow.
+//! `hm cloud login` — browser-loopback or paste-in flow, routed through the
+//! SDK's anonymous auth endpoints.
+//!
+//! Two paths produce a bearer token:
+//!
+//! - **loopback** (default): the CLI generates a random nonce, binds a local
+//!   listener, opens the SPA's `/cli-login` page with that nonce + the loopback
+//!   port, then polls [`HarmontClient::claim_token`] until the SPA parks the
+//!   token under the nonce (or the 60s window closes).
+//! - **paste** (`--paste`): the SPA shows a short code; the user pastes it and
+//!   the CLI exchanges it via [`HarmontClient::redeem_code`].
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use anyhow::{Result, bail};
+use harmont_cloud::{HarmontClient, HarmontError};
 
-use crate::api::types::{CliExchangeRequest, CliExchangeResponse, User};
-use crate::config::Config;
-use crate::creds;
-use crate::http::Client;
+use crate::settings;
 
 pub(crate) async fn run(env: &BTreeMap<String, String>, paste: bool) -> Result<()> {
-    let cfg = Config::from_env(env);
-    let (verifier, challenge) = pkce_pair();
+    let (client, api) = settings::anon_client()?;
+    let app = app_url(&api, env);
 
-    if paste {
-        login_paste(env, &cfg, &verifier, &challenge).await
+    let token = if paste {
+        login_paste(env, &client, &app).await?
     } else {
-        login_loopback(env, &cfg, &verifier, &challenge).await
+        login_loopback(&client, &app).await?
+    };
+
+    hm_config::creds::set_cloud_token(&api, &token);
+
+    // Confirm by reading back the authenticated user.
+    let authed = HarmontClient::with_base_url(token, &api);
+    match authed.raw().get_current_user().await {
+        Ok(resp) => {
+            let me = resp.into_inner();
+            tracing::info!(
+                "logged in as {} ({})",
+                me.name.clone().unwrap_or_else(|| me.email.clone()),
+                me.email,
+            );
+        }
+        Err(e) => {
+            tracing::warn!("logged in, but could not read user profile: {e}");
+        }
     }
+    Ok(())
 }
 
-async fn login_loopback(
-    _env: &BTreeMap<String, String>,
-    cfg: &Config,
-    verifier: &str,
-    challenge: &str,
-) -> Result<()> {
+async fn login_loopback(client: &HarmontClient, app: &str) -> Result<String> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-    // Bind a local TCP listener on a random port.
+    let nonce = random_nonce();
+
+    // Bind a loopback listener so the SPA can signal "browser handed off".
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let port = listener.local_addr()?.port();
-    let redirect = format!("http://127.0.0.1:{port}/cb");
-    let auth_url = format!(
-        "{}/cli/login?challenge={}&redirect_uri={}",
-        cfg.api_base,
-        challenge,
-        urlencoding(&redirect),
-    );
+    let auth_url = format!("{app}/cli-login?port={port}&nonce={nonce}");
 
     tracing::info!("opening browser to {auth_url}");
     if webbrowser::open(&auth_url).is_err() {
         tracing::warn!("couldn't auto-open the browser. Open this URL manually:\n  {auth_url}");
     }
 
-    // Wait for a single connection with a 180-second timeout.
-    let code = tokio::time::timeout(std::time::Duration::from_secs(180), async {
-        let (stream, _addr) = listener.accept().await?;
-        let (reader, mut writer) = stream.into_split();
-        let mut buf_reader = BufReader::new(reader);
-        let mut request_line = String::new();
-        buf_reader.read_line(&mut request_line).await?;
-
-        // Parse "GET /cb?code=XYZ HTTP/1.1"
-        let mut code_value: Option<String> = None;
-        if let Some(path) = request_line.split_whitespace().nth(1)
-            && let Some(query) = path.split('?').nth(1)
-        {
-            for param in query.split('&') {
-                if let Some(val) = param.strip_prefix("code=") {
-                    code_value = Some(val.to_string());
-                }
-            }
+    // Accept the SPA's redirect to /callback (best-effort UX: it lets the
+    // browser tab show "done"). We don't depend on its query for the token —
+    // the token is claimed by nonce below.
+    let accept = async {
+        if let Ok((stream, _addr)) = listener.accept().await {
+            let (reader, mut writer) = stream.into_split();
+            let mut buf_reader = BufReader::new(reader);
+            let mut request_line = String::new();
+            let _ = buf_reader.read_line(&mut request_line).await;
+            let body = "<html><body>Login received. You can close this tab.</body></html>";
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            writer.write_all(response.as_bytes()).await.ok();
+            writer.shutdown().await.ok();
         }
+    };
+    // Give the browser up to 3 minutes to complete sign-in and redirect.
+    let _ = tokio::time::timeout(Duration::from_secs(180), accept).await;
 
-        // Send a minimal HTTP response.
-        let body = if code_value.is_some() {
-            "<html><body>Login successful. You can close this tab.</body></html>"
-        } else {
-            "<html><body>Login failed: no code received.</body></html>"
-        };
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-            body.len(),
-            body
-        );
-        writer.write_all(response.as_bytes()).await.ok();
-        writer.shutdown().await.ok();
+    // Poll the claim endpoint. The SPA parks the token under our nonce; until
+    // then the endpoint returns 400 `cli_code_invalid`, which we retry.
+    poll_claim(client, &nonce).await
+}
 
-        Ok::<Option<String>, anyhow::Error>(code_value)
-    })
-    .await
-    .map_err(|_| anyhow::anyhow!("browser callback did not arrive within 3 minutes"))??;
-
-    let code = code.ok_or_else(|| anyhow::anyhow!("callback had no 'code' query parameter"))?;
-
-    finalize(cfg, &code, verifier).await
+/// Poll `claim_token` until the token is parked or the ~60s window elapses.
+async fn poll_claim(client: &HarmontClient, nonce: &str) -> Result<String> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        match client.claim_token(nonce).await {
+            Ok(token) => return Ok(token),
+            Err(HarmontError::Api { status: 400, code, .. }) if code == "cli_code_invalid" => {
+                if std::time::Instant::now() >= deadline {
+                    bail!(
+                        "timed out waiting for the browser to authorize this login (60s).\n  \
+                         fix: re-run `hm cloud login`, or use `hm cloud login --paste`"
+                    );
+                }
+                tokio::time::sleep(Duration::from_millis(750)).await;
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
 }
 
 async fn login_paste(
     env: &BTreeMap<String, String>,
-    cfg: &Config,
-    verifier: &str,
-    challenge: &str,
-) -> Result<()> {
-    let auth_url = format!(
-        "{}/cli/login?challenge={}&redirect_uri=urn:ietf:wg:oauth:2.0:oob",
-        cfg.api_base, challenge,
-    );
+    client: &HarmontClient,
+    app: &str,
+) -> Result<String> {
+    let auth_url = format!("{app}/cli-login?paste=true");
     tracing::info!("Open this URL in your browser, then paste the code:\n  {auth_url}");
     let _ = webbrowser::open(&auth_url);
 
-    // Tests inject the code via `HARMONT_LOGIN_CODE` to avoid TTY.
+    // Tests inject the code via `HARMONT_LOGIN_CODE` to avoid a TTY.
     let code = if let Some(c) = env.get("HARMONT_LOGIN_CODE") {
         c.clone()
     } else {
@@ -114,51 +132,75 @@ async fn login_paste(
     if code.is_empty() {
         bail!("no code pasted");
     }
-    finalize(cfg, &code, verifier).await
+    Ok(client.redeem_code(&code).await?)
 }
 
-async fn finalize(cfg: &Config, code: &str, verifier: &str) -> Result<()> {
-    let client = Client::anonymous(cfg);
-    let resp: CliExchangeResponse = client
-        .post(
-            "/cli/exchange",
-            &CliExchangeRequest {
-                code: code.to_string(),
-                verifier: verifier.to_string(),
-            },
-        )
-        .await?;
-    creds::save_token(&cfg.api_base, &resp.token);
-
-    let auth_client = Client::new(cfg, Some(resp.token));
-    let me: User = auth_client.get("/auth/me").await?;
-    tracing::info!(
-        "logged in as {} ({})",
-        me.display_name.clone().unwrap_or_else(|| me.email.clone()),
-        me.email,
-    );
-    Ok(())
+/// Derive the SPA (app) base URL from the API base.
+///
+/// Priority: `HARMONT_APP_URL` env > heuristic mapping of `api.` → `app.` on
+/// the API host > the API base itself (last-resort, dev fallback).
+fn app_url(api: &str, env: &BTreeMap<String, String>) -> String {
+    if let Some(u) = env.get("HARMONT_APP_URL").filter(|u| !u.is_empty()) {
+        return u.trim_end_matches('/').to_string();
+    }
+    let api = api.trim_end_matches('/');
+    if let Some(rest) = api.strip_prefix("https://api.") {
+        return format!("https://app.{rest}");
+    }
+    if let Some(rest) = api.strip_prefix("http://api.") {
+        return format!("http://app.{rest}");
+    }
+    api.to_string()
 }
 
-/// Generate a PKCE verifier + S256 challenge.
-fn pkce_pair() -> (String, String) {
+/// A URL-safe random nonce for the loopback handoff.
+fn random_nonce() -> String {
     use base64::Engine;
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-    use sha2::{Digest, Sha256};
-
-    let mut seed = [0u8; 32];
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    for (i, b) in seed.iter_mut().enumerate() {
-        *b = ((now >> (i % 16)) & 0xFF) as u8;
-    }
-    let verifier = URL_SAFE_NO_PAD.encode(seed);
-    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-    (verifier, challenge)
+    let id = uuid::Uuid::new_v4();
+    URL_SAFE_NO_PAD.encode(id.as_bytes())
 }
 
-fn urlencoding(s: &str) -> String {
-    url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn env(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn app_url_maps_prod_api_to_app() {
+        assert_eq!(
+            app_url("https://api.harmont.dev", &env(&[])),
+            "https://app.harmont.dev"
+        );
+    }
+
+    #[test]
+    fn app_url_env_override_wins() {
+        assert_eq!(
+            app_url(
+                "https://api.harmont.dev",
+                &env(&[("HARMONT_APP_URL", "http://localhost:5173/")])
+            ),
+            "http://localhost:5173"
+        );
+    }
+
+    #[test]
+    fn app_url_falls_back_to_api_for_unmapped_host() {
+        assert_eq!(
+            app_url("http://localhost:4000", &env(&[])),
+            "http://localhost:4000"
+        );
+    }
+
+    #[test]
+    fn nonces_are_distinct() {
+        assert_ne!(random_nonce(), random_nonce());
+    }
 }

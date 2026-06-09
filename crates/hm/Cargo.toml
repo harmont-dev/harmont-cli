@@ -32,16 +32,10 @@ serde_json = "1"
 toml = "0.8"
 figment = { workspace = true }
 dialoguer = { version = "0.11", features = ["fuzzy-select"] }
-owo-colors = "4"
-console = "0.16"
 indicatif = "0.18"
 tracing-indicatif = "0.3"
-comfy-table = { version = "7", features = ["custom_styling"] }
 terminal_size = "0.4"
-tar = "0.4"
-flate2 = "1"
 fs2 = "0.4"
-ignore = "0.4"
 tempfile = "3"
 anyhow = "1"
 thiserror = "2"
@@ -60,13 +54,19 @@ rand = "0.8"
 uuid = { version = "1", features = ["serde"] }
 bytes = "1"
 futures = "0.3"
+futures-util = "0.3"
+which = "6"
 hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 hm-util = { workspace = true }
+hm-config = { workspace = true }
 hm-plugin-cloud = { workspace = true }
-hm-vm           = { path = "../hm-vm", features = ["docker-backend"] }
+harmont-cloud   = { workspace = true }
+hm-vm           = { workspace = true, features = ["docker-backend"] }
 hm-dsl-engine   = { workspace = true }
-daggy          = { workspace = true }
+hm-render       = { workspace = true }
+hm-exec         = { workspace = true }
+async-trait     = { workspace = true }
 schemars = { workspace = true }
 semver = { workspace = true }
 smart-default = { workspace = true }
@@ -79,12 +79,13 @@ default = []
 py-env = []
 
 [dev-dependencies]
+daggy = { workspace = true }
 wiremock = "0.6"
 assert_cmd = "2"
 predicates = "3"
 assert_fs = "1"
 tempfile = "3"
-which = "7"
+which = "6"
 
 [lints]
 workspace = true

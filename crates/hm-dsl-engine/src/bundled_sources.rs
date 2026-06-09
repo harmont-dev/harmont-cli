@@ -33,7 +33,9 @@ mod tests {
 
     #[test]
     fn harmont_py_contains_pipeline() {
-        assert!(HARMONT_PY.get_file("pipeline.py").is_some());
+        // The pipeline module is private (underscore-prefixed); the public
+        // surface is re-exported from `__init__.py`.
+        assert!(HARMONT_PY.get_file("_pipeline.py").is_some());
     }
 
     #[test]
@@ -65,6 +67,6 @@ mod tests {
         let target = tmp.path().join("harmont");
         extract_to(&HARMONT_PY, &target).expect("extract");
         assert!(target.join("__init__.py").exists());
-        assert!(target.join("pipeline.py").exists());
+        assert!(target.join("_pipeline.py").exists());
     }
 }
