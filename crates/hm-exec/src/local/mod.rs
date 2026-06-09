@@ -15,11 +15,9 @@ mod source;
 mod workspace;
 
 pub use backend::LocalDockerBackend;
-pub use source::{build_archive_bytes, write_archive}; // also used by CloudBackend
-pub use events::EventBus;
-pub use archive::ArchiveStore;
-pub use docker_client::DockerClient;
-pub use runner::docker::DockerRunner;
-pub use runner::{RunnerRegistry, StepContext, StepRunner};
+pub(crate) use source::build_archive_bytes; // intra-crate: cloud/backend.rs via crate::local::
+pub use docker_client::DockerClient; // external: hm/src/commands/cache/{save,restore,clean}.rs
+pub(crate) use runner::docker::DockerRunner; // intra-crate: local/backend.rs via crate::local::
+pub(crate) use runner::RunnerRegistry; // intra-crate: local/backend.rs via crate::local::
 pub(crate) use scheduler::run;
 pub(crate) use scheduler::chain_count;

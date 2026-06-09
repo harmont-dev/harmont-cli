@@ -20,7 +20,7 @@ use tar::Builder as TarBuilder;
 /// # Errors
 ///
 /// Returns the same errors as [`write_archive`].
-pub fn build_archive_bytes(source_dir: &Path) -> Result<Vec<u8>> {
+pub(crate) fn build_archive_bytes(source_dir: &Path) -> Result<Vec<u8>> {
     let mut buf: Vec<u8> = Vec::new();
     write_archive(source_dir, &mut buf)?;
     Ok(buf)
@@ -33,7 +33,7 @@ pub fn build_archive_bytes(source_dir: &Path) -> Result<Vec<u8>> {
 /// Returns an error if walking the source tree surfaces an I/O or
 /// permission error, if a file cannot be appended to the archive, or
 /// if the gzip stream cannot be finalised on the destination writer.
-pub fn write_archive(source_dir: &Path, w: impl Write) -> Result<()> {
+pub(crate) fn write_archive(source_dir: &Path, w: impl Write) -> Result<()> {
     let encoder = GzEncoder::new(w, Compression::fast());
     let mut archive = TarBuilder::new(encoder);
 

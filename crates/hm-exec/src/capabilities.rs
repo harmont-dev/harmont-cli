@@ -38,7 +38,7 @@ impl Capabilities {
             reports_cache_hits: true,
             supports_no_watch: false,
             provides_watch_url: false,
-            enforces_timeout: true,
+            enforces_timeout: false, // TODO(timeout): local scheduler ignores RunOptions.timeout
         }
     }
 
