@@ -22,3 +22,4 @@ pub use docker_client::DockerClient;
 pub use runner::docker::DockerRunner;
 pub use runner::{RunnerRegistry, StepContext, StepRunner};
 pub(crate) use scheduler::run;
+pub(crate) use scheduler::chain_count;

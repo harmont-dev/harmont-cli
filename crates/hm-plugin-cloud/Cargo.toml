@@ -27,7 +27,6 @@ anyhow             = "1"
 base64             = "0.22"
 toml               = "0.8"
 tokio              = { version = "1", features = ["net", "rt", "time", "sync", "macros"] }
-futures-util       = "0.3"
 webbrowser         = "1"
 dialoguer          = "0.11"
 tracing            = { workspace = true }

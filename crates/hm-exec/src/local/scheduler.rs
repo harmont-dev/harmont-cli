@@ -518,6 +518,15 @@ struct ChainInfo {
     node_chain_pos: HashMap<NodeIndex, usize>,
 }
 
+/// Return the number of linear `BuildsIn` chains in the pipeline DAG.
+///
+/// This is the authoritative implementation shared by the scheduler and the
+/// [`crate::request`] plan-summarizer. See [`compute_chain_info`] for the
+/// full per-node mapping used during a live run.
+pub(crate) fn chain_count(dag: &Dag<Transition, EdgeKind>) -> usize {
+    compute_chain_info(dag).chain_count
+}
+
 /// Walk the DAG and assign each node to a linear chain. A chain starts
 /// at any node not yet assigned and extends forward through single
 /// `BuildsIn` children where the child has exactly one parent total.

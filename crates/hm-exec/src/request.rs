@@ -4,8 +4,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use daggy::{NodeIndex, Walker};
-use hm_pipeline_ir::{EdgeKind, PipelineGraph};
+use hm_pipeline_ir::PipelineGraph;
 use hm_plugin_protocol::events::PlanSummary;
 
 /// A rendered, ready-to-run pipeline.
@@ -45,72 +44,17 @@ impl Plan {
 
 /// Build a [`PlanSummary`] from a parsed graph.
 ///
-/// Mirrors the computation in `hm::orchestrator::scheduler::run`:
 /// - `step_count` = number of nodes.
-/// - `chain_count` = number of linear `BuildsIn` chains (same algorithm as
-///   `compute_chain_info` in the scheduler).
-/// - `default_runner` = `"docker"` (the backend chosen at construction time
-///   is not available here; `"docker"` matches the scheduler's
+/// - `chain_count` = number of linear `BuildsIn` chains, delegated to the
+///   authoritative implementation in `local::scheduler::chain_count`.
+/// - `default_runner` = `"docker"` (matches the scheduler's
 ///   `unwrap_or("docker")` fallback).
 fn summarize(graph: &PipelineGraph) -> PlanSummary {
     PlanSummary {
         step_count: graph.node_count(),
-        chain_count: count_chains(graph),
+        chain_count: crate::local::chain_count(graph.dag()),
         default_runner: "docker".to_string(),
     }
-}
-
-/// Count linear `BuildsIn` chains in the pipeline DAG.
-///
-/// A chain starts at every unvisited node and extends forward through
-/// `BuildsIn` edges where the child has exactly one parent. This replicates
-/// `compute_chain_info` from the scheduler without allocating the full
-/// per-node maps.
-fn count_chains(graph: &PipelineGraph) -> usize {
-    let dag = graph.dag();
-    let mut visited: std::collections::HashSet<NodeIndex> = std::collections::HashSet::new();
-    let mut chain_count: usize = 0;
-
-    let mut indices: Vec<NodeIndex> = dag.graph().node_indices().collect();
-    indices.sort();
-
-    for idx in indices {
-        if visited.contains(&idx) {
-            continue;
-        }
-
-        chain_count += 1;
-        let mut cur = idx;
-
-        loop {
-            visited.insert(cur);
-
-            // Collect BuildsIn children of `cur`.
-            let builds_in_children: Vec<NodeIndex> = dag
-                .children(cur)
-                .iter(dag)
-                .filter(|(e, _)| dag.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
-                .map(|(_, child)| child)
-                .collect();
-
-            // Follow the chain only when there's exactly one unvisited
-            // BuildsIn child that has exactly one parent total.
-            if builds_in_children.len() != 1 {
-                break;
-            }
-            let child = builds_in_children[0];
-            if visited.contains(&child) {
-                break;
-            }
-            if dag.parents(child).iter(dag).count() != 1 {
-                break;
-            }
-
-            cur = child;
-        }
-    }
-
-    chain_count
 }
 
 /// Git metadata for the worktree being submitted.
