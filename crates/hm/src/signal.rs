@@ -21,7 +21,7 @@ use tokio_util::sync::CancellationToken;
 /// On second Ctrl-C, the task force-exits with code 130 — same UX
 /// as the legacy executor.
 #[must_use = "drop the JoinHandle to leak the listener; bind to a `_` to tie its lifetime to the caller scope"]
-pub fn install_ctrlc(token: CancellationToken) -> tokio::task::JoinHandle<()> {
+pub(crate) fn install_ctrlc(token: CancellationToken) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let armed = Arc::new(AtomicBool::new(false));
         loop {

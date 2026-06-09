@@ -18,7 +18,7 @@ pub async fn handle_clean() -> Result<i32> {
         false
     };
 
-    let docker = match crate::orchestrator::docker_client::DockerClient::connect() {
+    let docker = match hm_exec::local::DockerClient::connect() {
         Ok(d) => match d.ping().await {
             Ok(()) => Some(d),
             Err(e) => {

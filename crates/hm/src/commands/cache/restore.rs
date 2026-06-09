@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use tracing::{info, warn};
 
 use super::manifest;
-use crate::orchestrator::docker_client::DockerClient;
+use hm_exec::local::DockerClient;
 
 /// Restore cached Docker images from tar files in the given directory.
 ///

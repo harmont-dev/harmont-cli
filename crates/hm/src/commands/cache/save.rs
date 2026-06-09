@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use super::manifest::{self, Manifest};
-use crate::orchestrator::docker_client::DockerClient;
+use hm_exec::local::DockerClient;
 
 /// Save all `harmont-local/*` images to a cache directory as tar files,
 /// write a manifest, and prune stale tars that no longer correspond to

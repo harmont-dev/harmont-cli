@@ -64,6 +64,13 @@ pub enum HmError {
     #[error("no default step executor is registered")]
     NoDefaultExecutor,
 
+    /// A failure surfaced across the `hm_exec::ExecutionBackend` boundary,
+    /// already rendered in the project's error doctrine. Carries its own
+    /// [`ErrorCategory`] so the process exit code is preserved (the doctrine
+    /// message lives in `0`; the category drives `exit_code()`).
+    #[error("{0}")]
+    Backend(String, ErrorCategory),
+
     #[error("{0}")]
     Other(#[from] anyhow::Error),
 }
@@ -110,6 +117,7 @@ impl HmError {
             | Self::LocalScheduling(_) => ErrorCategory::Api,
             Self::Network(_) | Self::Docker(_) => ErrorCategory::Network,
             Self::UnknownRunner { .. } | Self::NoDefaultExecutor => ErrorCategory::PipelineInvalid,
+            Self::Backend(_, category) => *category,
             Self::Other(_) => ErrorCategory::BuildFailed,
         }
     }
