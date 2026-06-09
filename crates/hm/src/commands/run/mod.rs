@@ -106,6 +106,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             no_cache: false,
             timeout: None,
             watch: !args.no_watch,
+            keep_going: args.keep_going,
         },
     };
 

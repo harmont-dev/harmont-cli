@@ -82,6 +82,7 @@ impl ExecutionBackend for LocalBackend {
         let (tx, rx) = mpsc::channel(1024);
         let cancel = CancellationToken::new();
         let parallelism = self.parallelism;
+        let keep_going = req.options.keep_going;
         let token = cancel.clone();
         let join = tokio::spawn(async move {
             crate::local::run(
@@ -92,6 +93,7 @@ impl ExecutionBackend for LocalBackend {
                 registry,
                 tx,
                 token,
+                keep_going,
             )
             .await
         });

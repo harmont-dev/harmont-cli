@@ -85,6 +85,7 @@ pub(crate) async fn run(
     runner_registry: Arc<RunnerRegistry>,
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
     cancel: CancellationToken,
+    keep_going: bool,
 ) -> crate::Result<BuildOutcome> {
     // Set up per-run state.
     let bus = EventBus::new();
@@ -231,6 +232,7 @@ pub(crate) async fn run(
                 reg,
                 bus,
                 cancel,
+                keep_going,
             )
             .await
             {
@@ -358,6 +360,7 @@ async fn execute_step(
     runner_registry: Arc<RunnerRegistry>,
     bus: Arc<EventBus>,
     cancel: CancellationToken,
+    keep_going: bool,
 ) -> anyhow::Result<StepOutcome> {
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
@@ -463,7 +466,9 @@ async fn execute_step(
                         message: format!("step '{step_key}' timed out after {secs}s"),
                         ts: chrono::Utc::now(),
                     });
-                    cancel.cancel();
+                    if !keep_going {
+                        cancel.cancel();
+                    }
                     return Ok(StepOutcome {
                         exit_code: 124,
                         snapshot: None,
@@ -499,7 +504,9 @@ async fn execute_step(
                     message: format!("step '{}' exited with code {}", step_key, sr.exit_code),
                     ts: chrono::Utc::now(),
                 });
-                cancel.cancel();
+                if !keep_going {
+                    cancel.cancel();
+                }
             }
             let status = match sr.exit_code {
                 0 => StepStatus::Passed,
