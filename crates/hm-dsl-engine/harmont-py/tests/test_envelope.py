@@ -6,7 +6,7 @@ import pytest
 
 import harmont as hm
 from harmont._deps import clear_target_names
-from harmont._registry import clear_registry
+from harmont._registry import REGISTRATIONS, clear_registry
 from harmont._target import clear_target_cache
 
 
@@ -213,3 +213,16 @@ def test_envelope_wraps_typeerror_with_pipeline_slug():
 
     with pytest.raises(TypeError, match=r"pipeline 'broken': invalid return value"):
         hm.dump_registry_json()
+
+
+def test_decorator_pipeline_timeout_in_envelope():
+    REGISTRATIONS.clear()
+
+    @hm.pipeline("timed", timeout="20m")
+    def _timed() -> hm.Step:
+        return hm.sh("make test")
+
+    env = json.loads(hm.dump_registry_json(now=0))
+    defn = env["pipelines"][0]["definition"]
+    assert defn["timeout_seconds"] == 1200
+    REGISTRATIONS.clear()

@@ -18,12 +18,12 @@ async fn typescript_roundtrip() {
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.ts"),
-        r#"import { sh, pipeline, type PipelineDefinition } from 'harmont';
+        r#"import { sh, pipeline, type PipelineDefinition } from '@harmont/hm';
 
 const pipelines: PipelineDefinition[] = [
   {
     slug: 'ci',
-    pipeline: pipeline(sh('echo test', { label: 'test' }))
+    pipeline: pipeline([sh('echo test', { label: 'test' })])
   }
 ];
 
@@ -58,12 +58,12 @@ async fn typescript_named_export() {
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.ts"),
-        r#"import { sh, pipeline, type PipelineDefinition } from 'harmont';
+        r#"import { sh, pipeline, type PipelineDefinition } from '@harmont/hm';
 
 export const pipelines: PipelineDefinition[] = [
   {
     slug: 'ci',
-    pipeline: pipeline(sh('echo test', { label: 'test' }))
+    pipeline: pipeline([sh('echo test', { label: 'test' })])
   }
 ];
 "#,

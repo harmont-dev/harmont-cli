@@ -1,10 +1,10 @@
 import type { CachePolicy } from "./cache.js";
+import { parseDuration } from "./duration.js";
 
 export interface StepOptions {
   readonly label?: string;
   readonly cache?: CachePolicy;
   readonly env?: Readonly<Record<string, string>>;
-  readonly timeoutSeconds?: number;
   readonly image?: string;
   readonly runner?: string;
   readonly runnerArgs?: Readonly<Record<string, unknown>>;
@@ -78,7 +78,6 @@ export class Step {
       label: opts?.label,
       cache: opts?.cache,
       env: opts?.env,
-      timeoutSeconds: opts?.timeoutSeconds,
       image: effectiveImage,
       runner: opts?.runner,
       runnerArgs: opts?.runnerArgs,
@@ -91,6 +90,24 @@ export class Step {
       cmd: null,
       parent: this,
       label: opts?.label,
+    });
+  }
+
+  /** @internal — returns a copy with the timeout set; preserves the chain. */
+  withTimeoutSeconds(seconds: number): Step {
+    return new Step({
+      cmd: this._cmd,
+      parent: this._parent,
+      isWait: this._isWait,
+      continueOnFailure: this._continueOnFailure,
+      label: this._label,
+      cache: this._cache,
+      env: this._env as Record<string, string> | undefined,
+      timeoutSeconds: seconds,
+      image: this._image,
+      runner: this._runner,
+      runnerArgs: this._runnerArgs as Record<string, unknown> | undefined,
+      keyOverride: this._keyOverride,
     });
   }
 }
@@ -110,4 +127,22 @@ export function wait(opts?: { continueOnFailure?: boolean }): Step {
     isWait: true,
     continueOnFailure: opts?.continueOnFailure ?? false,
   });
+}
+
+/**
+ * Apply a wall-clock timeout to a single step. The executor (and `hm run`
+ * locally) kills the step once `duration` elapses; the step then fails as
+ * timed out. Wrapping a step that already has a timeout replaces it.
+ *
+ * @param duration "30s" / "5m" / "1h30m" (units h, m, s) or a number of seconds.
+ * @param step     A command step (not a `wait` barrier).
+ */
+export function timeout(duration: string | number, step: Step): Step {
+  if (step._isWait) {
+    throw new Error(
+      'hm: timeout() cannot wrap a wait() barrier\n' +
+        '  → apply timeout() to a command step, e.g. timeout("30s", sh("make test"))',
+    );
+  }
+  return step.withTimeoutSeconds(parseDuration(duration));
 }

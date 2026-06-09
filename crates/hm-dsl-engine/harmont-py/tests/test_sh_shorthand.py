@@ -23,14 +23,16 @@ def test_hm_sh_chains_with_sh():
 
 
 def test_hm_sh_accepts_all_step_sh_kwargs():
-    s = hm.sh(
-        "make",
-        label="build",
-        cache=CacheNone(),
-        env={"CI": "true"},
-        timeout_seconds=600,
-        image="alpine:3.20",
-        key="explicit",
+    s = hm.timeout(
+        600,
+        hm.sh(
+            "make",
+            label="build",
+            cache=CacheNone(),
+            env={"CI": "true"},
+            image="alpine:3.20",
+            key="explicit",
+        ),
     )
     assert s.label == "build"
     assert s.cache == CacheNone()

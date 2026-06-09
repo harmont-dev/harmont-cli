@@ -60,7 +60,6 @@ class Step:
         label: str | None = None,
         cache: CachePolicy | None = None,
         env: dict[str, str] | None = None,
-        timeout_seconds: int | None = None,
         image: str | None = None,
         runner: str | None = None,
         runner_args: dict[str, Any] | None = None,
@@ -70,6 +69,8 @@ class Step:
 
         Returns a new ``Step``; the receiver is unchanged (steps are immutable).
 
+        To set a timeout, wrap the result with ``hm.timeout(duration, step)``.
+
         Args:
             cmd: Shell command to run.
             cwd: Directory to run in, relative to the workspace root. Omit to
@@ -78,8 +79,6 @@ class Step:
             cache: Cache policy controlling result reuse across builds.
             env: Per-step environment variables, merged on top of pipeline-level
                 env at render time.
-            timeout_seconds: Hard wall-clock timeout for the step. The executor
-                kills the process after this many seconds.
             image: Local-mode Docker base image for this step. Ignored when the
                 step has a ``builds_in`` parent (the parent's snapshot wins).
             runner: Executor plugin runner name. ``None`` selects the default
@@ -116,7 +115,6 @@ class Step:
             label=label,
             cache=cache,
             env=env,
-            timeout_seconds=timeout_seconds,
             image=effective_image,
             runner=runner,
             runner_args=runner_args,

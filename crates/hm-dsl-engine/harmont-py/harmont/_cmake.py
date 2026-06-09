@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from ._step import Step
     from .cache import CachePolicy
 
-_ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
+_ACTION_KWARGS = frozenset(("cache", "env", "label", "key"))
 
 _COMPILER_RE = re.compile(r"^(gcc|clang)(-\d+)?$")
 

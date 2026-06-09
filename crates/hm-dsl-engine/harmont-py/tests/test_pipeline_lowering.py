@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+import harmont as hm
 from harmont._pipeline import _lower_to_graph, pipeline
 from harmont._step import scratch, wait
 
@@ -99,11 +100,9 @@ def test_wait_step_emitted_as_depends_on_edges():
 
 
 def test_command_includes_label_env_timeout_when_set():
-    s = scratch().sh(
-        "make",
-        label="build",
-        env={"CI": "true"},
-        timeout_seconds=600,
+    s = hm.timeout(
+        600,
+        scratch().sh("make", label="build", env={"CI": "true"}),
     )
     graph = _lower_to_graph([s])
     node = graph["nodes"][0]

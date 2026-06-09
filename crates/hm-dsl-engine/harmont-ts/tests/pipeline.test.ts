@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pipeline } from "../src/pipeline.js";
-import { scratch, sh, wait } from "../src/step.js";
+import { scratch, sh, wait, timeout } from "../src/step.js";
 import { forever, onChange } from "../src/cache.js";
 
 function stepKeys(ir: any): string[] {
@@ -114,7 +114,12 @@ describe("lowering: env merge", () => {
   it("merges pipeline env with per-step env", () => {
     const s = scratch().sh("make", { env: { STEP: "1" } });
     const ir = pipeline([s], { env: { PIPE: "true" } });
-    expect(ir.graph.nodes[0].env).toEqual({ PIPE: "true", STEP: "1" });
+    expect(ir.graph.nodes[0].env).toEqual({
+      DEBIAN_FRONTEND: "noninteractive",
+      TERM: "dumb",
+      PIPE: "true",
+      STEP: "1",
+    });
   });
 
   it("step env overrides pipeline env", () => {
@@ -137,11 +142,10 @@ describe("lowering: optional fields", () => {
   });
 
   it("includes label/timeout/cache when set", () => {
-    const s = scratch().sh("make", {
+    const s = timeout(600, scratch().sh("make", {
       label: "build",
-      timeoutSeconds: 600,
       cache: forever(),
-    });
+    }));
     const ir = pipeline([s]);
     const step = ir.graph.nodes[0].step;
     expect(step.label).toBe("build");
@@ -209,5 +213,17 @@ describe("lowering: graph structure", () => {
     const ir = pipeline([s]);
     expect(ir.graph.node_holes).toEqual([]);
     expect(ir.graph.edge_property).toBe("directed");
+  });
+});
+
+describe("pipeline: timeout", () => {
+  it("emits a top-level timeout_seconds when set", () => {
+    const ir = pipeline([sh("x")], { timeout: "30m" });
+    expect(ir.timeout_seconds).toBe(1800);
+  });
+
+  it("omits timeout_seconds when unset", () => {
+    const ir = pipeline([sh("x")]);
+    expect(ir.timeout_seconds).toBeUndefined();
   });
 });

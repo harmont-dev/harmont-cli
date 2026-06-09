@@ -171,12 +171,11 @@ impl SubprocessTsEngine {
             let created_local_nm = !local_nm.exists();
 
             // Create the `@harmont/` scope dir (and node_modules) before
-            // symlinking the scoped package into it. `local_pkg` is always a
-            // joined path, so `parent()` is `Some`; fall back to `local_pkg`
-            // defensively rather than unwrap.
-            let scope_dir = local_pkg.parent().unwrap_or(local_pkg.as_path());
-            std::fs::create_dir_all(scope_dir)
-                .context("creating .hm/node_modules/@harmont for module resolution")?;
+            // symlinking the scoped package into it.
+            if let Some(scope_dir) = local_pkg.parent() {
+                std::fs::create_dir_all(scope_dir)
+                    .context("creating .hm/node_modules/@harmont for module resolution")?;
+            }
 
             let src = tmp.path().join("node_modules/@harmont/hm");
 

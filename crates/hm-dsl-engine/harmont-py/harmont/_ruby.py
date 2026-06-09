@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 APT_PACKAGES = ("ruby-full", "build-essential", "git")
 
-_ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
+_ACTION_KWARGS = frozenset(("cache", "env", "label", "key"))
 
 _VERSION_RE = re.compile(r"^(default|[0-9]+\.[0-9]+(\.[0-9]+)?)$")
 

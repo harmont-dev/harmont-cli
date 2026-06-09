@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ._duration import parse_duration
 from ._keys import resolve_keys
 from .cache import (
     CacheCompose,
@@ -32,12 +33,17 @@ def pipeline(
     *,
     env: dict[str, str] | None = None,
     default_image: str | None = None,
+    timeout: str | int | None = None,
 ) -> dict[str, Any]:
     """Top-level factory. Returns a JSON-shaped dict (version "0").
 
     ``default_image`` is the local-mode fallback Docker image: it
     applies to every command step that lacks both a ``builds_in``
     parent edge and a per-step ``image`` override.
+
+    ``timeout`` is a whole-build wall-clock budget (``"30m"``, ``"1h"``,
+    or an int number of seconds). When it elapses the build is killed and
+    fails as *timed out*, regardless of how far the step graph got.
     """
     if not leaves:
         msg = (
@@ -48,6 +54,8 @@ def pipeline(
     out: dict[str, Any] = {"version": "0"}
     if default_image is not None:
         out["default_image"] = default_image
+    if timeout is not None:
+        out["timeout_seconds"] = parse_duration(timeout)
     out["graph"] = _lower_to_graph(
         list(leaves),
         env=env,

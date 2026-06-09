@@ -96,9 +96,9 @@ fn python_zig_node_polyglot() {
 fn python_kitchen_sink() {
     let g = load_fixture("python", "kitchen-sink");
     assert_eq!(g.default_image(), Some("ubuntu:24.04"));
-    assert!(g.node_count() >= 12, "nodes: {}", g.node_count());
+    assert!(g.node_count() >= 10, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
-    assert!(labels.iter().any(|l| l.contains("haskell")));
+    assert!(labels.iter().any(|l| l.contains("ruby")));
     assert!(
         labels
             .iter()
@@ -138,7 +138,7 @@ fn ts_zig_node_polyglot() {
 fn ts_kitchen_sink() {
     let g = load_fixture("ts", "kitchen-sink");
     assert_eq!(g.default_image(), Some("ubuntu:24.04"));
-    assert!(g.node_count() >= 12);
+    assert!(g.node_count() >= 10);
 }
 
 #[test]

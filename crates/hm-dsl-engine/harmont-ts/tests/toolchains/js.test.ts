@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { js, ts, JsProject } from "../../src/toolchains/js.js";
-import { sh } from "../../src/step.js";
+import { sh, timeout } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -353,7 +353,7 @@ describe("js.project actions", () => {
 
   it("actions accept step options (label, timeoutSeconds)", () => {
     const p = js.project();
-    const t = p.run("test", { label: "my test", timeoutSeconds: 300 });
+    const t = timeout(300, p.run("test", { label: "my test" }));
     expect(t._label).toBe("my test");
     expect(t._timeoutSeconds).toBe(300);
   });

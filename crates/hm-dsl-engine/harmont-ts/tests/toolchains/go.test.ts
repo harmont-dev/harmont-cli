@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { go } from "../../src/toolchains/go.js";
-import { sh } from "../../src/step.js";
+import { sh, timeout } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
 
 describe("go factory", () => {
@@ -53,7 +53,7 @@ describe("go actions", () => {
 
   it("accepts step options", () => {
     const g = go();
-    const t = g.test({ label: "my test", timeoutSeconds: 300 });
+    const t = timeout(300, g.test({ label: "my test" }));
     expect(t._label).toBe("my test");
     expect(t._timeoutSeconds).toBe(300);
   });

@@ -33,7 +33,9 @@
     "nodes": [
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -49,7 +51,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -63,7 +67,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -79,7 +85,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cmake --build ./build --parallel $(nproc) && ctest --test-dir ./build --output-on-failure --parallel $(nproc)",
@@ -89,7 +97,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd . && run-clang-tidy -p build",
@@ -99,7 +109,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd . && find . -not -path './build/*' -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | xargs clang-format --dry-run --Werror",

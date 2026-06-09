@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { elixir } from "../../src/toolchains/elixir.js";
-import { sh } from "../../src/step.js";
+import { sh, timeout } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
 
 describe("elixir factory", () => {
@@ -99,7 +99,7 @@ describe("elixir actions", () => {
 
   it("accepts step options", () => {
     const ex = elixir();
-    const t = ex.test({ label: "my test", timeoutSeconds: 600 });
+    const t = timeout(600, ex.test({ label: "my test" }));
     expect(t._label).toBe("my test");
     expect(t._timeoutSeconds).toBe(600);
   });

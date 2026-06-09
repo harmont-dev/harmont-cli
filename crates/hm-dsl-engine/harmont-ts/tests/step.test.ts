@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scratch, sh, wait, Step } from "../src/step.js";
+import { scratch, sh, wait, Step, timeout } from "../src/step.js";
 
 describe("scratch", () => {
   it("creates a root step with no cmd or parent", () => {
@@ -20,13 +20,12 @@ describe("sh", () => {
   });
 
   it("passes options through", () => {
-    const s = sh("make", {
+    const s = timeout(600, sh("make", {
       label: "build",
-      timeoutSeconds: 600,
       env: { CI: "true" },
       image: "ubuntu:24.04",
       key: "my-key",
-    });
+    }));
     expect(s._label).toBe("build");
     expect(s._timeoutSeconds).toBe(600);
     expect(s._env).toEqual({ CI: "true" });

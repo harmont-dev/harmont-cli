@@ -249,7 +249,7 @@ def test_actions_respect_path() -> None:
 
 
 def test_actions_accept_step_options() -> None:
-    t = js.project().run("test", label="my test", timeout_seconds=300)
+    t = hm.timeout(300, js.project().run("test", label="my test"))
     assert t.label == "my test"
     assert t.timeout_seconds == 300
 

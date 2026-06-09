@@ -4,6 +4,7 @@ import {
   scratch,
   sh,
   wait,
+  timeout,
   forever,
   ttl,
   onChange,
@@ -29,8 +30,8 @@ describe("full pipeline build", () => {
       .sh("npm ci", { label: "install", cache: forever() });
     const build = install
       .sh("npm run build", { label: "build", env: { NODE_ENV: "production" } });
-    const test = build
-      .sh("npm test", { label: "test", timeoutSeconds: 300 });
+    const test = timeout(300, build
+      .sh("npm test", { label: "test" }));
 
     const ir = pipeline([test], {
       env: { CI: "true" },
@@ -52,9 +53,10 @@ describe("full pipeline build", () => {
     const buildNode = ir.graph.nodes[1];
     const testNode = ir.graph.nodes[2];
 
-    expect(installNode.env).toEqual({ CI: "true" });
-    expect(buildNode.env).toEqual({ CI: "true", NODE_ENV: "production" });
-    expect(testNode.env).toEqual({ CI: "true" });
+    const base = { DEBIAN_FRONTEND: "noninteractive", TERM: "dumb" };
+    expect(installNode.env).toEqual({ ...base, CI: "true" });
+    expect(buildNode.env).toEqual({ ...base, CI: "true", NODE_ENV: "production" });
+    expect(testNode.env).toEqual({ ...base, CI: "true" });
 
     // default_image applies to root node only (install), not children
     expect(ir.default_image).toBe("node:22-alpine");
@@ -165,11 +167,10 @@ describe("envelope", () => {
 
 describe("JSON snake_case output", () => {
   it("uses snake_case keys in IR, not camelCase", () => {
-    const s = scratch().sh("make", {
+    const s = timeout(600, scratch().sh("make", {
       label: "build",
-      timeoutSeconds: 600,
       cache: onChange("src/", "lib/"),
-    });
+    }));
     const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
     const json = JSON.stringify(ir);
 
