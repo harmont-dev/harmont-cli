@@ -160,7 +160,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
     match dsl {
         "TypeScript" => {
             tracing::info!("for IDE type support, install the SDK:");
-            tracing::info!("  cd .harmont && npm install");
+            tracing::info!("  cd .hm && npm install");
         }
         "Python" => {
             tracing::info!("for IDE type support, install the SDK:");
