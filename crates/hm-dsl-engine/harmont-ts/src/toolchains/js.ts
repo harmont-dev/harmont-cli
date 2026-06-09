@@ -196,12 +196,13 @@ function makeProject(opts?: JsOptions): JsProject {
 
   // Layer the package manager onto the runtime image when it isn't bundled.
   const bootstrap = pmBootstrap(pm, runtime, pmVersion);
+  const bootstrapCache = pmVersion != null ? onChange(`${path}/package.json`) : forever();
   const pmReady =
     bootstrap == null
       ? runtimeInstalled
       : runtimeInstalled.sh(bootstrap, {
         label: `:${langTag}: ${pm}`,
-        cache: forever(),
+        cache: bootstrapCache,
       });
 
   const depsInstalled = pmReady.sh(`cd ${path} && ${DEPS_CMD[pm]}`, {

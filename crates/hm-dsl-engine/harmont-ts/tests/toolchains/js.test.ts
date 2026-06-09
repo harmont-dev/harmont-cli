@@ -574,6 +574,30 @@ describe("js install chain: corepack version pinning", () => {
     const corepack = deps._parent!;
     expect(corepack._cmd).toBe("corepack enable pnpm");
   });
+
+  it("corepack step cache watches package.json for version changes", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "pnpm@10.33.0" }),
+    );
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cache).toEqual({
+      kind: "on_change",
+      paths: [`${tmp}/package.json`],
+    });
+  });
+
+  it("corepack step cache is forever when no packageManager field", () => {
+    writeFileSync(join(tmp, "package.json"), "{}");
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cache).toEqual({ kind: "forever", envKeys: [] });
+  });
 });
 
 // ---------------------------------------------------------------------------
