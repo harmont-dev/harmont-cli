@@ -11,20 +11,20 @@
   <a href="https://harmont.dev">Website</a> · <a href="https://docs.harmont.dev">Docs</a> · <a href="https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A">Slack</a>
 </p>
 
+<p>
+  <b>CI/CD you can run locally. Pipelines in real Python or TypeScript — no YAML. Each step runs in an isolated Docker container with automatic layer caching and DAG parallelism.</b>
+</p>
+
 > [!WARNING]
-> Harmont is in **early alpha**.
+> Harmont is in **early alpha**. APIs will change.
 >
-> Today it's a powerful task runner -- like `make` or `just`, but with DAG-based
-> parallel execution, Docker isolation, layer caching, and typed toolchain
-> presets for many languages.
+> Today `hm` is a fast, local-first task runner — think `make` or `just`, but
+> with DAG-based parallel execution, Docker isolation, layer caching, and typed
+> toolchain presets for many languages. The hosted CI/CD platform at
+> [harmont.dev](https://harmont.dev) is under active development.
 >
-> The cloud CI/CD platform at [harmont.dev](https://harmont.dev) is under
-> active development. APIs will change. We'd love your feedback -- [join the
-> community](#community).
->
-> The performance of the `hm` CLI is not as good as I'd like it to be. I'm
-> actively working on cross-run caching. The code quality is similar -- needs
-> improving and is a work in progress.
+> Cross-run caching and code-quality polish are in progress. We'd love your
+> feedback — [join the community](#community).
 >
 > **`hm` will always remain open-source, and pluggable into any CI/CD
 > provider.**
