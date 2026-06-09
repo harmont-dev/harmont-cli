@@ -166,4 +166,92 @@ describe("resolvePipelineCacheKeys", () => {
     expect(childCache.key).toBeTypeOf("string");
     expect(parentCache.key).not.toBe(childCache.key);
   });
+
+  it("golden hash: cross-SDK reference pipeline", () => {
+    const graph: PipelineIR["graph"] = {
+      nodes: [
+        {
+          step: {
+            key: "build",
+            cmd: "make build",
+            cache: { policy: "forever", env_keys: [] },
+          },
+          env: {},
+        },
+      ],
+      node_holes: [],
+      edge_property: "directed",
+      edges: [],
+    };
+
+    const opts: CacheKeyOptions = {
+      pipelineOrg: "acme",
+      pipelineSlug: "ci",
+      now: 1000000,
+      basePath: "/nonexistent",
+      env: {},
+    };
+
+    resolvePipelineCacheKeys(graph, opts);
+
+    const policyRes = "forever-" + sha256("make build" + NUL);
+    const expected = sha256(
+      "acme" + NUL + "ci" + NUL + "build" + NUL + "scratch" + NUL + policyRes,
+    );
+
+    const cache = graph.nodes[0].step.cache as Record<string, unknown>;
+    expect(cache.key).toBe(expected);
+  });
+
+  it("golden hash: cross-SDK chained pipeline", () => {
+    const graph: PipelineIR["graph"] = {
+      nodes: [
+        {
+          step: {
+            key: "setup",
+            cmd: "apt-get update && apt-get install -y gcc",
+            cache: { policy: "forever", env_keys: [] },
+          },
+          env: {},
+        },
+        {
+          step: {
+            key: "compile",
+            cmd: "gcc -o main main.c",
+            cache: { policy: "forever", env_keys: [] },
+          },
+          env: {},
+        },
+      ],
+      node_holes: [],
+      edge_property: "directed",
+      edges: [[0, 1, "builds_in"]],
+    };
+
+    const opts: CacheKeyOptions = {
+      pipelineOrg: "acme",
+      pipelineSlug: "ci",
+      now: 1000000,
+      basePath: "/nonexistent",
+      env: {},
+    };
+
+    resolvePipelineCacheKeys(graph, opts);
+
+    const parentPolicyRes =
+      "forever-" + sha256("apt-get update && apt-get install -y gcc" + NUL);
+    const parentKey = sha256(
+      "acme" + NUL + "ci" + NUL + "setup" + NUL + "scratch" + NUL + parentPolicyRes,
+    );
+
+    const childPolicyRes = "forever-" + sha256("gcc -o main main.c" + NUL);
+    const childKey = sha256(
+      "acme" + NUL + "ci" + NUL + "compile" + NUL + parentKey + NUL + childPolicyRes,
+    );
+
+    const parentCache = graph.nodes[0].step.cache as Record<string, unknown>;
+    const childCache = graph.nodes[1].step.cache as Record<string, unknown>;
+    expect(parentCache.key).toBe(parentKey);
+    expect(childCache.key).toBe(childKey);
+  });
 });
