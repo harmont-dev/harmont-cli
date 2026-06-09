@@ -23,13 +23,13 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+from ._detect import detect
 from ._toolchain import (
     bun_install_cmd,
     deno_install_cmd,
     make_install_chain,
     node_install_cmd,
 )
-from ._detect import detect
 from .cache import CacheForever, CacheOnChange
 
 if TYPE_CHECKING:
@@ -142,7 +142,11 @@ def _make_js(
     base: Step | None = None,
 ) -> JsProject:
     detected = detect(path) if runtime is None and pm is None else None
-    runtime = runtime if runtime is not None else (detected.runtime if detected and detected.runtime else "node")
+    runtime = (
+        runtime
+        if runtime is not None
+        else (detected.runtime if detected and detected.runtime else "node")
+    )
 
     if version is not None:
         _validate_version(runtime, version)
@@ -170,7 +174,11 @@ def _make_js(
 
     # --- Node / Bun runtime ---
     detected_pm = detected.pm if detected else None
-    resolved_pm: PackageManager = pm if pm is not None else (detected_pm if detected_pm is not None else ("bun" if runtime == "bun" else "npm"))
+    resolved_pm: PackageManager = (
+        pm
+        if pm is not None
+        else (detected_pm if detected_pm is not None else ("bun" if runtime == "bun" else "npm"))
+    )
 
     if resolved_pm == "deno":
         msg = 'hm.js: pm="deno" is not valid — use runtime="deno" instead'
