@@ -1,4 +1,4 @@
-export { Step, scratch, sh, wait, type StepOptions } from "./step.js";
+export { Step, scratch, sh, timeout, wait, type StepOptions } from "./step.js";
 export {
   type CachePolicy,
   type CacheForever,
