@@ -71,6 +71,20 @@ async fn local_backend_reports_capabilities() {
     assert!(!b.capabilities().is_observer);
 }
 
+#[test]
+fn cloud_backend_capabilities() {
+    // `with_base_url` does no network IO, so this is safe with a dummy token.
+    let c = hm_exec::CloudBackend::new(
+        harmont_cloud::HarmontClient::with_base_url("t", "http://localhost"),
+        "http://localhost".into(),
+        "acme".into(),
+    );
+    assert_eq!(c.name(), "cloud");
+    assert!(c.capabilities().is_observer);
+    assert!(c.capabilities().provides_watch_url);
+    assert!(!c.capabilities().honors_parallelism);
+}
+
 fn fake_request() -> RunRequest {
     RunRequest {
         plan: Plan::parse(r#"{"version":"0","graph":{"nodes":[],"node_holes":[],"edge_property":"directed","edges":[]}}"#.into()).unwrap(),

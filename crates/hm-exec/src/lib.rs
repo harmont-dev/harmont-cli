@@ -18,6 +18,7 @@ pub mod local;
 pub use local::LocalDockerBackend;
 
 pub mod cloud;
+pub use cloud::CloudBackend;
 
 pub use hm_plugin_protocol::events::BuildRef;
 
