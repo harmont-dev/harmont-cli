@@ -86,6 +86,10 @@ pub struct PipelineGraph {
     version: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     default_image: Option<String>,
+    /// Whole-build wall-clock budget in seconds. When set, the local
+    /// orchestrator kills the run and fails it once this elapses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timeout_seconds: Option<u32>,
     #[serde(rename = "graph")]
     inner: Dag<Transition, EdgeKind>,
 }
@@ -107,9 +111,43 @@ impl PipelineGraph {
         self.default_image.as_deref()
     }
 
+    /// Whole-build wall-clock budget in seconds, if the author set one.
+    #[must_use]
+    pub const fn timeout_seconds(&self) -> Option<u32> {
+        self.timeout_seconds
+    }
+
     /// The underlying DAG for direct traversal.
     #[must_use]
     pub const fn dag(&self) -> &Dag<Transition, EdgeKind> {
         &self.inner
+    }
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
+    use super::PipelineGraph;
+
+    #[test]
+    fn deserializes_pipeline_timeout_seconds() {
+        let json = r#"{
+            "version": "0",
+            "timeout_seconds": 1800,
+            "graph": {"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}
+        }"#;
+        let g: PipelineGraph = serde_json::from_str(json).unwrap();
+        assert_eq!(g.timeout_seconds(), Some(1800));
+    }
+
+    #[test]
+    fn pipeline_timeout_defaults_to_none() {
+        let json = r#"{
+            "version": "0",
+            "graph": {"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}
+        }"#;
+        let g: PipelineGraph = serde_json::from_str(json).unwrap();
+        assert_eq!(g.timeout_seconds(), None);
     }
 }
