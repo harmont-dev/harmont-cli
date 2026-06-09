@@ -49,7 +49,7 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
-    /// Initialize a .harmont/ pipeline from a project template.
+    /// Initialize a .hm/ pipeline from a project template.
     Init(init::InitArgs),
 
     /// Run a pipeline locally via Docker.

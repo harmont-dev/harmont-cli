@@ -8,7 +8,7 @@ Each language module builds its toolchain chain via
 When ``base`` is provided the apt-base step is skipped and the chain
 forks off ``base`` directly. This is the explicit composition primitive
 that lets toolchains stack or share a content-producing parent
-(``hm.npm(base=spec)``).
+(``hm.js.project(base=spec)``).
 """
 
 from __future__ import annotations

@@ -18,8 +18,8 @@ The whole public surface:
 
 Cache helpers: `ttl`, `on_change`, `forever`, `compose`.
 
-``hm.pipeline`` is polymorphic. When called with positional ``Step``
-arguments it builds a v0 IR dict (the factory). When called with no
+``hm.pipeline`` is polymorphic. When called with a list of ``Step``
+objects it builds a v0 IR dict (the factory). When called with no
 positionals or a string slug it returns a decorator that registers a
 function as a CI pipeline (HAR-9).
 """

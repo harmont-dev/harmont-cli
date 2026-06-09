@@ -51,8 +51,8 @@ def pipeline(
             function's name.
         name: Human-readable pipeline name shown in the UI. Defaults to
             ``slug``.
-        triggers: Trigger objects (``PushTrigger``, ``PullRequestTrigger``,
-            ``ScheduleTrigger``) that activate this pipeline automatically.
+        triggers: Trigger objects (``PushTrigger``, ``PullRequestTrigger``)
+            that activate this pipeline automatically.
         allow_manual: When ``True``, the pipeline can be triggered manually
             via the UI or API in addition to its configured triggers.
         env: Pipeline-level environment variables applied to every step.
