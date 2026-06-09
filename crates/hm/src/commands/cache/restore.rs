@@ -18,5 +18,5 @@ pub async fn handle_restore(dir: &Path) -> Result<i32> {
         "cache restore is not yet implemented for the VM backend",
     );
     eprintln!("restored 0/0 snapshots (VM backend — not yet implemented)");
-    Ok(0)
+    Ok(2)
 }

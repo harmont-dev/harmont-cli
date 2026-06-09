@@ -19,5 +19,5 @@ pub async fn handle_save(dir: &Path) -> Result<i32> {
     );
     // Print an empty hash so callers that capture stdout don't break.
     println!("0000000000000000");
-    Ok(0)
+    Ok(2)
 }

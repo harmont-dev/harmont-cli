@@ -31,6 +31,12 @@ pub async fn handle_clean() -> Result<i32> {
         false
     };
 
+    if db_cleaned {
+        tracing::warn!(
+            "Docker images from previous runs may still exist — run `docker image prune` to reclaim disk"
+        );
+    }
+
     if !ws_cleaned && !db_cleaned {
         tracing::info!("nothing to clean");
     }
