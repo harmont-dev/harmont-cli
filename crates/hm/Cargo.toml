@@ -58,6 +58,7 @@ which = "6"
 hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 hm-util = { workspace = true }
+hm-config = { workspace = true }
 hm-plugin-cloud = { workspace = true }
 harmont-cloud   = { workspace = true }
 hm-dsl-engine   = { workspace = true }

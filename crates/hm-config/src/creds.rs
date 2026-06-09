@@ -16,7 +16,7 @@ struct CredentialFile {
 }
 
 fn path() -> Result<PathBuf> {
-    Ok(crate::config::user_config_dir()?.join("credentials.toml"))
+    Ok(crate::user_config_dir()?.join("credentials.toml"))
 }
 
 fn load() -> CredentialFile {
