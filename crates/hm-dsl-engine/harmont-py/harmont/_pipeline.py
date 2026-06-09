@@ -124,8 +124,11 @@ def _lower_to_graph(
         if s.runner_args is not None:
             step_dict["runner_args"] = s.runner_args
 
-        # Merge per-step env with pipeline-level env.
-        merged_env: dict[str, str] = {}
+        # Baseline env for non-interactive operation inside VMs/containers.
+        merged_env: dict[str, str] = {
+            "DEBIAN_FRONTEND": "noninteractive",
+            "TERM": "dumb",
+        }
         if env:
             merged_env.update(env)
         if s.env:

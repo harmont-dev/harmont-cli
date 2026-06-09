@@ -1,5 +1,5 @@
-import { pipeline, push, type PipelineDefinition } from "harmont";
-import { python } from "harmont/toolchains";
+import { pipeline, push, type PipelineDefinition } from "@harmont/hm";
+import { python } from "@harmont/hm/toolchains";
 
 const project = python({ path: "." });
 

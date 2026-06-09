@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-// RunArgs uses 4 bool flags (no_watch, logs, cloud, local): each is an
+// RunArgs uses several bool flags (no_watch, logs, cloud): each is an
 // independent clap switch and a state-machine or enum would be more confusing.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Parser)]
@@ -46,18 +46,19 @@ pub struct RunArgs {
     #[arg(long)]
     pub logs: bool,
 
-    /// Run the local worktree in Harmont Cloud instead of locally. Uploads
-    /// the working tree (respecting .gitignore, excluding .git) and streams
-    /// live logs. Requires `hm login` or `HARMONT_API_TOKEN`.
-    #[arg(long)]
+    /// Execution backend. `docker` (default) runs the build locally on the
+    /// Docker VM backend; `cloud` submits it to Harmont Cloud and streams
+    /// live logs. Layers over the `backend` config key when omitted.
+    #[arg(long, value_name = "NAME")]
+    pub backend: Option<String>,
+
+    /// Deprecated alias for `--backend cloud`. Uploads the working tree
+    /// (respecting .gitignore, excluding .git) and streams live logs.
+    #[arg(long, hide = true)]
     pub cloud: bool,
 
-    /// Force LOCAL Docker execution, overriding a `cloud` config default.
-    #[arg(long, conflicts_with = "cloud")]
-    pub local: bool,
-
     /// Cloud organization (defaults to the configured default org or
-    /// `[cloud] org` in config). Implied when execution resolves to cloud.
+    /// `[cloud] org` in config). Used when the backend resolves to cloud.
     #[arg(long)]
     pub org: Option<String>,
 }

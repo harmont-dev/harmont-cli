@@ -78,7 +78,9 @@
     "nodes": [
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -94,7 +96,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -108,7 +112,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/api && go build ./...",
@@ -118,7 +124,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/api && go test ./...",
@@ -128,7 +136,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/api && go vet ./...",
@@ -138,7 +148,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -154,7 +166,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -168,7 +182,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -185,7 +201,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/ml && uv run pytest",
@@ -195,7 +213,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/ml && uv run ruff check .",
@@ -205,7 +225,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/ml && uv run ty check .",
@@ -215,7 +237,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -231,7 +255,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -245,7 +271,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -261,7 +289,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd web && npm run build",
@@ -271,7 +301,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd web && npm run test",
@@ -281,7 +313,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd web && npm run lint",

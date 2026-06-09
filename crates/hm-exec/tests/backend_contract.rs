@@ -63,10 +63,39 @@ async fn handle_yields_events_then_outcome() {
     assert_eq!(outcome.status, BuildStatus::Passed);
 }
 
+/// Minimal no-op [`hm_vm::VmBackend`] so the local backend can be constructed
+/// without a real Docker daemon. `name()`/`capabilities()` never touch it.
+#[derive(Debug)]
+struct NoopVmBackend;
+
+#[async_trait::async_trait]
+impl hm_vm::VmBackend for NoopVmBackend {
+    async fn create(
+        &self,
+        _image: &str,
+        _config: &hm_vm::VmConfig,
+    ) -> anyhow::Result<Box<dyn hm_vm::backend::Vm>> {
+        anyhow::bail!("noop backend")
+    }
+    async fn restore(
+        &self,
+        _snapshot: &hm_vm::SnapshotId,
+        _config: &hm_vm::VmConfig,
+    ) -> anyhow::Result<Box<dyn hm_vm::backend::Vm>> {
+        anyhow::bail!("noop backend")
+    }
+    async fn snapshot_exists(&self, _snapshot: &hm_vm::SnapshotId) -> anyhow::Result<bool> {
+        Ok(false)
+    }
+    async fn remove_snapshot(&self, _snapshot: &hm_vm::SnapshotId) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
 #[tokio::test]
 async fn local_backend_reports_capabilities() {
-    let b = hm_exec::LocalDockerBackend::new(4);
-    assert_eq!(b.name(), "local-docker");
+    let b = hm_exec::LocalBackend::new(4, std::sync::Arc::new(NoopVmBackend));
+    assert_eq!(b.name(), "local");
     assert!(b.capabilities().honors_parallelism);
     assert!(!b.capabilities().is_observer);
 }

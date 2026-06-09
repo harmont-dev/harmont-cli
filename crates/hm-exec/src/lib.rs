@@ -14,9 +14,9 @@
 //!
 //! # Backends
 //!
-//! - [`LocalDockerBackend`] — runs the build in-process using a Docker DAG
-//!   scheduler (previously `orchestrator/`+`runner/`+`executor/` in the `hm`
-//!   crate).
+//! - [`LocalBackend`] — runs the build in-process using a DAG scheduler that
+//!   executes each step inside a lightweight VM via the `hm-vm` subsystem
+//!   (a [`hm_vm::VmBackend`] + snapshot registry; Docker is one such backend).
 //! - [`CloudBackend`] — submits the build to the Harmont cloud and watches it
 //!   over the REST SDK, emitting the same `BuildEvent` stream.
 //!
@@ -39,7 +39,7 @@ mod capabilities;
 pub use capabilities::Capabilities;
 
 pub mod local;
-pub use local::LocalDockerBackend;
+pub use local::LocalBackend;
 
 pub mod cloud;
 pub use cloud::CloudBackend;

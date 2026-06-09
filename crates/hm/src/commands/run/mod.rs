@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use hm_config::ExecutionTarget;
 
 use hm_dsl_engine::detect;
 
@@ -9,14 +8,16 @@ use crate::cli::RunArgs;
 use crate::context::RunContext;
 use crate::error::{ErrorCategory, HmError};
 
-/// Top-level driver for `hm run`. Local by default; `--cloud` (or the
-/// `execution = "cloud"` config key) runs the local worktree on Harmont Cloud
-/// and streams logs.
+/// Top-level driver for `hm run`.
 ///
-/// Execution-target resolution (flag wins over config):
-/// - `--cloud`  → Cloud
-/// - `--local`  → Local (overrides a `cloud` config default)
-/// - neither   → `ctx.config.execution` (figment-layered from user/project config)
+/// Runs the local worktree on the selected execution backend: `docker`
+/// (default) runs it locally on the Docker VM backend; `cloud` submits it to
+/// Harmont Cloud and streams logs.
+///
+/// Backend resolution (flag wins over config):
+/// - `--backend <name>` → that backend (`cloud`, `docker`, …)
+/// - `--cloud`          → `cloud` (deprecated alias)
+/// - neither            → `ctx.config.backend` (figment-layered, default `docker`)
 ///
 /// This is a THIN driver over the `hm-exec` backends: it builds an
 /// [`hm_exec::ExecutionBackend`], renders the pipeline to v0 IR once, starts
@@ -32,32 +33,38 @@ use crate::error::{ErrorCategory, HmError};
 pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // 1. Build the backend. Cloud needs auth + org resolution BEFORE any
     //    (local) render work — fail fast on a missing token.
-    //    Flag > config.execution (figment-layered default).
-    let target = if args.cloud {
-        ExecutionTarget::Cloud
-    } else if args.local {
-        ExecutionTarget::Local
-    } else {
-        ctx.config.execution
-    };
+    //    Resolution: explicit --backend > legacy --cloud alias > config.backend
+    //    (figment-layered default "docker").
+    let backend_name = args
+        .backend
+        .clone()
+        .or_else(|| if args.cloud { Some("cloud".to_string()) } else { None })
+        .unwrap_or_else(|| ctx.config.backend.clone());
 
-    let backend: Box<dyn hm_exec::ExecutionBackend> = match target {
-        ExecutionTarget::Cloud => {
-            let api_url = ctx.config.cloud.api_url.clone();
-            let token = hm_config::creds::cloud_token(&api_url).context(
-                "`hm run` cloud execution requires authentication — run `hm cloud login` or set HARMONT_API_TOKEN",
-            )?;
-            let org = args
-                .org
-                .clone()
-                .or_else(|| ctx.config.cloud.org.clone())
-                .context("no organization — pass --org or set `[cloud] org = \"…\"` in .hm/config.toml or ~/.config/hm/config.toml")?;
-            let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
-            Box::new(hm_exec::CloudBackend::new(client, api_url, org))
-        }
-        ExecutionTarget::Local => {
-            Box::new(hm_exec::LocalDockerBackend::new(resolve_parallelism(&args)))
-        }
+    let backend: Box<dyn hm_exec::ExecutionBackend> = if backend_name == "cloud" {
+        let api_url = ctx.config.cloud.api_url.clone();
+        let token = hm_config::creds::cloud_token(&api_url).context(
+            "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HARMONT_API_TOKEN",
+        )?;
+        let org = args
+            .org
+            .clone()
+            .or_else(|| ctx.config.cloud.org.clone())
+            .context("no organization — pass --org or set `[cloud] org = \"…\"` in .hm/config.toml or ~/.config/hm/config.toml")?;
+        let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
+        Box::new(hm_exec::CloudBackend::new(client, api_url, org))
+    } else {
+        // Local execution on a hm-vm VmBackend, selected by name.
+        let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = match backend_name.as_str() {
+            "docker" => std::sync::Arc::new(
+                hm_vm::docker::DockerBackend::connect().map_err(|e| anyhow::anyhow!("{e:#}"))?,
+            ),
+            other => anyhow::bail!("unknown --backend '{other}'\n  available: docker, cloud"),
+        };
+        Box::new(hm_exec::LocalBackend::new(
+            resolve_parallelism(&args),
+            vm_backend,
+        ))
     };
 
     // 2. Capability-driven flag validation (replaces the old silent ignoring).

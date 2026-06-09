@@ -1,0 +1,330 @@
+//! Docker backend -- container orchestration via bollard.
+//!
+//! Each "VM" is a long-lived container running `sleep infinity`,
+//! commands are executed via the exec API, and snapshots are Docker
+//! image commits.
+
+use std::collections::HashMap;
+use std::path::Path;
+
+use anyhow::{Context, Result};
+use async_trait::async_trait;
+use bollard::Docker;
+use bollard::container::{
+    Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
+    StopContainerOptions, UploadToContainerOptions,
+};
+use bollard::exec::{CreateExecOptions, StartExecResults};
+use bollard::image::{
+    CommitContainerOptions, CreateImageOptions, ListImagesOptions, RemoveImageOptions,
+};
+use futures::StreamExt;
+use tracing::instrument;
+
+use crate::backend::{Vm, VmBackend};
+use crate::types::{OutputSink, SnapshotId, VmConfig};
+
+/// Docker-based VM backend.
+///
+/// Each VM is a long-lived container; snapshots are committed images.
+#[derive(Debug)]
+pub struct DockerBackend {
+    client: Docker,
+}
+
+impl DockerBackend {
+    /// Connect to the local Docker daemon.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if bollard cannot resolve a Docker endpoint.
+    pub fn connect() -> Result<Self> {
+        let client =
+            Docker::connect_with_local_defaults().context("failed to connect to Docker daemon")?;
+        Ok(Self { client })
+    }
+
+    #[instrument(skip(self))]
+    async fn ensure_image(&self, image: &str) -> Result<()> {
+        if self.image_exists_by_tag(image).await? {
+            return Ok(());
+        }
+        let mut stream = self.client.create_image(
+            Some(CreateImageOptions {
+                from_image: image,
+                ..Default::default()
+            }),
+            None,
+            None,
+        );
+        while let Some(item) = stream.next().await {
+            item.with_context(|| format!("pulling image '{image}'"))?;
+        }
+        Ok(())
+    }
+
+    /// Check whether an image with the given tag exists locally.
+    async fn image_exists_by_tag(&self, tag: &str) -> Result<bool> {
+        let mut filters = HashMap::new();
+        filters.insert("reference".to_string(), vec![tag.to_string()]);
+        let images = self
+            .client
+            .list_images(Some(ListImagesOptions {
+                filters,
+                ..Default::default()
+            }))
+            .await
+            .with_context(|| format!("listing images for tag '{tag}'"))?;
+        Ok(!images.is_empty())
+    }
+
+    #[instrument(skip(self))]
+    async fn start_container(&self, image: &str) -> Result<String> {
+        let cfg = Config {
+            image: Some(image.to_string()),
+            cmd: Some(vec!["sh".into(), "-c".into(), "sleep infinity".into()]),
+            ..Default::default()
+        };
+        let create = self
+            .client
+            .create_container(None::<CreateContainerOptions<String>>, cfg)
+            .await
+            .context("create container")?;
+        self.client
+            .start_container(&create.id, None::<StartContainerOptions<String>>)
+            .await
+            .context("start container")?;
+        Ok(create.id)
+    }
+}
+
+#[async_trait]
+impl VmBackend for DockerBackend {
+    #[instrument(skip(self, _config))]
+    async fn create(&self, image: &str, _config: &VmConfig) -> Result<Box<dyn Vm>> {
+        self.ensure_image(image).await?;
+        let container_id = self.start_container(image).await?;
+        Ok(Box::new(DockerVm {
+            client: self.client.clone(),
+            container_id,
+        }))
+    }
+
+    #[instrument(skip(self, _config))]
+    async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
+        let container_id = self.start_container(&snapshot.0).await?;
+        Ok(Box::new(DockerVm {
+            client: self.client.clone(),
+            container_id,
+        }))
+    }
+
+    #[instrument(skip(self))]
+    async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
+        self.image_exists_by_tag(&snapshot.0).await
+    }
+
+    #[instrument(skip(self))]
+    async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
+        self.client
+            .remove_image(
+                &snapshot.0,
+                Some(RemoveImageOptions {
+                    force: true,
+                    noprune: false,
+                }),
+                None,
+            )
+            .await
+            .with_context(|| format!("removing image '{}'", snapshot.0))?;
+        Ok(())
+    }
+}
+
+/// Handle to a running Docker container acting as a VM.
+#[derive(derive_more::Debug)]
+struct DockerVm {
+    #[debug(skip)]
+    client: Docker,
+    container_id: String,
+}
+
+/// Build a tar archive from a host directory.
+///
+/// The archive contains all files under `host_path` with paths relative
+/// to `host_path` itself (i.e. the directory contents, not the directory).
+fn tar_directory(host_path: &Path) -> Result<Vec<u8>> {
+    let mut archive = tar::Builder::new(Vec::new());
+    archive
+        .append_dir_all(".", host_path)
+        .with_context(|| format!("archiving '{}'", host_path.display()))?;
+    archive.finish().context("finalizing tar archive")?;
+    archive.into_inner().context("extracting tar bytes")
+}
+
+#[async_trait]
+impl Vm for DockerVm {
+    #[instrument(skip(self), fields(host = %host_path.display()))]
+    async fn inject(&self, host_path: &Path, guest_path: &str) -> Result<()> {
+        // Ensure the destination directory exists inside the container.
+        let mkdir = self
+            .client
+            .create_exec(
+                &self.container_id,
+                CreateExecOptions {
+                    cmd: Some(vec!["mkdir", "-p", guest_path]),
+                    attach_stdout: Some(true),
+                    attach_stderr: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await
+            .context("create mkdir exec")?;
+        if let StartExecResults::Attached { mut output, .. } = self
+            .client
+            .start_exec(&mkdir.id, None)
+            .await
+            .context("start mkdir exec")?
+        {
+            while output.next().await.is_some() {}
+        }
+
+        let tar_bytes = tar_directory(host_path)?;
+        let options = UploadToContainerOptions {
+            path: guest_path,
+            ..Default::default()
+        };
+        self.client
+            .upload_to_container(&self.container_id, Some(options), tar_bytes.into())
+            .await
+            .with_context(|| {
+                format!(
+                    "uploading '{}' to container '{}:{guest_path}'",
+                    host_path.display(),
+                    self.container_id.get(..12).unwrap_or(&self.container_id),
+                )
+            })?;
+        Ok(())
+    }
+
+    #[instrument(skip(self, env, sink))]
+    async fn exec(
+        &self,
+        cmd: &str,
+        env: &[(String, String)],
+        working_dir: &str,
+        sink: &dyn OutputSink,
+    ) -> Result<i32> {
+        let env_strings: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        let exec = self
+            .client
+            .create_exec(
+                &self.container_id,
+                CreateExecOptions {
+                    cmd: Some(vec!["sh", "-c", cmd]),
+                    env: Some(env_strings.iter().map(String::as_str).collect()),
+                    working_dir: Some(working_dir),
+                    attach_stdout: Some(true),
+                    attach_stderr: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await
+            .context("create exec")?;
+
+        if let StartExecResults::Attached { mut output, .. } = self
+            .client
+            .start_exec(&exec.id, None)
+            .await
+            .context("start exec")?
+        {
+            use bollard::container::LogOutput;
+
+            while let Some(item) = output.next().await {
+                let chunk = item.context("exec stream")?;
+                match chunk {
+                    LogOutput::StdOut { message } => {
+                        let text = String::from_utf8_lossy(&message);
+                        for line in text.lines() {
+                            sink.on_stdout(line);
+                        }
+                    }
+                    LogOutput::StdErr { message } => {
+                        let text = String::from_utf8_lossy(&message);
+                        for line in text.lines() {
+                            sink.on_stderr(line);
+                        }
+                    }
+                    LogOutput::StdIn { .. } | LogOutput::Console { .. } => {}
+                }
+            }
+        }
+
+        // Retry inspect_exec: the connection pool can go stale after
+        // long-running exec streams on Docker Desktop for macOS.
+        let mut inspect_result = self.client.inspect_exec(&exec.id).await;
+        for _ in 0..3 {
+            if inspect_result.is_ok() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            inspect_result = self.client.inspect_exec(&exec.id).await;
+        }
+        let inspect = inspect_result.context("inspect exec")?;
+
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "docker exit codes fit in i32"
+        )]
+        let exit_code = inspect.exit_code.unwrap_or(0) as i32;
+        Ok(exit_code)
+    }
+
+    #[instrument(skip(self))]
+    async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
+        let parts: Vec<&str> = label.splitn(2, ':').collect();
+        let (repo, tag) = match parts.as_slice() {
+            [r, v] => (*r, *v),
+            _ => (label, "latest"),
+        };
+        let opts = CommitContainerOptions {
+            container: self.container_id.as_str(),
+            repo,
+            tag,
+            ..Default::default()
+        };
+        // docker commit can be slow for containers with large filesystems;
+        // use a dedicated long-timeout client for this operation.
+        #[allow(clippy::duration_suboptimal_units, reason = "from_mins is nightly-only")]
+        let commit_client = self
+            .client
+            .clone()
+            .with_timeout(std::time::Duration::from_secs(600));
+        commit_client
+            .commit_container(opts, Config::<String>::default())
+            .await
+            .context("commit container")?;
+        let full_tag = format!("{repo}:{tag}");
+        Ok(SnapshotId(full_tag))
+    }
+
+    #[instrument(skip(self))]
+    async fn destroy(&mut self) -> Result<()> {
+        let _ = self
+            .client
+            .stop_container(&self.container_id, Some(StopContainerOptions { t: 0 }))
+            .await;
+        self.client
+            .remove_container(
+                &self.container_id,
+                Some(RemoveContainerOptions {
+                    force: true,
+                    v: true,
+                    ..Default::default()
+                }),
+            )
+            .await
+            .with_context(|| format!("removing container '{}'", self.container_id))?;
+        Ok(())
+    }
+}

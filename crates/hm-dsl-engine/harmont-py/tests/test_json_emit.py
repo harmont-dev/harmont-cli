@@ -105,7 +105,8 @@ def test_wait_emits_depends_on_edges():
 
 def test_pipeline_env_merged_into_node_env():
     out = _emit(pipeline([scratch().sh("a", label="a")], env={"CI": "true"}))
-    assert _nodes(out)[0]["env"] == {"CI": "true"}
+    assert _nodes(out)[0]["env"]["CI"] == "true"
+    assert _nodes(out)[0]["env"]["DEBIAN_FRONTEND"] == "noninteractive"
 
 
 def test_default_image_emitted_when_set():

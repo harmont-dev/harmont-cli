@@ -11,9 +11,5 @@ import harmont as hm
     triggers=[hm.push(branch="main")],
 )
 def ci() -> tuple[hm.Step, ...]:
-    project = hm.npm(path=".")
-    return (
-        project.run("build"),
-        project.run("test"),
-        project.run("lint"),
-    )
+    project = hm.js.project(path=".")
+    return (project.run("build"), project.run("test"), project.run("lint"))

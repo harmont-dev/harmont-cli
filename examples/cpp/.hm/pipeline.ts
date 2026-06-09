@@ -1,5 +1,5 @@
-import { pipeline, push, type PipelineDefinition } from "harmont";
-import { cmake } from "harmont/toolchains";
+import { pipeline, push, type PipelineDefinition } from "@harmont/hm";
+import { cmake } from "@harmont/hm/toolchains";
 
 const project = cmake({ path: ".", defines: { CMAKE_BUILD_TYPE: "Release", CMAKE_CXX_STANDARD: "17" } });
 

@@ -39,6 +39,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_color: bool,
 
+    /// Write a Chrome trace JSON to the given path for performance analysis.
+    #[arg(long, global = true, hide = true, value_name = "PATH")]
+    pub debug_trace: Option<std::path::PathBuf>,
+
     #[command(subcommand)]
     pub command: Command,
 }

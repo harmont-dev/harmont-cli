@@ -48,7 +48,9 @@
     "nodes": [
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -64,7 +66,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -78,7 +82,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -94,7 +100,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cmake --build infra/agent/build --parallel $(nproc) && ctest --test-dir infra/agent/build --output-on-failure --parallel $(nproc)",
@@ -104,7 +112,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd infra/agent && find . -not -path './build/*' -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | xargs clang-format --dry-run --Werror",
@@ -114,7 +124,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -130,7 +142,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -144,7 +158,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -160,7 +176,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/web && bundle exec rspec",
@@ -170,7 +188,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": "cd services/web && bundle exec rubocop",

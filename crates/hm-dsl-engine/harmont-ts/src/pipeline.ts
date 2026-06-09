@@ -87,7 +87,10 @@ function lowerToGraph(
     if (s._runner != null) stepDict.runner = s._runner;
     if (s._runnerArgs != null) stepDict.runner_args = s._runnerArgs;
 
-    const mergedEnv: Record<string, string> = {};
+    const mergedEnv: Record<string, string> = {
+      DEBIAN_FRONTEND: "noninteractive",
+      TERM: "dumb",
+    };
     if (opts?.env) Object.assign(mergedEnv, opts.env);
     if (s._env) Object.assign(mergedEnv, s._env);
 

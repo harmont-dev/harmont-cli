@@ -4,12 +4,13 @@ version = "0.0.0-dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Pluggable CI execution backends (local Docker + cloud) for the hm CLI."
+description = "Pluggable CI execution backends (local VM + cloud) for the hm CLI."
 
 [dependencies]
 hm-plugin-protocol = { workspace = true }
 hm-pipeline-ir = { workspace = true }
 hm-util = { workspace = true }
+hm-vm = { workspace = true, features = ["docker-backend"] }
 harmont-cloud = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
@@ -24,10 +25,10 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
-bollard = "0.18"
 tar = "0.4"
 flate2 = "1"
 ignore = "0.4"
+tempfile = "3"
 daggy = { workspace = true }
 
 [dev-dependencies]

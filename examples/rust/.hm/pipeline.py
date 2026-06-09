@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import harmont as hm
-from harmont.rust import RustToolchain
+from harmont._rust import RustToolchain
 
 
 @hm.target()
@@ -17,9 +17,4 @@ def project() -> RustToolchain:
     triggers=[hm.push(branch="main")],
 )
 def ci(project: hm.Target[RustToolchain]) -> tuple[hm.Step, ...]:
-    return (
-        project.build(),
-        project.test(),
-        project.clippy(),
-        project.fmt(),
-    )
+    return (project.build(), project.test(), project.clippy(), project.fmt())

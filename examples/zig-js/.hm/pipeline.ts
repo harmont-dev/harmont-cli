@@ -1,5 +1,5 @@
-import { pipeline, push, scratch, target, ttl, type PipelineDefinition } from "harmont";
-import { js, zig } from "harmont/toolchains";
+import { pipeline, push, scratch, target, ttl, type PipelineDefinition } from "@harmont/hm";
+import { js, zig } from "@harmont/hm/toolchains";
 
 const aptBase = target("apt-base", () =>
   scratch({ image: "ubuntu:24.04" }).sh(

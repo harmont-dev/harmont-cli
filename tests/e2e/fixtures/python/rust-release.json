@@ -38,7 +38,9 @@
     "nodes": [
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -54,7 +56,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cache": {
@@ -68,7 +72,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo build",
@@ -78,7 +84,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo test",
@@ -88,7 +96,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo clippy --all-targets -- -D warnings",
@@ -98,7 +108,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo fmt --check",
@@ -108,7 +120,9 @@
       },
       {
         "env": {
-          "CI": "true"
+          "CI": "true",
+          "DEBIAN_FRONTEND": "noninteractive",
+          "TERM": "dumb"
         },
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo doc --no-deps",
