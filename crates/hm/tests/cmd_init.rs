@@ -267,10 +267,16 @@ fn init_noninteractive_skips_skills() {
         .assert()
         .success();
 
-    let skill = dir.path().join(".claude/skills/validate-ci/SKILL.md");
+    let skill_validate = dir.path().join(".claude/skills/validate-ci/SKILL.md");
     assert!(
-        !skill.exists(),
+        !skill_validate.exists(),
         "non-interactive init should not create skills"
+    );
+
+    let skill_pipeline = dir.path().join(".claude/skills/write-pipeline/SKILL.md");
+    assert!(
+        !skill_pipeline.exists(),
+        "non-interactive init should not create write-pipeline skill"
     );
 }
 
