@@ -335,3 +335,35 @@ fn skill_write_pipeline_content_is_well_formed() {
         "skill must include gh issue filing instructions"
     );
 }
+
+#[test]
+fn skill_convert_gha_content_is_well_formed() {
+    let content = include_str!(
+        "../src/commands/init_templates/skill_convert_gha.md"
+    );
+    assert!(!content.is_empty(), "skill template must not be empty");
+    assert!(
+        content.contains("## When to use"),
+        "skill must have 'When to use' section"
+    );
+    assert!(
+        content.contains("## When NOT to use"),
+        "skill must have 'When NOT to use' section"
+    );
+    assert!(
+        content.contains("## Procedure"),
+        "skill must have 'Procedure' section"
+    );
+    assert!(
+        content.contains("write-pipeline"),
+        "skill must reference write-pipeline skill"
+    );
+    assert!(
+        content.contains("actions/cache"),
+        "skill must mention actions/cache and implicit caching"
+    );
+    assert!(
+        content.contains("actions/checkout"),
+        "skill must mention actions/checkout is not needed"
+    );
+}
