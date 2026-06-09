@@ -41,6 +41,9 @@ from ._pipeline import pipeline_to_json
 from ._python import python
 from ._ruby import ruby
 from ._rust import RustProject, rust
+from dataclasses import replace as _replace
+
+from ._duration import parse_duration as _parse_duration
 from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
 from ._toolchain import apt_base
@@ -179,6 +182,41 @@ def compose(*policies: CachePolicy) -> CacheCompose:
     return CacheCompose(policies=tuple(policies))
 
 
+def timeout(duration: str | int | timedelta, step: Step) -> Step:
+    """Apply a wall-clock timeout to a single step.
+
+    The executor (and ``hm run`` locally) kills the step's process once
+    ``duration`` elapses; the step then fails as *timed out*. Wrapping a
+    step that already has a timeout replaces it.
+
+    Args:
+        duration: ``"30s"`` / ``"5m"`` / ``"1h30m"`` (units ``h``, ``m``,
+            ``s``), an ``int`` number of seconds, or a ``timedelta``.
+        step: The command step to bound. Must be a real command step,
+            not a ``wait`` barrier.
+
+    Returns:
+        A new ``Step`` identical to ``step`` but with the timeout set.
+
+    Raises:
+        ValueError: If ``step`` is a ``wait`` barrier, or ``duration`` is
+            malformed / non-positive.
+        TypeError: If ``duration`` is not a str, int, or timedelta.
+
+    Examples:
+        >>> import harmont as hm
+        >>> step = hm.timeout("30s", hm.sh("echo foobar"))
+    """
+    if step.is_wait:
+        msg = (
+            "hm: timeout() cannot wrap a wait() barrier\n"
+            "  → apply timeout() to a command step, e.g. "
+            'hm.timeout("30s", hm.sh("make test"))'
+        )
+        raise ValueError(msg)
+    return _replace(step, timeout_seconds=_parse_duration(duration))
+
+
 def sh(
     cmd: str,
     *,
@@ -281,6 +319,7 @@ __all__ = [
     "scratch",
     "sh",
     "target",
+    "timeout",
     "ttl",
     "wait",
     "zig",
