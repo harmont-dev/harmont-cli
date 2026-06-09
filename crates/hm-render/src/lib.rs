@@ -148,3 +148,25 @@ pub async fn drive(
         }
     }
 }
+
+/// Drive a renderer from a [`Stream`] of events until it ends or a
+/// `BuildEnd` is seen.
+///
+/// The `hm-exec` backend handle yields events as a
+/// `BoxStream<'static, BuildEvent>`; this function is the counterpart to
+/// [`drive`] for that case.
+///
+/// [`Stream`]: futures::stream::Stream
+pub async fn drive_stream(
+    mut renderer: Box<dyn OutputRenderer>,
+    mut events: futures::stream::BoxStream<'static, BuildEvent>,
+) {
+    use futures::StreamExt as _;
+    while let Some(ev) = events.next().await {
+        let end = ev.is_build_end();
+        renderer.on_event(&ev);
+        if end {
+            break;
+        }
+    }
+}
