@@ -6,6 +6,7 @@ import {
   bunInstallCmd,
   denoInstallCmd,
 } from "./shared.js";
+import { detect } from "./detect.js";
 
 // Runtimes execute JS/TS; package managers install dependencies. `deno` is a
 // runtime only — its dependency management is intrinsic, so it is not a `pm`
@@ -125,7 +126,9 @@ function validateVersion(runtime: Runtime, version: string): void {
 
 function makeProject(opts?: JsOptions): JsProject {
   const path = opts?.path ?? ".";
-  const runtime = opts?.runtime ?? "node";
+  const detected =
+    opts?.runtime == null && opts?.pm == null ? detect(path) : {};
+  const runtime = opts?.runtime ?? detected.runtime ?? "node";
 
   if (opts?.version != null) {
     validateVersion(runtime, opts.version);
@@ -155,7 +158,7 @@ function makeProject(opts?: JsOptions): JsProject {
   }
 
   // --- Node / Bun runtime ---
-  const pm: PackageManager = opts?.pm ?? (runtime === "bun" ? "bun" : "npm");
+  const pm: PackageManager = opts?.pm ?? detected.pm ?? (runtime === "bun" ? "bun" : "npm");
 
   if (pm === "deno") {
     throw new Error(

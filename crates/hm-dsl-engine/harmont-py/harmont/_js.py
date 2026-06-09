@@ -29,6 +29,7 @@ from ._toolchain import (
     make_install_chain,
     node_install_cmd,
 )
+from ._detect import detect
 from .cache import CacheForever, CacheOnChange
 
 if TYPE_CHECKING:
@@ -135,11 +136,14 @@ def _make_js(
     *,
     path: str = ".",
     pm: PackageManager | None = None,
-    runtime: Runtime = "node",
+    runtime: Runtime | None = None,
     version: str | None = None,
     image: str | None = None,
     base: Step | None = None,
 ) -> JsProject:
+    detected = detect(path) if runtime is None and pm is None else None
+    runtime = runtime if runtime is not None else (detected.runtime if detected and detected.runtime else "node")
+
     if version is not None:
         _validate_version(runtime, version)
 
@@ -165,7 +169,8 @@ def _make_js(
         return JsProject(path=path, installed=deps, run_prefix=_RUN_PREFIX["deno"], tag="deno")
 
     # --- Node / Bun runtime ---
-    resolved_pm: PackageManager = pm if pm is not None else ("bun" if runtime == "bun" else "npm")
+    detected_pm = detected.pm if detected else None
+    resolved_pm: PackageManager = pm if pm is not None else (detected_pm if detected_pm is not None else ("bun" if runtime == "bun" else "npm"))
 
     if resolved_pm == "deno":
         msg = 'hm.js: pm="deno" is not valid — use runtime="deno" instead'
@@ -225,7 +230,7 @@ class _JsEntry:
         *,
         path: str = ".",
         pm: PackageManager | None = None,
-        runtime: Runtime = "node",
+        runtime: Runtime | None = None,
         version: str | None = None,
         image: str | None = None,
         base: Step | None = None,
