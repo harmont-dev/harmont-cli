@@ -1,6 +1,7 @@
+use std::io::IsTerminal;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use hm_dsl_engine::detect;
 
 use crate::cli::init::{InitArgs, TemplateKind};
@@ -167,27 +168,45 @@ fn has_github_workflows(dir: &Path) -> bool {
 
 /// # Errors
 ///
-/// Returns an error if the target directory is unwritable.
+/// Returns an error if the target directory is unwritable, or if no template
+/// can be determined in a non-interactive context.
 #[allow(clippy::unused_async)]
 pub async fn handle(args: InitArgs) -> Result<()> {
-    let interactive = args.template.is_none();
-    let kind = match args.template {
-        Some(k) => k,
-        None => pick_interactive()?,
-    };
-    let tmpl = kind.meta();
+    let tty = std::io::stdin().is_terminal();
+    let has_pipeline = detect::has_pipeline_files(&args.dir);
 
-    let wrote_pipeline = write_template(&args.dir, &tmpl, args.force)?;
+    // Skip template selection entirely when a pipeline already exists and the
+    // user didn't force an overwrite: they're re-running `hm init` to install
+    // Claude skills, not to replace their pipeline.
+    let skip_template = args.template.is_none() && has_pipeline && !args.force;
 
-    if wrote_pipeline {
-        let dsl = match kind {
-            TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
-            _ => "Python",
+    if skip_template {
+        tracing::info!("existing pipeline detected in .hm/ — skipping template selection");
+    } else {
+        let kind = match args.template {
+            Some(k) => k,
+            None => {
+                if !tty {
+                    bail!(
+                        "no template specified and no terminal available\n  \
+                         hint: pass --template <name> in non-interactive contexts"
+                    );
+                }
+                pick_interactive()?
+            }
         };
-        tracing::info!(
-            "created .hm/{} ({dsl} pipeline, template: {kind:?})",
-            tmpl.filename
-        );
+        let tmpl = kind.meta();
+        let wrote_pipeline = write_template(&args.dir, &tmpl, args.force)?;
+        if wrote_pipeline {
+            let dsl = match kind {
+                TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
+                _ => "Python",
+            };
+            tracing::info!(
+                "created .hm/{} ({dsl} pipeline, template: {kind:?})",
+                tmpl.filename
+            );
+        }
     }
 
     if has_github_workflows(&args.dir) {
@@ -197,7 +216,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         );
     }
 
-    if interactive && prompt_skills()? {
+    if tty && prompt_skills()? {
         write_skills(&args.dir)?;
     }
 

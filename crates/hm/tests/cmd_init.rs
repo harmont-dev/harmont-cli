@@ -410,6 +410,35 @@ fn init_no_gha_hint_without_workflows_dir() {
 }
 
 #[test]
+fn init_skips_template_prompt_when_pipeline_exists() {
+    // A project that already has a pipeline. Running `hm init` with no
+    // --template (interactive intent) in a non-TTY context must NOT try to
+    // prompt for a template; it should skip template selection, leave the
+    // pipeline untouched, and exit successfully.
+    let dir = tempfile::tempdir().unwrap();
+    let hm_dir = dir.path().join(".hm");
+    std::fs::create_dir(&hm_dir).unwrap();
+    std::fs::write(hm_dir.join("pipeline.py"), "# existing").unwrap();
+
+    hm().args(["init", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("skipping template selection"))
+        .stderr(contains("template selection cancelled").not());
+
+    // Existing pipeline must be left exactly as-is.
+    let content = std::fs::read_to_string(hm_dir.join("pipeline.py")).unwrap();
+    assert_eq!(content, "# existing", "pipeline.py must be untouched");
+
+    // Non-TTY: skills are not installed (no prompt possible).
+    assert!(
+        !dir.path().join(".claude/skills/validate-ci/SKILL.md").exists(),
+        "skills should not install without a TTY"
+    );
+}
+
+#[test]
 fn init_no_gha_hint_with_empty_workflows_dir() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join(".github/workflows")).unwrap();
