@@ -253,7 +253,7 @@ hm run --cloud --format json       # NDJSON BuildEvent stream for scripting
 ### Authentication
 
 `hm cloud login` binds a loopback listener, opens `app.harmont.dev/cli-login`,
-and stores the token in `~/.harmont/credentials.toml` (mode 0600). No browser?
+and stores the token in `~/.config/hm/credentials.toml` (mode 0600). No browser?
 Use `hm cloud login --paste`. In CI, set a token instead:
 
 ```sh
@@ -266,7 +266,7 @@ hm run --cloud --org acme
 | File | Mode | Contents |
 |------|------|----------|
 | `~/.config/hm/config.toml` | 0644 | `backend`, `[cloud]` (`org`, `api_url`), `[preferences]` (`format`, `auto_watch`) |
-| `~/.harmont/credentials.toml` | 0600 | bearer tokens keyed by API base URL |
+| `~/.config/hm/credentials.toml` | 0600 | bearer tokens keyed by API base URL |
 
 Settings layer **defaults → user config → project `.hm/config.toml` → env**, so
 you can commit per-repo defaults and still override them locally. Env overrides:
