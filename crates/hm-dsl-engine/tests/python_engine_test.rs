@@ -73,3 +73,72 @@ def ci() -> hm.Step:
     assert_eq!(p["triggers"][0]["branches"][0], "main");
     assert_eq!(p["definition"]["version"], "0");
 }
+
+#[tokio::test]
+async fn python_renders_dynamic_target_with_runtime_environment() {
+    if which::which("python3").is_err() {
+        eprintln!("skipping: python3 not on PATH");
+        return;
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir_all(&harmont).unwrap();
+    std::fs::write(
+        harmont.join("ci.py"),
+        r#"import os
+import harmont as hm
+
+@hm.target(dynamic=True)
+def choose_build() -> hm.Step:
+    command = 'go test ./...' if os.environ.get('LANGUAGE') == 'go' else 'cargo test'
+    return hm.sh(command, label='selected build')
+
+@hm.pipeline('ci')
+def ci() -> hm.Step:
+    return choose_build()
+"#,
+    )
+    .unwrap();
+
+    let engine = hm_dsl_engine::engine_for(hm_dsl_engine::DslLanguage::Python).unwrap();
+    let mut context = hm_dsl_engine::DynamicContext::default();
+    context.env.insert("LANGUAGE".into(), "go".into());
+
+    let json = engine
+        .render_target_json(dir.path(), "choose_build", &context)
+        .await
+        .unwrap();
+    let fragment: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let node = &fragment["graph"]["nodes"][0];
+
+    assert_eq!(fragment["version"], "0");
+    assert_eq!(node["step"]["eval"]["type"], "cmd");
+    assert_eq!(node["step"]["eval"]["cmd"], "go test ./...");
+    assert_eq!(node["env"]["LANGUAGE"], "go");
+}
+
+#[tokio::test]
+async fn python_dynamic_target_reports_unknown_name() {
+    if which::which("python3").is_err() {
+        eprintln!("skipping: python3 not on PATH");
+        return;
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir_all(&harmont).unwrap();
+    std::fs::write(harmont.join("ci.py"), "import harmont as hm\n").unwrap();
+
+    let engine = hm_dsl_engine::engine_for(hm_dsl_engine::DslLanguage::Python).unwrap();
+    let error = engine
+        .render_target_json(
+            dir.path(),
+            "missing_target",
+            &hm_dsl_engine::DynamicContext::default(),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(format!("{error:#}").contains("dynamic target 'missing_target' not found"));
+}

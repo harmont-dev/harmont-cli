@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub mod detect;
 pub mod python_engine;
@@ -21,10 +22,25 @@ pub struct PipelineMeta {
     pub name: String,
 }
 
+/// Runtime values available while evaluating a deferred DSL target.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DynamicContext {
+    /// Explicit environment supplied for the build.
+    pub env: BTreeMap<String, String>,
+}
+
 #[async_trait]
 pub trait DslEngine: Send + Sync {
     async fn list_pipelines(&self, project_dir: &Path) -> anyhow::Result<Vec<PipelineMeta>>;
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> anyhow::Result<String>;
+    /// Evaluate one registered dynamic target and return its v0 IR graph
+    /// fragment. Implementations must not evaluate unrelated dynamic targets.
+    async fn render_target_json(
+        &self,
+        project_dir: &Path,
+        target_name: &str,
+        context: &DynamicContext,
+    ) -> anyhow::Result<String>;
     /// Emit the full discovery envelope JSON for every pipeline in the repo:
     /// `{"schema_version": "...", "pipelines": [{slug, name, allow_manual,
     /// triggers, definition}, ...]}`. Returned verbatim from the DSL runtime so

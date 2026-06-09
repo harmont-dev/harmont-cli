@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 import harmont as hm
 from harmont._deps import clear_target_names
-from harmont._target import clear_target_cache, evaluate_dynamic_target
+from harmont._target import (
+    clear_target_cache,
+    evaluate_dynamic_target,
+    render_dynamic_target_json,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -140,3 +146,17 @@ def test_dynamic_target_rejects_group_until_continuation_is_defined():
 
     with pytest.raises(ValueError, match="must currently return exactly one leaf"):
         evaluate_dynamic_target("checks")
+
+
+def test_dynamic_target_json_contains_concrete_fragment_and_runtime_env():
+    @hm.target(dynamic=True)
+    def choose_build() -> hm.Step:
+        return hm.sh("cargo test", label="selected build")
+
+    fragment = json.loads(
+        render_dynamic_target_json("choose_build", env={"PROFILE": "release"})
+    )
+    node = fragment["graph"]["nodes"][0]
+
+    assert node["step"]["eval"] == {"type": "cmd", "cmd": "cargo test"}
+    assert node["env"]["PROFILE"] == "release"

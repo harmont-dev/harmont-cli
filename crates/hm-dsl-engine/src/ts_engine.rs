@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use tracing::debug;
 
 use crate::bundled_sources;
-use crate::{DslEngine, PipelineMeta};
+use crate::{DslEngine, DynamicContext, PipelineMeta};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum JsRuntime {
@@ -260,6 +260,15 @@ impl DslEngine for SubprocessTsEngine {
         self.run(project_dir, "render", Some(slug))
             .await
             .context("rendering pipeline via JS runtime")
+    }
+
+    async fn render_target_json(
+        &self,
+        _project_dir: &Path,
+        target_name: &str,
+        _context: &DynamicContext,
+    ) -> Result<String> {
+        bail!("dynamic target {target_name:?} cannot be rendered from TypeScript pipelines yet")
     }
 
     async fn registry_json(&self, _project_dir: &Path) -> Result<String> {

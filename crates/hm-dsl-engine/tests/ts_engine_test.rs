@@ -79,3 +79,23 @@ export const pipelines: PipelineDefinition[] = [
     let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
     assert_eq!(v["version"], "0");
 }
+
+#[tokio::test]
+async fn typescript_dynamic_target_rendering_is_explicitly_unsupported() {
+    if which::which("bun").is_err() && which::which("node").is_err() {
+        eprintln!("skipping: no JS runtime on PATH");
+        return;
+    }
+
+    let engine = hm_dsl_engine::engine_for(hm_dsl_engine::DslLanguage::TypeScript).unwrap();
+    let error = engine
+        .render_target_json(
+            std::path::Path::new("."),
+            "choose_build",
+            &hm_dsl_engine::DynamicContext::default(),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(format!("{error:#}").contains("cannot be rendered from TypeScript"));
+}

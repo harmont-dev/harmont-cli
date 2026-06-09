@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use tracing::debug;
 
 use crate::bundled_sources;
-use crate::{DslEngine, PipelineMeta};
+use crate::{DslEngine, DynamicContext, PipelineMeta};
 
 const LIST_PIPELINES_SCRIPT: &str = "\
 import sys, json, pathlib, importlib.util
@@ -56,6 +56,25 @@ if match is None:
     print(f'error: pipeline {slug!r} not found\\n  -> available: {avail}', file=sys.stderr)
     sys.exit(2)
 print(json.dumps(match['definition']))
+";
+
+const RENDER_TARGET_SCRIPT: &str = "\
+import sys, json, os, pathlib, importlib.util
+try:
+    import harmont as hm
+    from harmont._target import render_dynamic_target_json
+except ImportError as e:
+    print(f'error: {e}', file=sys.stderr)
+    sys.exit(1)
+target_name = sys.argv[1]
+context = json.loads(sys.argv[2])
+runtime_env = context.get('env', {})
+os.environ.update(runtime_env)
+for p in sorted(pathlib.Path('.hm').glob('*.py')):
+    spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+sys.stdout.write(render_dynamic_target_json(target_name, env=runtime_env))
 ";
 
 #[derive(Debug)]
@@ -127,6 +146,23 @@ impl DslEngine for SubprocessPythonEngine {
         self.run_script(project_dir, RENDER_PIPELINE_SCRIPT, &[slug])
             .await
             .context("rendering pipeline via python3")
+    }
+
+    async fn render_target_json(
+        &self,
+        project_dir: &Path,
+        target_name: &str,
+        context: &DynamicContext,
+    ) -> Result<String> {
+        let context_json =
+            serde_json::to_string(context).context("encoding dynamic target context")?;
+        self.run_script(
+            project_dir,
+            RENDER_TARGET_SCRIPT,
+            &[target_name, &context_json],
+        )
+        .await
+        .with_context(|| format!("rendering dynamic target {target_name:?} via python3"))
     }
 
     async fn registry_json(&self, project_dir: &Path) -> Result<String> {

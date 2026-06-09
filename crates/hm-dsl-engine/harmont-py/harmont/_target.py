@@ -101,6 +101,25 @@ def evaluate_dynamic_target(name: str) -> Any:
     return leaves[0]
 
 
+def render_dynamic_target_json(
+    name: str,
+    *,
+    env: dict[str, str] | None = None,
+) -> str:
+    """Evaluate one dynamic target and serialize its concrete graph fragment."""
+    from ._pipeline import pipeline, pipeline_to_json
+
+    clear_target_memo()
+    runtime_env = env if env is not None else {}
+    leaf = evaluate_dynamic_target(name)
+    fragment = pipeline([leaf], env=runtime_env)
+    return pipeline_to_json(
+        fragment,
+        pipeline_slug=name,
+        env=runtime_env,
+    )
+
+
 def target(
     *,
     name: str | None = None,
