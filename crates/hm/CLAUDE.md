@@ -14,7 +14,7 @@
 - Reads the workspace archive once into memory (`archive.rs` +
   `source.rs`).
 - The `VmRunner` (`src/runner/vm.rs`) executes steps inside
-  lightweight VMs via the `hm-vm` crate (Boxlite backend by default).
+  containers via the `hm-vm` crate (Docker backend).
 - Owns run-wide cancellation (`tokio_util::sync::CancellationToken`)
   via `signal.rs`.
 
