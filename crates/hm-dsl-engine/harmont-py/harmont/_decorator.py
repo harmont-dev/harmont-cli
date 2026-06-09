@@ -35,6 +35,7 @@ def pipeline(
     allow_manual: bool = True,
     env: dict[str, str] | None = None,
     default_image: str | None = None,
+    timeout: str | int | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[[], Any]]:
     """Register a function as a CI pipeline (decorator form).
 
@@ -57,6 +58,9 @@ def pipeline(
         env: Pipeline-level environment variables applied to every step.
         default_image: Local-mode Docker base image applied to root steps
             that lack an explicit ``image`` or ``builds_in`` parent.
+        timeout: Whole-build wall-clock budget ("30m", "1h", or int
+            seconds). The build is killed and fails as timed out once it
+            elapses.
 
     Returns:
         A decorator that registers the wrapped function and returns it
@@ -84,6 +88,7 @@ def pipeline(
                 env=env,
                 default_image=default_image,
                 fn=wrapper,
+                timeout=timeout,
             )
         )
         return wrapper
