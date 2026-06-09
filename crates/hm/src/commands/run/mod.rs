@@ -87,6 +87,12 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             backend.name()
         );
     }
+    if args.keep_going && !caps.honors_keep_going {
+        tracing::warn!(
+            "-k/--keep-going is ignored by the {} backend (the server schedules)",
+            backend.name()
+        );
+    }
 
     // 3. Render + parse the plan once (shared by every backend).
     let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;

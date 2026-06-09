@@ -97,6 +97,7 @@ async fn local_backend_reports_capabilities() {
     let b = hm_exec::LocalBackend::new(4, std::sync::Arc::new(NoopVmBackend));
     assert_eq!(b.name(), "local");
     assert!(b.capabilities().honors_parallelism);
+    assert!(b.capabilities().honors_keep_going);
     assert!(!b.capabilities().is_observer);
 }
 
@@ -112,6 +113,7 @@ fn cloud_backend_capabilities() {
     assert!(c.capabilities().is_observer);
     assert!(c.capabilities().provides_watch_url);
     assert!(!c.capabilities().honors_parallelism);
+    assert!(!c.capabilities().honors_keep_going);
 }
 
 fn fake_request() -> RunRequest {
