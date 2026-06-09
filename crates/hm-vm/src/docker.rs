@@ -1,8 +1,8 @@
-//! Docker backend implementation -- compatibility layer via bollard.
+//! Docker backend -- container orchestration via bollard.
 //!
-//! Uses the Docker daemon as a VM backend: each "VM" is a long-lived
-//! container running `sleep infinity`, commands are executed via the
-//! exec API, and snapshots are Docker image commits.
+//! Each "VM" is a long-lived container running `sleep infinity`,
+//! commands are executed via the exec API, and snapshots are Docker
+//! image commits.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -27,7 +27,6 @@ use crate::types::{OutputSink, SnapshotId, VmConfig};
 /// Docker-based VM backend.
 ///
 /// Each VM is a long-lived container; snapshots are committed images.
-/// This is the compatibility fallback for hosts without microVM support.
 #[derive(Debug)]
 pub struct DockerBackend {
     client: Docker,
@@ -167,6 +166,29 @@ fn tar_directory(host_path: &Path) -> Result<Vec<u8>> {
 impl Vm for DockerVm {
     #[instrument(skip(self), fields(host = %host_path.display()))]
     async fn inject(&self, host_path: &Path, guest_path: &str) -> Result<()> {
+        // Ensure the destination directory exists inside the container.
+        let mkdir = self
+            .client
+            .create_exec(
+                &self.container_id,
+                CreateExecOptions {
+                    cmd: Some(vec!["mkdir", "-p", guest_path]),
+                    attach_stdout: Some(true),
+                    attach_stderr: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await
+            .context("create mkdir exec")?;
+        if let StartExecResults::Attached { mut output, .. } = self
+            .client
+            .start_exec(&mkdir.id, None)
+            .await
+            .context("start mkdir exec")?
+        {
+            while output.next().await.is_some() {}
+        }
+
         let tar_bytes = tar_directory(host_path)?;
         let options = UploadToContainerOptions {
             path: guest_path,
@@ -238,11 +260,17 @@ impl Vm for DockerVm {
             }
         }
 
-        let inspect = self
-            .client
-            .inspect_exec(&exec.id)
-            .await
-            .context("inspect exec")?;
+        // Retry inspect_exec: the connection pool can go stale after
+        // long-running exec streams on Docker Desktop for macOS.
+        let mut inspect_result = self.client.inspect_exec(&exec.id).await;
+        for _ in 0..3 {
+            if inspect_result.is_ok() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            inspect_result = self.client.inspect_exec(&exec.id).await;
+        }
+        let inspect = inspect_result.context("inspect exec")?;
 
         #[allow(
             clippy::cast_possible_truncation,
@@ -265,7 +293,13 @@ impl Vm for DockerVm {
             tag,
             ..Default::default()
         };
-        self.client
+        // docker commit can be slow for containers with large filesystems;
+        // use a dedicated long-timeout client for this operation.
+        let commit_client = self
+            .client
+            .clone()
+            .with_timeout(std::time::Duration::from_mins(10));
+        commit_client
             .commit_container(opts, Config::<String>::default())
             .await
             .context("commit container")?;
