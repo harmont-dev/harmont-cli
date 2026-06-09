@@ -93,6 +93,12 @@ def test_allows_bun_pm_with_bun_runtime() -> None:
     js.project(pm="bun", runtime="bun")
 
 
+@pytest.mark.parametrize("runtime", ["node", "bun"])
+def test_rejects_deno_as_pm(runtime: str) -> None:
+    with pytest.raises(ValueError, match='pm="deno" is not valid'):
+        js.project(pm="deno", runtime=runtime)
+
+
 # ---------------------------------------------------------------------------
 # Install chain structure
 # ---------------------------------------------------------------------------

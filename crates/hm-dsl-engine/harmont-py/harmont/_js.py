@@ -167,6 +167,10 @@ def _make_js(
     # --- Node / Bun runtime ---
     resolved_pm: PackageManager = pm if pm is not None else ("bun" if runtime == "bun" else "npm")
 
+    if resolved_pm == "deno":
+        msg = 'hm.js: pm="deno" is not valid — use runtime="deno" instead'
+        raise ValueError(msg)
+
     if runtime == "bun" and resolved_pm != "bun":
         msg = 'hm.js: runtime="bun" only supports pm="bun"'
         raise ValueError(msg)

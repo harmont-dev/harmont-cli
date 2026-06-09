@@ -157,6 +157,12 @@ function makeProject(opts?: JsOptions): JsProject {
   // --- Node / Bun runtime ---
   const pm: PackageManager = opts?.pm ?? (runtime === "bun" ? "bun" : "npm");
 
+  if (pm === "deno") {
+    throw new Error(
+      'js.project: pm="deno" is not valid — use runtime="deno" instead',
+    );
+  }
+
   if (runtime === "bun" && pm !== "bun") {
     throw new Error(`js.project: runtime="bun" only supports pm="bun"`);
   }

@@ -115,6 +115,15 @@ describe("js.project PM/runtime validation", () => {
       'runtime="bun" only supports pm="bun"',
     );
   });
+
+  it("rejects pm=deno with non-deno runtime", () => {
+    expect(() => js.project({ pm: "deno", runtime: "node" })).toThrow(
+      'pm="deno" is not valid',
+    );
+    expect(() => js.project({ pm: "deno", runtime: "bun" })).toThrow(
+      'pm="deno" is not valid',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
