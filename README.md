@@ -300,6 +300,10 @@ hm cloud billing topup 20                    # add $20 via Stripe
 
 ## GitHub Actions
 
+Not ready to leave GitHub Actions? Run your Harmont pipelines *inside* GHA and
+get automatic Docker image caching for free. (Ready to leave? See
+[convert-gha](#coming-from-github-actions) above.)
+
 Use [`harmont-dev/actions-hm`](https://github.com/harmont-dev/actions-hm) to run
 your pipelines in GitHub Actions with automatic Docker image caching:
 
