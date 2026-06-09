@@ -126,6 +126,18 @@ where
                 duration_ms,
             } => format!("build: end exit={exit_code} duration={duration_ms}ms\n").into_bytes(),
 
+            BuildEvent::BuildAccepted { build, watch_url } => {
+                if let Some(url) = watch_url {
+                    let n = build
+                        .number
+                        .map(|n| format!("#{n} "))
+                        .unwrap_or_default();
+                    format!("build {n}\u{2192} {url}\n").into_bytes()
+                } else {
+                    return;
+                }
+            }
+
             BuildEvent::ChainFailed {
                 chain_idx,
                 failed_step_key,
