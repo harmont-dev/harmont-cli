@@ -8,7 +8,6 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use hm_plugin_protocol::{
@@ -103,10 +102,7 @@ async fn run_step_vm(vm: &HmVm, ctx: &RunContext, input: ExecutorInput) -> Resul
         cmd: input.step.cmd.clone(),
         env,
         working_dir: input.workdir.clone(),
-        timeout: input
-            .step
-            .timeout_seconds
-            .map(|s| Duration::from_secs(u64::from(s))),
+        timeout: None,
         inject,
     };
 
