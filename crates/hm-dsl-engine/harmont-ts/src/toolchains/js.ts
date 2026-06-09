@@ -6,6 +6,7 @@ import {
   bunInstallCmd,
   denoInstallCmd,
 } from "./shared.js";
+import { detect } from "./detect.js";
 
 type Pm = "npm" | "pnpm" | "bun";
 type Runtime = "node" | "bun" | "deno";
@@ -119,7 +120,9 @@ function validateVersion(runtime: Runtime, version: string): void {
 
 function makeProject(opts?: JsOptions): JsProject {
   const path = opts?.path ?? ".";
-  const runtime = opts?.runtime ?? "node";
+  const detected =
+    opts?.runtime == null && opts?.pm == null ? detect(path) : {};
+  const runtime = opts?.runtime ?? detected.runtime ?? "node";
 
   if (opts?.version != null) {
     validateVersion(runtime, opts.version);
@@ -149,7 +152,7 @@ function makeProject(opts?: JsOptions): JsProject {
   }
 
   // --- Node / Bun runtime ---
-  const pm: Pm = opts?.pm ?? (runtime === "bun" ? "bun" : "npm");
+  const pm: Pm = opts?.pm ?? detected.pm ?? (runtime === "bun" ? "bun" : "npm");
 
   if ((pm === "npm" || pm === "pnpm") && runtime !== "node") {
     throw new Error(`js.project: pm="${pm}" requires runtime="node"`);
