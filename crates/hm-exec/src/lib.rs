@@ -17,6 +17,8 @@ pub use capabilities::Capabilities;
 pub mod local;
 pub use local::LocalDockerBackend;
 
+pub mod cloud;
+
 pub use hm_plugin_protocol::events::BuildRef;
 
 use futures::StreamExt as _;

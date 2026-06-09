@@ -1,6 +1,8 @@
-//! Watch a cloud build to completion: discover jobs, stream each job's logs
-//! concurrently, and emit the shared [`BuildEvent`] vocabulary so the
-//! cloud path renders through the same `hm-render` renderers as a local run.
+//! Watch a cloud build to completion, emitting [`BuildEvent`]s.
+//!
+//! Discovers jobs, streams each job's logs concurrently, and maps cloud job
+//! lifecycle + SSE logs to the shared [`BuildEvent`] vocabulary so the cloud
+//! path renders through the same `hm-render` renderers as a local run.
 //!
 //! A cloud job maps to a pipeline step (keyed by `job.id`); the cloud build
 //! is modeled as a single chain (`chain_idx == 0`, `chain_count == 1`).
@@ -37,16 +39,14 @@ impl Drop for AbortGuard {
 /// Convert a unix-nanosecond timestamp to a UTC datetime, falling back to
 /// "now" when absent or out of range.
 pub(crate) fn ts_or_now(ts_unix_ns: Option<i64>) -> DateTime<Utc> {
-    ts_unix_ns
-        .map(DateTime::<Utc>::from_timestamp_nanos)
-        .unwrap_or_else(Utc::now)
+    ts_unix_ns.map_or_else(Utc::now, DateTime::<Utc>::from_timestamp_nanos)
 }
 
 /// Duration between two optional timestamps, in milliseconds (0 if either is
 /// missing or the interval is negative).
 fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> u64 {
     match (start, end) {
-        (Some(s), Some(e)) => (e - s).num_milliseconds().max(0) as u64,
+        (Some(s), Some(e)) => (e - s).num_milliseconds().max(0).cast_unsigned(),
         _ => 0,
     }
 }
@@ -55,6 +55,12 @@ fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> u64 
 ///
 /// `log_base` is the host serving the SSE log stream (the API base in prod).
 /// Returns 0 if the build passed, else 1.
+///
+/// # Errors
+/// Returns an error if any SDK call fails (build status poll, job list, or log
+/// token fetch). A dropped receiver (`tx`) is treated as a clean early exit
+/// (`Ok(1)`) — not an error.
+#[allow(clippy::too_many_lines)] // single-responsibility poll loop; split would obscure flow
 pub async fn watch_build(
     client: &HarmontClient,
     log_base: &str,
@@ -189,12 +195,13 @@ pub async fn watch_build(
     }
 
     let passed = final_state == "passed";
-    let code = if passed { 0 } else { 1 };
+    let code = i32::from(!passed);
     // Best-effort close; ignore a dropped receiver.
     let _ = tx
         .send(BuildEvent::BuildEnd {
             exit_code: code,
-            duration_ms: started.elapsed().as_millis() as u64,
+            // Saturate at u64::MAX (~584 million years) rather than panic.
+            duration_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         })
         .await;
     Ok(code)
@@ -206,7 +213,8 @@ fn step_end(job: &harmont_cloud::models::Job) -> BuildEvent {
     let passed = matches!(state.as_str(), "passed" | "skipped");
     let exit_code = job
         .exit_code
-        .map_or(if passed { 0 } else { 1 }, |c| c as i32);
+        // Saturate exit codes outside [i32::MIN, i32::MAX] rather than panic.
+        .map_or_else(|| i32::from(!passed), |c| i32::try_from(c).unwrap_or(1));
     BuildEvent::StepEnd {
         step_id: job.id,
         exit_code,
@@ -215,21 +223,26 @@ fn step_end(job: &harmont_cloud::models::Job) -> BuildEvent {
     }
 }
 
-/// Stream one job's SSE logs, emitting a `StepLog` per complete line (keyed by
-/// `step_id`) to `tx`, until the job's `done` event. Buffers partial lines and
-/// flushes the trailing remainder. Used by both the multi-job watch loop and
-/// the single-job `hm cloud job log` tail.
+/// Stream one job's SSE logs as [`BuildEvent::StepLog`] events.
 ///
-/// Returns `Ok(())` on a clean `done` close. Returns `Err` on a transport or
-/// stream error. A dropped receiver (`tx.send` fails) is treated as a clean
-/// stop and returns `Ok(())` — the caller has gone away, not the job.
+/// Emits a `StepLog` per complete line (keyed by `step_id`) to `tx`, until
+/// the job's `done` event. Buffers partial lines and flushes the trailing
+/// remainder. Used by both the multi-job watch loop and the single-job
+/// `hm cloud job log` tail.
+///
+/// Returns `Ok(())` on a clean `done` close. A dropped receiver (`tx.send`
+/// fails) is treated as a clean stop — the caller has gone away, not the job.
 ///
 /// **Error semantics are caller-controlled:**
 /// - The multi-job watcher (`stream_one`) swallows the error (best-effort: log
 ///   other jobs, keep watching).
 /// - The single-job tail (`hm cloud job log`) propagates it (`?`) so the
 ///   command surfaces transport failures to the user.
-pub(crate) async fn stream_job_logs_as_events(
+///
+/// # Errors
+/// Returns an error on transport or SSE stream failure (the underlying
+/// [`HarmontClient::stream_job_logs`] call or a non-`Done` error event).
+pub async fn stream_job_logs_as_events(
     client: &HarmontClient,
     log_base: &str,
     step_id: Uuid,
@@ -299,7 +312,7 @@ async fn stream_one(
 
 /// Map the SDK stream kind onto the renderer's two-way stream: `Meta` folds
 /// into `Stderr` (it's out-of-band, not pipeline stdout).
-pub(crate) fn map_stream(kind: StreamKind) -> StdStream {
+pub(crate) const fn map_stream(kind: StreamKind) -> StdStream {
     match kind {
         StreamKind::Stdout => StdStream::Stdout,
         StreamKind::Stderr | StreamKind::Meta => StdStream::Stderr,
