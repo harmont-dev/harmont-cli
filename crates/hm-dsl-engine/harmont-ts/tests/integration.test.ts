@@ -53,9 +53,10 @@ describe("full pipeline build", () => {
     const buildNode = ir.graph.nodes[1];
     const testNode = ir.graph.nodes[2];
 
-    expect(installNode.env).toEqual({ CI: "true" });
-    expect(buildNode.env).toEqual({ CI: "true", NODE_ENV: "production" });
-    expect(testNode.env).toEqual({ CI: "true" });
+    const base = { DEBIAN_FRONTEND: "noninteractive", TERM: "dumb" };
+    expect(installNode.env).toEqual({ ...base, CI: "true" });
+    expect(buildNode.env).toEqual({ ...base, CI: "true", NODE_ENV: "production" });
+    expect(testNode.env).toEqual({ ...base, CI: "true" });
 
     // default_image applies to root node only (install), not children
     expect(ir.default_image).toBe("node:22-alpine");

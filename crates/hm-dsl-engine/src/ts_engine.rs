@@ -172,8 +172,10 @@ impl SubprocessTsEngine {
 
             // Create the `@harmont/` scope dir (and node_modules) before
             // symlinking the scoped package into it.
-            std::fs::create_dir_all(local_pkg.parent().unwrap())
-                .context("creating .hm/node_modules/@harmont for module resolution")?;
+            if let Some(scope_dir) = local_pkg.parent() {
+                std::fs::create_dir_all(scope_dir)
+                    .context("creating .hm/node_modules/@harmont for module resolution")?;
+            }
 
             let src = tmp.path().join("node_modules/@harmont/hm");
 

@@ -114,7 +114,12 @@ describe("lowering: env merge", () => {
   it("merges pipeline env with per-step env", () => {
     const s = scratch().sh("make", { env: { STEP: "1" } });
     const ir = pipeline([s], { env: { PIPE: "true" } });
-    expect(ir.graph.nodes[0].env).toEqual({ PIPE: "true", STEP: "1" });
+    expect(ir.graph.nodes[0].env).toEqual({
+      DEBIAN_FRONTEND: "noninteractive",
+      TERM: "dumb",
+      PIPE: "true",
+      STEP: "1",
+    });
   });
 
   it("step env overrides pipeline env", () => {
