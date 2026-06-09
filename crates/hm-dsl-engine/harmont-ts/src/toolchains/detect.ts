@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 type Runtime = "node" | "bun" | "deno";
-type Pm = "npm" | "pnpm" | "bun";
+type Pm = "npm" | "pnpm" | "yarn-classic" | "yarn-berry" | "bun";
 
 export interface DetectedToolchain {
   runtime?: Runtime;
@@ -34,6 +34,10 @@ export function detectFromPackageJson(
       if (name === "pnpm") result.pm = "pnpm";
       else if (name === "bun") result.pm = "bun";
       else if (name === "npm") result.pm = "npm";
+      else if (name === "yarn") {
+        const ver = pmField.split("@")[1];
+        result.pm = ver && parseInt(ver, 10) >= 2 ? "yarn-berry" : "yarn-classic";
+      }
     }
   }
 
@@ -56,6 +60,9 @@ export function detectFromLockfiles(
   }
   if (set.has("package-lock.json")) {
     return { pm: "npm" };
+  }
+  if (set.has("yarn.lock")) {
+    return { pm: "yarn-classic" };
   }
 
   return {};

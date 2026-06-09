@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 import harmont as hm
@@ -274,6 +276,72 @@ def test_pipeline_ir(opts: dict) -> None:
     ir = hm.pipeline([p.run("test"), p.run("lint")], default_image="ubuntu:24.04")
     assert ir["version"] == "0"
     assert len(ir["graph"]["nodes"]) >= 4
+
+
+# ---------------------------------------------------------------------------
+# Auto-detection
+# ---------------------------------------------------------------------------
+
+
+class TestAutoDetection:
+    def test_detects_pnpm(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "pnpm-lock.yaml").touch()
+        p = js.project(path=str(tmp_path))
+        assert "pnpm install --frozen-lockfile" in p.install().cmd
+
+    def test_detects_bun(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "bun.lock").touch()
+        p = js.project(path=str(tmp_path))
+        assert "bun install --frozen-lockfile" in p.install().cmd
+        assert "bun.sh/install" in p.install().parent.cmd
+
+    def test_detects_bun_from_engines(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text(json.dumps({"engines": {"bun": ">=1.0"}}))
+        p = js.project(path=str(tmp_path))
+        assert "bun install --frozen-lockfile" in p.install().cmd
+
+    def test_detects_deno(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "deno.lock").touch()
+        p = js.project(path=str(tmp_path))
+        assert "deno install" in p.install().cmd
+
+    def test_detects_yarn_berry(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text(json.dumps({"packageManager": "yarn@4.5.0"}))
+        (tmp_path / "yarn.lock").touch()
+        p = js.project(path=str(tmp_path))
+        assert "yarn install --immutable" in p.install().cmd
+
+    def test_detects_yarn_classic(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "yarn.lock").touch()
+        p = js.project(path=str(tmp_path))
+        assert "yarn install --frozen-lockfile" in p.install().cmd
+
+    def test_explicit_opts_skip_detection(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "bun.lock").touch()
+        p = js.project(path=str(tmp_path), pm="npm", runtime="node")
+        assert "npm ci" in p.install().cmd
+
+    def test_defaults_when_no_signals(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        p = js.project(path=str(tmp_path))
+        assert "npm ci" in p.install().cmd
+
+    def test_skips_detection_when_runtime_set(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "pnpm-lock.yaml").touch()
+        p = js.project(path=str(tmp_path), runtime="node")
+        assert "npm ci" in p.install().cmd
+
+    def test_skips_detection_when_pm_set(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "bun.lock").touch()
+        p = js.project(path=str(tmp_path), pm="pnpm")
+        assert "pnpm install --frozen-lockfile" in p.install().cmd
 
 
 # ---------------------------------------------------------------------------

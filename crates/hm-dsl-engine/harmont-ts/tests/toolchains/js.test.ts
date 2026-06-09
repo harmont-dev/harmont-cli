@@ -502,6 +502,22 @@ describe("js.project auto-detection", () => {
     const p = js.project({ path: tmp, pm: "pnpm" });
     expect(p.install()._cmd).toContain("pnpm install --frozen-lockfile");
   });
+
+  it("detects yarn-berry from packageManager field", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "yarn@4.5.0" }),
+    );
+    writeFileSync(join(tmp, "yarn.lock"), "");
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("yarn install --immutable");
+  });
+
+  it("detects yarn-classic from yarn.lock alone", () => {
+    writeFileSync(join(tmp, "yarn.lock"), "");
+    const p = js.project({ path: tmp });
+    expect(p.install()._cmd).toContain("yarn install --frozen-lockfile");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -54,10 +54,16 @@ describe("detectFromPackageJson", () => {
     ).toEqual({ pm: "npm" });
   });
 
-  it("ignores yarn in packageManager", () => {
+  it("detects yarn-classic from packageManager yarn@1.x", () => {
+    expect(
+      detectFromPackageJson({ packageManager: "yarn@1.22.22" }),
+    ).toEqual({ pm: "yarn-classic" });
+  });
+
+  it("detects yarn-berry from packageManager yarn@4.x", () => {
     expect(
       detectFromPackageJson({ packageManager: "yarn@4.0.0" }),
-    ).toEqual({});
+    ).toEqual({ pm: "yarn-berry" });
   });
 
   it("engines.bun overrides packageManager for pm", () => {
@@ -116,8 +122,8 @@ describe("detectFromLockfiles", () => {
     });
   });
 
-  it("ignores yarn.lock", () => {
-    expect(detectFromLockfiles(["yarn.lock"])).toEqual({});
+  it("detects yarn-classic from yarn.lock", () => {
+    expect(detectFromLockfiles(["yarn.lock"])).toEqual({ pm: "yarn-classic" });
   });
 
   it("bun.lock takes priority over package-lock.json", () => {
@@ -181,5 +187,14 @@ describe("detect", () => {
 
   it("returns empty for nonexistent path", () => {
     expect(detect(join(tmp, "does-not-exist"))).toEqual({});
+  });
+
+  it("detects yarn-berry from packageManager field", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "yarn@4.5.0" }),
+    );
+    writeFileSync(join(tmp, "yarn.lock"), "");
+    expect(detect(tmp)).toEqual({ pm: "yarn-berry" });
   });
 });
