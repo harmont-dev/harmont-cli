@@ -9,6 +9,7 @@ import json
 from datetime import timedelta
 from pathlib import Path
 
+import harmont as hm
 from harmont import (
     forever,
     on_change,
@@ -162,7 +163,7 @@ def test_no_optional_fields_when_not_set():
 
 
 def test_timeout_seconds_emitted_when_set():
-    out = _emit(pipeline(scratch().sh("x", label="x", timeout_seconds=300)))
+    out = _emit(pipeline(hm.timeout(300, scratch().sh("x", label="x"))))
     assert _nodes(out)[0]["step"]["timeout_seconds"] == 300
 
 

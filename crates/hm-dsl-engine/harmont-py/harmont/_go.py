@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 APT_PACKAGES = ("curl", "ca-certificates", "git")
 
-_ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
+_ACTION_KWARGS = frozenset(("cache", "env", "label", "key"))
 
 _VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+(\.[0-9]+)?$")
 

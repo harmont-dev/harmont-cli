@@ -30,7 +30,7 @@ APT_PACKAGES = (
     "libssl-dev",
 )
 
-_ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
+_ACTION_KWARGS = frozenset(("cache", "env", "label", "key"))
 
 _ELIXIR_ACTION_KWARGS = frozenset(("cover", "partitions", "strict", "mix_env"))
 

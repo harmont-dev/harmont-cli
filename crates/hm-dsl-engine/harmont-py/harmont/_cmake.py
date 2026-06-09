@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 APT_PACKAGES = ("build-essential", "cmake", "ninja-build", "clang-format")
 
-_ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
+_ACTION_KWARGS = frozenset(("cache", "env", "label", "key"))
 
 
 @dataclass(frozen=True)

@@ -224,7 +224,6 @@ def sh(
     label: str | None = None,
     cache: CachePolicy | None = None,
     env: dict[str, str] | None = None,
-    timeout_seconds: int | None = None,
     image: str | None = None,
     key: str | None = None,
 ) -> Step:
@@ -233,6 +232,8 @@ def sh(
     Shorthand for ``scratch().sh(cmd, ...)``. All keyword arguments are
     forwarded to ``Step.sh``.
 
+    To set a timeout, wrap the result with ``hm.timeout(duration, step)``.
+
     Args:
         cmd: Shell command to run.
         cwd: Directory to run in, relative to the workspace root. Omit to
@@ -240,7 +241,6 @@ def sh(
         label: Human-facing label shown in the UI. Defaults to the command.
         cache: Cache policy controlling result reuse across builds.
         env: Per-step environment variables merged on top of pipeline-level env.
-        timeout_seconds: Hard wall-clock timeout in seconds.
         image: Local-mode Docker base image override for this step.
         key: Manual key override for this step in the v0 IR.
 
@@ -257,7 +257,6 @@ def sh(
         label=label,
         cache=cache,
         env=env,
-        timeout_seconds=timeout_seconds,
         image=image,
         key=key,
     )
