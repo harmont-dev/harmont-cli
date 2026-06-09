@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 
 use hm_dsl_engine::detect;
-use hm_vm::boxlite::BoxliteBackend;
+use hm_vm::docker::DockerBackend;
 use hm_vm::{HmVm, ImageRegistry, VmConfig};
 
 use crate::cli::RunArgs;
@@ -69,7 +69,10 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let graph = decode_plan_to_wire(&json)?;
     let parallelism = args.parallelism.unwrap_or(VM_DEFAULT_PARALLELISM);
 
-    let backend = Arc::new(BoxliteBackend::with_defaults()?);
+    let backend: Arc<dyn hm_vm::VmBackend> = match args.backend.as_str() {
+        "docker" => Arc::new(DockerBackend::connect()?),
+        other => anyhow::bail!("unknown --backend '{other}'\n  available: docker"),
+    };
     let db_path = hm_util::dirs::harmont_cache_dir()
         .context("cannot resolve harmont cache directory")?
         .join("registry.db");

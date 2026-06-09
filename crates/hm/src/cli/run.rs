@@ -42,4 +42,8 @@ pub struct RunArgs {
     /// Has no effect with `--format json`.
     #[arg(long)]
     pub logs: bool,
+
+    /// VM backend. Currently only `docker` is supported.
+    #[arg(long, value_name = "NAME", default_value = "docker")]
+    pub backend: String,
 }
