@@ -111,10 +111,13 @@ async fn run_step_vm(vm: &HmVm, ctx: &RunContext, input: ExecutorInput) -> Resul
         bus: Arc::clone(&ctx.event_bus),
     };
 
-    let result = vm
-        .execute(action, policy, &sink)
-        .await
-        .context("vm execute failed")?;
+    let result = tokio::select! {
+        r = vm.execute(action, policy, &sink) => r,
+        () = ctx.cancel.cancelled() => {
+            anyhow::bail!("step cancelled (build timeout or sibling failure)")
+        }
+    }
+    .context("vm execute failed")?;
 
     if result.cached {
         ctx.event_bus.emit(BuildEvent::StepCacheHit {
