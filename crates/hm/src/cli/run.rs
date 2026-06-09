@@ -1,6 +1,9 @@
 use clap::Parser;
 use std::path::PathBuf;
 
+// RunArgs uses 4 bool flags (no_watch, logs, cloud, local): each is an
+// independent clap switch and a state-machine or enum would be more confusing.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Parser)]
 pub struct RunArgs {
     /// Pipeline slug. Required when the repo declares more than one
@@ -49,7 +52,12 @@ pub struct RunArgs {
     #[arg(long)]
     pub cloud: bool,
 
-    /// Cloud organization (defaults to the configured default org).
-    #[arg(long, requires = "cloud")]
+    /// Force LOCAL Docker execution, overriding a `cloud` config default.
+    #[arg(long, conflicts_with = "cloud")]
+    pub local: bool,
+
+    /// Cloud organization (defaults to the configured default org or
+    /// `[cloud] org` in config). Implied when execution resolves to cloud.
+    #[arg(long)]
     pub org: Option<String>,
 }

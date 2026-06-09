@@ -55,6 +55,39 @@ pub fn set(service: &str, account: &str, secret: &str) {
     let _ = save(&f);
 }
 
+/// Credential `service` name for the cloud bearer token (account = API base URL).
+pub const CLOUD_SERVICE: &str = "harmont-cloud";
+
+/// Resolve the cloud bearer token for `api_base`.
+///
+/// Priority: `HARMONT_API_TOKEN` env (non-empty) first, then the stored
+/// credential keyed by `(CLOUD_SERVICE, api_base)`. Returns `None` when
+/// neither is present, so the caller can produce a clear "not logged in" error.
+#[must_use]
+pub fn cloud_token(api_base: &str) -> Option<String> {
+    if let Ok(t) = std::env::var("HARMONT_API_TOKEN")
+        && !t.is_empty()
+    {
+        return Some(t);
+    }
+    get(CLOUD_SERVICE, api_base)
+}
+
+/// Persist the cloud bearer token for `api_base`.
+///
+/// Silently no-ops on I/O failure (matches the best-effort semantics of
+/// the underlying [`set`] call).
+pub fn set_cloud_token(api_base: &str, token: &str) {
+    set(CLOUD_SERVICE, api_base, token);
+}
+
+/// Remove any stored cloud bearer token for `api_base`.
+///
+/// Silently no-ops if the entry is absent or the write fails.
+pub fn forget_cloud_token(api_base: &str) {
+    delete(CLOUD_SERVICE, api_base);
+}
+
 /// Remove a credential. Silently no-ops if the entry is absent or the
 /// underlying write fails.
 pub fn delete(service: &str, account: &str) {
