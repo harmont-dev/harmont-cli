@@ -94,11 +94,3 @@ unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
 exit = "warn"
-
-# Dev override: harmont-cloud is not yet on crates.io. The SDK lives in the
-# parent monorepo; this path resolves when the CLI is checked out as a
-# submodule of it. Remove (or replace with a git dep) before publishing the
-# CLI or building it standalone. Tracked for finalization in plan task G3.
-[patch.crates-io]
-harmont-cloud = { path = "../oss/harmont-cloud-sdk-rs/harmont-cloud" }
-harmont-cloud-raw = { path = "../oss/harmont-cloud-sdk-rs/harmont-cloud-raw" }
