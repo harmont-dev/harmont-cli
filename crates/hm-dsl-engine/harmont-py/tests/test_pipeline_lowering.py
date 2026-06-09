@@ -128,6 +128,34 @@ def test_command_omits_optional_fields_when_unset():
     assert "cache" not in step
 
 
+def test_dynamic_target_emits_deferred_eval_node():
+    @hm.target(dynamic=True)
+    def choose_build() -> hm.Step:
+        raise AssertionError("dynamic target must not run during initial bake")
+
+    graph = _lower_to_graph([choose_build()])
+
+    assert graph["nodes"][0]["step"] == {
+        "key": "choose_build",
+        "eval": {
+            "type": "dynamic",
+            "target_name": "choose_build",
+        },
+    }
+
+
+def test_command_can_continue_from_dynamic_placeholder():
+    @hm.target(dynamic=True)
+    def choose_compile() -> hm.Step:
+        return hm.sh("cargo build")
+
+    after = choose_compile().sh("cargo test", label="test")
+    graph = _lower_to_graph([after])
+
+    assert _step_keys(graph) == ["choose_compile", "test"]
+    assert _builds_in_edges(graph) == [(0, 1)]
+
+
 def test_pipeline_factory_collects_reachable_via_parent():
     base = scratch().sh("install", label="install")
     leaf_a = base.fork(label="a").sh("test-a", label="test-a")

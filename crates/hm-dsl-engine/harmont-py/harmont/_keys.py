@@ -117,5 +117,6 @@ def resolve_keys(steps: Iterable[Step]) -> dict[int, str]:
         parent_key = ""
         if s.parent is not None and id(s.parent) in keys:
             parent_key = keys[id(s.parent)]
-        keys[sid] = hash_key(parent_key, s.cmd or "", position)
+        key_material = s.cmd or s.dynamic_target_name or ""
+        keys[sid] = hash_key(parent_key, key_material, position)
     return keys

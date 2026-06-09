@@ -6,7 +6,7 @@ import pytest
 
 import harmont as hm
 from harmont._deps import clear_target_names
-from harmont._target import clear_target_cache
+from harmont._target import clear_target_cache, evaluate_dynamic_target
 
 
 @pytest.fixture(autouse=True)
@@ -105,3 +105,38 @@ def test_target_called_inside_pipeline_uses_cached_value():
     v1 = venv()
     v2 = venv()
     assert v1 is v2
+
+
+def test_dynamic_target_returns_placeholder_without_evaluating_body():
+    call_count = 0
+
+    @hm.target(dynamic=True)
+    def choose_build() -> hm.Step:
+        nonlocal call_count
+        call_count += 1
+        return hm.sh("cargo test")
+
+    placeholder = choose_build()
+
+    assert call_count == 0
+    assert placeholder.dynamic_target_name == "choose_build"
+    assert placeholder.cmd is None
+
+
+def test_dynamic_target_body_can_be_evaluated_by_name():
+    @hm.target(dynamic=True)
+    def choose_build() -> hm.Step:
+        return hm.sh("cargo test")
+
+    leaf = evaluate_dynamic_target("choose_build")
+
+    assert leaf.cmd == "cargo test"
+
+
+def test_dynamic_target_rejects_group_until_continuation_is_defined():
+    @hm.target(dynamic=True)
+    def checks() -> tuple[hm.Step, ...]:
+        return hm.group([hm.sh("cargo test"), hm.sh("cargo clippy")])
+
+    with pytest.raises(ValueError, match="must currently return exactly one leaf"):
+        evaluate_dynamic_target("checks")
