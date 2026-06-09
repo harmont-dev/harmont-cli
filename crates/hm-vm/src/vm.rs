@@ -71,6 +71,23 @@ impl HmVm {
             ImageSource::Snapshot(snap) => self.backend.restore(snap, &self.config).await?,
         };
 
+        let result = self.run_in_vm(&mut *vm, &action, &policy, sink).await;
+
+        // Always destroy the VM, even on error.
+        vm.destroy().await.ok();
+
+        result
+    }
+
+    /// Inner lifecycle: inject, exec, snapshot. Separated so the caller
+    /// can guarantee `vm.destroy()` runs regardless of outcome.
+    async fn run_in_vm(
+        &self,
+        vm: &mut dyn crate::backend::Vm,
+        action: &Action,
+        policy: &CachingPolicy,
+        sink: &dyn OutputSink,
+    ) -> Result<ExecutionResult> {
         // 3. Inject workspace
         if let Some(ref host_path) = action.inject {
             vm.inject(host_path, &action.working_dir).await?;
@@ -79,11 +96,9 @@ impl HmVm {
         // 4. Execute command (with optional timeout)
         let exec_fut = vm.exec(&action.cmd, &action.env, &action.working_dir, sink);
         let exit_code = if let Some(timeout) = action.timeout {
-            if let Ok(result) = tokio::time::timeout(timeout, exec_fut).await {
-                result?
-            } else {
-                vm.destroy().await.ok();
-                anyhow::bail!("command timed out after {timeout:?}");
+            match tokio::time::timeout(timeout, exec_fut).await {
+                Ok(result) => result?,
+                Err(_) => anyhow::bail!("command timed out after {timeout:?}"),
             }
         } else {
             exec_fut.await?
@@ -91,13 +106,13 @@ impl HmVm {
 
         // 5. Snapshot and cache on success
         let snapshot = if exit_code == 0 {
-            let label = match &policy {
+            let label = match policy {
                 CachingPolicy::Cache { key } => key.as_str(),
                 CachingPolicy::None => "ephemeral",
             };
             let snap = vm.snapshot(label).await?;
 
-            if let CachingPolicy::Cache { ref key } = policy {
+            if let CachingPolicy::Cache { key } = policy {
                 let evicted = self.registry.put(key, &snap);
                 for old in &evicted {
                     if let Err(e) = self.backend.remove_snapshot(old).await {
@@ -111,10 +126,6 @@ impl HmVm {
             None
         };
 
-        // 6. Best-effort cleanup
-        vm.destroy().await.ok();
-
-        // 7. Return result
         Ok(ExecutionResult {
             exit_code,
             snapshot,

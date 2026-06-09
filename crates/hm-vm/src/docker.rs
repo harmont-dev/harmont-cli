@@ -295,10 +295,11 @@ impl Vm for DockerVm {
         };
         // docker commit can be slow for containers with large filesystems;
         // use a dedicated long-timeout client for this operation.
+        #[allow(clippy::duration_suboptimal_units, reason = "from_mins is nightly-only")]
         let commit_client = self
             .client
             .clone()
-            .with_timeout(std::time::Duration::from_mins(10));
+            .with_timeout(std::time::Duration::from_secs(600));
         commit_client
             .commit_container(opts, Config::<String>::default())
             .await
