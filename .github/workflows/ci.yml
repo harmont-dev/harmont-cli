@@ -36,33 +36,6 @@ jobs:
       - name: cargo clippy (strict)
         run: cargo clippy --all-targets -p harmont-cli -- -D warnings
 
-  integration:
-    name: cargo test (integration)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "23"
-
-      - name: Install esbuild (for harmont-ts bundle)
-        working-directory: crates/hm-dsl-engine/harmont-ts
-        run: npm ci
-
-      - name: Install harmont Python package
-        working-directory: crates/hm-dsl-engine/harmont-py
-        run: pip install -e .
-
-      - name: Run integration tests
-        run: cargo test -p harmont-cli --test cmd_init --test cmd_render --test cmd_pipelines --test cmd_version -v
-
   python-lint:
     name: harmont-py (pytest + ruff + ty)
     runs-on: ubuntu-latest

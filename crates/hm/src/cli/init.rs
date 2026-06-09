@@ -1,16 +1,27 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum TemplateKind {
+    Cmake,
+    Elixir,
+    Nextjs,
+    Js,
+    Rust,
+    Zig,
+    Python,
+}
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitArgs {
-    /// Project template (cmake, elixir, nextjs, js, rust, zig, python).
+    /// Project template.
     #[arg(short, long)]
-    pub template: Option<String>,
+    pub template: Option<TemplateKind>,
 
-    /// Target directory (defaults to cwd).
-    #[arg(short, long)]
-    pub dir: Option<PathBuf>,
+    /// Target directory.
+    #[arg(short, long, default_value = ".")]
+    pub dir: PathBuf,
 
     /// Overwrite existing .harmont/ directory.
     #[arg(long)]

@@ -75,13 +75,13 @@ fn init_force_overwrites_existing() {
 }
 
 #[test]
-fn init_unknown_template_fails() {
+fn init_unknown_template_rejected_by_clap() {
     let dir = tempfile::tempdir().unwrap();
     hm().args(["init", "--template", "cobol", "--dir"])
         .arg(dir.path())
         .assert()
         .failure()
-        .stderr(contains("unknown template"));
+        .stderr(contains("invalid value"));
 }
 
 #[test]
@@ -115,7 +115,6 @@ fn has_js_runtime() -> bool {
 #[test]
 fn init_python_templates_roundtrip_render() {
     if !has_python() {
-        // python3 not on PATH — skip
         return;
     }
 
@@ -137,21 +136,14 @@ fn init_python_templates_roundtrip_render() {
 
         let v: serde_json::Value = serde_json::from_slice(&out)
             .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
-        assert_eq!(
-            v["version"], "0",
-            "template {slug}: expected v0 IR"
-        );
-        assert!(
-            v["graph"].is_object(),
-            "template {slug}: expected graph object"
-        );
+        assert_eq!(v["version"], "0", "template {slug}: expected v0 IR");
+        assert!(v["graph"].is_object(), "template {slug}: expected graph object");
     }
 }
 
 #[test]
 fn init_ts_templates_roundtrip_render() {
     if !has_js_runtime() {
-        // no JS runtime (bun/node) on PATH — skip
         return;
     }
 
@@ -173,13 +165,7 @@ fn init_ts_templates_roundtrip_render() {
 
         let v: serde_json::Value = serde_json::from_slice(&out)
             .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
-        assert_eq!(
-            v["version"], "0",
-            "template {slug}: expected v0 IR"
-        );
-        assert!(
-            v["graph"].is_object(),
-            "template {slug}: expected graph object"
-        );
+        assert_eq!(v["version"], "0", "template {slug}: expected v0 IR");
+        assert!(v["graph"].is_object(), "template {slug}: expected graph object");
     }
 }
