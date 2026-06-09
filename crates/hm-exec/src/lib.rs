@@ -5,3 +5,6 @@
 
 mod error;
 pub use error::{BackendError, Result};
+
+mod request;
+pub use request::{Plan, RunOptions, RunRequest, SourceMeta};
