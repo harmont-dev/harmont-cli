@@ -130,6 +130,24 @@ impl SubprocessTsEngine {
         Ok(tmp)
     }
 
+    fn should_create_symlink(local_pkg: &Path) -> bool {
+        match local_pkg.symlink_metadata() {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                // Stale symlink from previous run — remove so we can recreate
+                let _ = std::fs::remove_file(local_pkg);
+                true
+            }
+            Ok(_) => {
+                // Real directory (npm-installed package) — leave it alone
+                false
+            }
+            Err(_) => {
+                // Doesn't exist — create symlink
+                true
+            }
+        }
+    }
+
     async fn run(&self, project_dir: &Path, mode: &str, slug: Option<&str>) -> Result<String> {
         let tmp = self.setup_temp()?;
         let runner_path = tmp.path().join("runner.mjs");
@@ -141,32 +159,38 @@ impl SubprocessTsEngine {
         let harmont_dir = project_dir.join(".harmont");
         let local_nm = harmont_dir.join("node_modules");
         let local_pkg = local_nm.join("harmont");
-        let created_local_nm = !local_nm.exists();
 
-        std::fs::create_dir_all(&local_nm)
-            .context("creating .harmont/node_modules for module resolution")?;
+        let _cleanup: Option<SymlinkCleanup> = if Self::should_create_symlink(&local_pkg) {
+            let created_local_nm = !local_nm.exists();
 
-        let src = tmp.path().join("node_modules/harmont");
+            std::fs::create_dir_all(&local_nm)
+                .context("creating .harmont/node_modules for module resolution")?;
 
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&src, &local_pkg)
-                .context("symlinking harmont package into .harmont/node_modules")?;
-        }
-        #[cfg(not(unix))]
-        {
-            // Fallback: copy files for non-unix platforms.
-            std::fs::create_dir_all(&local_pkg)?;
-            for entry in std::fs::read_dir(&src)? {
-                let entry = entry?;
-                std::fs::copy(entry.path(), local_pkg.join(entry.file_name()))?;
+            let src = tmp.path().join("node_modules/harmont");
+
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(&src, &local_pkg)
+                    .context("symlinking harmont package into .harmont/node_modules")?;
             }
-        }
+            #[cfg(not(unix))]
+            {
+                // Fallback: copy files for non-unix platforms.
+                std::fs::create_dir_all(&local_pkg)?;
+                for entry in std::fs::read_dir(&src)? {
+                    let entry = entry?;
+                    std::fs::copy(entry.path(), local_pkg.join(entry.file_name()))?;
+                }
+            }
 
-        let _cleanup = SymlinkCleanup {
-            pkg: local_pkg.clone(),
-            nm: local_nm.clone(),
-            remove_nm: created_local_nm,
+            Some(SymlinkCleanup {
+                pkg: local_pkg.clone(),
+                nm: local_nm.clone(),
+                remove_nm: created_local_nm,
+            })
+        } else {
+            debug!(?local_pkg, "npm-installed harmont found — skipping symlink");
+            None
         };
 
         let mut cmd = tokio::process::Command::new(&self.runtime_bin);
@@ -229,5 +253,45 @@ impl DslEngine for SubprocessTsEngine {
             "the discovery envelope (hm pipelines) is not yet supported for \
              TypeScript pipelines; only Python pipelines are supported today"
         )
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn symlink_skipped_when_real_dir_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let harmont_dir = tmp.path().join(".harmont");
+        let nm = harmont_dir.join("node_modules");
+        let pkg = nm.join("harmont");
+
+        // Simulate npm-installed package (real directory)
+        std::fs::create_dir_all(&pkg).unwrap();
+        std::fs::write(pkg.join("package.json"), "{}").unwrap();
+
+        assert!(!SubprocessTsEngine::should_create_symlink(&pkg));
+    }
+
+    #[test]
+    fn symlink_created_when_nothing_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg = tmp.path().join("node_modules/harmont");
+        assert!(SubprocessTsEngine::should_create_symlink(&pkg));
+    }
+
+    #[test]
+    fn symlink_created_when_stale_symlink_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg = tmp.path().join("node_modules/harmont");
+        std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
+
+        // Create a dangling symlink
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("/nonexistent", &pkg).unwrap();
+
+        assert!(SubprocessTsEngine::should_create_symlink(&pkg));
     }
 }
