@@ -116,6 +116,81 @@ jobs:
             cargo publish -p harmont-cli --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty --no-verify
           fi
 
+  npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+          cache-dependency-path: crates/hm-dsl-engine/harmont-ts/package-lock.json
+
+      - name: Install dependencies
+        working-directory: crates/hm-dsl-engine/harmont-ts
+        run: npm ci
+
+      - name: Build
+        working-directory: crates/hm-dsl-engine/harmont-ts
+        run: npm run build
+
+      - name: Set version from tag
+        working-directory: crates/hm-dsl-engine/harmont-ts
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
+
+      - name: Publish
+        working-directory: crates/hm-dsl-engine/harmont-ts
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view harmont@"$VERSION" version 2>/dev/null; then
+            echo "harmont@$VERSION already published, skipping"
+          else
+            npm publish --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Set version from tag
+        working-directory: crates/hm-dsl-engine/harmont-py
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/version = \"0.0.0-dev\"/version = \"$VERSION\"/" pyproject.toml
+
+      - name: Build
+        working-directory: crates/hm-dsl-engine/harmont-py
+        run: python -m build
+
+      - name: Publish
+        working-directory: crates/hm-dsl-engine/harmont-py
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if curl -sf "https://pypi.org/pypi/harmont/$VERSION/json" > /dev/null 2>&1; then
+            echo "harmont@$VERSION already published, skipping"
+          else
+            twine upload dist/*
+          fi
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+
   build-binary:
     name: Build ${{ matrix.target }}
     timeout-minutes: 30

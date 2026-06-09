@@ -82,7 +82,6 @@ def test_pipeline_with_triggers():
         triggers=[
             hm.push(branch="main"),
             hm.pull_request(branches="main"),
-            hm.schedule(cron="0 4 * * *"),
         ],
     )
     def ci() -> hm.Step:
@@ -97,7 +96,6 @@ def test_pipeline_with_triggers():
             "branches": ["main"],
             "types": ["opened", "synchronize", "reopened"],
         },
-        {"event": "schedule", "cron": "0 4 * * *"},
     ]
 
 

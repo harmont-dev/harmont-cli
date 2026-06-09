@@ -98,7 +98,7 @@ describe("go install chain", () => {
 describe("go in pipeline", () => {
   it("produces valid IR", () => {
     const g = go();
-    const ir = pipeline(g.build(), g.test(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([g.build(), g.test()], { defaultImage: "ubuntu:24.04" });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(3);
     expect(ir.version).toBe("0");
   });

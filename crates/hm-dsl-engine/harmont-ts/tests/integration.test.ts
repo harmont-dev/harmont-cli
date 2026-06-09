@@ -15,10 +15,8 @@ import {
   renderEnvelope,
   push,
   pullRequest,
-  schedule,
   PushTrigger,
   PullRequestTrigger,
-  ScheduleTrigger,
   type PipelineDefinition,
 } from "../src/index.js";
 
@@ -35,7 +33,7 @@ describe("full pipeline build", () => {
     const test = timeout(300, build
       .sh("npm test", { label: "test" }));
 
-    const ir = pipeline(test, {
+    const ir = pipeline([test], {
       env: { CI: "true" },
       defaultImage: "node:22-alpine",
     });
@@ -78,7 +76,7 @@ describe("wait barrier", () => {
     const a = scratch().sh("step a", { label: "a" });
     const b = scratch().sh("step b", { label: "b" });
     const c = scratch().sh("step c", { label: "c" });
-    const ir = pipeline(a, b, wait(), c);
+    const ir = pipeline([a, b, wait(), c]);
 
     const keys = ir.graph.nodes.map((n) => n.step.key);
     const idxA = keys.indexOf("a");
@@ -106,7 +104,7 @@ describe("target memoization", () => {
     const branchA = nodeBase().sh("npm run lint", { label: "lint" });
     const branchB = nodeBase().sh("npm test", { label: "test" });
 
-    const ir = pipeline(branchA, branchB);
+    const ir = pipeline([branchA, branchB]);
 
     // node-base should appear exactly once (memoized)
     const keys = ir.graph.nodes.map((n) => n.step.key);
@@ -135,9 +133,8 @@ describe("envelope", () => {
       triggers: [
         push({ branch: "main" }),
         pullRequest({ branches: "develop" }),
-        schedule("0 4 * * *"),
       ],
-      pipeline: pipeline(sh("echo hello", { label: "hello" })),
+      pipeline: pipeline([sh("echo hello", { label: "hello" })]),
     };
 
     const json = renderEnvelope([def]);
@@ -154,15 +151,13 @@ describe("envelope", () => {
     expect(p.allow_manual).toBe(false);
 
     // triggers
-    expect(p.triggers).toHaveLength(3);
+    expect(p.triggers).toHaveLength(2);
     expect(p.triggers[0]).toEqual({ event: "push", branches: ["main"] });
     expect(p.triggers[1]).toEqual({
       event: "pull_request",
       branches: ["develop"],
       types: ["opened", "synchronize", "reopened"],
     });
-    expect(p.triggers[2]).toEqual({ event: "schedule", cron: "0 4 * * *" });
-
     // definition is the IR
     expect(p.definition.version).toBe("0");
     expect(p.definition.graph.nodes).toHaveLength(1);
@@ -175,7 +170,7 @@ describe("JSON snake_case output", () => {
       label: "build",
       cache: onChange("src/", "lib/"),
     }));
-    const ir = pipeline(s, { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
     const json = JSON.stringify(ir);
 
     // Must contain snake_case keys
@@ -197,7 +192,7 @@ describe("JSON snake_case output", () => {
     const def: PipelineDefinition = {
       slug: "ci",
       allowManual: true,
-      pipeline: pipeline(sh("echo")),
+      pipeline: pipeline([sh("echo")]),
     };
     const json = renderEnvelope([def]);
 
@@ -225,13 +220,9 @@ describe("public API completeness", () => {
     expect(typeof renderEnvelope).toBe("function");
     expect(typeof push).toBe("function");
     expect(typeof pullRequest).toBe("function");
-    expect(typeof schedule).toBe("function");
-
     // Trigger classes are exported as values for instanceof checks
     expect(PushTrigger).toBeDefined();
     expect(PullRequestTrigger).toBeDefined();
-    expect(ScheduleTrigger).toBeDefined();
-
     const t = push({ branch: "main" });
     expect(t instanceof PushTrigger).toBe(true);
   });

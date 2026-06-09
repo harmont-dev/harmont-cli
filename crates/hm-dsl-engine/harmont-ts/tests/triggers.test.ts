@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { push, pullRequest, schedule } from "../src/triggers.js";
+import { push, pullRequest } from "../src/triggers.js";
 
 describe("push", () => {
   it("creates a branch trigger from string", () => {
@@ -57,13 +57,3 @@ describe("pullRequest", () => {
   });
 });
 
-describe("schedule", () => {
-  it("creates a cron trigger", () => {
-    const t = schedule("0 4 * * *");
-    expect(t.toJSON()).toEqual({ event: "schedule", cron: "0 4 * * *" });
-  });
-
-  it("rejects invalid cron", () => {
-    expect(() => schedule("not a cron")).toThrow("invalid cron expression");
-  });
-});

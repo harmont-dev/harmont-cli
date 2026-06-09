@@ -19,8 +19,8 @@ def only_one() -> hm.Step:
 #[ignore = "requires Docker daemon; opt-in with `cargo test -- --ignored`"]
 fn auto_selects_sole_pipeline() {
     let temp = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(temp.path().join(".harmont")).unwrap();
-    std::fs::write(temp.path().join(".harmont/pipeline.py"), PIPELINE_PY).unwrap();
+    std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
+    std::fs::write(temp.path().join(".hm/pipeline.py"), PIPELINE_PY).unwrap();
 
     Command::cargo_bin("hm")
         .unwrap()
@@ -34,9 +34,9 @@ fn auto_selects_sole_pipeline() {
 #[test]
 fn many_pipelines_still_requires_arg() {
     let temp = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(temp.path().join(".harmont")).unwrap();
+    std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
     std::fs::write(
-        temp.path().join(".harmont/pipeline.py"),
+        temp.path().join(".hm/pipeline.py"),
         r#"
 import harmont as hm
 
@@ -63,9 +63,9 @@ def b() -> hm.Step:
 #[test]
 fn zero_pipelines_returns_a_helpful_error() {
     let temp = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(temp.path().join(".harmont")).unwrap();
+    std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
     std::fs::write(
-        temp.path().join(".harmont/pipeline.py"),
+        temp.path().join(".hm/pipeline.py"),
         "import harmont as hm\n",
     )
     .unwrap();

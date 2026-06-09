@@ -1,3 +1,4 @@
+pub mod init;
 pub mod pipelines;
 pub mod plugin;
 pub mod render;
@@ -44,6 +45,9 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Initialize a .harmont/ pipeline from a project template.
+    Init(init::InitArgs),
+
     /// Run a pipeline locally via Docker.
     Run(RunArgs),
 
@@ -98,6 +102,7 @@ pub struct CacheRestoreArgs {
 /// Returns an error if the dispatched handler fails.
 pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
     match command {
+        Command::Init(args) => crate::commands::init::handle(args).await.map(|()| 0),
         Command::Run(args) => crate::commands::run::handle(args, ctx).await,
         Command::Pipelines(args) => crate::cli::pipelines::run(args).await.map(|()| 0),
         Command::Render(args) => crate::cli::render::run(args).await.map(|()| 0),

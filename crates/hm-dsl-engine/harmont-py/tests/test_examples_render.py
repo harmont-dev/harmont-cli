@@ -34,7 +34,7 @@ def _example_dirs() -> list[pathlib.Path]:
     return sorted(
         p
         for p in EXAMPLES_ROOT.iterdir()
-        if p.is_dir() and (p / ".harmont" / "pipeline.py").is_file()
+        if p.is_dir() and (p / ".hm" / "pipeline.py").is_file()
     )
 
 

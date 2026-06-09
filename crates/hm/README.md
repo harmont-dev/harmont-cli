@@ -40,7 +40,7 @@ pip install -e ./harmont-py
 
 ### 1. Write a pipeline
 
-Pipelines live in `.harmont/<slug>.py` inside your repo. Each file uses the `@hm.pipeline("slug")` decorator to register one or more named pipelines. Save the following as `.harmont/hello.py`:
+Pipelines live in `.hm/<slug>.py` inside your repo. Each file uses the `@hm.pipeline("slug")` decorator to register one or more named pipelines. Save the following as `.hm/hello.py`:
 
 ```python
 import harmont as hm
@@ -113,7 +113,7 @@ From the repo root:
 hm run hello --local
 ```
 
-The CLI walks `.harmont/*.py`, resolves the `hello` slug, renders the pipeline to JSON, and schedules the chains across Docker containers. Each chain inherits state from its parent; forks run in parallel up to `--parallelism N` (defaults to the host's available parallelism).
+The CLI walks `.hm/*.py`, resolves the `hello` slug, renders the pipeline to JSON, and schedules the chains across Docker containers. Each chain inherits state from its parent; forks run in parallel up to `--parallelism N` (defaults to the host's available parallelism).
 
 If the repo declares only one pipeline, the slug is optional:
 
@@ -150,14 +150,14 @@ hm cloud build watch <id>       # poll until terminal
 hm cloud job show <id>
 hm cloud billing show
 hm cloud run [--plan-file PATH] # submit a pre-rendered plan JSON
-                                # (defaults to .harmont/plan.json)
+                                # (defaults to .hm/plan.json)
 ```
 
-Tokens are stored in `~/.harmont/credentials.toml` (mode 0o600). The
+Tokens are stored in `~/.hm/credentials.toml` (mode 0o600). The
 active org slug is persisted per-user under
 `~/.config/harmont/state/cloud.kv`. Source-archive upload for
 `cloud run` is plan-5 work — pre-render your pipeline to
-`.harmont/plan.json` first.
+`.hm/plan.json` first.
 
 ## Build from source
 

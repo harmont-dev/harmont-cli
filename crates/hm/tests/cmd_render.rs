@@ -10,7 +10,7 @@
 use assert_cmd::Command;
 
 fn write_fixture(dir: &std::path::Path) {
-    let harmont = dir.join(".harmont");
+    let harmont = dir.join(".hm");
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.py"),

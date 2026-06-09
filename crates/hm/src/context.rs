@@ -1,6 +1,6 @@
 use std::io::IsTerminal;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::cli::Cli;
 use crate::config::Config;
@@ -28,7 +28,10 @@ impl RunContext {
     ///
     /// Returns an error if the config file is unreadable or malformed.
     pub fn from_cli(cli: &Cli) -> Result<Self> {
-        let config = Config::load()?;
+        let start_dir =
+            std::env::current_dir().context("cannot determine current directory")?;
+        let project_root = hm_util::dirs::find_project_root(&start_dir);
+        let config = Config::load(project_root.as_deref())?;
 
         let color =
             !cli.no_color && std::env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal();

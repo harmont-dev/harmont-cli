@@ -53,7 +53,7 @@ describe("ruby install chain", () => {
 describe("ruby in pipeline", () => {
   it("produces valid IR", () => {
     const r = ruby();
-    const ir = pipeline(r.test(), r.lint(), { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([r.test(), r.lint()], { defaultImage: "ubuntu:24.04" });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });
 });

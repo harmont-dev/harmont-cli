@@ -142,7 +142,7 @@ describe("rust.toolchain", () => {
 
   it("produces valid pipeline IR", () => {
     const r = rust.toolchain();
-    const ir = pipeline(r.build(), r.test(), r.clippy(), r.fmt(), {
+    const ir = pipeline([r.build(), r.test(), r.clippy(), r.fmt()], {
       defaultImage: "ubuntu:24.04",
     });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
@@ -237,7 +237,7 @@ describe("rust.project", () => {
   it("with base skips apt", () => {
     const base = sh("custom base");
     const proj = rust.project({ path: "cli", base });
-    const ir = pipeline(proj.test(), proj.clippy(), proj.fmt(), {
+    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()], {
       defaultImage: "ubuntu:24.04",
     });
     const c = cmds(ir);
@@ -249,7 +249,7 @@ describe("rust.project", () => {
 
   it("produces valid pipeline IR", () => {
     const proj = rust.project({ path: "cli" });
-    const ir = pipeline(proj.test(), proj.clippy(), proj.fmt(), {
+    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()], {
       defaultImage: "ubuntu:24.04",
     });
     expect(ir.version).toBe("0");
@@ -266,7 +266,7 @@ describe("rust.project", () => {
 
   it("version forwarded", () => {
     const proj = rust.project({ path: ".", version: "1.81.0" });
-    const ir = pipeline(proj.test());
+    const ir = pipeline([proj.test()]);
     const rustup = stepBySubstring(ir, "sh.rustup.rs");
     expect(rustup.cmd).toContain("--default-toolchain 1.81.0");
   });

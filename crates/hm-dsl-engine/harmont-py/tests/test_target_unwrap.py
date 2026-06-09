@@ -43,8 +43,8 @@ def test_rust_project_unwraps_to_test_clippy_fmt():
     assert "cargo fmt" in leaves[2].cmd
 
 
-def test_npm_project_unwraps_to_install():
-    proj = hm.npm(path="app", version="20")
+def test_js_project_unwraps_to_install():
+    proj = hm.js.project(path="app", version="20")
     leaves = as_leaves(proj)
     assert len(leaves) == 1
     assert "npm ci" in leaves[0].cmd
@@ -63,5 +63,5 @@ def test_unknown_type_raises_typeerror():
 
 
 def test_unknown_type_message_lists_supported_types():
-    with pytest.raises(TypeError, match=r"Step.*RustProject.*RustToolchain.*NpmProject"):
+    with pytest.raises(TypeError, match=r"Step.*RustProject.*RustToolchain.*JsProject"):
         as_leaves("oops")  # type: ignore[arg-type]

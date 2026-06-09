@@ -37,6 +37,11 @@ mod tests {
     }
 
     #[test]
+    fn harmont_py_contains_py_typed() {
+        assert!(HARMONT_PY.get_file("py.typed").is_some());
+    }
+
+    #[test]
     fn ts_index_bundle_is_not_empty() {
         assert!(
             HARMONT_TS_INDEX.len() > 100,

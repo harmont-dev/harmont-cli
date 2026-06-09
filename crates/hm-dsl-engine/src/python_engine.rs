@@ -15,7 +15,7 @@ try:
 except ImportError as e:
     print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
-for p in sorted(pathlib.Path('.harmont').glob('*.py')):
+for p in sorted(pathlib.Path('.hm').glob('*.py')):
     spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -30,7 +30,7 @@ try:
 except ImportError as e:
     print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
-for p in sorted(pathlib.Path('.harmont').glob('*.py')):
+for p in sorted(pathlib.Path('.hm').glob('*.py')):
     spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -45,7 +45,7 @@ except ImportError as e:
     print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
 slug = sys.argv[1]
-for p in sorted(pathlib.Path('.harmont').glob('*.py')):
+for p in sorted(pathlib.Path('.hm').glob('*.py')):
     spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
