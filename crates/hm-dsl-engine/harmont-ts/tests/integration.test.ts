@@ -4,6 +4,7 @@ import {
   scratch,
   sh,
   wait,
+  timeout,
   forever,
   ttl,
   onChange,
@@ -31,8 +32,8 @@ describe("full pipeline build", () => {
       .sh("npm ci", { label: "install", cache: forever() });
     const build = install
       .sh("npm run build", { label: "build", env: { NODE_ENV: "production" } });
-    const test = build
-      .sh("npm test", { label: "test", timeoutSeconds: 300 });
+    const test = timeout(300, build
+      .sh("npm test", { label: "test" }));
 
     const ir = pipeline(test, {
       env: { CI: "true" },
@@ -170,11 +171,10 @@ describe("envelope", () => {
 
 describe("JSON snake_case output", () => {
   it("uses snake_case keys in IR, not camelCase", () => {
-    const s = scratch().sh("make", {
+    const s = timeout(600, scratch().sh("make", {
       label: "build",
-      timeoutSeconds: 600,
       cache: onChange("src/", "lib/"),
-    });
+    }));
     const ir = pipeline(s, { defaultImage: "ubuntu:24.04" });
     const json = JSON.stringify(ir);
 

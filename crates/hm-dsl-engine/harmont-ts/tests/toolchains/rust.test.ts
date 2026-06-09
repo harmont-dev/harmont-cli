@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { rust } from "../../src/toolchains/rust.js";
-import { sh } from "../../src/step.js";
+import { sh, timeout } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
 
 const cmds = (ir: ReturnType<typeof pipeline>) =>
@@ -85,7 +85,7 @@ describe("rust.toolchain", () => {
 
   it("accepts step options", () => {
     const r = rust.toolchain();
-    const t = r.test({ label: "my test", timeoutSeconds: 600 });
+    const t = timeout(600, r.test({ label: "my test" }));
     expect(t._label).toBe("my test");
     expect(t._timeoutSeconds).toBe(600);
   });

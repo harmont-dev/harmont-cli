@@ -5,7 +5,6 @@ export interface StepOptions {
   readonly label?: string;
   readonly cache?: CachePolicy;
   readonly env?: Readonly<Record<string, string>>;
-  readonly timeoutSeconds?: number;
   readonly image?: string;
   readonly runner?: string;
   readonly runnerArgs?: Readonly<Record<string, unknown>>;
@@ -79,7 +78,6 @@ export class Step {
       label: opts?.label,
       cache: opts?.cache,
       env: opts?.env,
-      timeoutSeconds: opts?.timeoutSeconds,
       image: effectiveImage,
       runner: opts?.runner,
       runnerArgs: opts?.runnerArgs,

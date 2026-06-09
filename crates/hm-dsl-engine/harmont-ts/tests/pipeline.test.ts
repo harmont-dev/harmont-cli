@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pipeline } from "../src/pipeline.js";
-import { scratch, sh, wait } from "../src/step.js";
+import { scratch, sh, wait, timeout } from "../src/step.js";
 import { forever, onChange } from "../src/cache.js";
 
 function stepKeys(ir: any): string[] {
@@ -137,11 +137,10 @@ describe("lowering: optional fields", () => {
   });
 
   it("includes label/timeout/cache when set", () => {
-    const s = scratch().sh("make", {
+    const s = timeout(600, scratch().sh("make", {
       label: "build",
-      timeoutSeconds: 600,
       cache: forever(),
-    });
+    }));
     const ir = pipeline(s);
     const step = ir.graph.nodes[0].step;
     expect(step.label).toBe("build");

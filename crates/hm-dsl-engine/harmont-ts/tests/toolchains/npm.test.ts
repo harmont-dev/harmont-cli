@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { npm } from "../../src/toolchains/index.js";
-import { sh } from "../../src/step.js";
+import { sh, timeout } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
 
 describe("npm factory", () => {
@@ -48,7 +48,7 @@ describe("npm actions", () => {
 
   it("actions accept step options", () => {
     const n = npm();
-    const t = n.test({ label: "my test", timeoutSeconds: 300 });
+    const t = timeout(300, n.test({ label: "my test" }));
     expect(t._label).toBe("my test");
     expect(t._timeoutSeconds).toBe(300);
   });
