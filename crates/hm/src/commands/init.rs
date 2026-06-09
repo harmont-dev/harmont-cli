@@ -7,6 +7,7 @@ use crate::cli::init::{InitArgs, TemplateKind};
 
 const SKILL_VALIDATE_CI: &str = include_str!("init_templates/skill_validate_ci.md");
 const SKILL_WRITE_PIPELINE: &str = include_str!("init_templates/skill_write_pipeline.md");
+const SKILL_CONVERT_GHA: &str = include_str!("init_templates/skill_convert_gha.md");
 
 struct Template {
     label: &'static str,
@@ -116,6 +117,7 @@ fn write_skills(dir: &Path) -> Result<()> {
     let skills: &[(&str, &str)] = &[
         ("validate-ci", SKILL_VALIDATE_CI),
         ("write-pipeline", SKILL_WRITE_PIPELINE),
+        ("convert-gha", SKILL_CONVERT_GHA),
     ];
     for (slug, content) in skills {
         let skill_dir = dir.join(format!(".claude/skills/{slug}"));

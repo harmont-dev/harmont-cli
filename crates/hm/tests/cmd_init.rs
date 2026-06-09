@@ -281,6 +281,21 @@ fn init_noninteractive_skips_skills() {
 }
 
 #[test]
+fn init_noninteractive_skips_convert_gha_skill() {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let skill = dir.path().join(".claude/skills/convert-gha/SKILL.md");
+    assert!(
+        !skill.exists(),
+        "non-interactive init should not create convert-gha skill"
+    );
+}
+
+#[test]
 fn skill_validate_ci_content_is_well_formed() {
     let content = include_str!(
         "../src/commands/init_templates/skill_validate_ci.md"
