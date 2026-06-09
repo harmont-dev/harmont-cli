@@ -149,6 +149,22 @@ fn ensure_gitignore_entry(dir: &Path, entry: &str) -> Result<()> {
     Ok(())
 }
 
+fn has_github_workflows(dir: &Path) -> bool {
+    let workflows = dir.join(".github/workflows");
+    workflows.is_dir()
+        && std::fs::read_dir(&workflows)
+            .map(|entries| {
+                entries.filter_map(Result::ok).any(|e| {
+                    let p = e.path();
+                    matches!(
+                        p.extension().and_then(|x| x.to_str()),
+                        Some("yml" | "yaml")
+                    )
+                })
+            })
+            .unwrap_or(false)
+}
+
 /// # Errors
 ///
 /// Returns an error if the target directory is unwritable.
@@ -171,6 +187,13 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         tracing::info!(
             "created .hm/{} ({dsl} pipeline, template: {kind:?})",
             tmpl.filename
+        );
+    }
+
+    if has_github_workflows(&args.dir) {
+        tracing::info!(
+            "detected GitHub Actions workflows in .github/workflows/\n  \
+             hint: use the `convert-gha` Claude Code skill to migrate them to Harmont"
         );
     }
 

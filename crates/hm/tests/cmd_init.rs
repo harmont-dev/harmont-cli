@@ -352,6 +352,20 @@ fn skill_write_pipeline_content_is_well_formed() {
 }
 
 #[test]
+fn init_detects_github_workflows_in_noninteractive_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let workflows = dir.path().join(".github/workflows");
+    std::fs::create_dir_all(&workflows).unwrap();
+    std::fs::write(workflows.join("ci.yml"), "name: CI\non: push").unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("convert-gha"));
+}
+
+#[test]
 fn skill_convert_gha_content_is_well_formed() {
     let content = include_str!(
         "../src/commands/init_templates/skill_convert_gha.md"
