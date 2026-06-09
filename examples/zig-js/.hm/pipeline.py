@@ -15,8 +15,8 @@ from datetime import timedelta
 from typing import Annotated
 
 import harmont as hm
-from harmont.npm import NpmProject
-from harmont.zig import ZigProject, ZigToolchain
+from harmont._js import JsProject
+from harmont._zig import ZigProject, ZigToolchain
 
 
 @hm.target()
@@ -46,8 +46,8 @@ def zig_lib_b(zig: hm.Target[ZigToolchain]) -> ZigProject:
 
 
 @hm.target()
-def web_project(apt_base: hm.Target[hm.Step]) -> NpmProject:
-    return hm.npm(path="web", base=apt_base)
+def web_project(apt_base: hm.Target[hm.Step]) -> JsProject:
+    return hm.js.project(path="web", base=apt_base)
 
 
 @hm.pipeline(
@@ -59,7 +59,7 @@ def web_project(apt_base: hm.Target[hm.Step]) -> NpmProject:
 def ci(
     zig_lib_a: hm.Target[ZigProject],
     zig_lib_b: hm.Target[ZigProject],
-    web_project: hm.Target[NpmProject],
+    web_project: hm.Target[JsProject],
 ) -> tuple[hm.Step, ...]:
     return (
         zig_lib_a.build(),

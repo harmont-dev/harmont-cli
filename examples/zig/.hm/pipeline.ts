@@ -1,5 +1,5 @@
-import { pipeline, push, type PipelineDefinition } from "harmont";
-import { zig } from "harmont/toolchains";
+import { pipeline, push, type PipelineDefinition } from "@harmont/hm";
+import { zig } from "@harmont/hm/toolchains";
 
 const project = zig({ path: "." });
 

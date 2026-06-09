@@ -1,5 +1,5 @@
-import { pipeline, push, pullRequest, type PipelineDefinition } from "harmont";
-import { elixir } from "harmont/toolchains";
+import { pipeline, push, pullRequest, type PipelineDefinition } from "@harmont/hm";
+import { elixir } from "@harmont/hm/toolchains";
 
 const project = elixir({
   path: ".",

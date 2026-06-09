@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import harmont as hm
-from harmont.python import PythonToolchain
+from harmont._python import PythonToolchain
 
 
 @hm.target()
@@ -17,9 +17,4 @@ def project() -> PythonToolchain:
     triggers=[hm.push(branch="main")],
 )
 def ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:
-    return (
-        project.test(),
-        project.lint(),
-        project.fmt(),
-        project.typecheck(),
-    )
+    return (project.test(), project.lint(), project.fmt(), project.typecheck())

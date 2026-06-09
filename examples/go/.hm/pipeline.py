@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import harmont as hm
-from harmont.go import GoToolchain
+from harmont._go import GoToolchain
 
 
 @hm.target()
@@ -17,9 +17,4 @@ def project() -> GoToolchain:
     triggers=[hm.push(branch="main")],
 )
 def ci(project: hm.Target[GoToolchain]) -> tuple[hm.Step, ...]:
-    return (
-        project.build(),
-        project.test(),
-        project.vet(),
-        project.fmt(),
-    )
+    return (project.build(), project.test(), project.vet(), project.fmt())
