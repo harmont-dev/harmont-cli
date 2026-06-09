@@ -449,3 +449,21 @@ fn init_no_gha_hint_with_empty_workflows_dir() {
         .success()
         .stderr(predicates::str::contains("convert-gha").not());
 }
+
+#[test]
+fn init_without_template_in_non_tty_errors_clearly() {
+    // No pipeline, no --template, no TTY: cannot prompt, so fail with a
+    // helpful hint rather than a raw dialoguer IO error.
+    let dir = tempfile::tempdir().unwrap();
+
+    hm().args(["init", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .failure()
+        .stderr(contains("no template specified"));
+
+    assert!(
+        !dir.path().join(".hm/pipeline.py").exists(),
+        "no pipeline should be written when none could be chosen"
+    );
+}

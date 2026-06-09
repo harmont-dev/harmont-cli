@@ -216,6 +216,8 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         );
     }
 
+    // Skills are offered whenever a terminal is present, independent of
+    // whether a template flag was passed.
     if tty && prompt_skills()? {
         write_skills(&args.dir)?;
     }
