@@ -382,3 +382,96 @@ def test_parent_without_cache_is_planerror():
             base_path=Path("/tmp"),  # noqa: S108
             env={},
         )
+
+
+def test_golden_hash_cross_sdk_reference_pipeline():
+    """Golden hash fixture: single-step pipeline.
+
+    Must produce the EXACT same cache key as the TypeScript SDK's
+    ``golden hash: cross-SDK reference pipeline`` test in keygen.test.ts.
+    """
+    graph = _make_graph(
+        [
+            {
+                "step": {
+                    "key": "build",
+                    "cmd": "make build",
+                    "cache": {"policy": "forever", "env_keys": []},
+                },
+                "env": {},
+            },
+        ]
+    )
+    out = resolve_pipeline_keys(
+        graph,
+        pipeline_org="acme",
+        pipeline_slug="ci",
+        now=1000000,
+        base_path=Path("/nonexistent"),
+        env={},
+    )
+    policy_res = "forever-" + _sha256_hex("make build" + NUL)
+    expected = _sha256_hex(
+        "acme" + NUL + "ci" + NUL + "build" + NUL + "scratch" + NUL + policy_res
+    )
+    assert out["nodes"][0]["step"]["cache"]["key"] == expected
+
+
+def test_golden_hash_cross_sdk_chained_pipeline():
+    """Golden hash fixture: two-step chained pipeline.
+
+    Must produce the EXACT same cache keys as the TypeScript SDK's
+    ``golden hash: cross-SDK chained pipeline`` test in keygen.test.ts.
+    """
+    graph = _make_graph(
+        [
+            {
+                "step": {
+                    "key": "setup",
+                    "cmd": "apt-get update && apt-get install -y gcc",
+                    "cache": {"policy": "forever", "env_keys": []},
+                },
+                "env": {},
+            },
+            {
+                "step": {
+                    "key": "compile",
+                    "cmd": "gcc -o main main.c",
+                    "cache": {"policy": "forever", "env_keys": []},
+                },
+                "env": {},
+            },
+        ],
+        edges=[[0, 1, "builds_in"]],
+    )
+    out = resolve_pipeline_keys(
+        graph,
+        pipeline_org="acme",
+        pipeline_slug="ci",
+        now=1000000,
+        base_path=Path("/nonexistent"),
+        env={},
+    )
+
+    parent_policy_res = "forever-" + _sha256_hex(
+        "apt-get update && apt-get install -y gcc" + NUL
+    )
+    parent_key = _sha256_hex(
+        "acme" + NUL + "ci" + NUL + "setup" + NUL + "scratch" + NUL + parent_policy_res
+    )
+
+    child_policy_res = "forever-" + _sha256_hex("gcc -o main main.c" + NUL)
+    child_key = _sha256_hex(
+        "acme"
+        + NUL
+        + "ci"
+        + NUL
+        + "compile"
+        + NUL
+        + parent_key
+        + NUL
+        + child_policy_res
+    )
+
+    assert out["nodes"][0]["step"]["cache"]["key"] == parent_key
+    assert out["nodes"][1]["step"]["cache"]["key"] == child_key
