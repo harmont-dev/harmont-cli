@@ -168,6 +168,37 @@ hm run ci
 Browse the [example projects](./examples) for idiomatic pipelines in Rust, Go,
 Python, Ruby, Elixir, Zig, C/C++, TypeScript, React, and Next.js.
 
+## Let Claude set up your CI
+
+`hm init` can install three [Claude Code](https://claude.com/claude-code) skills
+into your repo. They turn pipeline authoring and migration into a conversation:
+
+| Skill | What it does |
+|-------|--------------|
+| **write-pipeline** | Ask Claude to "set up CI" and it detects your stack, reads the live Harmont docs, and writes a correct `.hm/pipeline`. |
+| **convert-gha** | Point Claude at your `.github/workflows/*.yml` and it migrates them to a Harmont pipeline — dropping the `actions/cache`, `actions/checkout`, and `actions/setup-*` boilerplate Harmont handles for you. |
+| **validate-ci** | Before you push, Claude runs the whole pipeline locally (`hm run -k --logs`) and only gives the green light when it actually passes. |
+
+```sh
+hm init          # detects .github/workflows and offers convert-gha
+```
+
+Already have a pipeline and just want the skills? Re-run `hm init` — it skips
+the template and installs the skills.
+
+### Coming from GitHub Actions?
+
+Migration is the easy part. The `convert-gha` skill reads every workflow and
+maps it over for you:
+
+- `actions/checkout` → not needed (your source is always in the container)
+- `actions/setup-*` → replaced by a typed toolchain
+- `actions/cache` → not needed (Harmont caches Docker layers automatically)
+- `jobs.*.needs` → the DAG `hm` derives from your code
+- `runs-on` → `default_image`
+
+The result is a pipeline you can run **locally** before it ever hits CI.
+
 ## Cloud (`hm run --cloud`)
 
 `hm run --cloud` runs your **local working tree** in Harmont Cloud without
