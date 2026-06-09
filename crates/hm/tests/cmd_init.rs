@@ -1,6 +1,6 @@
 //! `hm init` scaffolds a `.harmont/` pipeline from a project template.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use assert_cmd::Command;
 use predicates::str::contains;
@@ -98,6 +98,88 @@ fn init_all_templates_create_files() {
         assert!(
             has_py || has_ts,
             "template {slug}: no pipeline file created"
+        );
+    }
+}
+
+// ── roundtrip: init → render ──────────────────────────────────
+
+fn has_python() -> bool {
+    which::which("python3").is_ok()
+}
+
+fn has_js_runtime() -> bool {
+    which::which("bun").is_ok() || which::which("node").is_ok()
+}
+
+#[test]
+fn init_python_templates_roundtrip_render() {
+    if !has_python() {
+        // python3 not on PATH — skip
+        return;
+    }
+
+    for slug in ["cmake", "elixir", "rust", "python"] {
+        let dir = tempfile::tempdir().unwrap();
+        hm().args(["init", "--template", slug, "--dir"])
+            .arg(dir.path())
+            .assert()
+            .success();
+
+        let out = hm()
+            .args(["render", "ci", "--dir"])
+            .arg(dir.path())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: serde_json::Value = serde_json::from_slice(&out)
+            .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
+        assert_eq!(
+            v["version"], "0",
+            "template {slug}: expected v0 IR"
+        );
+        assert!(
+            v["graph"].is_object(),
+            "template {slug}: expected graph object"
+        );
+    }
+}
+
+#[test]
+fn init_ts_templates_roundtrip_render() {
+    if !has_js_runtime() {
+        // no JS runtime (bun/node) on PATH — skip
+        return;
+    }
+
+    for slug in ["nextjs", "js", "zig"] {
+        let dir = tempfile::tempdir().unwrap();
+        hm().args(["init", "--template", slug, "--dir"])
+            .arg(dir.path())
+            .assert()
+            .success();
+
+        let out = hm()
+            .args(["render", "ci", "--dir"])
+            .arg(dir.path())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let v: serde_json::Value = serde_json::from_slice(&out)
+            .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
+        assert_eq!(
+            v["version"], "0",
+            "template {slug}: expected v0 IR"
+        );
+        assert!(
+            v["graph"].is_object(),
+            "template {slug}: expected graph object"
         );
     }
 }

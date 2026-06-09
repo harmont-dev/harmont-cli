@@ -39,7 +39,7 @@ const TEMPLATES: &[Template] = &[
         slug: "rust",
         label: "Rust",
         filename: "pipeline.py",
-        content: "\"\"\"Rust CI pipeline.\"\"\"\nfrom __future__ import annotations\n\nimport harmont as hm\nfrom harmont.rust import RustToolchain\n\n\n@hm.target()\ndef project() -> RustToolchain:\n    return hm.rust.toolchain(path=\".\")\n\n\n@hm.pipeline(\n    \"ci\",\n    env={\"CI\": \"true\"},\n    default_image=\"ubuntu:24.04\",\n    triggers=[hm.push(branch=\"main\")],\n)\ndef ci(project: hm.Target[RustToolchain]) -> tuple[hm.Step, ...]:\n    return (\n        project.build(),\n        project.test(),\n        project.clippy(),\n        project.fmt(),\n    )\n",
+        content: "\"\"\"Rust CI pipeline.\"\"\"\nfrom __future__ import annotations\n\nimport harmont as hm\nfrom harmont._rust import RustToolchain\n\n\n@hm.target()\ndef project() -> RustToolchain:\n    return hm.rust.toolchain(path=\".\")\n\n\n@hm.pipeline(\n    \"ci\",\n    env={\"CI\": \"true\"},\n    default_image=\"ubuntu:24.04\",\n    triggers=[hm.push(branch=\"main\")],\n)\ndef ci(project: hm.Target[RustToolchain]) -> tuple[hm.Step, ...]:\n    return (\n        project.build(),\n        project.test(),\n        project.clippy(),\n        project.fmt(),\n    )\n",
     },
     Template {
         slug: "zig",
@@ -51,7 +51,7 @@ const TEMPLATES: &[Template] = &[
         slug: "python",
         label: "Python",
         filename: "pipeline.py",
-        content: "\"\"\"Python CI pipeline.\"\"\"\nfrom __future__ import annotations\n\nimport harmont as hm\nfrom harmont.python import PythonToolchain\n\n\n@hm.target()\ndef project() -> PythonToolchain:\n    return hm.python(path=\".\")\n\n\n@hm.pipeline(\n    \"ci\",\n    env={\"CI\": \"true\"},\n    default_image=\"ubuntu:24.04\",\n    triggers=[hm.push(branch=\"main\")],\n)\ndef ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:\n    return (\n        project.test(),\n        project.lint(),\n        project.fmt(),\n        project.typecheck(),\n    )\n",
+        content: "\"\"\"Python CI pipeline.\"\"\"\nfrom __future__ import annotations\n\nimport harmont as hm\nfrom harmont._python import PythonToolchain\n\n\n@hm.target()\ndef project() -> PythonToolchain:\n    return hm.python(path=\".\")\n\n\n@hm.pipeline(\n    \"ci\",\n    env={\"CI\": \"true\"},\n    default_image=\"ubuntu:24.04\",\n    triggers=[hm.push(branch=\"main\")],\n)\ndef ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:\n    return (\n        project.test(),\n        project.lint(),\n        project.fmt(),\n        project.typecheck(),\n    )\n",
     },
 ];
 
