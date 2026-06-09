@@ -5,14 +5,14 @@ return value carries language-toolchain objects instead of bare Steps.
 Each toolchain has one unambiguous default action:
 
   RustToolchain   -> .build()
-  NpmProject      -> .install()   (the npm-ci leaf - verifies deps)
+  JsProject       -> .install()   (the deps-install leaf - verifies deps)
 
 Authors who want a different default call the explicit action method.
 """
 
 from __future__ import annotations
 
-from ._npm import NpmProject
+from ._js import JsProject
 from ._rust import RustProject, RustToolchain
 from ._step import Step
 from .py.uv import UvProject
@@ -25,7 +25,7 @@ def _one(obj: object) -> tuple[Step, ...]:
         return (obj.test(), obj.clippy(), obj.fmt())
     if isinstance(obj, RustToolchain):
         return (obj.build(),)
-    if isinstance(obj, NpmProject):
+    if isinstance(obj, JsProject):
         return (obj.install(),)
     if isinstance(obj, UvProject):
         return (obj.test(),)
@@ -34,7 +34,7 @@ def _one(obj: object) -> tuple[Step, ...]:
     msg = (
         f"hm.target: cannot use {type(obj).__name__} as a pipeline leaf\n"
         "  → return one of: Step, tuple[Step, ...], RustProject, RustToolchain, "
-        "NpmProject, UvProject"
+        "JsProject, UvProject"
     )
     raise TypeError(msg)
 

@@ -52,6 +52,15 @@ def bun_install_cmd(version: str | None = None) -> str:
     return f"curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash{version_arg}"
 
 
+def deno_install_cmd(version: str | None = None) -> str:
+    """Deno install command. Symlinks into /usr/local/bin for PATH availability."""
+    version_arg = f' -s "v{version}"' if version is not None else ""
+    return (
+        f"curl -fsSL https://deno.land/install.sh | sh{version_arg} && "
+        "ln -sf $HOME/.deno/bin/deno /usr/local/bin/deno"
+    )
+
+
 def make_install_chain(
     *,
     apt_packages: tuple[str, ...],

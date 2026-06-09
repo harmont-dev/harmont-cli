@@ -8,14 +8,20 @@ import {
 } from "./shared.js";
 import { detect } from "./detect.js";
 
-type Pm = "npm" | "pnpm" | "bun";
+// Runtimes execute JS/TS; package managers install dependencies. `deno` is a
+// runtime only — its dependency management is intrinsic, so it is not a `pm`
+// value (see makeProject). yarn's classic/berry split is two pm values rather
+// than a version axis because the lockfile install flag differs between them.
 type Runtime = "node" | "bun" | "deno";
+type PackageManager = "npm" | "pnpm" | "yarn-classic" | "yarn-berry" | "bun" | "deno";
 type ActionOptions = Omit<StepOptions, "cwd">;
 
 export interface JsOptions {
   readonly path?: string;
-  readonly pm?: Pm;
+  readonly pm?: PackageManager;
   readonly runtime?: Runtime;
+  /** Runtime version — Node major ("22"/"22.x") or Bun/Deno semver ("1.2.3").
+   *  PM versions are pinned by the project's `packageManager` field. */
   readonly version?: string;
   readonly image?: string;
   readonly base?: Step;
@@ -24,33 +30,50 @@ export interface JsOptions {
 const NODE_VERSION_RE = /^[0-9]+(\.x)?$/;
 const SEMVER_RE = /^[0-9]+\.[0-9]+(\.[0-9]+)?$/;
 
-const LOCKFILES: Record<Pm, string> = {
+const LOCKFILES: Record<PackageManager, string> = {
   npm: "package-lock.json",
   pnpm: "pnpm-lock.yaml",
+  "yarn-classic": "yarn.lock",
+  "yarn-berry": "yarn.lock",
   bun: "bun.lock",
+  deno: "deno.lock",
 };
 
-function depsCmd(pm: Pm, path: string): string {
-  switch (pm) {
-    case "npm":
-      return `cd ${path} && npm ci`;
-    case "pnpm":
-      return `cd ${path} && pnpm install --frozen-lockfile`;
-    case "bun":
-      return `cd ${path} && bun install --frozen-lockfile`;
-  }
-}
+const DEPS_CMD: Record<PackageManager, string> = {
+  npm: "npm ci",
+  pnpm: "pnpm install --frozen-lockfile",
+  "yarn-classic": "yarn install --frozen-lockfile",
+  "yarn-berry": "yarn install --immutable",
+  bun: "bun install --frozen-lockfile",
+  deno: "deno install",
+};
 
-function runPrefixFor(pm: Pm | "deno"): string {
+const RUN_PREFIX: Record<PackageManager, string> = {
+  npm: "npm run",
+  pnpm: "pnpm run",
+  "yarn-classic": "yarn run",
+  "yarn-berry": "yarn run",
+  bun: "bun run",
+  deno: "deno task",
+};
+
+/** Command to bring `pm` onto the runtime image, or null when the PM already
+ *  ships with the runtime (npm with node, bun with the bun runtime). */
+function pmBootstrap(pm: PackageManager, runtime: Runtime): string | null {
   switch (pm) {
     case "npm":
-      return "npm run";
-    case "pnpm":
-      return "pnpm run";
+      return null; // bundled with node
     case "bun":
-      return "bun run";
+      return runtime === "bun" ? null : bunInstallCmd();
     case "deno":
-      return "deno task";
+      return null; // bundled with deno
+    case "pnpm":
+      return "corepack enable pnpm";
+    case "yarn-classic":
+    case "yarn-berry":
+      // corepack resolves the exact yarn from the `packageManager` field;
+      // its bundled default is classic 1.x, which suits yarn-classic.
+      return "corepack enable";
   }
 }
 
@@ -60,17 +83,22 @@ export class JsProject {
   private readonly _runPrefix: string;
   private readonly _tag: string;
 
-  constructor(path: string, installed: Step, pm: Pm | "deno", tag: string) {
+  constructor(path: string, installed: Step, pm: PackageManager, tag: string) {
     this.path = path;
     this._installed = installed;
-    this._runPrefix = runPrefixFor(pm);
+    this._runPrefix = RUN_PREFIX[pm];
     this._tag = tag;
   }
 
+  /** The dependency-install step (`npm ci`, `bun install`, `deno install`, …).
+   *  Every action attaches to it so installation is shared across CI jobs. */
   install(): Step {
     return this._installed;
   }
 
+  /** Run a package.json script / deno.json task by name.
+   *  This is the uniform action across all PMs — for native tooling
+   *  (`deno test`, `bun test`) define a script or drop to `.sh()`. */
   run(script: string, opts?: ActionOptions): Step {
     return this._installed.sh(
       `cd ${this.path} && ${this._runPrefix} ${script}`,
@@ -79,26 +107,6 @@ export class JsProject {
         ...opts,
       },
     );
-  }
-
-  test(opts?: ActionOptions): Step {
-    return this.run("test", opts);
-  }
-
-  build(opts?: ActionOptions): Step {
-    return this.run("build", opts);
-  }
-
-  lint(opts?: ActionOptions): Step {
-    return this.run("lint", opts);
-  }
-
-  fmt(opts?: ActionOptions): Step {
-    return this.run("fmt", opts);
-  }
-
-  typecheck(opts?: ActionOptions): Step {
-    return this.run("typecheck", opts);
   }
 }
 
@@ -109,12 +117,10 @@ function validateVersion(runtime: Runtime, version: string): void {
         `js.project: invalid version "${version}"\n  → use a Node major version like "22" or "22.x"`,
       );
     }
-  } else {
-    if (!SEMVER_RE.test(version)) {
-      throw new Error(
-        `js.project: invalid version "${version}"\n  → use a semver version like "1.2" or "1.2.0"`,
-      );
-    }
+  } else if (!SEMVER_RE.test(version)) {
+    throw new Error(
+      `js.project: invalid version "${version}"\n  → use a semver version like "1.2" or "1.2.0"`,
+    );
   }
 }
 
@@ -144,23 +150,29 @@ function makeProject(opts?: JsOptions): JsProject {
       image: opts?.image,
       base: opts?.base,
     });
-    const depsInstalled = runtimeInstalled.sh(`cd ${path} && deno install`, {
+    const depsInstalled = runtimeInstalled.sh(`cd ${path} && ${DEPS_CMD.deno}`, {
       label: ":deno: deps",
-      cache: onChange(`${path}/deno.lock`),
+      cache: onChange(`${path}/${LOCKFILES.deno}`),
     });
     return new JsProject(path, depsInstalled, "deno", "deno");
   }
 
   // --- Node / Bun runtime ---
-  const pm: Pm = opts?.pm ?? detected.pm ?? (runtime === "bun" ? "bun" : "npm");
+  const pm: PackageManager = opts?.pm ?? detected.pm ?? (runtime === "bun" ? "bun" : "npm");
 
-  if ((pm === "npm" || pm === "pnpm") && runtime !== "node") {
-    throw new Error(`js.project: pm="${pm}" requires runtime="node"`);
+  if (pm === "deno") {
+    throw new Error(
+      'js.project: pm="deno" is not valid — use runtime="deno" instead',
+    );
+  }
+
+  if (runtime === "bun" && pm !== "bun") {
+    throw new Error(`js.project: runtime="bun" only supports pm="bun"`);
   }
 
   const aptPkgs: string[] = ["curl", "ca-certificates"];
   if (runtime === "bun" || pm === "bun") {
-    aptPkgs.push("unzip");
+    aptPkgs.push("unzip"); // bun's installer needs unzip
   }
 
   const langTag = runtime === "bun" ? "bun" : "node";
@@ -179,29 +191,19 @@ function makeProject(opts?: JsOptions): JsProject {
     base: opts?.base,
   });
 
-  let pmReady: Step;
-  if (runtime === "node" && pm === "npm") {
-    pmReady = runtimeInstalled;
-  } else if (runtime === "bun" && pm === "bun") {
-    pmReady = runtimeInstalled;
-  } else if (pm === "pnpm") {
-    pmReady = runtimeInstalled.sh("npm install -g pnpm", {
-      label: `:${langTag}: pnpm`,
-      cache: forever(),
-    });
-  } else if (pm === "bun" && runtime === "node") {
-    pmReady = runtimeInstalled.sh(bunInstallCmd(), {
-      label: `:${langTag}: bun`,
-      cache: forever(),
-    });
-  } else {
-    pmReady = runtimeInstalled;
-  }
+  // Layer the package manager onto the runtime image when it isn't bundled.
+  const bootstrap = pmBootstrap(pm, runtime);
+  const pmReady =
+    bootstrap == null
+      ? runtimeInstalled
+      : runtimeInstalled.sh(bootstrap, {
+        label: `:${langTag}: ${pm}`,
+        cache: forever(),
+      });
 
-  const lockfile = LOCKFILES[pm];
-  const depsInstalled = pmReady.sh(depsCmd(pm, path), {
+  const depsInstalled = pmReady.sh(`cd ${path} && ${DEPS_CMD[pm]}`, {
     label: `:${langTag}: deps`,
-    cache: onChange(`${path}/${lockfile}`),
+    cache: onChange(`${path}/${LOCKFILES[pm]}`),
   });
 
   return new JsProject(path, depsInstalled, pm, langTag);

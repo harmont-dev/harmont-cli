@@ -12,14 +12,16 @@ const pipelines: PipelineDefinition[] = [
     slug: "ci",
     triggers: [push({ branch: "main" }), pullRequest()],
     pipeline: pipeline(
-      project.compile(),
-      project.test({ cover: true }),
-      project.format(),
-      project.credo(),
-      project.dialyzer(),
-      project.sobelow(),
-      project.depsAudit(),
-      project.hexAudit(),
+      [
+        project.compile(),
+        project.test({ cover: true }),
+        project.format(),
+        project.credo(),
+        project.dialyzer(),
+        project.sobelow(),
+        project.depsAudit(),
+        project.hexAudit(),
+      ],
       {
         env: {
           CI: "true",
@@ -33,9 +35,7 @@ const pipelines: PipelineDefinition[] = [
     slug: "deploy",
     triggers: [push({ branch: "main" })],
     pipeline: pipeline(
-      project.compile(),
-      project.mix("assets.deploy"),
-      project.release(),
+      [project.compile(), project.mix("assets.deploy"), project.release()],
       { env: { MIX_ENV: "prod" }, defaultImage: "ubuntu:24.04" },
     ),
   },

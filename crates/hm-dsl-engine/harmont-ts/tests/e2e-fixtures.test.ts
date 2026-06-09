@@ -60,15 +60,17 @@ describe("E2E pipeline fixtures", () => {
     const webProject = js.project({ path: "web" });
 
     const ir = pipeline(
-      goProject.build(),
-      goProject.test(),
-      goProject.vet(),
-      pyProject.test(),
-      pyProject.lint(),
-      pyProject.typecheck(),
-      webProject.run("build"),
-      webProject.run("test"),
-      webProject.run("lint"),
+      [
+        goProject.build(),
+        goProject.test(),
+        goProject.vet(),
+        pyProject.test(),
+        pyProject.lint(),
+        pyProject.typecheck(),
+        webProject.run("build"),
+        webProject.run("test"),
+        webProject.run("lint"),
+      ],
       { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     );
 
@@ -82,11 +84,7 @@ describe("E2E pipeline fixtures", () => {
     const project = rust.toolchain({ path: "." });
 
     const ir = pipeline(
-      project.build(),
-      project.test(),
-      project.clippy(),
-      project.fmt(),
-      project.doc(),
+      [project.build(), project.test(), project.clippy(), project.fmt(), project.doc()],
       { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     );
 
@@ -106,13 +104,15 @@ describe("E2E pipeline fixtures", () => {
     const web = js.project({ path: "web", base });
 
     const ir = pipeline(
-      projA.build(),
-      projA.test(),
-      projB.build(),
-      projB.test(),
-      web.run("build"),
-      web.run("test"),
-      web.run("lint"),
+      [
+        projA.build(),
+        projA.test(),
+        projB.build(),
+        projB.test(),
+        web.run("build"),
+        web.run("test"),
+        web.run("lint"),
+      ],
       { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     );
 
@@ -121,19 +121,32 @@ describe("E2E pipeline fixtures", () => {
   });
 
   it("kitchen-sink", () => {
-    const cProject = cmake({ path: "infra/agent", lang: "c" });
+    const cProject = cmake({ path: "infra/agent" });
     const rbProject = ruby({ path: "services/web" });
 
     const ir = pipeline(
-      cProject.build(),
-      cProject.test(),
-      cProject.fmt(),
-      rbProject.test(),
-      rbProject.lint(),
+      [cProject.build(), cProject.test(), cProject.fmt(), rbProject.test(), rbProject.lint()],
       { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
     );
 
     expect(ir.version).toBe("0");
     assertFixture("kitchen-sink", ir);
+  });
+
+  it("cmake-advanced", () => {
+    const project = cmake({
+      path: ".",
+      compiler: "clang-18",
+      defines: { CMAKE_BUILD_TYPE: "Release", CMAKE_CXX_STANDARD: "20" },
+    });
+
+    const ir = pipeline(
+      [project.test(), project.lint(), project.fmt()],
+      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
+    );
+
+    expect(ir.version).toBe("0");
+    expect(ir.graph.nodes.length).toBeGreaterThan(3);
+    assertFixture("cmake-advanced", ir);
   });
 });

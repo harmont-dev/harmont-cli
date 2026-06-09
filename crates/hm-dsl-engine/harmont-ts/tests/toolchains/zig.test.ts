@@ -88,7 +88,7 @@ describe("zig multi-project pipeline", () => {
     const tc = zig();
     const a = tc.project("lib-a");
     const b = tc.project("lib-b");
-    const ir = pipeline(a.build(), a.test(), b.build(), b.test(), {
+    const ir = pipeline([a.build(), a.test(), b.build(), b.test()], {
       defaultImage: "ubuntu:24.04",
     });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(5);

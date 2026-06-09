@@ -22,6 +22,11 @@ def rust_project(shared_base: hm.Target[hm.Step]) -> tuple[hm.Step, ...]:
     project = hm.rust.project(path=".", base=shared_base)
     return hm.group([
         project.test(flags=("--lib",), packages=("harmont-cli",)),
+        project.test(
+            flags=("--test", "cmd_init"),
+            packages=("harmont-cli",),
+            label=":test_tube: init template roundtrip",
+        ),
         project.clippy(),
         project.fmt(),
     ])

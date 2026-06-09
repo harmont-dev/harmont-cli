@@ -79,6 +79,7 @@ jobs:
         example:
           - bun
           - c
+          - cmake-advanced
           - cpp
           - elixir
           - elixir-phoenix

@@ -121,7 +121,7 @@ class GoEntry:
         Examples:
             >>> import harmont as hm
             >>> tc = hm.go(version="1.23.2")
-            >>> hm.pipeline(tc.test(), tc.vet())
+            >>> hm.pipeline([tc.test(), tc.vet()])
         """
         return _make_go(path=path, version=version, image=image, base=base)
 
