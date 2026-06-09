@@ -47,7 +47,7 @@ impl LocalBackend {
     /// (VM backend + snapshot registry) and registering the [`VmRunner`] as
     /// the default runner.
     fn build_registry(&self) -> Result<RunnerRegistry> {
-        let cache_dir = hm_util::dirs::harmont_cache_dir().ok_or_else(|| {
+        let cache_dir = hm_util::dirs::hm_cache_dir().ok_or_else(|| {
             BackendError::Local("cannot resolve the Harmont cache directory".into())
         })?;
         let registry = ImageRegistry::open(&cache_dir.join("registry.db"), REGISTRY_CAPACITY)
