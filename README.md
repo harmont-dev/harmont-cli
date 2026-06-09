@@ -8,21 +8,25 @@
 </p>
 
 <p>
-  <a href="https://harmont.dev">Website</a> · <a href="https://docs.harmont.dev">Docs</a> · <a href="https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A">Slack</a>
+  <a href="https://harmont.dev">Website</a> · <a href="https://app.harmont.dev">Harmont Cloud</a> · <a href="https://docs.harmont.dev">Docs</a> · <a href="https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A">Slack</a>
 </p>
 
 <p>
-  <b>CI/CD you can run locally. Define your pipelines in real Python or TypeScript and run them in isolated Docker containers, with automatic layer caching and DAG parallelism.</b>
+  <b>CI/CD as real code. Write your pipelines in Python or TypeScript, then run the exact same pipeline locally in Docker or on managed runners in <a href="https://app.harmont.dev">Harmont Cloud</a> — with layer caching and DAG parallelism built in.</b>
 </p>
 
 ## What is Harmont?
 
 Harmont lets you define CI/CD pipelines in **TypeScript or Python** and run them
-instantly on your machine in Docker containers. Your pipeline is real code in a
-language you already use, and the exact run you debug locally is the one that
-runs in CI — so you stop pushing throwaway commits just to find out what breaks.
+two ways from a single definition: instantly on your own machine in Docker, or on
+managed runners in [Harmont Cloud](https://app.harmont.dev). It's the same
+pipeline either way — the run you debug locally is byte-for-byte the run that
+ships in CI, so you stop pushing throwaway commits just to find out what breaks.
 Each step runs in an isolated container with built-in caching, DAG parallelism,
-and consistent environments — the *same* pipeline runs locally and in the cloud.
+and consistent environments.
+
+Run it all locally, or [sign up for Harmont Cloud](https://app.harmont.dev) and
+push your pipelines to managed runners with a single `--cloud` flag.
 
 
 
@@ -33,19 +37,20 @@ https://github.com/user-attachments/assets/114bc825-2889-4654-91d5-f830c3631b4c
 
 **Why teams switch:**
 
-- **Run CI locally** — `hm run` executes your real pipeline in Docker on your
-  machine, so you catch failures before you push.
 - **Pipelines are real code** — Python or TypeScript, with the autocomplete,
   types, and abstractions your editor already gives you.
+- **Run it locally** — `hm run` executes your real pipeline in Docker on your
+  machine, so you catch failures before you push.
+- **…or run it in the cloud** — the same pipeline runs on Harmont Cloud's
+  managed runners with `hm run --cloud`, byte-for-byte identical to your local
+  run. [Sign up](https://app.harmont.dev) to get started.
 - **DAG-based parallelism** — independent steps run concurrently; `hm` figures
   out the dependency graph for you.
 - **Automatic layer caching** — Docker snapshots are reused across runs, so only
   changed steps re-execute. Caching works out of the box.
 - **Typed toolchains** — first-class presets for Rust, Go, Python, JavaScript/
-  TypeScript, C/C++, Ruby, Zig, and Elixir — each handles setup, build, test,
-  lint, and format for you.
-- **Local *and* cloud** — the same pipeline runs with `hm run` or
-  `hm run --cloud`, byte-for-byte.
+  TypeScript, C/C++, Zig, and Elixir — each handles setup, build, test, lint,
+  and format for you.
 - **Claude writes it for you** — `hm init` installs Claude Code skills that
   author your pipeline and migrate your GitHub Actions (see below).
 
@@ -86,6 +91,10 @@ hm run
 
 If the repo declares only one pipeline, the slug is optional. Otherwise name it:
 `hm run ci`.
+
+Want it to run in CI instead of on your laptop? [Sign up for Harmont
+Cloud](https://app.harmont.dev), then `hm cloud login` and `hm run --cloud` — the
+same pipeline, on managed runners. See [Cloud](#cloud) below.
 
 ### Or write it by hand
 
@@ -153,7 +162,7 @@ hm run ci
 ```
 
 Browse the [example projects](./examples) for idiomatic pipelines in Rust, Go,
-Python, Ruby, Elixir, Zig, C/C++, TypeScript, React, and Next.js.
+Python, Elixir, Zig, C/C++, TypeScript, React, and Next.js.
 
 ## Let Claude set up your CI
 
@@ -230,10 +239,14 @@ Prefer raw logs over progress bars? Add `--logs`.
 
 ## Cloud
 
-`hm run --cloud` runs your **local working tree** in Harmont Cloud without
-committing or pushing first. The CLI renders the pipeline locally (so a broken
-DSL fails fast, before any upload), archives the worktree (respecting
-`.gitignore`, stripping `.git`), uploads it, and streams live job logs.
+[Harmont Cloud](https://app.harmont.dev) runs your pipelines on managed runners —
+no executors to provision or babysit. `hm run --cloud` submits your **local
+working tree** without committing or pushing first: the CLI renders the pipeline
+locally (so a broken DSL fails fast, before any upload), archives the worktree
+(respecting `.gitignore`, stripping `.git`), uploads it, and streams live job
+logs.
+
+[Create an account](https://app.harmont.dev), then:
 
 ```sh
 hm cloud login                 # one-time browser login (or --paste for no browser)
@@ -365,8 +378,8 @@ each stack — every one shipped in **both** Python and TypeScript:
 | | | |
 |---|---|---|
 | [Rust](./examples/rust) | [Go](./examples/go) | [Python (uv)](./examples/python-uv) |
-| [Ruby](./examples/ruby) | [Elixir](./examples/elixir) · [Phoenix](./examples/elixir-phoenix) | [Zig](./examples/zig) |
-| [C](./examples/c) · [C++](./examples/cpp) | [TypeScript](./examples/typescript) · [Bun](./examples/bun) | [React](./examples/react) · [Next.js](./examples/nextjs) |
+| [Elixir](./examples/elixir) · [Phoenix](./examples/elixir-phoenix) | [Zig](./examples/zig) | [C](./examples/c) · [C++](./examples/cpp) |
+| [TypeScript](./examples/typescript) · [Bun](./examples/bun) | [React](./examples/react) | [Next.js](./examples/nextjs) |
 
 Don't see your stack? Toolchains compose from raw steps (`hm.sh(...)`), so you
 can build a pipeline for anything that runs in a container.
