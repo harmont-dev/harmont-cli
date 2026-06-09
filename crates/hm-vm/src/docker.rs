@@ -106,7 +106,7 @@ impl VmBackend for DockerBackend {
         let container_id = self.start_container(image).await?;
         Ok(Box::new(DockerVm {
             client: self.client.clone(),
-            container_id,
+            container_id: Some(container_id),
         }))
     }
 
@@ -115,7 +115,7 @@ impl VmBackend for DockerBackend {
         let container_id = self.start_container(&snapshot.0).await?;
         Ok(Box::new(DockerVm {
             client: self.client.clone(),
-            container_id,
+            container_id: Some(container_id),
         }))
     }
 
@@ -146,7 +146,26 @@ impl VmBackend for DockerBackend {
 struct DockerVm {
     #[debug(skip)]
     client: Docker,
-    container_id: String,
+    container_id: Option<String>,
+}
+
+impl Drop for DockerVm {
+    fn drop(&mut self) {
+        if let Some(id) = self.container_id.take() {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                let opts = StopContainerOptions { t: 0 };
+                let _ = client.stop_container(&id, Some(opts)).await;
+                let rm = RemoveContainerOptions {
+                    force: true,
+                    v: true,
+                    ..Default::default()
+                };
+                let _ = client.remove_container(&id, Some(rm)).await;
+                tracing::debug!(container = %id, "dropped container cleaned up");
+            });
+        }
+    }
 }
 
 /// Build a tar archive from a host directory.
@@ -167,10 +186,14 @@ impl Vm for DockerVm {
     #[instrument(skip(self), fields(host = %host_path.display()))]
     async fn inject(&self, host_path: &Path, guest_path: &str) -> Result<()> {
         // Ensure the destination directory exists inside the container.
+        let cid = self
+            .container_id
+            .as_deref()
+            .context("container already destroyed")?;
         let mkdir = self
             .client
             .create_exec(
-                &self.container_id,
+                cid,
                 CreateExecOptions {
                     cmd: Some(vec!["mkdir", "-p", guest_path]),
                     attach_stdout: Some(true),
@@ -195,13 +218,13 @@ impl Vm for DockerVm {
             ..Default::default()
         };
         self.client
-            .upload_to_container(&self.container_id, Some(options), tar_bytes.into())
+            .upload_to_container(cid, Some(options), tar_bytes.into())
             .await
             .with_context(|| {
                 format!(
                     "uploading '{}' to container '{}:{guest_path}'",
                     host_path.display(),
-                    self.container_id.get(..12).unwrap_or(&self.container_id),
+                    cid.get(..12).unwrap_or(cid),
                 )
             })?;
         Ok(())
@@ -215,11 +238,15 @@ impl Vm for DockerVm {
         working_dir: &str,
         sink: &dyn OutputSink,
     ) -> Result<i32> {
+        let cid = self
+            .container_id
+            .as_deref()
+            .context("container already destroyed")?;
         let env_strings: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
         let exec = self
             .client
             .create_exec(
-                &self.container_id,
+                cid,
                 CreateExecOptions {
                     cmd: Some(vec!["sh", "-c", cmd]),
                     env: Some(env_strings.iter().map(String::as_str).collect()),
@@ -287,8 +314,12 @@ impl Vm for DockerVm {
             [r, v] => (*r, *v),
             _ => (label, "latest"),
         };
+        let cid = self
+            .container_id
+            .as_deref()
+            .context("container already destroyed")?;
         let opts = CommitContainerOptions {
-            container: self.container_id.as_str(),
+            container: cid,
             repo,
             tag,
             ..Default::default()
@@ -310,13 +341,16 @@ impl Vm for DockerVm {
 
     #[instrument(skip(self))]
     async fn destroy(&mut self) -> Result<()> {
+        let Some(id) = self.container_id.take() else {
+            return Ok(());
+        };
         let _ = self
             .client
-            .stop_container(&self.container_id, Some(StopContainerOptions { t: 0 }))
+            .stop_container(&id, Some(StopContainerOptions { t: 0 }))
             .await;
         self.client
             .remove_container(
-                &self.container_id,
+                &id,
                 Some(RemoveContainerOptions {
                     force: true,
                     v: true,
@@ -324,7 +358,7 @@ impl Vm for DockerVm {
                 }),
             )
             .await
-            .with_context(|| format!("removing container '{}'", self.container_id))?;
+            .with_context(|| format!("removing container '{id}'"))?;
         Ok(())
     }
 }
