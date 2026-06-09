@@ -146,8 +146,8 @@ jobs:
         working-directory: crates/hm-dsl-engine/harmont-ts
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if npm view harmont@"$VERSION" version 2>/dev/null; then
-            echo "harmont@$VERSION already published, skipping"
+          if npm view @harmont/hm@"$VERSION" version 2>/dev/null; then
+            echo "@harmont/hm@$VERSION already published, skipping"
           else
             npm publish --access public
           fi
