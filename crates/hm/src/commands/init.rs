@@ -6,6 +6,7 @@ use hm_dsl_engine::detect;
 use crate::cli::init::{InitArgs, TemplateKind};
 
 const SKILL_VALIDATE_CI: &str = include_str!("init_templates/skill_validate_ci.md");
+const SKILL_WRITE_PIPELINE: &str = include_str!("init_templates/skill_write_pipeline.md");
 
 struct Template {
     label: &'static str,
@@ -112,13 +113,19 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
 }
 
 fn write_skills(dir: &Path) -> Result<()> {
-    let skill_dir = dir.join(".claude/skills/validate-ci");
-    std::fs::create_dir_all(&skill_dir)
-        .with_context(|| format!("creating {}", skill_dir.display()))?;
-    let dest = skill_dir.join("SKILL.md");
-    std::fs::write(&dest, SKILL_VALIDATE_CI)
-        .with_context(|| format!("writing {}", dest.display()))?;
-    tracing::info!("installed Claude Code skill: .claude/skills/validate-ci/SKILL.md");
+    let skills: &[(&str, &str)] = &[
+        ("validate-ci", SKILL_VALIDATE_CI),
+        ("write-pipeline", SKILL_WRITE_PIPELINE),
+    ];
+    for (slug, content) in skills {
+        let skill_dir = dir.join(format!(".claude/skills/{slug}"));
+        std::fs::create_dir_all(&skill_dir)
+            .with_context(|| format!("creating {}", skill_dir.display()))?;
+        let dest = skill_dir.join("SKILL.md");
+        std::fs::write(&dest, content)
+            .with_context(|| format!("writing {}", dest.display()))?;
+        tracing::info!("installed Claude Code skill: .claude/skills/{slug}/SKILL.md");
+    }
     Ok(())
 }
 
@@ -142,8 +149,7 @@ fn ensure_gitignore_entry(dir: &Path, entry: &str) -> Result<()> {
 
 /// # Errors
 ///
-/// Returns an error if the target directory is unwritable or `.hm/`
-/// already exists without `--force`.
+/// Returns an error if the target directory is unwritable.
 #[allow(clippy::unused_async)]
 pub async fn handle(args: InitArgs) -> Result<()> {
     let interactive = args.template.is_none();
