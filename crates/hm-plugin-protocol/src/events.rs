@@ -36,6 +36,12 @@ pub enum BuildEvent {
         plan: PlanSummary,
         started_at: DateTime<Utc>,
     },
+    /// Emitted once, early, when the build has an identity. Replaces the
+    /// ad-hoc "Build #N submitted" log line. `watch_url` is `Some` for cloud.
+    BuildAccepted {
+        build: BuildRef,
+        watch_url: Option<String>,
+    },
     StepQueued {
         step_id: Uuid,
         key: String,
@@ -87,6 +93,16 @@ pub enum BuildEvent {
     },
 }
 
+/// Stable identity for a build, shared by `BuildAccepted` and `hm_exec::BuildOutcome`.
+/// Local builds have a `run_id` only; cloud builds also have `number`/`org`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+pub struct BuildRef {
+    pub run_id: Uuid,
+    pub number: Option<i64>,
+    pub org: Option<String>,
+    pub pipeline: String,
+}
+
 /// Compact summary of the resolved IR included in `BuildStart`. Lets
 /// output formatters print a header without needing the full pipeline.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
@@ -94,4 +110,26 @@ pub struct PlanSummary {
     pub step_count: usize,
     pub chain_count: usize,
     pub default_runner: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(clippy::unwrap_used)]
+    #[test]
+    fn build_accepted_round_trips() {
+        let ev = BuildEvent::BuildAccepted {
+            build: BuildRef {
+                run_id: uuid::Uuid::nil(),
+                number: Some(42),
+                org: Some("acme".into()),
+                pipeline: "ci".into(),
+            },
+            watch_url: Some("https://app.harmont.dev/acme/ci/builds/42".into()),
+        };
+        let s = serde_json::to_string(&ev).unwrap();
+        let back: BuildEvent = serde_json::from_str(&s).unwrap();
+        assert!(matches!(back, BuildEvent::BuildAccepted { .. }));
+    }
 }
