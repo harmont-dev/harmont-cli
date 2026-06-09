@@ -3,7 +3,7 @@ name: convert-gha
 description: Convert GitHub Actions workflows to Harmont pipelines. Use when the user has existing `.github/workflows/` YAML files and wants to migrate their CI to Harmont. Reads each workflow, maps GHA concepts to Harmont equivalents, explains differences, and delegates to the write-pipeline skill for the actual pipeline creation.
 ---
 
-Convert existing GitHub Actions workflows (`.github/workflows/*.yml`) into Harmont CI pipelines. This skill reads your GHA configuration, explains what maps directly and what changes, then uses the `write-pipeline` skill to produce the Harmont pipeline.
+Convert existing GitHub Actions workflows (`.github/workflows/*.yml` / `*.yaml`) into Harmont CI pipelines. This skill reads your GHA configuration, explains what maps directly and what changes, then uses the `write-pipeline` skill to produce the Harmont pipeline.
 
 ## When to use
 
