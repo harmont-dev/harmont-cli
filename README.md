@@ -276,14 +276,14 @@ hm run --cloud --org acme
 
 ### Config
 
-Config lives under `~/.harmont/`:
-
 | File | Mode | Contents |
 |------|------|----------|
-| `config.toml` | 0644 | `api_url`, `default_org`, `default_pipeline` |
-| `credentials.toml` | 0600 | bearer tokens keyed by API base URL |
+| `~/.config/hm/config.toml` | 0644 | `backend`, `[cloud]` (`org`, `api_url`), `[preferences]` (`format`, `auto_watch`) |
+| `~/.harmont/credentials.toml` | 0600 | bearer tokens keyed by API base URL |
 
-Override either with env vars: `HARMONT_API_URL`, `HARMONT_API_TOKEN`.
+Settings layer **defaults → user config → project `.hm/config.toml` → env**, so
+you can commit per-repo defaults and still override them locally. Env overrides:
+`HARMONT_API_URL`, `HARMONT_API_TOKEN`.
 
 ### Managing builds from the CLI
 
