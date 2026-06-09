@@ -14,7 +14,6 @@
 
 pub mod cli;
 pub mod settings;
-pub mod watch;
 
 mod auth;
 mod verbs;
