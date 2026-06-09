@@ -12,7 +12,7 @@ function exampleDirs(): string[] {
   return readdirSync(EXAMPLES_ROOT, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .filter((d) =>
-      existsSync(join(EXAMPLES_ROOT, d.name, ".harmont", "pipeline.ts")),
+      existsSync(join(EXAMPLES_ROOT, d.name, ".hm", "pipeline.ts")),
     )
     .map((d) => d.name)
     .sort();
@@ -30,11 +30,11 @@ describe("examples render to v0 IR", () => {
       const pipelinePath = join(
         EXAMPLES_ROOT,
         name,
-        ".harmont",
+        ".hm",
         "pipeline.ts",
       );
       const mod = await import(pipelinePath);
-      const definitions = mod.default;
+      const definitions = mod.default ?? mod.pipelines;
 
       expect(Array.isArray(definitions)).toBe(true);
       expect(definitions.length).toBeGreaterThan(0);

@@ -17,7 +17,7 @@ fn pipelines_emits_discovery_envelope() {
     }
 
     let dir = tempfile::tempdir().unwrap();
-    let harmont = dir.path().join(".harmont");
+    let harmont = dir.path().join(".hm");
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.py"),
@@ -50,7 +50,7 @@ def ci() -> hm.Step:
 fn pipelines_emits_empty_envelope_when_no_harmont_dir() {
     // A repo that declares no pipelines must yield an empty envelope, not an
     // error (the backend fans discovery across every repo in an installation,
-    // most of which carry no `.harmont/`). No python3 needed — this short-
+    // most of which carry no `.hm/`). No python3 needed — this short-
     // circuits before the DSL engine, so the test always runs.
     let dir = tempfile::tempdir().unwrap();
 

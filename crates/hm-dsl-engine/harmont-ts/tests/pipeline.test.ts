@@ -38,18 +38,18 @@ function parentKeyMap(ir: any): Record<string, string | null> {
 
 describe("pipeline", () => {
   it("returns v0 IR dict", () => {
-    const p = pipeline(scratch().sh("echo", { label: "echo" }));
+    const p = pipeline([scratch().sh("echo", { label: "echo" })]);
     expect(p.version).toBe("0");
     expect(p.graph).toBeDefined();
     expect(p.graph.nodes).toHaveLength(1);
   });
 
   it("rejects no leaves", () => {
-    expect(() => pipeline()).toThrow("at least one leaf");
+    expect(() => pipeline([])).toThrow("at least one leaf");
   });
 
   it("sets default_image on IR when provided", () => {
-    const p = pipeline(sh("echo", { label: "a", image: "ubuntu:24.04" }), {
+    const p = pipeline([sh("echo", { label: "a", image: "ubuntu:24.04" })], {
       defaultImage: "alpine:3.20",
     });
     expect(p.default_image).toBe("alpine:3.20");
@@ -62,7 +62,7 @@ describe("lowering: single chain", () => {
     const a = scratch().sh("step a", { label: "a" });
     const b = a.sh("step b", { label: "b" });
     const c = b.sh("step c", { label: "c" });
-    const ir = pipeline(c);
+    const ir = pipeline([c]);
     expect(stepKeys(ir)).toEqual(["a", "b", "c"]);
     const parents = parentKeyMap(ir);
     expect(parents.a).toBeNull();
@@ -76,7 +76,7 @@ describe("lowering: fork", () => {
     const base = scratch().sh("install", { label: "install" });
     const branch = base.fork({ label: "branch-a" });
     const leaf = branch.sh("test", { label: "test" });
-    const ir = pipeline(leaf);
+    const ir = pipeline([leaf]);
     expect(stepKeys(ir)).toEqual(["install", "test"]);
     const parents = parentKeyMap(ir);
     expect(parents.install).toBeNull();
@@ -87,7 +87,7 @@ describe("lowering: fork", () => {
     const base = scratch().sh("install", { label: "install" });
     const a = base.fork().sh("test-a", { label: "test-a" });
     const b = base.fork().sh("test-b", { label: "test-b" });
-    const ir = pipeline(a, b);
+    const ir = pipeline([a, b]);
     const parents = parentKeyMap(ir);
     expect(parents["test-a"]).toBe("install");
     expect(parents["test-b"]).toBe("install");
@@ -99,7 +99,7 @@ describe("lowering: wait", () => {
     const a = scratch().sh("a", { label: "a" });
     const b = scratch().sh("b", { label: "b" });
     const c = scratch().sh("c", { label: "c" });
-    const ir = pipeline(a, b, wait(), c);
+    const ir = pipeline([a, b, wait(), c]);
     const keys = stepKeys(ir);
     const idxA = keys.indexOf("a");
     const idxB = keys.indexOf("b");
@@ -113,13 +113,13 @@ describe("lowering: wait", () => {
 describe("lowering: env merge", () => {
   it("merges pipeline env with per-step env", () => {
     const s = scratch().sh("make", { env: { STEP: "1" } });
-    const ir = pipeline(s, { env: { PIPE: "true" } });
+    const ir = pipeline([s], { env: { PIPE: "true" } });
     expect(ir.graph.nodes[0].env).toEqual({ PIPE: "true", STEP: "1" });
   });
 
   it("step env overrides pipeline env", () => {
     const s = scratch().sh("make", { env: { X: "step" } });
-    const ir = pipeline(s, { env: { X: "pipe" } });
+    const ir = pipeline([s], { env: { X: "pipe" } });
     expect(ir.graph.nodes[0].env.X).toBe("step");
   });
 });
@@ -127,7 +127,7 @@ describe("lowering: env merge", () => {
 describe("lowering: optional fields", () => {
   it("omits label/timeout/cache when unset", () => {
     const s = scratch().sh("make");
-    const ir = pipeline(s);
+    const ir = pipeline([s]);
     const step = ir.graph.nodes[0].step;
     expect(step.key).toBeDefined();
     expect(step.cmd).toBe("make");
@@ -142,7 +142,7 @@ describe("lowering: optional fields", () => {
       timeoutSeconds: 600,
       cache: forever(),
     });
-    const ir = pipeline(s);
+    const ir = pipeline([s]);
     const step = ir.graph.nodes[0].step;
     expect(step.label).toBe("build");
     expect(step.timeout_seconds).toBe(600);
@@ -153,7 +153,7 @@ describe("lowering: optional fields", () => {
 describe("lowering: cache serialization", () => {
   it("serializes forever cache", () => {
     const s = sh("echo", { cache: forever({ envKeys: ["CI"] }) });
-    const ir = pipeline(s);
+    const ir = pipeline([s]);
     expect(ir.graph.nodes[0].step.cache).toEqual({
       policy: "forever",
       env_keys: ["CI"],
@@ -162,7 +162,7 @@ describe("lowering: cache serialization", () => {
 
   it("serializes onChange cache", () => {
     const s = sh("echo", { cache: onChange("src/", "lib/") });
-    const ir = pipeline(s);
+    const ir = pipeline([s]);
     expect(ir.graph.nodes[0].step.cache).toEqual({
       policy: "on_change",
       paths: ["src/", "lib/"],
@@ -175,7 +175,7 @@ describe("lowering: dedup", () => {
     const base = scratch().sh("install", { label: "install" });
     const a = base.sh("a", { label: "a" });
     const b = base.sh("b", { label: "b" });
-    const ir = pipeline(a, b);
+    const ir = pipeline([a, b]);
     const keys = stepKeys(ir);
     expect(keys.filter((k) => k === "install")).toHaveLength(1);
   });
@@ -184,20 +184,20 @@ describe("lowering: dedup", () => {
 describe("lowering: default_image", () => {
   it("applies default_image to root nodes without explicit image", () => {
     const s = scratch().sh("echo");
-    const ir = pipeline(s, { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
     expect(ir.graph.nodes[0].step.image).toBe("ubuntu:24.04");
   });
 
   it("does not override explicit image", () => {
     const s = scratch().sh("echo", { image: "alpine:3.20" });
-    const ir = pipeline(s, { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
     expect(ir.graph.nodes[0].step.image).toBe("alpine:3.20");
   });
 
   it("does not apply to child nodes with builds_in parent", () => {
     const parent = scratch().sh("a", { label: "a" });
     const child = parent.sh("b", { label: "b" });
-    const ir = pipeline(child, { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([child], { defaultImage: "ubuntu:24.04" });
     expect(ir.graph.nodes[0].step.image).toBe("ubuntu:24.04");
     expect("image" in ir.graph.nodes[1].step).toBe(false);
   });
@@ -206,7 +206,7 @@ describe("lowering: default_image", () => {
 describe("lowering: graph structure", () => {
   it("emits petgraph-serde structure", () => {
     const s = scratch().sh("echo", { label: "hello" });
-    const ir = pipeline(s);
+    const ir = pipeline([s]);
     expect(ir.graph.node_holes).toEqual([]);
     expect(ir.graph.edge_property).toBe("directed");
   });

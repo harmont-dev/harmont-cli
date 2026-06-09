@@ -1,0 +1,113 @@
+{
+  "default_image": "ubuntu:24.04",
+  "graph": {
+    "edge_property": "directed",
+    "edges": [
+      [
+        0,
+        1,
+        "builds_in"
+      ],
+      [
+        1,
+        2,
+        "builds_in"
+      ],
+      [
+        2,
+        3,
+        "builds_in"
+      ],
+      [
+        2,
+        4,
+        "builds_in"
+      ],
+      [
+        1,
+        5,
+        "builds_in"
+      ]
+    ],
+    "node_holes": [],
+    "nodes": [
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "duration_seconds": 86400,
+            "env_keys": [],
+            "policy": "ttl"
+          },
+          "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy clang-18 lld-18",
+          "image": "ubuntu:24.04",
+          "key": "apt-base",
+          "label": ":cmake: apt-base"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "env_keys": [],
+            "policy": "forever"
+          },
+          "cmd": "cmake --version && ninja --version && ccache --version && clang-18 --version",
+          "key": "verify",
+          "label": ":cmake: verify"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cache": {
+            "paths": [
+              "CMakeLists.txt"
+            ],
+            "policy": "on_change"
+          },
+          "cmd": "cd . && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20 && cmake --build build --parallel $(nproc)",
+          "key": "build",
+          "label": ":cmake: build"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cmake --build ./build --parallel $(nproc) && ctest --test-dir ./build --output-on-failure --parallel $(nproc)",
+          "key": "test",
+          "label": ":cmake: test"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd . && run-clang-tidy -p build",
+          "key": "lint",
+          "label": ":cmake: lint"
+        }
+      },
+      {
+        "env": {
+          "CI": "true"
+        },
+        "step": {
+          "cmd": "cd . && find . -not -path './build/*' -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' | xargs clang-format --dry-run --Werror",
+          "key": "fmt",
+          "label": ":cmake: fmt"
+        }
+      }
+    ]
+  },
+  "version": "0"
+}

@@ -4,18 +4,18 @@ use anyhow::{Context, bail};
 
 use crate::DslLanguage;
 
-/// Detect the DSL language used in a project by scanning `.harmont/` for file
+/// Detect the DSL language used in a project by scanning `.hm/` for file
 /// extensions. Prefers **TypeScript** when both are present (the `hm run`
 /// default).
 ///
 /// # Errors
 ///
-/// - The `.harmont/` directory does not exist.
-/// - No `.py` or `.ts` files are found inside `.harmont/`.
+/// - The `.hm/` directory does not exist.
+/// - No `.py` or `.ts` files are found inside `.hm/`.
 pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
-    let harmont_dir = repo_root.join(".harmont");
+    let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
-        bail!("no .harmont/ directory found in {}", repo_root.display());
+        bail!("no .hm/ directory found in {}", repo_root.display());
     }
     match scan_extensions(repo_root)? {
         // When both languages are present, prefer TypeScript.
@@ -35,12 +35,12 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
 ///
 /// # Errors
 ///
-/// - The `.harmont/` directory does not exist.
-/// - No `.py` or `.ts` files are found inside `.harmont/`.
+/// - The `.hm/` directory does not exist.
+/// - No `.py` or `.ts` files are found inside `.hm/`.
 pub fn detect_language_python_first(repo_root: &Path) -> anyhow::Result<DslLanguage> {
-    let harmont_dir = repo_root.join(".harmont");
+    let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
-        bail!("no .harmont/ directory found in {}", repo_root.display());
+        bail!("no .hm/ directory found in {}", repo_root.display());
     }
     match scan_extensions(repo_root)? {
         (true, _) => Ok(DslLanguage::Python),
@@ -49,7 +49,7 @@ pub fn detect_language_python_first(repo_root: &Path) -> anyhow::Result<DslLangu
     }
 }
 
-/// True when `.harmont/` exists and holds at least one `.py` or `.ts` file.
+/// True when `.hm/` exists and holds at least one `.py` or `.ts` file.
 ///
 /// The backend fans pipeline discovery out across every repo in an
 /// installation, most of which declare no pipelines at all. Those repos should
@@ -60,10 +60,10 @@ pub fn has_pipeline_files(repo_root: &Path) -> bool {
     matches!(scan_extensions(repo_root), Ok((py, ts)) if py || ts)
 }
 
-/// Scan `.harmont/` and report `(has_py, has_ts)`. A missing `.harmont/`
+/// Scan `.hm/` and report `(has_py, has_ts)`. A missing `.hm/`
 /// directory yields `(false, false)`; an unreadable one is an error.
 fn scan_extensions(repo_root: &Path) -> anyhow::Result<(bool, bool)> {
-    let harmont_dir = repo_root.join(".harmont");
+    let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
         return Ok((false, false));
     }
@@ -91,11 +91,11 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    /// Helper: create a temp dir with `.harmont/` and the given filenames inside
+    /// Helper: create a temp dir with `.hm/` and the given filenames inside
     /// it.
     fn setup(files: &[&str]) -> TempDir {
         let tmp = TempDir::new().unwrap();
-        let harmont = tmp.path().join(".harmont");
+        let harmont = tmp.path().join(".hm");
         fs::create_dir(&harmont).unwrap();
         for name in files {
             fs::write(harmont.join(name), "").unwrap();
@@ -127,11 +127,11 @@ mod tests {
     #[test]
     fn no_harmont_dir_is_error() {
         let tmp = TempDir::new().unwrap();
-        // Do NOT create .harmont/
+        // Do NOT create .hm/
         let err = detect_language(tmp.path()).unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("no .harmont/ directory"),
+            msg.contains("no .hm/ directory"),
             "unexpected error: {msg}"
         );
     }
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn empty_harmont_dir_is_error() {
         let tmp = TempDir::new().unwrap();
-        fs::create_dir(tmp.path().join(".harmont")).unwrap();
+        fs::create_dir(tmp.path().join(".hm")).unwrap();
         let err = detect_language(tmp.path()).unwrap_err();
         let msg = err.to_string();
         assert!(
@@ -171,7 +171,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let err = detect_language_python_first(tmp.path()).unwrap_err();
         assert!(
-            err.to_string().contains("no .harmont/ directory"),
+            err.to_string().contains("no .hm/ directory"),
             "unexpected error: {err}"
         );
     }
@@ -185,9 +185,9 @@ mod tests {
 
     #[test]
     fn has_pipeline_files_false_for_missing_or_empty_harmont() {
-        // No .harmont/ directory at all.
+        // No .hm/ directory at all.
         assert!(!has_pipeline_files(TempDir::new().unwrap().path()));
-        // .harmont/ exists but declares no .py/.ts files.
+        // .hm/ exists but declares no .py/.ts files.
         assert!(!has_pipeline_files(setup(&["README.md"]).path()));
     }
 }

@@ -1,6 +1,6 @@
 # Harmont examples
 
-Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Every example lives in its own subdirectory with a `.harmont/pipeline.py` you can read, copy, and run via `hm run <slug> --local`.
+Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Every example lives in its own subdirectory with a `.hm/pipeline.py` you can read, copy, and run via `hm run <slug> --local`.
 
 | Example | Toolchain | Pipeline |
 |---|---|---|
@@ -19,7 +19,7 @@ Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Ever
 ## How to run an example locally
 
 1. Install the Harmont CLI (`cli/` in this repo, or `cargo install harmont-cli` once published).
-2. `cd examples/<lang>` and run `hm run ci --local`. The CLI uses the project's `.harmont/pipeline.py` and executes each step in a local Docker container, sharing caches across runs.
+2. `cd examples/<lang>` and run `hm run ci --local`. The CLI uses the project's `.hm/pipeline.py` and executes each step in a local Docker container, sharing caches across runs.
 
 Every pipeline uses `default_image="ubuntu:24.04"` and the apt-base / language-install steps are cached forever — only the action leaves (`test`, `lint`, etc.) re-run after a code change.
 

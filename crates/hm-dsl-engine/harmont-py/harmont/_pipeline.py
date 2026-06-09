@@ -28,7 +28,8 @@ if TYPE_CHECKING:
 
 
 def pipeline(
-    *leaves: Step,
+    leaves: list[Step] | tuple[Step, ...],
+    *,
     env: dict[str, str] | None = None,
     default_image: str | None = None,
 ) -> dict[str, Any]:
@@ -41,7 +42,7 @@ def pipeline(
     if not leaves:
         msg = (
             "pipeline must have at least one leaf — "
-            "pass the terminal step(s) of each branch as positional args"
+            "pass the terminal step(s) of each branch in the first argument"
         )
         raise ValueError(msg)
     out: dict[str, Any] = {"version": "0"}

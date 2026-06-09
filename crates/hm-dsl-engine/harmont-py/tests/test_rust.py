@@ -26,7 +26,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 class TestRustToolchain:
     def test_full_chain(self):
         tc = hm.rust.toolchain(path="cli")
-        p = hm.pipeline(tc.build(), default_image="ubuntu:24.04")
+        p = hm.pipeline([tc.build()], default_image="ubuntu:24.04")
         cmds = _cmds(p)
         assert any("apt-get install" in c for c in cmds)
         assert any("sh.rustup.rs" in c for c in cmds)
@@ -35,11 +35,7 @@ class TestRustToolchain:
     def test_actions_share_install_step(self):
         tc = hm.rust.toolchain(path="cli")
         p = hm.pipeline(
-            tc.build(),
-            tc.test(),
-            tc.clippy(),
-            tc.fmt(),
-            tc.doc(),
+            [tc.build(), tc.test(), tc.clippy(), tc.fmt(), tc.doc()],
             default_image="ubuntu:24.04",
         )
         cmds = _cmds(p)
@@ -58,26 +54,26 @@ class TestRustToolchain:
 
     def test_rustup_cache_forever(self):
         tc = hm.rust.toolchain(path="cli")
-        p = hm.pipeline(tc.build())
+        p = hm.pipeline([tc.build()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
         assert rustup["cache"]["policy"] == "forever"
 
     def test_default_components(self):
         tc = hm.rust.toolchain(path=".")
-        p = hm.pipeline(tc.build())
+        p = hm.pipeline([tc.build()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
         assert "--component clippy,rustfmt" in rustup["cmd"]
 
     def test_components_override(self):
         tc = hm.rust.toolchain(path=".", components=("clippy",))
-        p = hm.pipeline(tc.build())
+        p = hm.pipeline([tc.build()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
         assert "--component clippy" in rustup["cmd"]
         assert "rustfmt" not in rustup["cmd"]
 
     def test_version_in_rustup_cmd(self):
         tc = hm.rust.toolchain(path=".", version="1.81.0")
-        p = hm.pipeline(tc.build())
+        p = hm.pipeline([tc.build()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
         assert "--default-toolchain 1.81.0" in rustup["cmd"]
 
@@ -91,7 +87,7 @@ class TestRustToolchain:
             "cd cli && cargo build --release --features foo",
             label=":rust: custom",
         )
-        p = hm.pipeline(custom)
+        p = hm.pipeline([custom])
         cmds = _cmds(p)
         assert any("--features foo" in c for c in cmds)
 
@@ -115,14 +111,14 @@ class TestRustToolchain:
 
     def test_image_emitted_on_apt_step(self):
         tc = hm.rust.toolchain(path=".", image="alpine:3.20")
-        p = hm.pipeline(tc.build())
+        p = hm.pipeline([tc.build()])
         apt = _step_by_substring(p, "apt-get install")
         assert apt.get("image") == "alpine:3.20"
 
     def test_with_base_skips_apt(self):
         base = hm.scratch().sh("custom base", label="base")
         tc = hm.rust.toolchain(path="cli", base=base)
-        p = hm.pipeline(tc.build(), default_image="ubuntu:24.04")
+        p = hm.pipeline([tc.build()], default_image="ubuntu:24.04")
         cmds = _cmds(p)
         assert not any("apt-get install" in c for c in cmds)
         assert any("custom base" in c for c in cmds)
@@ -155,7 +151,7 @@ class TestRustToolchain:
             ". $HOME/.cargo/env && cd cli && cargo test --workspace --locked",
             label=":rust: test",
         )
-        p = hm.pipeline(t, tc.fmt(), default_image="ubuntu:24.04")
+        p = hm.pipeline([t, tc.fmt()], default_image="ubuntu:24.04")
         cmds = _cmds(p)
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
@@ -234,7 +230,7 @@ class TestRustProject:
     def test_with_base_skips_apt(self):
         base = hm.scratch().sh("custom base", label="base")
         proj = hm.rust.project(path="cli", base=base)
-        p = hm.pipeline(proj.test(), proj.clippy(), proj.fmt(), default_image="ubuntu:24.04")
+        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()], default_image="ubuntu:24.04")
         cmds = _cmds(p)
         assert not any("apt-get install" in c for c in cmds)
         assert any("custom base" in c for c in cmds)
@@ -248,7 +244,7 @@ class TestRustProject:
 
     def test_pipeline_ir(self):
         proj = hm.rust.project(path="cli")
-        p = hm.pipeline(proj.test(), proj.clippy(), proj.fmt(), default_image="ubuntu:24.04")
+        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()], default_image="ubuntu:24.04")
         cmds = _cmds(p)
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
@@ -259,6 +255,6 @@ class TestRustProject:
 
     def test_version_forwarded(self):
         proj = hm.rust.project(path=".", version="1.81.0")
-        p = hm.pipeline(proj.test())
+        p = hm.pipeline([proj.test()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
         assert "--default-toolchain 1.81.0" in rustup["cmd"]

@@ -8,13 +8,12 @@ The whole public surface:
     Step.fork(label=None)    -> Step
     wait(*, continue_on_failure=False) -> Step
 
-    pipeline(*leaves, env=None, default_image=None) -> dict (v0 IR)
+    pipeline(leaves, *, env=None, default_image=None) -> dict (v0 IR)
     pipeline_to_json(p, **kw) -> str
 
     @pipeline(slug, ..., triggers=[...], allow_manual=True)  -> decorator
     push(branch=..., tag=...)         -> PushTrigger
     pull_request(branches=..., types=...) -> PullRequestTrigger
-    schedule(cron=...)                 -> ScheduleTrigger
     dump_registry_json()              -> str  (HAR-9 envelope)
 
 Cache helpers: `ttl`, `on_change`, `forever`, `compose`.
@@ -30,11 +29,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from . import _decorator, py
-from ._bun import bun
-from ._cmake import cmake
+from ._cmake import CMakeProject, CMakeToolchain, cmake
+from ._elixir import elixir
 from ._envelope import dump_registry_json
 from ._go import go
-from ._npm import npm
+from ._js import JsProject, js, ts
 from ._pipeline import pipeline as _pipeline_factory
 from ._pipeline import pipeline_to_json
 from ._python import python
@@ -53,7 +52,7 @@ from .cache import (
     CachePolicy,
     CacheTTL,
 )
-from .triggers import pull_request, push, schedule
+from .triggers import pull_request, push
 from .triggers import pull_request as pr
 from .types import Pipeline
 
@@ -66,9 +65,9 @@ def pipeline(*args: Any, **kwargs: Any) -> Any:
 
     This function is polymorphic based on the type of its positional arguments.
 
-    Factory form — every positional is a ``Step``:
+    Factory form — first positional is a list/tuple of ``Step``s:
 
-        pipeline(*leaves, env=None, default_image=None) -> dict
+        pipeline([step1, step2, ...], env=None, default_image=None) -> dict
 
     Decorator form — no positionals or a string slug:
 
@@ -76,16 +75,15 @@ def pipeline(*args: Any, **kwargs: Any) -> Any:
                   env=None, default_image=None)
         def my_pipeline() -> Step: ...
 
-    The decorator registers the wrapped function in the module-level
-    pipeline registry (HAR-9). The discriminant is the type of the
-    positional arguments: any non-``Step`` positional (including a string
-    slug, or no positional at all) routes to the decorator path.
+    The discriminant is the type of the first positional argument:
+    a list or tuple routes to the factory path; anything else
+    (including no positionals) routes to the decorator path.
 
     Returns:
         A v0 IR ``dict`` in factory form, or a decorator in decorator form.
     """
-    if args and all(isinstance(a, Step) for a in args):
-        return _pipeline_factory(*args, **kwargs)
+    if args and isinstance(args[0], (list, tuple)):
+        return _pipeline_factory(args[0], **kwargs)
     return _decorator.pipeline(*args, **kwargs)
 
 
@@ -246,25 +244,28 @@ def group(steps: list[Step] | tuple[Step, ...]) -> tuple[Step, ...]:
 
 __all__ = [
     "BaseImage",
+    "CMakeProject",
+    "CMakeToolchain",
     "CacheCompose",
     "CacheForever",
     "CacheNone",
     "CacheOnChange",
     "CachePolicy",
     "CacheTTL",
+    "JsProject",
     "Pipeline",
     "RustProject",
     "Step",
     "Target",
     "apt_base",
-    "bun",
     "cmake",
     "compose",
     "dump_registry_json",
+    "elixir",
     "forever",
     "go",
     "group",
-    "npm",
+    "js",
     "on_change",
     "pipeline",
     "pipeline_to_json",
@@ -275,10 +276,10 @@ __all__ = [
     "python",
     "ruby",
     "rust",
-    "schedule",
     "scratch",
     "sh",
     "target",
+    "ts",
     "ttl",
     "wait",
     "zig",

@@ -23,27 +23,17 @@ interface GraphNode {
   env: Record<string, string>;
 }
 
-export function pipeline(...args: (Step | PipelineOptions)[]): PipelineIR {
-  if (args.length === 0) {
-    throw new Error(
-      "pipeline must have at least one leaf — pass the terminal step(s) of each branch as positional args",
-    );
-  }
-
-  let leaves: Step[];
-  let opts: PipelineOptions | undefined;
-
-  const last = args[args.length - 1];
-  if (last && typeof last === "object" && !("_id" in last)) {
-    opts = last as PipelineOptions;
-    leaves = args.slice(0, -1) as Step[];
-  } else {
-    leaves = args as Step[];
+export function pipeline(
+  leaves: Step[],
+  opts?: PipelineOptions,
+): PipelineIR {
+  if (!Array.isArray(leaves)) {
+    throw new Error("pipeline() expects an array of steps as its first argument");
   }
 
   if (leaves.length === 0) {
     throw new Error(
-      "pipeline must have at least one leaf — pass the terminal step(s) of each branch as positional args",
+      "pipeline must have at least one leaf — pass the terminal step(s) of each branch as the first argument",
     );
   }
 
