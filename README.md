@@ -199,6 +199,48 @@ maps it over for you:
 
 The result is a pipeline you can run **locally** before it ever hits CI.
 
+## How it works
+
+**Automatic layer caching.** Every step's result is committed as a Docker
+snapshot, keyed deterministically from the step and its inputs. Re-run a
+pipeline and only the steps whose inputs changed actually execute — everything
+else is restored from cache. You can tune this per step in the DSL:
+
+```python
+hm.forever()                 # cache until inputs change
+hm.ttl(timedelta(hours=6))   # cache for a window
+hm.on_change("src/")         # rebuild when these paths change
+```
+
+**DAG parallelism.** `hm` builds a dependency graph from your pipeline and runs
+independent chains concurrently. Use `.fork()` to branch and `hm.wait()` to
+join. Control concurrency with `--parallelism N` (defaults to your CPU count).
+
+**Run everything, even after a failure.** Pass `-k` / `--keep-going` and
+independent chains keep running after one step fails, so you see *all* failures
+in a single run instead of one at a time.
+
+```sh
+hm run ci -k
+```
+
+**Timeouts.** Bound a single step or the whole pipeline:
+
+```python
+hm.timeout("5m", project.test())          # per-step
+@hm.pipeline("ci", timeout="30m")          # whole pipeline
+```
+
+**Machine-readable output.** `--format json` emits one `BuildEvent` per line
+(NDJSON) on stdout — identical whether the build runs locally or in the cloud —
+so the same wrapper script parses both:
+
+```sh
+hm run ci --format json
+```
+
+Prefer raw logs over progress bars? Add `--logs`.
+
 ## Cloud (`hm run --cloud`)
 
 `hm run --cloud` runs your **local working tree** in Harmont Cloud without
