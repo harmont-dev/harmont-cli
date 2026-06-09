@@ -12,4 +12,7 @@ pub use request::{Plan, RunOptions, RunRequest, SourceMeta};
 mod outcome;
 pub use outcome::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};
 
+mod capabilities;
+pub use capabilities::Capabilities;
+
 pub use hm_plugin_protocol::events::BuildRef;
