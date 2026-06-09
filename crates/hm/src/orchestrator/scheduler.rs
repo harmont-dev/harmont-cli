@@ -25,7 +25,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use daggy::petgraph::algo::toposort;
 use daggy::{Dag, NodeIndex, Walker};
@@ -335,6 +335,10 @@ async fn execute_step(
         .unwrap_or("docker")
         .to_owned();
 
+    // Capture the per-step wall-clock budget before `input` is moved
+    // into the runner below.
+    let step_timeout_secs = input.step.timeout_seconds;
+
     let started = Instant::now();
     bus.emit(BuildEvent::StepStart {
         step_id,
@@ -354,7 +358,39 @@ async fn execute_step(
                 .collect(),
         })?;
 
-    let result: Result<StepResult> = runner.execute(&run_ctx, input).await;
+    let exec = runner.execute(&run_ctx, input);
+    let result: Result<StepResult> = match step_timeout_secs {
+        Some(secs) if secs > 0 => {
+            match tokio::time::timeout(Duration::from_secs(u64::from(secs)), exec).await {
+                Ok(r) => r,
+                Err(_elapsed) => {
+                    // Per-step wall-clock budget exceeded. Emit a step-end with the
+                    // conventional timeout exit code (124), fail the chain, and
+                    // cancel siblings — same shape as a non-zero exit below.
+                    bus.emit(BuildEvent::StepEnd {
+                        step_id,
+                        exit_code: 124,
+                        duration_ms: started.elapsed().as_millis() as u64,
+                        snapshot: None,
+                    });
+                    bus.emit(BuildEvent::ChainFailed {
+                        chain_idx: chain_id,
+                        failed_step_id: step_id,
+                        failed_step_key: step_key.clone(),
+                        exit_code: 124,
+                        message: format!("step '{step_key}' timed out after {secs}s"),
+                        ts: chrono::Utc::now(),
+                    });
+                    cancel.cancel();
+                    return Ok(StepOutcome {
+                        exit_code: 124,
+                        snapshot: None,
+                    });
+                }
+            }
+        }
+        _ => exec.await,
+    };
 
     let dur_ms = started.elapsed().as_millis() as u64;
     match result {
