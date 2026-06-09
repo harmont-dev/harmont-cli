@@ -40,25 +40,22 @@ pub async fn handle_clean() -> Result<i32> {
     // Legacy: pre-unification config + cache lived in ~/.harmont/. It's defunct
     // now (config + creds moved to ~/.config/hm, cache to ~/.cache/hm), so best-
     // effort remove it to reclaim disk. Current code never creates it again.
-    let legacy_cleaned = if let Some(home) = dirs::home_dir() {
+    let legacy_cleaned = dirs::home_dir().is_some_and(|home| {
         let legacy = home.join(".harmont");
-        if legacy.is_dir() {
-            match std::fs::remove_dir_all(&legacy) {
-                Ok(()) => {
-                    tracing::info!(path = %legacy.display(), "removed legacy ~/.harmont/ directory");
-                    true
-                }
-                Err(e) => {
-                    tracing::warn!(path = %legacy.display(), "could not remove legacy directory: {e}");
-                    false
-                }
-            }
-        } else {
-            false
+        if !legacy.is_dir() {
+            return false;
         }
-    } else {
-        false
-    };
+        match std::fs::remove_dir_all(&legacy) {
+            Ok(()) => {
+                tracing::info!(path = %legacy.display(), "removed legacy ~/.harmont/ directory");
+                true
+            }
+            Err(e) => {
+                tracing::warn!(path = %legacy.display(), "could not remove legacy directory: {e}");
+                false
+            }
+        }
+    });
 
     if !ws_cleaned && !db_cleaned && !legacy_cleaned {
         tracing::info!("nothing to clean");
