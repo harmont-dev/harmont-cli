@@ -9,4 +9,4 @@ cd examples/nextjs
 hm run ci --local
 ```
 
-See `.harmont/pipeline.py` for the definition; `examples/README.md` for the full index.
+See `.hm/pipeline.py` for the definition; `examples/README.md` for the full index.

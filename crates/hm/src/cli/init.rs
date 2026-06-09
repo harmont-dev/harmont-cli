@@ -23,7 +23,7 @@ pub struct InitArgs {
     #[arg(short, long, default_value = ".")]
     pub dir: PathBuf,
 
-    /// Overwrite existing .harmont/ directory.
+    /// Overwrite existing .hm/ directory.
     #[arg(long)]
     pub force: bool,
 }

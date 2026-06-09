@@ -36,7 +36,7 @@ import { join, resolve } from 'node:path';
 const projectDir = process.argv[2];
 const mode = process.argv[3];       // "list" or "render"
 const slug = process.argv[4] || null;
-const harmontDir = join(projectDir, '.harmont');
+const harmontDir = join(projectDir, '.hm');
 
 const tsFiles = readdirSync(harmontDir)
   .filter(f => f.endsWith('.ts'))
@@ -153,10 +153,10 @@ impl SubprocessTsEngine {
         let runner_path = tmp.path().join("runner.mjs");
 
         // Node ESM resolves bare specifiers relative to the importing file,
-        // ignoring NODE_PATH.  User .ts files live under <project>/.harmont/,
+        // ignoring NODE_PATH.  User .ts files live under <project>/.hm/,
         // so we place a node_modules/harmont symlink there so `import 'harmont'`
         // resolves.  Cleaned up after the subprocess finishes.
-        let harmont_dir = project_dir.join(".harmont");
+        let harmont_dir = project_dir.join(".hm");
         let local_nm = harmont_dir.join("node_modules");
         let local_pkg = local_nm.join("harmont");
 
@@ -164,14 +164,14 @@ impl SubprocessTsEngine {
             let created_local_nm = !local_nm.exists();
 
             std::fs::create_dir_all(&local_nm)
-                .context("creating .harmont/node_modules for module resolution")?;
+                .context("creating .hm/node_modules for module resolution")?;
 
             let src = tmp.path().join("node_modules/harmont");
 
             #[cfg(unix)]
             {
                 std::os::unix::fs::symlink(&src, &local_pkg)
-                    .context("symlinking harmont package into .harmont/node_modules")?;
+                    .context("symlinking harmont package into .hm/node_modules")?;
             }
             #[cfg(not(unix))]
             {

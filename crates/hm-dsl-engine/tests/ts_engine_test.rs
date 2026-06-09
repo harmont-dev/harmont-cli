@@ -14,7 +14,7 @@ async fn typescript_roundtrip() {
     }
 
     let dir = tempfile::tempdir().unwrap();
-    let harmont = dir.path().join(".harmont");
+    let harmont = dir.path().join(".hm");
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.ts"),
@@ -54,7 +54,7 @@ async fn typescript_named_export() {
     }
 
     let dir = tempfile::tempdir().unwrap();
-    let harmont = dir.path().join(".harmont");
+    let harmont = dir.path().join(".hm");
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.ts"),

@@ -6,7 +6,7 @@ use hm_dsl_engine::{detect, engine_for};
 
 #[derive(Debug, Clone, Parser)]
 pub struct PipelinesArgs {
-    /// Source root containing `.harmont/` (defaults to cwd).
+    /// Source root containing `.hm/` (defaults to cwd).
     #[arg(short, long)]
     pub dir: Option<PathBuf>,
 }
@@ -18,7 +18,7 @@ const EMPTY_ENVELOPE: &str = r#"{"schema_version":"1","pipelines":[]}"#;
 
 /// Print the discovery envelope JSON (all pipelines) to stdout.
 ///
-/// A repo with no `.harmont/` directory (or one with no `.py`/`.ts` files)
+/// A repo with no `.hm/` directory (or one with no `.py`/`.ts` files)
 /// declares no pipelines and yields the empty envelope rather than an error —
 /// the backend fans discovery out across every repo in an installation, most of
 /// which carry no pipelines. When both Python and TypeScript are present, Python

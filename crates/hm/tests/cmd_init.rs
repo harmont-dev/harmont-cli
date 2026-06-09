@@ -1,4 +1,4 @@
-//! `hm init` scaffolds a `.harmont/` pipeline from a project template.
+//! `hm init` scaffolds a `.hm/` pipeline from a project template.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,7 +19,7 @@ fn init_rust_creates_pipeline_py() {
         .assert()
         .success();
 
-    let pipeline = dir.path().join(".harmont/pipeline.py");
+    let pipeline = dir.path().join(".hm/pipeline.py");
     assert!(pipeline.exists(), "expected {}", pipeline.display());
 
     let content = std::fs::read_to_string(&pipeline).unwrap();
@@ -35,7 +35,7 @@ fn init_zig_creates_pipeline_ts() {
         .assert()
         .success();
 
-    let pipeline = dir.path().join(".harmont/pipeline.ts");
+    let pipeline = dir.path().join(".hm/pipeline.ts");
     assert!(pipeline.exists(), "expected {}", pipeline.display());
 
     let content = std::fs::read_to_string(&pipeline).unwrap();
@@ -46,19 +46,19 @@ fn init_zig_creates_pipeline_ts() {
 #[test]
 fn init_fails_on_existing_harmont_dir() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir(dir.path().join(".harmont")).unwrap();
+    std::fs::create_dir(dir.path().join(".hm")).unwrap();
 
     hm().args(["init", "--template", "rust", "--dir"])
         .arg(dir.path())
         .assert()
         .failure()
-        .stderr(contains(".harmont"));
+        .stderr(contains(".hm"));
 }
 
 #[test]
 fn init_force_overwrites_existing() {
     let dir = tempfile::tempdir().unwrap();
-    let harmont = dir.path().join(".harmont");
+    let harmont = dir.path().join(".hm");
     std::fs::create_dir(&harmont).unwrap();
     std::fs::write(harmont.join("old.py"), "# old").unwrap();
 
@@ -67,7 +67,7 @@ fn init_force_overwrites_existing() {
         .assert()
         .success();
 
-    assert!(dir.path().join(".harmont/pipeline.py").exists());
+    assert!(dir.path().join(".hm/pipeline.py").exists());
     assert!(
         !harmont.join("old.py").exists(),
         "stale file should be removed on --force"
@@ -93,8 +93,8 @@ fn init_all_templates_create_files() {
             .assert()
             .success();
 
-        let has_py = dir.path().join(".harmont/pipeline.py").exists();
-        let has_ts = dir.path().join(".harmont/pipeline.ts").exists();
+        let has_py = dir.path().join(".hm/pipeline.py").exists();
+        let has_ts = dir.path().join(".hm/pipeline.ts").exists();
         assert!(
             has_py || has_ts,
             "template {slug}: no pipeline file created"

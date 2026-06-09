@@ -70,7 +70,7 @@ cargo install harmont-cli
 
 ### 1. Create a pipeline
 
-Save this as `.harmont/pipeline.py` (or `.harmont/pipeline.ts`):
+Save this as `.hm/pipeline.py` (or `.hm/pipeline.ts`):
 
 <details open>
 <summary><b>Python</b></summary>

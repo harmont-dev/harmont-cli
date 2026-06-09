@@ -14,7 +14,7 @@ async fn python_roundtrip() {
     }
 
     let dir = tempfile::tempdir().unwrap();
-    let harmont = dir.path().join(".harmont");
+    let harmont = dir.path().join(".hm");
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.py"),
@@ -48,7 +48,7 @@ async fn python_registry_json_carries_triggers_and_allow_manual() {
     }
 
     let dir = tempfile::tempdir().unwrap();
-    let harmont = dir.path().join(".harmont");
+    let harmont = dir.path().join(".hm");
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.py"),

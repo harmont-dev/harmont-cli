@@ -92,10 +92,10 @@ fn pick_interactive() -> Result<TemplateKind> {
 }
 
 fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<()> {
-    let harmont_dir = dir.join(".harmont");
+    let harmont_dir = dir.join(".hm");
     if harmont_dir.exists() && !force {
         bail!(
-            ".harmont/ already exists in {}\n  \
+            ".hm/ already exists in {}\n  \
              hint: use --force to overwrite",
             dir.display()
         );
@@ -139,7 +139,7 @@ fn ensure_gitignore_entry(dir: &Path, entry: &str) -> Result<()> {
 
 /// # Errors
 ///
-/// Returns an error if the target directory is unwritable or `.harmont/`
+/// Returns an error if the target directory is unwritable or `.hm/`
 /// already exists without `--force`.
 #[allow(clippy::unused_async)]
 pub async fn handle(args: InitArgs) -> Result<()> {
@@ -155,7 +155,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
         _ => "Python",
     };
-    tracing::info!("created .harmont/{} ({dsl} pipeline, template: {kind:?})", tmpl.filename);
+    tracing::info!("created .hm/{} ({dsl} pipeline, template: {kind:?})", tmpl.filename);
 
     match dsl {
         "TypeScript" => {
