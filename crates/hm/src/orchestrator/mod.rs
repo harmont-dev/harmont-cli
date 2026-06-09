@@ -8,7 +8,6 @@
 
 pub mod archive;
 pub mod cache;
-pub mod docker_client;
 pub mod events;
 pub mod output_subscriber;
 pub mod scheduler;

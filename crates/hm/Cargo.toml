@@ -48,6 +48,7 @@ thiserror = "2"
 backon = "1"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing-chrome = "0.7"
 chrono = { version = "0.4", features = ["serde"] }
 url = "2"
 base64 = "0.22"
@@ -59,13 +60,11 @@ rand = "0.8"
 uuid = { version = "1", features = ["serde"] }
 bytes = "1"
 futures = "0.3"
-futures-util = "0.3"
-bollard = "0.18"
-which = "6"
 hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 hm-util = { workspace = true }
 hm-plugin-cloud = { workspace = true }
+hm-vm           = { path = "../hm-vm", features = ["docker-backend"] }
 hm-dsl-engine   = { workspace = true }
 daggy          = { workspace = true }
 schemars = { workspace = true }
@@ -85,6 +84,7 @@ assert_cmd = "2"
 predicates = "3"
 assert_fs = "1"
 tempfile = "3"
+which = "7"
 
 [lints]
 workspace = true

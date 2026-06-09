@@ -16,25 +16,23 @@ use hm_plugin_protocol::{BuildEvent, ExecutorInput, StepResult};
 use tokio_util::sync::CancellationToken;
 
 use crate::orchestrator::archive::ArchiveStore;
-use crate::orchestrator::docker_client::DockerClient;
 use crate::orchestrator::events::EventBus;
 
-pub mod docker;
+pub mod vm;
 
 /// Shared context threaded into every runner invocation.
 ///
 /// Replaces the monolithic `OrchestratorState` that the old plugin
 /// system passed as opaque host memory. All fields are cheaply
-/// cloneable (`Arc` / `CancellationToken` / `DockerClient`).
+/// cloneable (`Arc` / `CancellationToken`).
 #[derive(Clone, Debug)]
 pub struct RunContext {
-    pub docker: DockerClient,
     pub event_bus: Arc<EventBus>,
     pub archives: Arc<ArchiveStore>,
     pub cancel: CancellationToken,
 }
 
-/// Async trait implemented by step executors (e.g. the Docker runner).
+/// Async trait implemented by step executors (e.g. the VM runner).
 ///
 /// Each runner is identified by a string [`Self::name`] that pipeline
 /// authors reference in their step definitions.
@@ -42,8 +40,8 @@ pub struct RunContext {
 /// The `execute` method returns a boxed future so the trait remains
 /// dyn-compatible (async fn in trait is not object-safe).
 pub trait StepRunner: Send + Sync + fmt::Debug {
-    /// Unique name for this runner (e.g. `"docker"`).
-    fn name(&self) -> &str;
+    /// Unique name for this runner (e.g. `"vm"`).
+    fn name(&self) -> &'static str;
 
     /// Execute a single pipeline step.
     ///
@@ -140,20 +138,18 @@ mod tests {
     /// Minimal stub runner for unit tests.
     #[derive(Debug)]
     struct StubRunner {
-        runner_name: String,
+        runner_name: &'static str,
     }
 
     impl StubRunner {
-        fn new(name: &str) -> Self {
-            Self {
-                runner_name: name.to_owned(),
-            }
+        fn new(name: &'static str) -> Self {
+            Self { runner_name: name }
         }
     }
 
     impl StepRunner for StubRunner {
-        fn name(&self) -> &str {
-            &self.runner_name
+        fn name(&self) -> &'static str {
+            self.runner_name
         }
 
         fn execute(

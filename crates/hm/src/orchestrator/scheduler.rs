@@ -3,7 +3,7 @@
 //! Walks the pipeline DAG in topological order, spawning a shared
 //! future per step. Each future awaits its predecessors, acquires a
 //! parallelism permit, and dispatches the step to its registered
-//! runner (Docker by default).
+//! runner (VM by default).
 
 // Pedantic-bucket nags accepted at module scope:
 // - `cast_possible_truncation`: every `as u64` here is a millisecond
@@ -40,7 +40,6 @@ use uuid::Uuid;
 use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
 
 use crate::error::HmError;
-use crate::orchestrator::docker_client::DockerClient;
 use crate::orchestrator::source::build_archive_bytes;
 use crate::runner::{OutputRenderer, RunContext, RunnerRegistry};
 
@@ -62,10 +61,9 @@ type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 /// when any step exited non-zero).
 ///
 /// # Errors
-/// Returns an error if the source archive cannot be built, the Docker
-/// daemon is unreachable, or any scheduler-level failure occurs.
-/// Non-zero step exit codes are surfaced via the returned `i32`, not
-/// as an Err.
+/// Returns an error if the source archive cannot be built or any
+/// scheduler-level failure occurs. Non-zero step exit codes are
+/// surfaced via the returned `i32`, not as an Err.
 pub async fn run(
     graph: PipelineGraph,
     repo_root: PathBuf,
@@ -79,12 +77,6 @@ pub async fn run(
     let cancel = CancellationToken::new();
     let _ctrlc = super::signal::install_ctrlc(cancel.clone());
     // _ctrlc dropped at end of `run`; runtime tear-down kills the task.
-    let docker = DockerClient::connect()
-        .map_err(|e| HmError::Docker(format!("daemon unreachable — is Docker running? ({e})")))?;
-    docker
-        .ping()
-        .await
-        .map_err(|e| HmError::Docker(format!("daemon ping failed: {e}")))?;
     let run_id = Uuid::new_v4();
 
     // Build the source archive once.
@@ -92,7 +84,6 @@ pub async fn run(
     let archive_id = archives.register(archive_bytes);
 
     let run_ctx = RunContext {
-        docker: docker.clone(),
         event_bus: bus.clone(),
         archives: archives.clone(),
         cancel: cancel.clone(),
@@ -119,10 +110,7 @@ pub async fn run(
         plan: PlanSummary {
             step_count: graph.node_count(),
             chain_count: chain_info.chain_count,
-            default_runner: runner_registry
-                .default_runner_name()
-                .unwrap_or("docker")
-                .into(),
+            default_runner: runner_registry.default_runner_name().unwrap_or("vm").into(),
         },
         started_at,
     });
@@ -253,19 +241,6 @@ pub async fn run(
 
     let dur = started_total.elapsed().as_millis() as u64;
 
-    // Clean up ephemeral images created during the run.
-    let ephemeral_tags: Vec<&str> = outcomes
-        .iter()
-        .filter_map(|o| o.snapshot.as_ref())
-        .filter(|s| s.0.starts_with("harmont-local-ephemeral/"))
-        .map(|s| s.0.as_str())
-        .collect();
-    for tag in ephemeral_tags {
-        if let Err(e) = docker.remove_image(tag).await {
-            tracing::warn!(image = %tag, %e, "failed to remove ephemeral image");
-        }
-    }
-
     bus.emit(BuildEvent::BuildEnd {
         exit_code: overall,
         duration_ms: dur,
@@ -320,26 +295,9 @@ async fn execute_step(
         display_name: display_name.clone(),
     });
 
-    // --- Docker image cache check ---
+    // Compute the cache lookup for the runner. The runner (VmRunner)
+    // handles cache hit/miss internally via ImageRegistry.
     let cache_tag = cache::stable_cache_tag(&step_wire);
-    if let Some(ref dtag) = cache_tag
-        && run_ctx.docker.image_exists(dtag).await.unwrap_or(false)
-    {
-        bus.emit(BuildEvent::StepCacheHit {
-            step_id,
-            key: step_wire
-                .cache
-                .as_ref()
-                .and_then(|c| c.key.clone())
-                .unwrap_or_default(),
-            tag: dtag.clone(),
-        });
-        return Ok(StepOutcome {
-            exit_code: 0,
-            snapshot: Some(SnapshotRef::from(dtag.clone())),
-        });
-    }
-
     let cache_lookup = cache_tag
         .as_ref()
         .map_or(CacheDecision::MissNoCommit, |tag| {
@@ -360,13 +318,13 @@ async fn execute_step(
     };
 
     // Resolve the runner by name. Steps that didn't declare a runner
-    // fall back to whichever runner was registered as default (docker).
+    // fall back to whichever runner was registered as default (vm).
     let runner_name = input
         .step
         .runner
         .as_deref()
         .or_else(|| runner_registry.default_runner_name())
-        .unwrap_or("docker")
+        .unwrap_or("vm")
         .to_owned();
 
     // Capture the per-step wall-clock budget before `input` is moved
@@ -445,15 +403,6 @@ async fn execute_step(
                     ts: chrono::Utc::now(),
                 });
                 cancel.cancel();
-            } else if let Some(ref snapshot) = sr.committed_snapshot {
-                if let Some(ref dtag) = cache_tag
-                    && snapshot.0 != *dtag
-                    && let Err(e) = run_ctx.docker.tag_image(&snapshot.0, dtag).await
-                {
-                    tracing::warn!(%e, "failed to re-tag Docker image for cache");
-                }
-                cache::evict_stale_docker_tags(&run_ctx.docker, &step_key, cache_tag.as_deref())
-                    .await;
             }
             Ok(StepOutcome {
                 exit_code: sr.exit_code,

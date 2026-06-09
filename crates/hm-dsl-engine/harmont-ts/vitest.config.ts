@@ -7,8 +7,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "harmont/toolchains": path.resolve(__dirname, "src/toolchains/index.ts"),
-      harmont: path.resolve(__dirname, "src/index.ts"),
+      "@harmont/hm/toolchains": path.resolve(__dirname, "src/toolchains/index.ts"),
+      "@harmont/hm": path.resolve(__dirname, "src/index.ts"),
     },
   },
 });

@@ -3,25 +3,32 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 
 use hm_dsl_engine::detect;
+use hm_vm::docker::DockerBackend;
+use hm_vm::{HmVm, ImageRegistry, VmConfig};
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
-use crate::runner::{RunnerRegistry, docker::DockerRunner};
+use crate::runner::RunnerRegistry;
+use crate::runner::vm::VmRunner;
 
 fn decode_plan_to_wire(bytes: &[u8]) -> anyhow::Result<hm_pipeline_ir::PipelineGraph> {
     serde_json::from_slice(bytes).map_err(|e| anyhow::anyhow!("decode pipeline JSON: {e}"))
 }
 
-/// Run a pipeline locally via Docker.
+// macOS Hypervisor.framework limits concurrent VMs (~2-4).
+const VM_DEFAULT_PARALLELISM: usize = 2;
+
+/// Run a pipeline locally via the VM runner.
 ///
 /// # Errors
 ///
 /// Returns an error if the working directory cannot be resolved, no
 /// pipeline slug was given when more than one is declared (or none are
 /// declared), the Python DSL transpile or Scheme evaluator step fails,
-/// the resulting plan does not decode, the Docker daemon is unreachable,
-/// or the orchestrator surfaces an internal scheduler error. Non-zero
-/// step exit codes are returned as the `i32`, not as an Err.
+/// the resulting plan does not decode, the VM backend cannot be
+/// initialised, or the orchestrator surfaces an internal scheduler
+/// error. Non-zero step exit codes are returned as the `i32`, not as
+/// an Err.
 pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let repo_root = match args.dir.clone() {
         Some(p) => p,
@@ -60,12 +67,25 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         .map_err(|e| crate::error::HmError::PipelineRender(format!("{e:#}")))?;
     let json = json_str.into_bytes();
     let graph = decode_plan_to_wire(&json)?;
-    let parallelism = args.parallelism.unwrap_or_else(|| {
-        std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
-    });
+    let parallelism = args.parallelism.unwrap_or(VM_DEFAULT_PARALLELISM);
+
+    let backend: Arc<dyn hm_vm::VmBackend> = match args.backend.as_str() {
+        "docker" => Arc::new(DockerBackend::connect()?),
+        other => anyhow::bail!("unknown --backend '{other}'\n  available: docker"),
+    };
+    let db_path = hm_util::dirs::harmont_cache_dir()
+        .context("cannot resolve harmont cache directory")?
+        .join("registry.db");
+    let registry = ImageRegistry::open(&db_path, 64)?;
+    let config = VmConfig {
+        memory_mib: Some(8192),
+        disk_size_gb: Some(10),
+        ..VmConfig::default()
+    };
+    let vm = Arc::new(HmVm::new(backend, registry, config));
 
     let mut runner_registry = RunnerRegistry::new();
-    runner_registry.register(Arc::new(DockerRunner), true);
+    runner_registry.register(Arc::new(VmRunner::new(vm)), true);
     let runner_registry = Arc::new(runner_registry);
 
     let use_logs = args.logs || std::env::var_os("CI").is_some_and(|v| !v.is_empty());

@@ -1,5 +1,5 @@
 {
-  "name": "harmont",
+  "name": "@harmont/hm",
   "version": "0.0.0-dev",
   "type": "module",
   "exports": {

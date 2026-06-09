@@ -12,6 +12,7 @@ def shared_base() -> hm.Step:
         "build-essential",
         "pkg-config",
         "libssl-dev",
+        "protobuf-compiler",
         "python3",
         "python3-venv",
     ))

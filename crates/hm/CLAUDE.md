@@ -5,26 +5,26 @@
 
 - Builds a wire-typed `Graph` (`graph.rs`) from the parsed `Pipeline`
   and partitions it into chains for scheduling.
-- Receives a `RunnerRegistry` (containing `DockerRunner` and any
+- Receives a `RunnerRegistry` (containing `VmRunner` and any
   future runners) and resolves each step's `runner` field to a
   registered runner in `scheduler.rs`.
 - Publishes `BuildEvent`s on a `tokio::sync::broadcast` (`events.rs`);
   the `output_subscriber` task drains the bus and invokes the selected
   `OutputRenderer` (human or JSON, both in `src/output/`).
 - Reads the workspace archive once into memory (`archive.rs` +
-  `source.rs`), and drives the Docker daemon via the Bollard wrapper
-  (`docker_client.rs`).
-- The `DockerRunner` (`src/runner/docker.rs`) executes steps directly
-  via `DockerClient` — no FFI, no WASM, no host functions.
+  `source.rs`).
+- The `VmRunner` (`src/runner/vm.rs`) executes steps inside
+  containers via the `hm-vm` crate (Docker backend).
 - Owns run-wide cancellation (`tokio_util::sync::CancellationToken`)
   via `signal.rs`.
 
 ## Runner system (static DI)
 
 `src/runner/mod.rs` defines `StepRunner` (async trait), `OutputRenderer`,
-`RunContext`, and `RunnerRegistry`. `DockerRunner` is the sole executor.
-The registry is constructed in `commands/run/local.rs` and passed to
-`scheduler::run` — no global state, no plugin loading.
+`RunContext`, and `RunnerRegistry`. `VmRunner` is the default executor,
+backed by the `hm-vm` crate. The registry is constructed in
+`commands/run/local.rs` and passed to `scheduler::run` — no global
+state, no plugin loading.
 
 ## Cloud functionality
 

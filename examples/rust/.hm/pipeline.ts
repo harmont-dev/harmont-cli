@@ -1,5 +1,5 @@
-import { pipeline, push, type PipelineDefinition } from "harmont";
-import { rust } from "harmont/toolchains";
+import { pipeline, push, type PipelineDefinition } from "@harmont/hm";
+import { rust } from "@harmont/hm/toolchains";
 
 const project = rust.toolchain({ path: "." });
 

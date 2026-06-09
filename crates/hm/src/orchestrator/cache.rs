@@ -1,14 +1,12 @@
-//! Host-side cache decision.
+//! Host-side cache key derivation.
 //!
-//! Resolves a wire-typed [`CommandStep`] against Docker image tags
-//! to decide whether to skip execution (cache hit) or run + commit.
+//! Resolves a wire-typed [`CommandStep`] to a deterministic cache key
+//! so the scheduler can pass it to the runner for hit/miss decisions.
 //!
 //! Cache keys are computed by `harmont.keygen` at plan time and ride
 //! along the JSON in `cache.key`.
 
 use hm_plugin_protocol::CommandStep;
-
-use super::docker_client::DockerClient;
 
 fn sanitize_for_tag(s: &str) -> String {
     s.chars()
@@ -22,7 +20,7 @@ fn sanitize_for_tag(s: &str) -> String {
         .collect()
 }
 
-/// Derive a deterministic Docker image tag for a cacheable step.
+/// Derive a deterministic cache tag for a cacheable step.
 ///
 /// Returns `None` when the step has no cache, a `"none"` policy, or no
 /// cache key.
@@ -36,31 +34,6 @@ pub fn stable_cache_tag(step: &CommandStep) -> Option<String> {
     let safe = sanitize_for_tag(&step.key);
     let short = &key[..key.len().min(16)];
     Some(format!("harmont-cache/{safe}:{short}"))
-}
-
-/// Remove Docker images for `step_key` that don't match `current_tag`.
-pub async fn evict_stale_docker_tags(
-    docker: &DockerClient,
-    step_key: &str,
-    current_tag: Option<&str>,
-) {
-    let safe = sanitize_for_tag(step_key);
-    let reference = format!("harmont-cache/{safe}");
-    let tags = match docker.list_images_by_reference(&reference).await {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::warn!(%e, "failed to list images for stale eviction");
-            return;
-        }
-    };
-    for tag in tags {
-        if Some(tag.as_str()) == current_tag {
-            continue;
-        }
-        if let Err(e) = docker.remove_image(&tag).await {
-            tracing::warn!(image = %tag, %e, "failed to remove stale cached Docker image");
-        }
-    }
 }
 
 #[cfg(test)]
