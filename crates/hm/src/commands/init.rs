@@ -114,6 +114,26 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<()> {
         std::fs::write(&companion_dest, companion_content)
             .with_context(|| format!("writing {}", companion_dest.display()))?;
     }
+    ensure_gitignore_entry(&harmont_dir, "node_modules/")?;
+    ensure_gitignore_entry(&harmont_dir, "__pycache__/")?;
+    Ok(())
+}
+
+fn ensure_gitignore_entry(dir: &Path, entry: &str) -> Result<()> {
+    let gitignore = dir.join(".gitignore");
+    if gitignore.exists() {
+        let content = std::fs::read_to_string(&gitignore)
+            .with_context(|| format!("reading {}", gitignore.display()))?;
+        if content.lines().any(|l| l.trim() == entry) {
+            return Ok(());
+        }
+        let sep = if content.ends_with('\n') { "" } else { "\n" };
+        std::fs::write(&gitignore, format!("{content}{sep}{entry}\n"))
+            .with_context(|| format!("updating {}", gitignore.display()))?;
+    } else {
+        std::fs::write(&gitignore, format!("{entry}\n"))
+            .with_context(|| format!("creating {}", gitignore.display()))?;
+    }
     Ok(())
 }
 
