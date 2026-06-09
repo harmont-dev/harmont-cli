@@ -1,5 +1,29 @@
-//! Pluggable CI execution backends. The pluggable boundary is the whole build:
-//! [`ExecutionBackend::start`] spawns a build and returns a [`BackendHandle`].
+//! Pluggable CI execution backends for `hm run`.
+//!
+//! # Design
+//!
+//! The pluggable boundary is the **whole build**, not a single step.
+//! [`ExecutionBackend::start`] accepts a [`RunRequest`] and returns a
+//! [`BackendHandle`]. Calling [`BackendHandle::into_parts`] splits the handle
+//! into:
+//!
+//! - An [`EventStream`] of [`hm_plugin_protocol::events::BuildEvent`]s — hand
+//!   this to `hm-render` for terminal output.
+//! - A [`Control`] struct with `cancel()` (Ctrl-C) and `wait()` (terminal
+//!   outcome).
+//!
+//! # Backends
+//!
+//! - [`LocalDockerBackend`] — runs the build in-process using a Docker DAG
+//!   scheduler (previously `orchestrator/`+`runner/`+`executor/` in the `hm`
+//!   crate).
+//! - [`CloudBackend`] — submits the build to the Harmont cloud and watches it
+//!   over the REST SDK, emitting the same `BuildEvent` stream.
+//!
+//! # Auth
+//!
+//! This crate never reads credentials from disk. The caller constructs a
+//! `HarmontClient` and injects it; `hm` owns credential loading.
 #![forbid(unsafe_code)]
 
 mod error;
