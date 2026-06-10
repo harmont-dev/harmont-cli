@@ -227,3 +227,39 @@ pub mod blocking {
         block_on(super::remove_file_if_exists(path))
     }
 }
+
+#[cfg(all(test, unix))]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// Credentials (and any secret) must land at exactly 0o600, in a 0o700 dir.
+    #[tokio::test]
+    async fn writes_file_0600_in_dir_0700() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("hm");
+        let file = dir.join("credentials.toml");
+
+        write_atomic_restricted(&file, b"token = \"hunter2\"\n", 0o600, 0o700)
+            .await
+            .unwrap();
+
+        let fmode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+        assert_eq!(fmode, 0o600, "file mode must be 0o600, got {fmode:o}");
+        let dmode = std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(dmode, 0o700, "dir mode must be 0o700, got {dmode:o}");
+    }
+
+    /// Overwriting an existing secret must preserve 0o600 (guards the
+    /// temp-file + atomic-rename path against perm drift).
+    #[tokio::test]
+    async fn rewrite_preserves_0600() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("credentials.toml");
+        write_atomic_restricted(&file, b"a", 0o600, 0o700).await.unwrap();
+        write_atomic_restricted(&file, b"bb", 0o600, 0o700).await.unwrap();
+        let fmode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+        assert_eq!(fmode, 0o600, "file mode must stay 0o600, got {fmode:o}");
+    }
+}
