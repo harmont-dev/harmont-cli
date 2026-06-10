@@ -87,12 +87,15 @@ pub struct RenderPrefs {
     pub logs: bool,
 }
 
-/// Render preferences for cloud commands that stream through `hm-render`.
-#[must_use]
-pub fn render_prefs() -> RenderPrefs {
-    RenderPrefs {
-        color: hm_render::color_enabled(false),
-        logs: hm_render::stdout_piped(),
+impl Default for RenderPrefs {
+    /// Detect render preferences from the live environment via `hm-render`'s
+    /// shared TTY/color helpers — the single source of truth, also used by
+    /// `hm/src/context.rs`.
+    fn default() -> Self {
+        Self {
+            color: hm_render::color_enabled(false),
+            logs: hm_render::stdout_piped(),
+        }
     }
 }
 
