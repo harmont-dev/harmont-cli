@@ -460,3 +460,37 @@ fn init_without_template_in_non_tty_errors_clearly() {
         "no pipeline should be written when none could be chosen"
     );
 }
+
+// ── cloud registration ──────────────────────────────────────
+
+#[test]
+fn init_noninteractive_skips_cloud_registration() {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let config = dir.path().join(".hm/config.toml");
+    assert!(
+        !config.exists(),
+        "non-interactive init should not create .hm/config.toml"
+    );
+}
+
+#[test]
+fn cloud_project_config_layers_correctly() {
+    let dir = tempfile::tempdir().unwrap();
+    let hm_dir = dir.path().join(".hm");
+    std::fs::create_dir(&hm_dir).unwrap();
+
+    let config_path = hm_dir.join("config.toml");
+    let content = "backend = \"cloud\"\n\n[cloud]\norg = \"test-org\"\n";
+    std::fs::write(&config_path, content).unwrap();
+
+    let cfg = hm_config::Config::load_from_paths(None, Some(&config_path)).unwrap();
+    assert_eq!(cfg.backend, "cloud");
+    assert_eq!(cfg.cloud.org.as_deref(), Some("test-org"));
+    // Unrelated defaults survive layering.
+    assert_eq!(cfg.preferences.format, "human");
+}
