@@ -87,11 +87,14 @@ pub struct RenderPrefs {
     pub logs: bool,
 }
 
-impl Default for RenderPrefs {
+impl RenderPrefs {
     /// Detect render preferences from the live environment via `hm-render`'s
     /// shared TTY/color helpers — the single source of truth, also used by
-    /// `hm/src/context.rs`.
-    fn default() -> Self {
+    /// `hm/src/context.rs`. This inspects `NO_COLOR` and the stdout/stderr
+    /// TTY state at call time, so it is a deliberate observation of the
+    /// environment rather than a constant default.
+    #[must_use]
+    pub fn detect() -> Self {
         Self {
             color: hm_render::color_enabled(false),
             logs: hm_render::stdout_piped(),

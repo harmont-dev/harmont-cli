@@ -69,7 +69,7 @@ async fn log_cmd(
     let token = client.log_token(org, pipe, build).await?;
     let log_base = client.base_url().to_string();
 
-    let prefs = settings::RenderPrefs::default();
+    let prefs = settings::RenderPrefs::detect();
     // A single-job tail is always a flat log stream, so force the streaming
     // HumanRenderer (logs = true) regardless of TTY.
     let renderer = hm_render::renderer_for("human", prefs.color, true)?;
