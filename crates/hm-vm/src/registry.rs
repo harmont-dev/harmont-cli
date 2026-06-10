@@ -152,6 +152,25 @@ impl ImageRegistry {
         snapshot.map(SnapshotId)
     }
 
+    /// Return every stored snapshot ID.
+    ///
+    /// Used by `hm cache clean` to remove the backing backend images before
+    /// the registry DB is deleted — without this the images orphan beyond
+    /// recovery by key. Order is unspecified.
+    #[must_use]
+    pub fn all_snapshot_ids(&self) -> Vec<SnapshotId> {
+        let Ok(conn) = self.conn.lock() else {
+            return Vec::new();
+        };
+        let Ok(mut stmt) = conn.prepare("SELECT snapshot_id FROM snapshots") else {
+            return Vec::new();
+        };
+        stmt.query_map([], |row| row.get::<_, String>(0).map(SnapshotId))
+            .ok()
+            .map(|rows| rows.filter_map(Result::ok).collect())
+            .unwrap_or_default()
+    }
+
     /// Returns the number of cached entries.
     #[must_use]
     pub fn len(&self) -> u64 {
@@ -305,6 +324,19 @@ mod tests {
         assert_eq!(reg2.len(), 1);
         let got = reg2.get("persistent");
         assert_eq!(got, Some(SnapshotId("snap-persist".into())));
+    }
+
+    #[test]
+    fn all_snapshot_ids_returns_every_entry() {
+        let (reg, _dir) = open_temp(10);
+        assert!(reg.all_snapshot_ids().is_empty());
+
+        reg.put("k1", &SnapshotId("forever-a".into()));
+        reg.put("k2", &SnapshotId("forever-b".into()));
+
+        let mut ids: Vec<String> = reg.all_snapshot_ids().into_iter().map(|s| s.0).collect();
+        ids.sort();
+        assert_eq!(ids, vec!["forever-a".to_string(), "forever-b".to_string()]);
     }
 
     #[test]

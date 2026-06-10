@@ -7,7 +7,9 @@ use tracing::{instrument, warn};
 
 use crate::backend::VmBackend;
 use crate::registry::ImageRegistry;
-use crate::types::{Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, VmConfig};
+use crate::types::{
+    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotId, VmConfig,
+};
 
 /// High-level orchestrator that drives the VM lifecycle.
 ///
@@ -77,6 +79,20 @@ impl HmVm {
         vm.destroy().await.ok();
 
         result
+    }
+
+    /// Remove a snapshot from the backend store.
+    ///
+    /// Used to reap ephemeral (uncached) leaf snapshots once a run finishes —
+    /// `CachingPolicy::None` commits a transient `ephemeral:*` image purely for
+    /// downstream container lineage, and nothing in the registry ever evicts
+    /// it. The scheduler reaps these explicitly at run end.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to remove the snapshot.
+    pub async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
+        self.backend.remove_snapshot(snapshot).await
     }
 
     /// Inner lifecycle: inject, exec, snapshot. Separated so the caller
