@@ -204,5 +204,7 @@ function cachePolicyToDict(policy: CachePolicy): Record<string, unknown> {
         policy: "compose",
         sub_policies: policy.policies.map(cachePolicyToDict),
       };
+    case "predicate":
+      return { policy: "predicate", value: policy.value };
   }
 }

@@ -6,7 +6,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { resolvePipelineCacheKeys, type CacheKeyOptions } from "../src/keygen.js";
 import { pipeline, type PipelineIR } from "../src/pipeline.js";
 import { sh } from "../src/step.js";
-import { forever, ttl, onChange } from "../src/cache.js";
+import { forever, ttl, onChange, predicate } from "../src/cache.js";
 
 function sha256(s: string): string {
   return createHash("sha256").update(s, "utf8").digest("hex");
@@ -151,6 +151,35 @@ describe("resolvePipelineCacheKeys", () => {
 
     const cache = ir.graph.nodes[0].step.cache as Record<string, unknown>;
     expect(cache.key).toBe(expected);
+  });
+
+  it("predicate policy produces correct key", () => {
+    const ir = pipeline([sh("echo test", { label: "test", cache: predicate("v1") })]);
+    const opts = makeOpts({ pipelineOrg: "myorg", pipelineSlug: "myslug" });
+
+    resolvePipelineCacheKeys(ir.graph, opts);
+
+    const stepKey = ir.graph.nodes[0].step.key as string;
+    const policyRes = "predicate-" + sha256("v1");
+    const expected = sha256(
+      "myorg" + NUL + "myslug" + NUL + stepKey + NUL + "scratch" + NUL + policyRes,
+    );
+
+    const cache = ir.graph.nodes[0].step.cache as Record<string, unknown>;
+    expect(cache.key).toBe(expected);
+  });
+
+  it("different predicate values produce different keys", () => {
+    const ir1 = pipeline([sh("echo a", { label: "a", cache: predicate("v1") })]);
+    const ir2 = pipeline([sh("echo a", { label: "a", cache: predicate("v2") })]);
+    const opts = makeOpts();
+
+    resolvePipelineCacheKeys(ir1.graph, opts);
+    resolvePipelineCacheKeys(ir2.graph, opts);
+
+    const k1 = (ir1.graph.nodes[0].step.cache as Record<string, unknown>).key;
+    const k2 = (ir2.graph.nodes[0].step.cache as Record<string, unknown>).key;
+    expect(k1).not.toBe(k2);
   });
 
   it("child step uses parent resolved key", () => {

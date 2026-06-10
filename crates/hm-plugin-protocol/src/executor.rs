@@ -98,4 +98,15 @@ pub struct StepResult {
     /// (typically only on `CacheDecision::MissBuildAs`).
     pub committed_snapshot: Option<SnapshotRef>,
     pub artifacts: Vec<ArtifactRef>,
+    /// Host-side path to the workspace directory that survived this step.
+    /// Used by the scheduler to propagate workspace state to downstream
+    /// steps via COW copy instead of re-extracting the source archive.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub workspace_dir: Option<String>,
+    /// True when the snapshot is ephemeral (not registered in the cache)
+    /// and must be cleaned up by the caller after downstream steps finish.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub ephemeral_snapshot: bool,
 }

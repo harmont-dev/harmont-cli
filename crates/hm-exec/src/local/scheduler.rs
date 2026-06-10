@@ -26,6 +26,7 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use daggy::petgraph::algo::toposort;
@@ -60,6 +61,17 @@ struct StepOutcome {
     /// `None` only for steps short-circuited because a predecessor failed
     /// or the build was cancelled before they could run.
     summary: Option<StepResultSummary>,
+    /// Host-side workspace path produced by this step's runner, if any.
+    /// The scheduler propagates this to downstream `BuildsIn` children
+    /// so they can COW-copy instead of re-extracting. By construction it
+    /// is always a run-owned kept tempdir of a step that executed this
+    /// run with exit 0; cache hits, skips and failures carry `None`.
+    /// The dir is deleted as soon as the step's last `BuildsIn` child
+    /// finishes (refcounted), with an end-of-run sweep as backstop.
+    workspace_dir: Option<String>,
+    /// True when the snapshot is ephemeral and must be cleaned up after
+    /// all downstream steps finish.
+    ephemeral_snapshot: bool,
     /// Set when this step did not complete successfully — it failed, timed
     /// out, was cancelled, or was itself skipped. Descendants gate on this
     /// (not on `exit_code`) so a skip propagates transitively: a skipped
@@ -93,6 +105,7 @@ pub(crate) async fn run(
     runner_registry: Arc<RunnerRegistry>,
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
     cancel: CancellationToken,
+    vm: Option<Arc<hm_vm::HmVm>>,
     keep_going: bool,
 ) -> crate::Result<BuildOutcome> {
     // Set up per-run state.
@@ -138,6 +151,8 @@ pub(crate) async fn run(
         event_bus: bus.clone(),
         archives: archives.clone(),
         cancel: cancel.clone(),
+        parent_workspace_dir: None,
+        source_base: Arc::new(tokio::sync::OnceCell::new()),
     };
 
     let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism.get()));
@@ -149,6 +164,27 @@ pub(crate) async fn run(
     let order = toposort(dag.graph(), None).map_err(|c| {
         crate::BackendError::Local(format!("pipeline graph has a cycle at {:?}", c.node_id()))
     })?;
+
+    // Per-node refcount of `BuildsIn` children: the only consumers of a
+    // step's kept workspace dir. Each child decrements its parent's count
+    // when it finishes (whether it ran, was skipped, or failed); the child
+    // that drops the count to zero deletes the parent's dir. Steps with no
+    // `BuildsIn` children free their own dir immediately. This caps the
+    // run's temp-space footprint at the live DAG frontier instead of
+    // accumulating one workspace copy per executed step until the end of
+    // the run (full byte copies on non-reflink filesystems, RAM on
+    // tmpfs-mounted /tmp).
+    let ws_consumers: HashMap<NodeIndex, Arc<AtomicUsize>> = order
+        .iter()
+        .map(|&n| {
+            let count = dag
+                .children(n)
+                .iter(dag)
+                .filter(|(e, _)| dag.edge_weight(*e).copied() == Some(EdgeKind::BuildsIn))
+                .count();
+            (n, Arc::new(AtomicUsize::new(count)))
+        })
+        .collect();
 
     let started_at = chrono::Utc::now();
     bus.emit(BuildEvent::BuildStart {
@@ -166,11 +202,19 @@ pub(crate) async fn run(
     let mut done: HashMap<NodeIndex, StepFuture> = HashMap::new();
 
     for &n in &order {
-        let preds: Vec<(EdgeKind, StepFuture)> = dag
+        // (edge kind, parent future, parent's workspace-consumer refcount)
+        let preds: Vec<(EdgeKind, StepFuture, Arc<AtomicUsize>)> = dag
             .parents(n)
             .iter(dag)
-            .map(|(e, p)| (*dag.edge_weight(e).expect("edge in DAG"), done[&p].clone()))
+            .map(|(e, p)| {
+                (
+                    *dag.edge_weight(e).expect("edge in DAG"),
+                    done[&p].clone(),
+                    Arc::clone(&ws_consumers[&p]),
+                )
+            })
             .collect();
+        let own_ws_consumers = Arc::clone(&ws_consumers[&n]);
 
         let transition = dag[n].clone();
         let node_key = transition.step.key.clone();
@@ -190,80 +234,123 @@ pub(crate) async fn run(
         let fut: StepFuture = async move {
             // Await all predecessors.
             let pred_outcomes: Vec<StepOutcome> =
-                join_all(preds.iter().map(|(_, f)| f.clone())).await;
+                join_all(preds.iter().map(|(_, f, _)| f.clone())).await;
 
-            // Early exit if any predecessor failed/was skipped, or the build
-            // was cancelled. Gating on `failed_or_skipped` (not `exit_code`)
-            // is what makes the skip propagate transitively: a skipped
-            // predecessor reports `exit_code == 0`, so an exit-code-only gate
-            // would let a skipped step's descendants run anyway.
-            if cancel.is_cancelled() || pred_outcomes.iter().any(|o| o.failed_or_skipped) {
-                let status = if cancel.is_cancelled() {
-                    StepStatus::Canceled
-                } else {
-                    StepStatus::Skipped
-                };
-                return StepOutcome {
-                    exit_code: 0,
-                    snapshot: None,
-                    summary: Some(StepResultSummary {
-                        step_id: Uuid::new_v4(),
-                        key: node_key,
-                        status,
-                        exit_code: None,
-                        duration_ms: 0,
-                    }),
-                    failed_or_skipped: true,
-                };
-            }
-
-            // Acquire parallelism permit.
-            let _permit = sem
-                .acquire_owned()
-                .await
-                .expect("semaphore closed unexpectedly");
-
-            // Find the BuildsIn parent's snapshot for container lineage.
-            let parent_snapshot = preds
-                .iter()
-                .zip(&pred_outcomes)
-                .find(|((ek, _), _)| *ek == EdgeKind::BuildsIn)
-                .and_then(|(_, outcome)| outcome.snapshot.clone());
-
-            match execute_step(
-                n,
-                transition,
-                parent_snapshot,
-                chain_id,
-                chain_pos,
-                parent_key,
-                archive_id,
-                run_id,
-                run_ctx,
-                reg,
-                bus,
-                cancel,
-                keep_going,
-            )
-            .await
-            {
-                Ok(outcome) => outcome,
-                Err(e) => {
-                    tracing::error!(%e, "step execution failed");
-                    StepOutcome {
-                        exit_code: 1,
+            // Run the step (or short-circuit). All exit paths of this inner
+            // block flow into the workspace refcount release below.
+            let outcome = async {
+                // Early exit if any predecessor failed/was skipped, or the build
+                // was cancelled. Gating on `failed_or_skipped` (not `exit_code`)
+                // is what makes the skip propagate transitively: a skipped
+                // predecessor reports `exit_code == 0`, so an exit-code-only gate
+                // would let a skipped step's descendants run anyway.
+                if cancel.is_cancelled() || pred_outcomes.iter().any(|o| o.failed_or_skipped) {
+                    let status = if cancel.is_cancelled() {
+                        StepStatus::Canceled
+                    } else {
+                        StepStatus::Skipped
+                    };
+                    return StepOutcome {
+                        exit_code: 0,
                         snapshot: None,
                         summary: Some(StepResultSummary {
                             step_id: Uuid::new_v4(),
-                            key: node_key,
-                            status: StepStatus::Failed,
-                            exit_code: Some(1),
+                            key: node_key.clone(),
+                            status,
+                            exit_code: None,
                             duration_ms: 0,
                         }),
+                        ephemeral_snapshot: false,
+                        workspace_dir: None,
                         failed_or_skipped: true,
+                    };
+                }
+
+                // Acquire parallelism permit.
+                let _permit = sem
+                    .acquire_owned()
+                    .await
+                    .expect("semaphore closed unexpectedly");
+
+                // Find the BuildsIn parent's snapshot and workspace dir for
+                // container lineage and COW workspace propagation.
+                let (parent_snapshot, parent_workspace_dir) = preds
+                    .iter()
+                    .zip(&pred_outcomes)
+                    .find(|((ek, _, _), _)| *ek == EdgeKind::BuildsIn)
+                    .map_or((None, None), |(_, outcome)| {
+                        (outcome.snapshot.clone(), outcome.workspace_dir.clone())
+                    });
+
+                let mut step_ctx = run_ctx.clone();
+                step_ctx.parent_workspace_dir = parent_workspace_dir;
+
+                match execute_step(
+                    n,
+                    transition,
+                    parent_snapshot,
+                    chain_id,
+                    chain_pos,
+                    parent_key,
+                    archive_id,
+                    run_id,
+                    step_ctx,
+                    reg,
+                    bus,
+                    cancel,
+                    keep_going,
+                )
+                .await
+                {
+                    Ok(outcome) => outcome,
+                    Err(e) => {
+                        tracing::error!(%e, "step execution failed");
+                        StepOutcome {
+                            exit_code: 1,
+                            snapshot: None,
+                            summary: Some(StepResultSummary {
+                                step_id: Uuid::new_v4(),
+                                key: node_key.clone(),
+                                status: StepStatus::Failed,
+                                exit_code: Some(1),
+                                duration_ms: 0,
+                            }),
+                            workspace_dir: None,
+                            ephemeral_snapshot: false,
+                            failed_or_skipped: true,
+                        }
                     }
                 }
             }
+            .await;
+
+            // This step is done with its parents' workspaces (the COW copy,
+            // if any, happened inside the runner). Decrement each BuildsIn
+            // parent's consumer count; the last child to finish deletes the
+            // parent's kept dir so temp space tracks the live DAG frontier.
+            for ((kind, _, counter), pred_outcome) in preds.iter().zip(&pred_outcomes) {
+                if *kind == EdgeKind::BuildsIn
+                    && counter.fetch_sub(1, Ordering::AcqRel) == 1
+                    && let Some(ws) = pred_outcome.workspace_dir.clone()
+                {
+                    tokio::task::spawn_blocking(move || std::fs::remove_dir_all(ws).ok())
+                        .await
+                        .ok();
+                }
+            }
+            // No BuildsIn children will ever read this step's workspace:
+            // free it now. (Children, if any, observe this outcome only
+            // after this future resolves, so the load cannot race a
+            // decrement.)
+            if own_ws_consumers.load(Ordering::Acquire) == 0
+                && let Some(ws) = outcome.workspace_dir.clone()
+            {
+                tokio::task::spawn_blocking(move || std::fs::remove_dir_all(ws).ok())
+                    .await
+                    .ok();
+            }
+
+            outcome
         }
         .boxed()
         .shared();
@@ -333,6 +420,32 @@ pub(crate) async fn run(
     }
 
     let steps: Vec<StepResultSummary> = outcomes.iter().filter_map(|o| o.summary.clone()).collect();
+
+    // Clean up ephemeral Docker snapshots and kept temp workspace dirs.
+    // Workspace state is strictly run-scoped: every `Some(workspace_dir)`
+    // names a tempdir kept alive (TempDir::keep) by a step that executed
+    // this run so children could COW-copy from it. Most dirs were already
+    // freed incrementally by the last-consumer refcount above; this pass is
+    // a backstop (`remove_dir_all` on an already-deleted path is a no-op)
+    // now that all steps have drained.
+    for outcome in &outcomes {
+        if outcome.ephemeral_snapshot
+            && let (Some(vm), Some(snap)) = (vm.as_ref(), outcome.snapshot.as_ref())
+        {
+            // Guarded removal: a demoted-to-ephemeral `harmont-cache/*` tag
+            // may have been re-registered by a concurrent run since this
+            // step marked it ephemeral; destroying it would kill that run's
+            // live cache entry.
+            vm.remove_snapshot_unless_registered(&hm_vm::SnapshotId::new(snap.0.clone()))
+                .await;
+        }
+        if let Some(ref ws) = outcome.workspace_dir {
+            let ws = ws.clone();
+            tokio::task::spawn_blocking(move || std::fs::remove_dir_all(ws).ok())
+                .await
+                .ok();
+        }
+    }
 
     let dur = started_total.elapsed().as_millis() as u64;
 
@@ -470,50 +583,87 @@ async fn execute_step(
             )
         })?;
 
+    // Give the runner a step-scoped cancellation token (a child of the
+    // build token, so build-level cancellation still propagates). The
+    // per-step timeout FIRES this token instead of dropping the runner
+    // future: the runner tears down cooperatively — the VM layer destroys
+    // the container and reclaims bind-mount ownership of root-written
+    // files before the workspace tempdir is touched — so a timed-out step
+    // can never leak a workspace dir or race the host-side cleanup.
+    let mut run_ctx = run_ctx;
+    let step_cancel = run_ctx.cancel.child_token();
+    run_ctx.cancel = step_cancel.clone();
+
     let exec = runner.execute(&run_ctx, input);
-    let result: anyhow::Result<StepResult> = match step_timeout_secs {
+    let (result, step_timed_out): (anyhow::Result<StepResult>, bool) = match step_timeout_secs {
         Some(secs) => {
-            match tokio::time::timeout(Duration::from_secs(u64::from(secs.get())), exec).await {
-                Ok(r) => r,
-                Err(_elapsed) => {
-                    // Per-step wall-clock budget exceeded. Emit a step-end with the
-                    // conventional timeout exit code (124), fail the chain, and
-                    // cancel siblings — same shape as a non-zero exit below.
-                    let dur_ms = started.elapsed().as_millis() as u64;
-                    bus.emit(BuildEvent::StepEnd {
-                        step_id,
-                        exit_code: 124,
-                        duration_ms: dur_ms,
-                        snapshot: None,
-                    });
-                    bus.emit(BuildEvent::ChainFailed {
-                        chain_idx: chain_id,
-                        failed_step_id: step_id,
-                        failed_step_key: step_key.clone(),
-                        exit_code: 124,
-                        message: format!("step '{step_key}' timed out after {secs}s"),
-                        ts: chrono::Utc::now(),
-                    });
-                    if !keep_going {
-                        cancel.cancel();
-                    }
-                    return Ok(StepOutcome {
-                        exit_code: 124,
-                        snapshot: None,
-                        summary: Some(StepResultSummary {
-                            step_id,
-                            key: step_key.clone(),
-                            status: StepStatus::TimedOut,
-                            exit_code: Some(124),
-                            duration_ms: dur_ms,
-                        }),
-                        failed_or_skipped: true,
-                    });
+            tokio::pin!(exec);
+            tokio::select! {
+                r = &mut exec => (r, false),
+                () = tokio::time::sleep(Duration::from_secs(u64::from(secs.get()))) => {
+                    step_cancel.cancel();
+                    // Await the cooperative teardown to completion; never
+                    // drop the in-flight future.
+                    (exec.await, true)
                 }
             }
         }
-        _ => exec.await,
+        _ => (exec.await, false),
     };
+
+    if step_timed_out {
+        // Per-step wall-clock budget exceeded. Emit a step-end with the
+        // conventional timeout exit code (124), fail the chain, and cancel
+        // siblings — same shape as a non-zero exit below. Whatever the
+        // post-cancel teardown returned is superseded by the timeout
+        // verdict, but any resources it reports (a kept workspace dir or
+        // an ephemeral snapshot, if the step happened to finish in the
+        // cancellation race window) are carried into the outcome so the
+        // scheduler's cleanup passes reclaim them.
+        let dur_ms = started.elapsed().as_millis() as u64;
+        let (snapshot, workspace_dir, ephemeral_snapshot) = match result {
+            Ok(sr) => (
+                sr.committed_snapshot,
+                sr.workspace_dir,
+                sr.ephemeral_snapshot,
+            ),
+            Err(_) => (None, None, false),
+        };
+        bus.emit(BuildEvent::StepEnd {
+            step_id,
+            exit_code: 124,
+            duration_ms: dur_ms,
+            snapshot: None,
+        });
+        bus.emit(BuildEvent::ChainFailed {
+            chain_idx: chain_id,
+            failed_step_id: step_id,
+            failed_step_key: step_key.clone(),
+            exit_code: 124,
+            message: format!(
+                "step '{step_key}' timed out after {}s",
+                step_timeout_secs.map_or(0, std::num::NonZeroU32::get)
+            ),
+            ts: chrono::Utc::now(),
+        });
+        if !keep_going {
+            cancel.cancel();
+        }
+        return Ok(StepOutcome {
+            exit_code: 124,
+            snapshot,
+            summary: Some(StepResultSummary {
+                step_id,
+                key: step_key.clone(),
+                status: StepStatus::TimedOut,
+                exit_code: Some(124),
+                duration_ms: dur_ms,
+            }),
+            workspace_dir,
+            ephemeral_snapshot,
+            failed_or_skipped: true,
+        });
+    }
 
     let dur_ms = started.elapsed().as_millis() as u64;
     match result {
@@ -554,6 +704,8 @@ async fn execute_step(
                     exit_code: Some(sr.exit_code),
                     duration_ms: dur_ms,
                 }),
+                workspace_dir: sr.workspace_dir,
+                ephemeral_snapshot: sr.ephemeral_snapshot,
                 failed_or_skipped: sr.exit_code != 0,
             })
         }
@@ -649,5 +801,271 @@ fn compute_chain_info(dag: &Dag<Transition, EdgeKind>) -> ChainInfo {
         chain_count,
         node_chain_id,
         node_chain_pos,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use crate::local::runner::{StepContext, StepRunner};
+    use hm_plugin_protocol::{ExecutorInput, StepResult};
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Mutex;
+
+    /// Runner stub that materializes a kept tempdir per step (mirroring the
+    /// VM runner's workspace contract) and records, at the start of each
+    /// step, which previously produced workspace dirs still exist on disk.
+    /// This makes the scheduler's incremental workspace reclamation
+    /// observable mid-run.
+    #[derive(Debug, Default)]
+    struct WorkspaceProbeRunner {
+        /// `(step key, kept workspace dir)` in execution order.
+        dirs: Mutex<Vec<(String, PathBuf)>>,
+        /// step key -> keys of earlier steps whose dirs were still on disk
+        /// when this step started.
+        observed: Mutex<HashMap<String, Vec<String>>>,
+    }
+
+    impl StepRunner for WorkspaceProbeRunner {
+        fn name(&self) -> &'static str {
+            "probe"
+        }
+
+        fn execute(
+            &self,
+            _ctx: &StepContext,
+            input: ExecutorInput,
+        ) -> Pin<Box<dyn Future<Output = anyhow::Result<StepResult>> + Send + '_>> {
+            Box::pin(async move {
+                let key = input.step.key.clone();
+                let alive: Vec<String> = self
+                    .dirs
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|(_, p)| p.exists())
+                    .map(|(k, _)| k.clone())
+                    .collect();
+                self.observed.lock().unwrap().insert(key.clone(), alive);
+
+                let ws = tempfile::tempdir().unwrap().keep();
+                self.dirs.lock().unwrap().push((key, ws.clone()));
+                Ok(StepResult {
+                    exit_code: 0,
+                    committed_snapshot: None,
+                    artifacts: vec![],
+                    workspace_dir: Some(ws.display().to_string()),
+                    ephemeral_snapshot: false,
+                })
+            })
+        }
+    }
+
+    /// Build a [`PipelineGraph`] from step keys plus `(from, to)` `BuildsIn`
+    /// edges (indices into `keys`).
+    fn graph_with_edges(keys: &[&str], edges: &[(usize, usize)]) -> PipelineGraph {
+        let nodes: Vec<serde_json::Value> = keys
+            .iter()
+            .map(|k| serde_json::json!({ "step": { "key": k, "cmd": "true" }, "env": {} }))
+            .collect();
+        let edges: Vec<serde_json::Value> = edges
+            .iter()
+            .map(|(a, b)| serde_json::json!([a, b, "builds_in"]))
+            .collect();
+        serde_json::from_value(serde_json::json!({
+            "version": "0",
+            "graph": {
+                "nodes": nodes,
+                "node_holes": [],
+                "edge_property": "directed",
+                "edges": edges,
+            }
+        }))
+        .unwrap()
+    }
+
+    async fn run_probe(
+        graph: PipelineGraph,
+        runner: Arc<WorkspaceProbeRunner>,
+    ) -> crate::BuildOutcome {
+        let repo = tempfile::tempdir().unwrap();
+        std::fs::write(repo.path().join("marker.txt"), "v1").unwrap();
+        let mut registry = RunnerRegistry::new();
+        registry.register(runner, true);
+        // Hold `_rx` so the event forwarder keeps a live receiver; the
+        // handful of events a tiny pipeline emits fits the channel.
+        let (tx, _rx) = tokio::sync::mpsc::channel(1024);
+        run(
+            graph,
+            repo.path().to_path_buf(),
+            "test-pipeline".into(),
+            NonZeroUsize::new(1).unwrap(),
+            Arc::new(registry),
+            tx,
+            CancellationToken::new(),
+            None,
+            false,
+        )
+        .await
+        .unwrap()
+    }
+
+    /// Chain a -> b -> c: a's kept workspace must be deleted as soon as its
+    /// only `BuildsIn` child (b) finishes — i.e. before c starts — not at the
+    /// end of the run. This caps temp-space at the live DAG frontier.
+    #[tokio::test]
+    async fn chain_frees_parent_workspace_when_last_child_finishes() {
+        let runner = Arc::new(WorkspaceProbeRunner::default());
+        let graph = graph_with_edges(&["a", "b", "c"], &[(0, 1), (1, 2)]);
+
+        let outcome = run_probe(graph, Arc::clone(&runner)).await;
+        assert_eq!(outcome.status, crate::BuildStatus::Passed);
+
+        let observed = runner.observed.lock().unwrap().clone();
+        // b starts while a's dir is alive (it COWs from it)...
+        assert_eq!(observed["b"], vec!["a".to_owned()]);
+        // ...but by the time c starts, b (a's last consumer) has finished
+        // and a's dir is already gone. Only b's dir is alive.
+        assert_eq!(observed["c"], vec!["b".to_owned()]);
+
+        // Backstop: nothing survives the run.
+        for (_, dir) in runner.dirs.lock().unwrap().iter() {
+            assert!(!dir.exists(), "workspace dir leaked: {}", dir.display());
+        }
+    }
+
+    /// Fork a -> {b, c}: the first child to finish must NOT free a's dir
+    /// (its sibling still needs it); the last one does. A leaf's own dir
+    /// (b has no `BuildsIn` children) is freed as soon as the leaf finishes.
+    #[tokio::test]
+    async fn fork_frees_parent_workspace_only_after_last_sibling() {
+        let runner = Arc::new(WorkspaceProbeRunner::default());
+        let graph = graph_with_edges(&["a", "b", "c"], &[(0, 1), (0, 2)]);
+
+        let outcome = run_probe(graph, Arc::clone(&runner)).await;
+        assert_eq!(outcome.status, crate::BuildStatus::Passed);
+
+        let observed = runner.observed.lock().unwrap().clone();
+        let exec_order: Vec<String> = runner
+            .dirs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(k, _)| k.clone())
+            .collect();
+        assert_eq!(exec_order[0], "a");
+        // The first sibling sees a alive. The second sibling must STILL see
+        // a alive: it is a's remaining consumer, so the first sibling's
+        // completion must not have freed a's dir. (The first sibling's own
+        // leaf dir is reclaimed concurrently with the second sibling's
+        // start — the permit is released before the cleanup runs — so no
+        // assertion is made about it mid-run; the leak check below covers
+        // it.)
+        assert_eq!(observed[&exec_order[1]], vec!["a".to_owned()]);
+        assert!(observed[&exec_order[2]].contains(&"a".to_owned()));
+
+        for (_, dir) in runner.dirs.lock().unwrap().iter() {
+            assert!(!dir.exists(), "workspace dir leaked: {}", dir.display());
+        }
+    }
+
+    /// Runner that hangs until its step-scoped cancellation token fires,
+    /// then performs (simulated) teardown work before returning — mirroring
+    /// the VM runner, whose post-cancel path destroys the container and
+    /// reclaims workspace ownership before resolving.
+    #[derive(Debug, Default)]
+    struct CooperativeHangRunner {
+        /// Keys of steps whose futures ran to completion (were awaited
+        /// through teardown rather than dropped).
+        torn_down: Mutex<Vec<String>>,
+    }
+
+    impl StepRunner for CooperativeHangRunner {
+        fn name(&self) -> &'static str {
+            "hang"
+        }
+
+        fn execute(
+            &self,
+            ctx: &StepContext,
+            input: ExecutorInput,
+        ) -> Pin<Box<dyn Future<Output = anyhow::Result<StepResult>> + Send + '_>> {
+            let cancel = ctx.cancel.clone();
+            Box::pin(async move {
+                #[allow(
+                    clippy::duration_suboptimal_units,
+                    reason = "from_hours is nightly-only"
+                )]
+                const HANG: Duration = Duration::from_secs(3600);
+                tokio::select! {
+                    () = cancel.cancelled() => {}
+                    () = tokio::time::sleep(HANG) => {}
+                }
+                // Teardown must be awaited by the scheduler, never cut
+                // short by a dropped future.
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                self.torn_down.lock().unwrap().push(input.step.key.clone());
+                Ok(StepResult {
+                    exit_code: 130,
+                    committed_snapshot: None,
+                    artifacts: vec![],
+                    workspace_dir: None,
+                    ephemeral_snapshot: false,
+                })
+            })
+        }
+    }
+
+    /// A per-step timeout must cancel the runner COOPERATIVELY and await
+    /// its teardown to completion (dropping the in-flight future would
+    /// race the container's bind-mount ownership reclaim and leak the
+    /// workspace dir), while still reporting the step as timed out.
+    #[tokio::test]
+    async fn step_timeout_awaits_cooperative_teardown() {
+        let runner = Arc::new(CooperativeHangRunner::default());
+        let graph: PipelineGraph = serde_json::from_value(serde_json::json!({
+            "version": "0",
+            "graph": {
+                "nodes": [{
+                    "step": { "key": "slow", "cmd": "true", "timeout_seconds": 1 },
+                    "env": {}
+                }],
+                "node_holes": [],
+                "edge_property": "directed",
+                "edges": [],
+            }
+        }))
+        .unwrap();
+
+        let repo = tempfile::tempdir().unwrap();
+        std::fs::write(repo.path().join("marker.txt"), "v1").unwrap();
+        let mut registry = RunnerRegistry::new();
+        registry.register(Arc::clone(&runner) as Arc<dyn StepRunner>, true);
+        let (tx, _rx) = tokio::sync::mpsc::channel(1024);
+        let outcome = run(
+            graph,
+            repo.path().to_path_buf(),
+            "test-pipeline".into(),
+            NonZeroUsize::new(1).unwrap(),
+            Arc::new(registry),
+            tx,
+            CancellationToken::new(),
+            None,
+            false,
+        )
+        .await
+        .unwrap();
+
+        // The runner's future was awaited through its teardown...
+        assert_eq!(
+            runner.torn_down.lock().unwrap().clone(),
+            vec!["slow".to_owned()]
+        );
+        // ...and the step is still reported as timed out.
+        assert_eq!(outcome.steps.len(), 1);
+        assert_eq!(outcome.steps[0].status, StepStatus::TimedOut);
+        assert_eq!(outcome.steps[0].exit_code, Some(124));
     }
 }

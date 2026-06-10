@@ -1362,10 +1362,11 @@ dependencies = [
  "derive_more",
  "futures",
  "rusqlite",
- "tar",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

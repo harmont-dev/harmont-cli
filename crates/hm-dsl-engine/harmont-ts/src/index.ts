@@ -5,10 +5,12 @@ export {
   type CacheTTL,
   type CacheOnChange,
   type CacheCompose,
+  type CachePredicate,
   forever,
   ttl,
   onChange,
   compose,
+  predicate,
 } from "./cache.js";
 export {
   type Trigger,

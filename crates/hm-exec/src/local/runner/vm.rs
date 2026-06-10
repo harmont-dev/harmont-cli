@@ -2,7 +2,7 @@
 //!
 //! Each step runs inside a lightweight VM managed by [`HmVm`]. The
 //! source archive is extracted to a host-side temp directory and
-//! injected into the VM before the step command runs. System-level
+//! bind-mounted into the VM before the step command runs. System-level
 //! state propagates via VM snapshots.
 
 use std::future::Future;
@@ -14,7 +14,7 @@ use hm_plugin_protocol::{
     BuildEvent, CacheDecision, ExecutorInput, SnapshotRef, StdStream, StepResult,
 };
 use hm_vm::types::OutputSink;
-use hm_vm::{Action, CachingPolicy, HmVm, ImageSource, SnapshotId};
+use hm_vm::{Action, CachingPolicy, HmVm, ImageSource, SnapshotId, WorkspaceMount};
 use uuid::Uuid;
 
 use super::{StepContext, StepRunner};
@@ -66,6 +66,7 @@ impl StepRunner for VmRunner {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 #[tracing::instrument(skip(vm, ctx), fields(step_key = %input.step.key))]
 async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Result<StepResult> {
     let policy = match &input.cache_lookup {
@@ -74,6 +75,36 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         }
         CacheDecision::MissNoCommit => CachingPolicy::None,
     };
+
+    // Fast path: check cache before doing any workspace prep. COW copies
+    // are expensive and entirely wasted on cache hits.
+    if let CachingPolicy::Cache { ref key } = policy
+        && let Some(result) = vm.peek_cache(key).await?
+    {
+        ctx.event_bus.emit(BuildEvent::StepCacheHit {
+            step_id: input.step_id,
+            key: input
+                .step
+                .cache
+                .as_ref()
+                .and_then(|c| c.key.clone())
+                .unwrap_or_default(),
+            tag: result
+                .snapshot
+                .as_ref()
+                .map_or_else(String::new, ToString::to_string),
+        });
+        // Cache hits carry no workspace: workspace state is strictly
+        // run-scoped, so children rebase onto the current source instead
+        // of inheriting a stale tree from the original run.
+        return Ok(StepResult {
+            exit_code: 0,
+            committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.to_string())),
+            artifacts: vec![],
+            workspace_dir: None,
+            ephemeral_snapshot: false,
+        });
+    }
 
     let source = if let Some(ref snap) = input.parent_snapshot {
         ImageSource::Snapshot(SnapshotId::new(snap.0.clone()))
@@ -87,26 +118,47 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         )
     };
 
-    // Inject the current workspace on every executing step, overlaying it
-    // onto the system state inherited from the parent snapshot (apt packages,
-    // installed runtimes, `node_modules`, …). Injecting only at the chain root
-    // is wrong: root steps such as `apt_base` are `CacheForever`, so their
-    // snapshots freeze the source tree captured at first build and every COW
-    // descendant inherits that stale tree — source edits never reach leaf
-    // steps. A true cache hit short-circuits inside `HmVm::execute` before
-    // inject runs, so this overlay only happens when a step actually executes;
-    // the overlay (Docker PUT-archive) adds/overwrites files without deleting
-    // the inherited system state.
-    let (inject, _temp_guard) = {
-        let archive_bytes = ctx
-            .archives
-            .get_bytes(input.workspace_archive_id)
-            .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
-        let dir =
-            extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
-        let path = dir.path().to_path_buf();
-        (Some(path), Some(dir))
+    // Prepare the workspace: COW-copy from the parent step's live workspace
+    // (child of a step that executed this run) or from the shared
+    // once-per-run source base (root step, or child of a cache-hit parent).
+    // Either way, bind-mount the result into the VM. This overlays the
+    // current source onto the system state inherited from the parent
+    // snapshot on every executing step, so source edits always reach leaf
+    // steps even when ancestors are `CacheForever` and froze an older tree.
+    let step_ws = tempfile::tempdir().context("creating step workspace")?;
+
+    let cow_src: std::path::PathBuf = if let Some(ref parent_ws) = ctx.parent_workspace_dir {
+        std::path::PathBuf::from(parent_ws)
+    } else {
+        let base = ctx
+            .source_base
+            .get_or_try_init(|| async {
+                let archive_bytes = ctx
+                    .archives
+                    .get_bytes(input.workspace_archive_id)
+                    .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
+                tokio::task::spawn_blocking(move || extract_archive_to_tempdir(&archive_bytes))
+                    .await
+                    .context("archive extraction task panicked")?
+                    .context("extracting workspace archive")
+            })
+            .await?;
+        base.path().to_path_buf()
     };
+
+    {
+        let dst = step_ws.path().to_path_buf();
+        let src = cow_src.clone();
+        tokio::task::spawn_blocking(move || hm_vm::workspace::cow_copy(&src, &dst))
+            .await
+            .context("workspace COW task panicked")?
+            .with_context(|| format!("COW copy {} into step workspace", cow_src.display()))?;
+    }
+
+    let workspace = Some(WorkspaceMount {
+        host_path: step_ws.path().to_path_buf(),
+        guest_path: input.workdir.clone(),
+    });
 
     // Baseline env for shell operation inside VMs.
     let mut env: Vec<(String, String)> = vec![
@@ -124,7 +176,7 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         env,
         working_dir: input.workdir.clone(),
         timeout: None,
-        inject,
+        workspace,
     };
 
     let sink = EventBusSink {
@@ -132,13 +184,17 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         bus: Arc::clone(&ctx.event_bus),
     };
 
-    let result = tokio::select! {
-        r = vm.execute(action, policy, &sink) => r,
-        () = ctx.cancel.cancelled() => {
-            anyhow::bail!("step cancelled (build timeout or sibling failure)")
-        }
-    }
-    .context("vm execute failed")?;
+    // Cancellation is cooperative INSIDE `HmVm::execute` (the token is
+    // threaded down): on Ctrl-C / sibling failure / step timeout it bails
+    // with exit 130 only after destroying the container, which reclaims
+    // bind-mount ownership of root-written files. Never `select!`-drop
+    // this future: doing so would tear down `step_ws` concurrently with a
+    // still-running container and leak a (root-owned, on native Linux)
+    // workspace directory.
+    let result = vm
+        .execute(action, policy, &sink, &ctx.cancel)
+        .await
+        .context("vm execute failed")?;
 
     if result.cached {
         ctx.event_bus.emit(BuildEvent::StepCacheHit {
@@ -156,10 +212,20 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         });
     }
 
+    // Steps that executed successfully (cached-miss and uncached alike)
+    // keep their live tempdir alive so same-run children can COW-copy
+    // from it; the scheduler removes every kept dir after the DAG drains.
+    // Cache hits (rare race: a concurrent fill between peek and execute)
+    // and failures propagate no workspace -- the TempDir self-cleans.
+    let workspace_dir =
+        (result.exit_code == 0 && !result.cached).then(|| step_ws.keep().display().to_string());
+
     Ok(StepResult {
         exit_code: result.exit_code,
         committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.to_string())),
         artifacts: vec![],
+        workspace_dir,
+        ephemeral_snapshot: result.ephemeral_snapshot,
     })
 }
 

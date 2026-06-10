@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forever, ttl, onChange, compose, type CachePolicy } from "../src/cache.js";
+import { forever, ttl, onChange, compose, predicate, type CachePolicy } from "../src/cache.js";
 
 describe("forever", () => {
   it("creates a forever policy with no env keys", () => {
@@ -39,6 +39,19 @@ describe("compose", () => {
     expect(p.policies).toHaveLength(2);
     expect(p.policies[0].kind).toBe("ttl");
     expect(p.policies[1].kind).toBe("on_change");
+  });
+});
+
+describe("predicate", () => {
+  it("creates a predicate policy with the given value", () => {
+    const p = predicate("v1");
+    expect(p).toEqual({ kind: "predicate", value: "v1" });
+  });
+
+  it("different values produce distinct objects", () => {
+    const p1 = predicate("v1");
+    const p2 = predicate("v2");
+    expect(p1.value).not.toBe(p2.value);
   });
 });
 

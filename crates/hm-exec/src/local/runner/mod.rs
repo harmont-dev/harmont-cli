@@ -29,6 +29,16 @@ pub struct StepContext {
     pub event_bus: Arc<EventBus>,
     pub archives: Arc<ArchiveStore>,
     pub cancel: CancellationToken,
+    /// When set, the step should COW-copy this directory as its
+    /// workspace base instead of copying from the shared source base.
+    /// Populated by the scheduler for child steps in a `BuildsIn` chain;
+    /// always a live, run-owned temp directory of a step that executed
+    /// this run (cache hits propagate `None`).
+    pub parent_workspace_dir: Option<String>,
+    /// Lazily-extracted, once-per-run copy of the current source archive.
+    /// Steps without a `parent_workspace_dir` COW their workspace from
+    /// this directory, guaranteeing they see the current run's sources.
+    pub source_base: Arc<tokio::sync::OnceCell<tempfile::TempDir>>,
 }
 
 /// Async trait implemented by step executors (e.g. the VM runner).
@@ -167,6 +177,8 @@ mod tests {
                     exit_code: 0,
                     committed_snapshot: None,
                     artifacts: vec![],
+                    workspace_dir: None,
+                    ephemeral_snapshot: false,
                 })
             })
         }

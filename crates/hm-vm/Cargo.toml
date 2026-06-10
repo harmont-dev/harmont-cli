@@ -10,18 +10,19 @@ description = "Local VM/container backends (Docker) that run hm pipeline steps o
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 tracing = { workspace = true }
 derive_more = { workspace = true }
 
 rusqlite = { version = "0.37", features = ["bundled"] }
+uuid = { workspace = true }
 
 bollard = { version = "0.18", optional = true }
 futures = { version = "0.3", optional = true }
-tar = { version = "0.4", optional = true }
 
 [features]
 default = ["docker-backend"]
-docker-backend = ["dep:bollard", "dep:futures", "dep:tar"]
+docker-backend = ["dep:bollard", "dep:futures"]
 
 [dev-dependencies]
 tempfile = "3"

@@ -74,6 +74,7 @@ impl hm_vm::VmBackend for NoopVmBackend {
         &self,
         _image: &str,
         _config: &hm_vm::VmConfig,
+        _workspace: Option<&hm_vm::WorkspaceMount>,
     ) -> anyhow::Result<Box<dyn hm_vm::backend::Vm>> {
         anyhow::bail!("noop backend")
     }
@@ -81,6 +82,7 @@ impl hm_vm::VmBackend for NoopVmBackend {
         &self,
         _snapshot: &hm_vm::SnapshotId,
         _config: &hm_vm::VmConfig,
+        _workspace: Option<&hm_vm::WorkspaceMount>,
     ) -> anyhow::Result<Box<dyn hm_vm::backend::Vm>> {
         anyhow::bail!("noop backend")
     }

@@ -130,6 +130,10 @@ function resolvePolicy(
     return "compose-" + sha256hex(parts.join(""));
   }
 
+  if (policy === "predicate") {
+    return "predicate-" + sha256hex(cache.value as string);
+  }
+
   throw new Error(`resolve-policy-key: unknown policy "${policy}"`);
 }
 

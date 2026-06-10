@@ -130,6 +130,8 @@ def _resolve_policy(
             for sub in subs
         ]
         return "compose-" + _sha256_hex("".join(parts))
+    if kind == "predicate":
+        return "predicate-" + _sha256_hex(policy["value"])
     msg = f"resolve-policy-key: unknown policy {kind!r}"
     raise ValueError(msg)
 

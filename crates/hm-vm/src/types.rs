@@ -10,6 +10,13 @@ pub enum ImageSource {
     Snapshot(SnapshotId),
 }
 
+/// Bind-mount specification for a host workspace directory.
+#[derive(Clone, Debug)]
+pub struct WorkspaceMount {
+    pub host_path: PathBuf,
+    pub guest_path: String,
+}
+
 /// What to execute inside a VM.
 #[derive(Clone, Debug)]
 pub struct Action {
@@ -18,9 +25,12 @@ pub struct Action {
     pub env: Vec<(String, String)>,
     pub working_dir: String,
     pub timeout: Option<Duration>,
-    /// Host directory to copy into `working_dir` before execution.
-    /// Skipped on cache hits (snapshot already contains prior state).
-    pub inject: Option<PathBuf>,
+    /// Host workspace directory to bind-mount into the VM.
+    ///
+    /// Bind mounts are EXCLUDED from snapshots (`docker commit` captures
+    /// system state only), so workspace contents never persist into the
+    /// cache and are never consulted on the cache-hit path.
+    pub workspace: Option<WorkspaceMount>,
 }
 
 /// How to cache the result.
@@ -86,6 +96,9 @@ pub struct ExecutionResult {
     pub exit_code: i32,
     pub snapshot: Option<SnapshotId>,
     pub cached: bool,
+    /// True when the snapshot is ephemeral (not registered in the cache)
+    /// and must be cleaned up by the caller after downstream steps finish.
+    pub ephemeral_snapshot: bool,
 }
 
 /// VM resource configuration.
