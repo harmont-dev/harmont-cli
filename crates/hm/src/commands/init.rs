@@ -88,6 +88,90 @@ fn prompt_skills() -> Result<bool> {
     Ok(install)
 }
 
+/// Prompt the user to link this repo to a Harmont Cloud organization.
+///
+/// Flow:
+/// - If not logged in → offer to log in first (Confirm, default no).
+/// - If logged in (or just logged in) → fetch orgs → Select with "No, skip" as first item.
+/// - On org selection → write a sparse `.hm/config.toml` with `backend = "cloud"` and the org slug.
+///
+/// Silently returns `Ok(())` on any user-cancellation (Esc, Ctrl-C on a prompt).
+async fn prompt_cloud_registration(dir: &std::path::Path) -> Result<()> {
+    let cfg = hm_config::Config::load(None).unwrap_or_default();
+    let api_url = &cfg.cloud.api_url;
+    let is_logged_in = hm_config::creds::cloud_token(api_url).is_some();
+
+    if !is_logged_in {
+        let want_login = dialoguer::Confirm::new()
+            .with_prompt(
+                "You are not logged in to Harmont Cloud. Log in now?",
+            )
+            .default(false)
+            .interact()
+            .unwrap_or(false);
+
+        if !want_login {
+            return Ok(());
+        }
+
+        hm_plugin_cloud::login_interactive().await?;
+    }
+
+    let (client, _ctx) = hm_plugin_cloud::settings::client()
+        .context("could not build authenticated cloud client")?;
+
+    let orgs = client
+        .raw()
+        .list_organizations(None, None)
+        .await
+        .map_err(hm_plugin_cloud::settings::map_raw)
+        .context("fetching organizations")?
+        .into_inner();
+
+    if orgs.data.is_empty() {
+        tracing::warn!(
+            "no organizations found — create one at https://app.harmont.dev"
+        );
+        return Ok(());
+    }
+
+    let mut items: Vec<String> = vec!["No, skip".to_string()];
+    items.extend(orgs.data.iter().map(|o| format!("{} ({})", o.name, o.slug)));
+
+    let selection = dialoguer::Select::new()
+        .with_prompt("Link this repo to Harmont Cloud?")
+        .items(&items)
+        .default(0)
+        .interact()
+        .unwrap_or(0);
+
+    if selection == 0 {
+        return Ok(());
+    }
+
+    let chosen = &orgs.data[selection - 1];
+    write_cloud_project_config(dir, &chosen.slug)?;
+    tracing::info!(
+        "linked to {} ({}) — `hm run` will now use Harmont Cloud by default",
+        chosen.name,
+        chosen.slug,
+    );
+    Ok(())
+}
+
+fn write_cloud_project_config(dir: &std::path::Path, org_slug: &str) -> Result<()> {
+    let config_path = dir.join(".hm/config.toml");
+    let content = format!(
+        "backend = \"cloud\"\n\
+         \n\
+         [cloud]\n\
+         org = \"{org_slug}\"\n"
+    );
+    std::fs::write(&config_path, &content)
+        .with_context(|| format!("writing {}", config_path.display()))?;
+    Ok(())
+}
+
 fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     let harmont_dir = dir.join(".hm");
     let already_has_pipeline = detect::has_pipeline_files(dir);
@@ -164,7 +248,6 @@ fn has_github_workflows(dir: &Path) -> bool {
 ///
 /// Returns an error if the target directory is unwritable, or if no template
 /// can be determined in a non-interactive context.
-#[allow(clippy::unused_async)]
 pub async fn handle(args: InitArgs) -> Result<()> {
     let tty = std::io::stdin().is_terminal();
     let has_pipeline = detect::has_pipeline_files(&args.dir);
@@ -202,6 +285,12 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         }
     }
 
+    if tty {
+        if let Err(e) = prompt_cloud_registration(&args.dir).await {
+            tracing::warn!("cloud registration skipped: {e:#}");
+        }
+    }
+
     if has_github_workflows(&args.dir) {
         tracing::info!(
             "detected GitHub Actions workflows in .github/workflows/\n  \
@@ -215,6 +304,17 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         write_skills(&args.dir)?;
     }
 
-    tracing::info!("next step: run `hm run` to execute your pipeline locally");
+    let project_config = hm_config::Config::project_config_path(&args.dir);
+    if project_config.exists() {
+        let cfg = hm_config::Config::load_from_paths(None, Some(&project_config))
+            .unwrap_or_default();
+        if cfg.backend == "cloud" {
+            tracing::info!("next step: run `hm run` to execute your pipeline on Harmont Cloud");
+        } else {
+            tracing::info!("next step: run `hm run` to execute your pipeline locally");
+        }
+    } else {
+        tracing::info!("next step: run `hm run` to execute your pipeline locally");
+    }
     Ok(())
 }
