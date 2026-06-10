@@ -79,11 +79,15 @@ fn init_existing_pipeline_without_force_warns_and_succeeds() {
 }
 
 #[test]
-fn init_force_overwrites_existing() {
+fn init_force_preserves_coresident_files() {
+    // `--force` must overwrite ONLY the target template file. It must never
+    // wipe the whole `.hm/` directory: config.toml and any co-resident
+    // pipeline (e.g. a hand-written deploy.py) must survive.
     let dir = tempfile::tempdir().unwrap();
     let harmont = dir.path().join(".hm");
     std::fs::create_dir(&harmont).unwrap();
-    std::fs::write(harmont.join("old.py"), "# old").unwrap();
+    std::fs::write(harmont.join("config.toml"), "backend = \"cloud\"\n").unwrap();
+    std::fs::write(harmont.join("deploy.py"), "# co-resident pipeline").unwrap();
 
     hm().args(["init", "--template", "rust", "--force", "--dir"])
         .arg(dir.path())
@@ -91,9 +95,15 @@ fn init_force_overwrites_existing() {
         .success();
 
     assert!(dir.path().join(".hm/pipeline.py").exists());
-    assert!(
-        !harmont.join("old.py").exists(),
-        "stale file should be removed on --force"
+    assert_eq!(
+        std::fs::read_to_string(harmont.join("config.toml")).unwrap(),
+        "backend = \"cloud\"\n",
+        "config.toml must survive --force"
+    );
+    assert_eq!(
+        std::fs::read_to_string(harmont.join("deploy.py")).unwrap(),
+        "# co-resident pipeline",
+        "co-resident pipeline must survive --force"
     );
 }
 
@@ -361,9 +371,7 @@ fn init_detects_github_workflows_in_noninteractive_mode() {
 
 #[test]
 fn skill_convert_gha_content_is_well_formed() {
-    let content = include_str!(
-        "../src/commands/init_templates/skill_convert_gha.md"
-    );
+    let content = include_str!("../src/commands/init_templates/skill_convert_gha.md");
     assert!(!content.is_empty(), "skill template must not be empty");
     assert!(
         content.contains("## When to use"),
@@ -426,7 +434,9 @@ fn init_skips_template_prompt_when_pipeline_exists() {
 
     // Non-TTY: skills are not installed (no prompt possible).
     assert!(
-        !dir.path().join(".claude/skills/validate-ci/SKILL.md").exists(),
+        !dir.path()
+            .join(".claude/skills/validate-ci/SKILL.md")
+            .exists(),
         "skills should not install without a TTY"
     );
 }
@@ -459,4 +469,38 @@ fn init_without_template_in_non_tty_errors_clearly() {
         !dir.path().join(".hm/pipeline.py").exists(),
         "no pipeline should be written when none could be chosen"
     );
+}
+
+// ── cloud registration ──────────────────────────────────────
+
+#[test]
+fn init_noninteractive_skips_cloud_registration() {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let config = dir.path().join(".hm/config.toml");
+    assert!(
+        !config.exists(),
+        "non-interactive init should not create .hm/config.toml"
+    );
+}
+
+#[test]
+fn cloud_project_config_layers_correctly() {
+    let dir = tempfile::tempdir().unwrap();
+    let hm_dir = dir.path().join(".hm");
+    std::fs::create_dir(&hm_dir).unwrap();
+
+    let config_path = hm_dir.join("config.toml");
+    let content = "backend = \"cloud\"\n\n[cloud]\norg = \"test-org\"\n";
+    std::fs::write(&config_path, content).unwrap();
+
+    let cfg = hm_config::Config::load_from_paths(None, Some(&config_path)).unwrap();
+    assert_eq!(cfg.backend, "cloud");
+    assert_eq!(cfg.cloud.org.as_deref(), Some("test-org"));
+    // Unrelated defaults survive layering.
+    assert_eq!(cfg.preferences.format, "human");
 }

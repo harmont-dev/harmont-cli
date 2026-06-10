@@ -139,20 +139,10 @@ async fn login_paste(
 
 /// Derive the SPA (app) base URL from the API base.
 ///
-/// Priority: `HARMONT_APP_URL` env > heuristic mapping of `api.` → `app.` on
-/// the API host > the API base itself (last-resort, dev fallback).
+/// Thin wrapper over the shared [`hm_config::app_url`] helper, sourcing the
+/// override from the `HARMONT_APP_URL` env var.
 fn app_url(api: &str, env: &BTreeMap<String, String>) -> String {
-    if let Some(u) = env.get("HARMONT_APP_URL").filter(|u| !u.is_empty()) {
-        return u.trim_end_matches('/').to_string();
-    }
-    let api = api.trim_end_matches('/');
-    if let Some(rest) = api.strip_prefix("https://api.") {
-        return format!("https://app.{rest}");
-    }
-    if let Some(rest) = api.strip_prefix("http://api.") {
-        return format!("http://app.{rest}");
-    }
-    api.to_string()
+    hm_config::app_url(api, env.get("HARMONT_APP_URL").map(String::as_str))
 }
 
 /// A URL-safe random nonce for the loopback handoff.

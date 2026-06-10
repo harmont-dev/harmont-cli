@@ -23,6 +23,7 @@
 )]
 
 use std::collections::{BTreeMap, HashMap};
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -206,10 +207,11 @@ async fn resolve_execution_batch(
 /// Returns an error if the source archive cannot be built or any
 /// scheduler-level failure occurs. Non-zero step exit codes are
 /// surfaced via the returned [`BuildOutcome`], not as an `Err`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run(
     graph: PipelineGraph,
     context: LocalRunContext,
-    parallelism: usize,
+    parallelism: NonZeroUsize,
     runner_registry: Arc<RunnerRegistry>,
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
     cancel: CancellationToken,
@@ -266,9 +268,7 @@ pub(crate) async fn run(
         cancel: cancel.clone(),
     };
 
-    let parallelism = parallelism.max(1);
-
-    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism));
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism.get()));
 
     let default_image = graph.default_image().map(str::to_owned);
     let dag = graph.dag();
@@ -407,26 +407,23 @@ pub(crate) async fn run(
     // set twice: once racing the deadline (to fire cancellation promptly), then
     // again to drain every step to completion before tearing down.
     let pending: Vec<StepFuture> = done.into_values().collect();
-    let timed_out = match pipeline_timeout {
-        Some(secs) if secs > 0 => {
-            let join_fut = join_all(pending.clone());
-            tokio::pin!(join_fut);
-            tokio::select! {
-                _ = &mut join_fut => false,
-                () = tokio::time::sleep(Duration::from_secs(u64::from(secs))) => {
-                    // Whole-build budget blown: signal every step to stop. New
-                    // steps short-circuit via the `cancel.is_cancelled()` check
-                    // in the spawn closure; in-flight runners observe
-                    // run_ctx.cancel.
-                    cancel.cancel();
-                    true
-                }
+    let timed_out = if let Some(secs) = pipeline_timeout {
+        let join_fut = join_all(pending.clone());
+        tokio::pin!(join_fut);
+        tokio::select! {
+            _ = &mut join_fut => false,
+            () = tokio::time::sleep(Duration::from_secs(u64::from(secs.get()))) => {
+                // Whole-build budget blown: signal every step to stop. New
+                // steps short-circuit via the `cancel.is_cancelled()` check
+                // in the spawn closure; in-flight runners observe
+                // run_ctx.cancel.
+                cancel.cancel();
+                true
             }
         }
-        _ => {
-            let _ = join_all(pending.clone()).await;
-            false
-        }
+    } else {
+        let _ = join_all(pending.clone()).await;
+        false
     };
     let outcomes: Vec<StepOutcome> = join_all(pending).await;
     let any_failed = outcomes.iter().any(|o| o.exit_code != 0);
@@ -445,7 +442,7 @@ pub(crate) async fn run(
 
     if timed_out {
         tracing::warn!(
-            timeout_seconds = pipeline_timeout,
+            timeout_seconds = ?pipeline_timeout,
             "pipeline wall-clock timeout exceeded; build failed"
         );
     }
@@ -722,8 +719,8 @@ async fn execute_command(
 
     let exec = runner.execute(&run_ctx, input);
     let result: anyhow::Result<StepResult> = match step_timeout_secs {
-        Some(secs) if secs > 0 => {
-            match tokio::time::timeout(Duration::from_secs(u64::from(secs)), exec).await {
+        Some(secs) => {
+            match tokio::time::timeout(Duration::from_secs(u64::from(secs.get())), exec).await {
                 Ok(r) => r,
                 Err(_elapsed) => {
                     // Per-step wall-clock budget exceeded. Emit a step-end with the

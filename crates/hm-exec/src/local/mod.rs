@@ -18,4 +18,4 @@ pub(crate) use runner::vm::VmRunner; // intra-crate: local/backend.rs via crate:
 pub(crate) use scheduler::LocalRunContext;
 pub(crate) use scheduler::chain_count;
 pub(crate) use scheduler::run;
-pub(crate) use source::build_archive_bytes; // intra-crate: cloud/backend.rs via crate::local::
+pub(crate) use source::{build_archive_bytes, top_level_sizes}; // intra-crate: cloud/backend.rs via crate::local::

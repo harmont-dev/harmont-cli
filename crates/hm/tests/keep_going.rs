@@ -53,10 +53,10 @@ fn keep_going_runs_independent_branches() {
             .get("kind")
             .and_then(|k| k.as_str())
             .unwrap_or_else(|| panic!("missing 'kind' on line: {line}"));
-        if kind == "step_start" {
-            if let Some(key) = v.get("step_key").and_then(|k| k.as_str()) {
-                step_starts.push(key.to_string());
-            }
+        if kind == "step_start"
+            && let Some(key) = v.get("step_key").and_then(|k| k.as_str())
+        {
+            step_starts.push(key.to_string());
         }
     }
 

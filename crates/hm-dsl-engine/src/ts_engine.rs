@@ -105,6 +105,21 @@ impl Drop for SymlinkCleanup {
     }
 }
 
+/// The operation the embedded JS runner should perform.
+///
+/// Modeled as a closed enum so the dispatch is exhaustive and typo-proof at
+/// compile time; the wire string lives in exactly one place (the per-variant
+/// `Display` derivation below).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
+enum RunMode {
+    #[display("list")]
+    List,
+    #[display("render")]
+    Render,
+    #[display("render-target")]
+    RenderTarget,
+}
+
 #[derive(Debug)]
 pub struct SubprocessTsEngine {
     runtime: JsRuntime,
@@ -166,7 +181,7 @@ impl SubprocessTsEngine {
     async fn run(
         &self,
         project_dir: &Path,
-        mode: &str,
+        mode: RunMode,
         slug: Option<&str>,
         context: Option<&str>,
     ) -> Result<String> {
@@ -233,7 +248,7 @@ impl SubprocessTsEngine {
             }
         }
 
-        cmd.arg(project_dir).arg(mode);
+        cmd.arg(project_dir).arg(mode.to_string());
 
         if let Some(s) = slug {
             cmd.arg(s);
@@ -265,7 +280,7 @@ impl SubprocessTsEngine {
 impl DslEngine for SubprocessTsEngine {
     async fn list_pipelines(&self, project_dir: &Path) -> Result<Vec<PipelineMeta>> {
         let stdout = self
-            .run(project_dir, "list", None, None)
+            .run(project_dir, RunMode::List, None, None)
             .await
             .context("listing pipelines via JS runtime")?;
 
@@ -275,7 +290,7 @@ impl DslEngine for SubprocessTsEngine {
     }
 
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> Result<String> {
-        self.run(project_dir, "render", Some(slug), None)
+        self.run(project_dir, RunMode::Render, Some(slug), None)
             .await
             .context("rendering pipeline via JS runtime")
     }
@@ -290,7 +305,7 @@ impl DslEngine for SubprocessTsEngine {
             serde_json::to_string(context).context("encoding dynamic target context")?;
         self.run(
             project_dir,
-            "render-target",
+            RunMode::RenderTarget,
             Some(target_name),
             Some(&context_json),
         )
