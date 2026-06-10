@@ -255,9 +255,14 @@ mod tests {
         let dir = tmp.path().join("hm");
         let file = dir.join("credentials.toml");
 
-        write_atomic_restricted(&file, b"token = \"hunter2\"\n", FileMode(0o600), DirMode(0o700))
-            .await
-            .unwrap();
+        write_atomic_restricted(
+            &file,
+            b"token = \"hunter2\"\n",
+            FileMode(0o600),
+            DirMode(0o700),
+        )
+        .await
+        .unwrap();
 
         let fmode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
         assert_eq!(fmode, 0o600, "file mode must be 0o600, got {fmode:o}");

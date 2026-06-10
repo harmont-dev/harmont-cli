@@ -39,7 +39,7 @@ fn save(file: &CredentialFile) -> Result<()> {
         hm_util::os::fs::FileMode(0o600),
         hm_util::os::fs::DirMode(0o700),
     )
-        .with_context(|| format!("writing {}", p.display()))?;
+    .with_context(|| format!("writing {}", p.display()))?;
     Ok(())
 }
 
