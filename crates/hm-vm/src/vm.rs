@@ -7,7 +7,9 @@ use tracing::{instrument, warn};
 
 use crate::backend::VmBackend;
 use crate::registry::ImageRegistry;
-use crate::types::{Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, VmConfig};
+use crate::types::{
+    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotLabel, VmConfig,
+};
 
 /// High-level orchestrator that drives the VM lifecycle.
 ///
@@ -107,10 +109,10 @@ impl HmVm {
         // 5. Snapshot and cache on success
         let snapshot = if exit_code == 0 {
             let label = match policy {
-                CachingPolicy::Cache { key } => key.as_str(),
-                CachingPolicy::None => "ephemeral",
+                CachingPolicy::Cache { key } => SnapshotLabel::Cached(key.clone()),
+                CachingPolicy::None => SnapshotLabel::Ephemeral,
             };
-            let snap = vm.snapshot(label).await?;
+            let snap = vm.snapshot(&label).await?;
 
             if let CachingPolicy::Cache { key } = policy {
                 let evicted = self.registry.put(key, &snap);
@@ -236,7 +238,11 @@ mod tests {
             Ok(self.exit_code)
         }
 
-        async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
+        async fn snapshot(&mut self, label: &SnapshotLabel) -> Result<SnapshotId> {
+            let label = match label {
+                SnapshotLabel::Ephemeral => "ephemeral".to_string(),
+                SnapshotLabel::Cached(key) => key.clone(),
+            };
             self.calls
                 .lock()
                 .map_or_else(|_| {}, |mut c| c.push(format!("snapshot:{label}")));
