@@ -285,10 +285,10 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         }
     }
 
-    if tty {
-        if let Err(e) = prompt_cloud_registration(&args.dir).await {
-            tracing::warn!("cloud registration skipped: {e:#}");
-        }
+    if tty
+        && let Err(e) = prompt_cloud_registration(&args.dir).await
+    {
+        tracing::warn!("cloud registration skipped: {e:#}");
     }
 
     if has_github_workflows(&args.dir) {
