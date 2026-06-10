@@ -17,6 +17,7 @@ use harmont_cloud::{
     HarmontClient, HarmontError,
     logs::{LogEvent, StreamKind},
     models::{build_is_terminal, job_is_terminal},
+    types::JobState,
 };
 use hm_plugin_protocol::events::{BuildEvent, PlanSummary, StdStream};
 use uuid::Uuid;
@@ -53,6 +54,27 @@ fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> u64 
     match (start, end) {
         (Some(s), Some(e)) => (e - s).num_milliseconds().max(0).cast_unsigned(),
         _ => 0,
+    }
+}
+
+/// Whether a job has reached a state where its logs exist (running or already
+/// terminal), and so a log stream should be started for it.
+///
+/// Matching the typed [`JobState`] enum (rather than `to_string()`/`as_str()`
+/// against string literals) makes the set of states exhaustive: when the cloud
+/// adds a new `JobState` variant the compiler forces this decision to be
+/// revisited, and a misspelled state can no longer silently drop a job's logs.
+const fn job_logs_available(state: JobState) -> bool {
+    match state {
+        JobState::Running
+        | JobState::Passed
+        | JobState::Failed
+        | JobState::TimedOut
+        | JobState::Canceling
+        | JobState::Canceled
+        | JobState::TimingOut => true,
+        // No logs yet (not started) or never produced (skipped).
+        JobState::Pending | JobState::Scheduled | JobState::Assigned | JobState::Skipped => false,
     }
 }
 
@@ -131,18 +153,7 @@ pub async fn watch_build(
         // state where logs exist (running or already terminal).
         let jobs = client.list_jobs(org, pipeline, number).await?;
         for job in &jobs {
-            let state = job.state.to_string();
-            let logs_available = matches!(
-                state.as_str(),
-                "running"
-                    | "passed"
-                    | "failed"
-                    | "timed_out"
-                    | "canceling"
-                    | "canceled"
-                    | "timing_out"
-            );
-            if logs_available && streaming.insert(job.id) {
+            if job_logs_available(job.state) && streaming.insert(job.id) {
                 let name = job.name.clone().unwrap_or_else(|| "job".to_string());
                 let idx = *chain_idx.entry(job.id).or_insert_with(|| {
                     let i = next_idx;
@@ -400,7 +411,34 @@ async fn emit(
 
 #[cfg(test)]
 mod tests {
-    use super::exit_code_for_state;
+    use super::{JobState, exit_code_for_state, job_logs_available};
+
+    #[test]
+    fn logs_available_for_running_and_terminal_states() {
+        for state in [
+            JobState::Running,
+            JobState::Passed,
+            JobState::Failed,
+            JobState::TimedOut,
+            JobState::Canceling,
+            JobState::Canceled,
+            JobState::TimingOut,
+        ] {
+            assert!(job_logs_available(state), "expected logs for {state}");
+        }
+    }
+
+    #[test]
+    fn no_logs_before_start_or_when_skipped() {
+        for state in [
+            JobState::Pending,
+            JobState::Scheduled,
+            JobState::Assigned,
+            JobState::Skipped,
+        ] {
+            assert!(!job_logs_available(state), "expected no logs for {state}");
+        }
+    }
 
     #[test]
     fn passed_is_zero_canceled_is_130_else_is_one() {

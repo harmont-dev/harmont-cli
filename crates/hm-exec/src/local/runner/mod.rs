@@ -11,7 +11,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::Result;
-use hm_plugin_protocol::{ExecutorInput, StepResult};
+use hm_plugin_protocol::{ExecutorInput, SnapshotRef, StepResult};
 use tokio_util::sync::CancellationToken;
 
 use crate::local::archive::ArchiveStore;
@@ -55,6 +55,21 @@ pub trait StepRunner: Send + Sync + fmt::Debug {
         ctx: &StepContext,
         input: ExecutorInput,
     ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>>;
+
+    /// Reap transient snapshots once a run has finished.
+    ///
+    /// Ephemeral (uncached) leaf steps commit a snapshot purely so a
+    /// downstream `BuildsIn` child can restore from it; nothing else holds a
+    /// reference and the cache registry never tracks them. The scheduler
+    /// collects every such snapshot and calls this at run end (best-effort)
+    /// so they don't leak in the backend store. The default is a no-op for
+    /// runners that produce no reapable snapshots.
+    fn reap_snapshots<'a>(
+        &'a self,
+        _snapshots: Vec<SnapshotRef>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async {})
+    }
 }
 
 /// Maps runner names to [`StepRunner`] implementations.

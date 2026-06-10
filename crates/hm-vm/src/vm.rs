@@ -8,7 +8,8 @@ use tracing::{instrument, warn};
 use crate::backend::VmBackend;
 use crate::registry::ImageRegistry;
 use crate::types::{
-    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotLabel, VmConfig,
+    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotId, SnapshotLabel,
+    VmConfig,
 };
 
 /// High-level orchestrator that drives the VM lifecycle.
@@ -79,6 +80,20 @@ impl HmVm {
         vm.destroy().await.ok();
 
         result
+    }
+
+    /// Remove a snapshot from the backend store.
+    ///
+    /// Used to reap ephemeral (uncached) leaf snapshots once a run finishes —
+    /// `CachingPolicy::None` commits a transient `ephemeral:*` image purely for
+    /// downstream container lineage, and nothing in the registry ever evicts
+    /// it. The scheduler reaps these explicitly at run end.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to remove the snapshot.
+    pub async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
+        self.backend.remove_snapshot(snapshot).await
     }
 
     /// Inner lifecycle: inject, exec, snapshot. Separated so the caller
@@ -264,6 +279,7 @@ mod tests {
     fn open_temp_registry(capacity: u64) -> (ImageRegistry, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db = dir.path().join("registry.db");
+        let capacity = std::num::NonZeroU64::new(capacity).expect("capacity must be non-zero");
         let reg = ImageRegistry::open(&db, capacity).expect("failed to open registry");
         (reg, dir)
     }
