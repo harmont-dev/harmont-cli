@@ -38,8 +38,11 @@ Versioning is **driven by git tags on the public mirror**. The release
 workflow in `.github/workflows/release.yml` triggers on any tag matching
 `v*`, seds the version from the tag into every publishable crate's
 `Cargo.toml` plus the `workspace.dependencies` pins, runs
-`cargo publish -p harmont-cli --dry-run` as a fail-fast guard, then
-publishes the crates to crates.io in dependency (topological) order:
+`cargo package --workspace` as a fail-fast guard (it resolves sibling
+path deps locally, so it catches the `publish = false` /
+unpublished-dep class of regression without needing the deps on the
+index yet — which `cargo publish --dry-run` would), then publishes the
+crates to crates.io in dependency (topological) order:
 
 ```
 hm-util → hm-pipeline-ir → hm-config → hm-plugin-protocol → hm-render
