@@ -99,21 +99,14 @@ impl Drop for SymlinkCleanup {
 /// The operation the embedded JS runner should perform.
 ///
 /// Modeled as a closed enum so the dispatch is exhaustive and typo-proof at
-/// compile time; the wire string lives in exactly one place (`as_arg`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// compile time; the wire string lives in exactly one place (the per-variant
+/// `Display` derivation below).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
 enum RunMode {
+    #[display("list")]
     List,
+    #[display("render")]
     Render,
-}
-
-impl RunMode {
-    /// The CLI argument passed to the JS runner for this mode.
-    fn as_arg(self) -> &'static str {
-        match self {
-            Self::List => "list",
-            Self::Render => "render",
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -238,7 +231,7 @@ impl SubprocessTsEngine {
             }
         }
 
-        cmd.arg(project_dir).arg(mode.as_arg());
+        cmd.arg(project_dir).arg(mode.to_string());
 
         if let Some(s) = slug {
             cmd.arg(s);
