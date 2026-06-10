@@ -258,6 +258,38 @@ fn init_ts_templates_roundtrip_render() {
     }
 }
 
+/// CLI-37 regression: the dogfood `.hm/ci.py` must test the whole workspace,
+/// not a single package, so dsl-engine failures surface in CI.
+#[test]
+fn dogfood_ci_tests_whole_workspace() {
+    if !has_python() {
+        return;
+    }
+    // Render the repo's own pipeline. CARGO_MANIFEST_DIR is crates/hm; the
+    // repo root is two levels up.
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap();
+    let out = hm()
+        .args(["render", "ci", "--dir"])
+        .arg(repo_root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json = String::from_utf8(out).unwrap();
+    assert!(
+        json.contains("cargo test --workspace"),
+        "CI must run `cargo test --workspace`; render was:\n{json}"
+    );
+    assert!(
+        !json.contains("cargo test -p harmont-cli"),
+        "CI must not scope tests to a single package"
+    );
+}
+
 // ── skills ───────────────────────────────────────────────────────
 
 #[test]
