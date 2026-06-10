@@ -48,7 +48,7 @@ def test_har_28_example_renders():
 
     @hm.target()
     def web():
-        return hm.npm(path="web").run("build")
+        return hm.js.project(path="web").run("build")
 
     @hm.pipeline("ci")
     def ci():

@@ -24,6 +24,7 @@ class PipelineRegistration:
     env: dict[str, str] | None
     default_image: str | None
     fn: Callable[[], object]
+    timeout: str | int | None = None
 
 
 REGISTRATIONS: list[PipelineRegistration] = []

@@ -13,5 +13,7 @@ fn plugin_list_shows_registered_runners() {
         .arg("list")
         .assert()
         .success()
-        .stdout(contains("docker"));
+        // `plugin list` reports through `tracing` (stderr), per the
+        // CLI-wide "no raw println/eprintln" convention (#14).
+        .stderr(contains("docker"));
 }

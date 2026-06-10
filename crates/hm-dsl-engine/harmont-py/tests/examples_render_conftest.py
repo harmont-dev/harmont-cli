@@ -54,11 +54,11 @@ def isolated_registry() -> Iterator[None]:
 
 
 def load_pipeline_module(example_dir: pathlib.Path) -> None:
-    """Load .harmont/pipeline.py from `example_dir`, executing decorator
+    """Load .hm/pipeline.py from `example_dir`, executing decorator
     side-effects. Run with cwd = example_dir so on_change cache paths
     resolve correctly.
     """
-    pipeline_py = example_dir / ".harmont" / "pipeline.py"
+    pipeline_py = example_dir / ".hm" / "pipeline.py"
     spec = importlib.util.spec_from_file_location(
         f"_harmont_example_{example_dir.name}", pipeline_py
     )

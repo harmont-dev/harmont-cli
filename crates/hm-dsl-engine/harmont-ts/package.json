@@ -1,6 +1,6 @@
 {
-  "name": "harmont",
-  "version": "0.1.0",
+  "name": "@harmont/hm",
+  "version": "0.0.1",
   "type": "module",
   "exports": {
     ".": {
@@ -17,6 +17,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },

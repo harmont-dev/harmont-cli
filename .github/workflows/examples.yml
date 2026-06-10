@@ -79,12 +79,14 @@ jobs:
         example:
           - bun
           - c
+          - cmake-advanced
           - cpp
+          - elixir
+          - elixir-phoenix
           - go
           - nextjs
           - python-uv
           - react
-          - ruby
           - rust
           - typescript
           - zig-js

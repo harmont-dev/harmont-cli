@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ._duration import parse_duration
 from ._keys import resolve_keys
 from .cache import (
     CacheCompose,
@@ -28,25 +29,33 @@ if TYPE_CHECKING:
 
 
 def pipeline(
-    *leaves: Step,
+    leaves: list[Step] | tuple[Step, ...],
+    *,
     env: dict[str, str] | None = None,
     default_image: str | None = None,
+    timeout: str | int | None = None,
 ) -> dict[str, Any]:
     """Top-level factory. Returns a JSON-shaped dict (version "0").
 
     ``default_image`` is the local-mode fallback Docker image: it
     applies to every command step that lacks both a ``builds_in``
     parent edge and a per-step ``image`` override.
+
+    ``timeout`` is a whole-build wall-clock budget (``"30m"``, ``"1h"``,
+    or an int number of seconds). When it elapses the build is killed and
+    fails as *timed out*, regardless of how far the step graph got.
     """
     if not leaves:
         msg = (
             "pipeline must have at least one leaf — "
-            "pass the terminal step(s) of each branch as positional args"
+            "pass the terminal step(s) of each branch in the first argument"
         )
         raise ValueError(msg)
     out: dict[str, Any] = {"version": "0"}
     if default_image is not None:
         out["default_image"] = default_image
+    if timeout is not None:
+        out["timeout_seconds"] = parse_duration(timeout)
     out["graph"] = _lower_to_graph(
         list(leaves),
         env=env,
@@ -123,8 +132,11 @@ def _lower_to_graph(
         if s.runner_args is not None:
             step_dict["runner_args"] = s.runner_args
 
-        # Merge per-step env with pipeline-level env.
-        merged_env: dict[str, str] = {}
+        # Baseline env for non-interactive operation inside VMs/containers.
+        merged_env: dict[str, str] = {
+            "DEBIAN_FRONTEND": "noninteractive",
+            "TERM": "dumb",
+        }
         if env:
             merged_env.update(env)
         if s.env:

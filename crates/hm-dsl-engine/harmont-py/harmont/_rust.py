@@ -177,7 +177,11 @@ def _make_rust_project(
     )
 
     lock_path = f"{path}/Cargo.lock" if path != "." else "Cargo.lock"
-    warmup_cache = cache if cache is not None else CacheOnChange(paths=(lock_path,))
+    toml_glob = f"{path}/**/Cargo.toml" if path != "." else "**/Cargo.toml"
+    rs_glob = f"{path}/**/*.rs" if path != "." else "**/*.rs"
+    warmup_cache = (
+        cache if cache is not None else CacheOnChange(paths=(lock_path, toml_glob, rs_glob))
+    )
 
     warm = tc._emit(  # noqa: SLF001
         "cargo build --workspace --tests --locked",
@@ -224,7 +228,7 @@ class RustEntry:
         Examples:
             >>> import harmont as hm
             >>> tc = hm.rust.toolchain(version="1.81.0")
-            >>> hm.pipeline(tc.test(), tc.clippy())
+            >>> hm.pipeline([tc.test(), tc.clippy()])
         """
         return _make_rust(
             path=path,
@@ -261,7 +265,8 @@ class RustEntry:
             base: Existing ``Step`` to attach to instead of emitting a fresh
                 apt-base step.
             cache: Override the warmup step's cache policy. Defaults to
-                ``CacheOnChange`` keyed on ``Cargo.lock``.
+                ``CacheOnChange`` keyed on ``Cargo.lock``, ``**/Cargo.toml``,
+                and ``**/*.rs``.
 
         Returns:
             A ``RustProject`` exposing the common CI steps.

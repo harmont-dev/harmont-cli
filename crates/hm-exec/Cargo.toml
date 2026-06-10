@@ -1,0 +1,39 @@
+[package]
+name = "hm-exec"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pluggable CI execution backends (local VM + cloud) for the hm CLI."
+
+[dependencies]
+hm-plugin-protocol = { workspace = true }
+hm-pipeline-ir = { workspace = true }
+hm-util = { workspace = true }
+hm-vm = { workspace = true, features = ["docker-backend"] }
+harmont-cloud = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tokio-stream = "0.1"
+futures = "0.3"
+futures-util = "0.3"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tar = "0.4"
+flate2 = "1"
+ignore = "0.4"
+tempfile = "3"
+daggy = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tempfile = "3"
+
+[lints]
+workspace = true

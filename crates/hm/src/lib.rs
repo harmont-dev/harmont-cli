@@ -15,10 +15,14 @@
 )]
 pub mod cli;
 pub mod commands;
-pub mod config;
+/// Re-export of the shared [`hm_config`] crate under the historical
+/// `harmont_cli::config` path so existing consumers and integration tests
+/// keep resolving. The layered config + credential store now live in
+/// `hm-config` so `hm-plugin-cloud` can share them.
+pub use hm_config as config;
+/// Re-export the credential store under the historical
+/// `harmont_cli::creds_store` path.
+pub use hm_config::creds as creds_store;
 pub mod context;
-pub mod creds_store;
 pub mod error;
-pub mod orchestrator;
-pub mod output;
-pub mod runner;
+pub(crate) mod signal;

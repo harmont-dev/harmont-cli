@@ -16,12 +16,8 @@ def failing() -> hm.Step:
 "#;
 
 fn write_failing_pipeline(temp: &tempfile::TempDir) {
-    std::fs::create_dir_all(temp.path().join(".harmont")).unwrap();
-    std::fs::write(
-        temp.path().join(".harmont/pipeline.py"),
-        FAILING_PIPELINE_PY,
-    )
-    .unwrap();
+    std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
+    std::fs::write(temp.path().join(".hm/pipeline.py"), FAILING_PIPELINE_PY).unwrap();
 }
 
 #[test]

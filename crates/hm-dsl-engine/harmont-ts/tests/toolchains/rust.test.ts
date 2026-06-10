@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { rust } from "../../src/toolchains/rust.js";
-import { sh } from "../../src/step.js";
+import { sh, timeout } from "../../src/step.js";
 import { pipeline } from "../../src/pipeline.js";
 
 const cmds = (ir: ReturnType<typeof pipeline>) =>
@@ -85,7 +85,7 @@ describe("rust.toolchain", () => {
 
   it("accepts step options", () => {
     const r = rust.toolchain();
-    const t = r.test({ label: "my test", timeoutSeconds: 600 });
+    const t = timeout(600, r.test({ label: "my test" }));
     expect(t._label).toBe("my test");
     expect(t._timeoutSeconds).toBe(600);
   });
@@ -142,7 +142,7 @@ describe("rust.toolchain", () => {
 
   it("produces valid pipeline IR", () => {
     const r = rust.toolchain();
-    const ir = pipeline(r.build(), r.test(), r.clippy(), r.fmt(), {
+    const ir = pipeline([r.build(), r.test(), r.clippy(), r.fmt()], {
       defaultImage: "ubuntu:24.04",
     });
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
@@ -163,19 +163,19 @@ describe("rust.project", () => {
     expect(proj.fmt()._cmd).toContain("cargo fmt --check");
   });
 
-  it("warmup has implicit CacheOnChange on Cargo.lock", () => {
+  it("warmup has implicit CacheOnChange on Cargo.lock, Cargo.toml, and *.rs", () => {
     const proj = rust.project({ path: "cli" });
     expect(proj.warmup._cache).toEqual({
       kind: "on_change",
-      paths: ["cli/Cargo.lock"],
+      paths: ["cli/Cargo.lock", "cli/**/Cargo.toml", "cli/**/*.rs"],
     });
   });
 
-  it("warmup cache uses plain Cargo.lock for dot path", () => {
+  it("warmup cache uses plain paths for dot path", () => {
     const proj = rust.project({ path: "." });
     expect(proj.warmup._cache).toEqual({
       kind: "on_change",
-      paths: ["Cargo.lock"],
+      paths: ["Cargo.lock", "**/Cargo.toml", "**/*.rs"],
     });
   });
 
@@ -237,7 +237,7 @@ describe("rust.project", () => {
   it("with base skips apt", () => {
     const base = sh("custom base");
     const proj = rust.project({ path: "cli", base });
-    const ir = pipeline(proj.test(), proj.clippy(), proj.fmt(), {
+    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()], {
       defaultImage: "ubuntu:24.04",
     });
     const c = cmds(ir);
@@ -249,7 +249,7 @@ describe("rust.project", () => {
 
   it("produces valid pipeline IR", () => {
     const proj = rust.project({ path: "cli" });
-    const ir = pipeline(proj.test(), proj.clippy(), proj.fmt(), {
+    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()], {
       defaultImage: "ubuntu:24.04",
     });
     expect(ir.version).toBe("0");
@@ -266,7 +266,7 @@ describe("rust.project", () => {
 
   it("version forwarded", () => {
     const proj = rust.project({ path: ".", version: "1.81.0" });
-    const ir = pipeline(proj.test());
+    const ir = pipeline([proj.test()]);
     const rustup = stepBySubstring(ir, "sh.rustup.rs");
     expect(rustup.cmd).toContain("--default-toolchain 1.81.0");
   });

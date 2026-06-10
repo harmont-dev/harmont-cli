@@ -12,5 +12,7 @@ fn version_prints_version() {
         .arg("version")
         .assert()
         .success()
-        .stdout(contains("hm "));
+        // The `version` subcommand reports through `tracing` (stderr), per
+        // the CLI-wide "no raw println/eprintln" convention (#14).
+        .stderr(contains("hm "));
 }

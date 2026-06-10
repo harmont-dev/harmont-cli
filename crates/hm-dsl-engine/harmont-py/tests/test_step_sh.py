@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import harmont as hm
 from harmont._step import scratch
 from harmont.cache import CacheNone
 
@@ -15,13 +16,15 @@ def test_sh_links_parent_and_sets_cmd():
 
 
 def test_sh_carries_all_kwargs():
-    s = scratch().sh(
-        "make",
-        label="build",
-        cache=CacheNone(),
-        env={"CI": "true"},
-        timeout_seconds=600,
-        key="explicit-key",
+    s = hm.timeout(
+        600,
+        scratch().sh(
+            "make",
+            label="build",
+            cache=CacheNone(),
+            env={"CI": "true"},
+            key="explicit-key",
+        ),
     )
     assert s.label == "build"
     assert s.cache == CacheNone()

@@ -30,8 +30,8 @@ def orchestrated() -> hm.Step:
 #[ignore = "requires Docker daemon; opt-in with `cargo test -- --ignored`"]
 fn hm_run_local_executes_through_orchestrator() {
     let temp = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(temp.path().join(".harmont")).unwrap();
-    std::fs::write(temp.path().join(".harmont/pipeline.py"), PIPELINE_PY).unwrap();
+    std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
+    std::fs::write(temp.path().join(".hm/pipeline.py"), PIPELINE_PY).unwrap();
 
     Command::cargo_bin("hm")
         .unwrap()
@@ -60,8 +60,8 @@ def chain() -> hm.Step:
 #[ignore = "requires Docker daemon; opt-in with `cargo test -- --ignored`"]
 fn hm_run_local_chain_inherits_filesystem() {
     let temp = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(temp.path().join(".harmont")).unwrap();
-    std::fs::write(temp.path().join(".harmont/pipeline.py"), CHAIN_PIPELINE_PY).unwrap();
+    std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
+    std::fs::write(temp.path().join(".hm/pipeline.py"), CHAIN_PIPELINE_PY).unwrap();
 
     Command::cargo_bin("hm")
         .unwrap()

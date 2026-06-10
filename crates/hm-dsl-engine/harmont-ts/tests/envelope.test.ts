@@ -1,4 +1,8 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { forever } from "../src/cache.js";
 import { renderEnvelope, type PipelineDefinition } from "../src/envelope.js";
 import { pipeline } from "../src/pipeline.js";
 import { sh } from "../src/step.js";
@@ -7,7 +11,7 @@ import { push, pullRequest } from "../src/triggers.js";
 function makeDef(overrides?: Partial<PipelineDefinition>): PipelineDefinition {
   return {
     slug: "ci",
-    pipeline: pipeline(sh("echo", { label: "test" })),
+    pipeline: pipeline([sh("echo", { label: "test" })]),
     ...overrides,
   };
 }
@@ -56,5 +60,34 @@ describe("renderEnvelope", () => {
     expect(parsed.pipelines).toHaveLength(2);
     expect(parsed.pipelines[0].slug).toBe("ci");
     expect(parsed.pipelines[1].slug).toBe("deploy");
+  });
+
+  it("resolves cache keys when basePath is provided", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "envelope-test-"));
+    const def: PipelineDefinition = {
+      slug: "ci",
+      pipeline: pipeline([sh("apt-get update", { label: "apt", cache: forever() })]),
+    };
+    const json = renderEnvelope([def], { basePath: tmp, now: 1000000 });
+    const parsed = JSON.parse(json);
+    const cache = parsed.pipelines[0].definition.graph.nodes[0].step.cache;
+    expect(cache.key).toBeTypeOf("string");
+    expect(cache.key.length).toBe(64);
+  });
+
+  it("throws when cached steps exist but basePath is missing", () => {
+    const def: PipelineDefinition = {
+      slug: "ci",
+      pipeline: pipeline([sh("apt-get update", { label: "apt", cache: forever() })]),
+    };
+    expect(() => renderEnvelope([def])).toThrowError(/basePath/);
+  });
+
+  it("allows omitting basePath when no steps are cached", () => {
+    const def: PipelineDefinition = {
+      slug: "ci",
+      pipeline: pipeline([sh("echo hello", { label: "greet" })]),
+    };
+    expect(() => renderEnvelope([def])).not.toThrow();
   });
 });

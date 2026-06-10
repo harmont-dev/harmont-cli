@@ -6,6 +6,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+import harmont as hm
 from harmont._step import scratch, wait
 from harmont.cache import CacheNone
 
@@ -55,13 +56,15 @@ def test_fork_can_be_called_many_times_off_same_parent():
 
 
 def test_sh_kwargs_carried_through():
-    s = scratch().sh(
-        "make",
-        label="build",
-        cache=CacheNone(),
-        env={"CI": "true"},
-        timeout_seconds=600,
-        key="explicit-key",
+    s = hm.timeout(
+        600,
+        scratch().sh(
+            "make",
+            label="build",
+            cache=CacheNone(),
+            env={"CI": "true"},
+            key="explicit-key",
+        ),
     )
     assert s.label == "build"
     assert s.cache == CacheNone()

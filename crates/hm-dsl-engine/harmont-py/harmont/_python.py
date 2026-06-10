@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 APT_PACKAGES = ("curl", "ca-certificates", "python3", "python3-venv")
 
-_ACTION_KWARGS = frozenset(("cache", "env", "timeout_seconds", "label", "key"))
+_ACTION_KWARGS = frozenset(("cache", "env", "label", "key"))
 
 _VERSION_RE = re.compile(r"^([0-9]+\.[0-9]+\.[0-9]+|latest)$")
 
@@ -166,7 +166,7 @@ class PythonEntry:
         Examples:
             >>> import harmont as hm
             >>> tc = hm.python(path="services/api")
-            >>> hm.pipeline(tc.test(), tc.lint())
+            >>> hm.pipeline([tc.test(), tc.lint()])
         """
         return _make_python(path=path, uv_version=uv_version, image=image, base=base)
 

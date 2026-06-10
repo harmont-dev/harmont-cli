@@ -36,7 +36,7 @@ import { join, resolve } from 'node:path';
 const projectDir = process.argv[2];
 const mode = process.argv[3];       // "list" or "render"
 const slug = process.argv[4] || null;
-const harmontDir = join(projectDir, '.harmont');
+const harmontDir = join(projectDir, '.hm');
 
 const tsFiles = readdirSync(harmontDir)
   .filter(f => f.endsWith('.ts'))
@@ -51,13 +51,13 @@ const defs = [];
 for (const file of tsFiles) {
   const filePath = resolve(harmontDir, file);
   const mod = await import(filePath);
-  const d = mod.default;
+  const d = mod.default ?? mod.pipelines;
   if (Array.isArray(d)) defs.push(...d);
   else if (d) defs.push(d);
 }
 
-const { renderEnvelope } = await import('harmont');
-const envelope = JSON.parse(renderEnvelope(defs));
+const { renderEnvelope } = await import('@harmont/hm');
+const envelope = JSON.parse(renderEnvelope(defs, { basePath: projectDir }));
 
 if (mode === 'render') {
   const match = envelope.pipelines.find(p => p.slug === slug);
@@ -73,7 +73,7 @@ if (mode === 'render') {
 }
 "#;
 
-const PACKAGE_JSON: &str = r#"{"name":"harmont","type":"module","exports":{".":"./index.mjs","./toolchains":"./toolchains.mjs"}}"#;
+const PACKAGE_JSON: &str = r#"{"name":"@harmont/hm","type":"module","exports":{".":"./index.mjs","./toolchains":"./toolchains.mjs"}}"#;
 
 struct SymlinkCleanup {
     pkg: std::path::PathBuf,
@@ -84,10 +84,29 @@ struct SymlinkCleanup {
 impl Drop for SymlinkCleanup {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.pkg).or_else(|_| std::fs::remove_dir_all(&self.pkg));
+        // The scoped package lives under an intermediate `@harmont/` scope dir
+        // (`.hm/node_modules/@harmont/hm`). After removing the symlink, prune the
+        // now-empty scope dir (best-effort), then the node_modules dir.
+        if let Some(scope) = self.pkg.parent() {
+            let _ = std::fs::remove_dir(scope);
+        }
         if self.remove_nm {
             let _ = std::fs::remove_dir(&self.nm);
         }
     }
+}
+
+/// The operation the embedded JS runner should perform.
+///
+/// Modeled as a closed enum so the dispatch is exhaustive and typo-proof at
+/// compile time; the wire string lives in exactly one place (the per-variant
+/// `Display` derivation below).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
+enum RunMode {
+    #[display("list")]
+    List,
+    #[display("render")]
+    Render,
 }
 
 #[derive(Debug)]
@@ -115,8 +134,8 @@ impl SubprocessTsEngine {
     fn setup_temp(&self) -> Result<tempfile::TempDir> {
         let tmp = tempfile::tempdir().context("creating temp dir for harmont-ts")?;
 
-        let pkg_dir = tmp.path().join("node_modules/harmont");
-        std::fs::create_dir_all(&pkg_dir).context("creating node_modules/harmont")?;
+        let pkg_dir = tmp.path().join("node_modules/@harmont/hm");
+        std::fs::create_dir_all(&pkg_dir).context("creating node_modules/@harmont/hm")?;
 
         std::fs::write(pkg_dir.join("package.json"), PACKAGE_JSON)?;
         std::fs::write(pkg_dir.join("index.mjs"), bundled_sources::HARMONT_TS_INDEX)?;
@@ -130,43 +149,75 @@ impl SubprocessTsEngine {
         Ok(tmp)
     }
 
-    async fn run(&self, project_dir: &Path, mode: &str, slug: Option<&str>) -> Result<String> {
+    fn should_create_symlink(local_pkg: &Path) -> bool {
+        match local_pkg.symlink_metadata() {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                // Stale symlink from previous run — remove so we can recreate
+                let _ = std::fs::remove_file(local_pkg);
+                true
+            }
+            Ok(_) => {
+                // Real directory (npm-installed package) — leave it alone
+                false
+            }
+            Err(_) => {
+                // Doesn't exist — create symlink
+                true
+            }
+        }
+    }
+
+    async fn run(&self, project_dir: &Path, mode: RunMode, slug: Option<&str>) -> Result<String> {
         let tmp = self.setup_temp()?;
         let runner_path = tmp.path().join("runner.mjs");
 
         // Node ESM resolves bare specifiers relative to the importing file,
-        // ignoring NODE_PATH.  User .ts files live under <project>/.harmont/,
-        // so we place a node_modules/harmont symlink there so `import 'harmont'`
-        // resolves.  Cleaned up after the subprocess finishes.
-        let harmont_dir = project_dir.join(".harmont");
+        // ignoring NODE_PATH.  User .ts files live under <project>/.hm/,
+        // so we place a node_modules/@harmont/hm symlink there so
+        // `import '@harmont/hm'` resolves.  Cleaned up after the subprocess
+        // finishes.
+        let harmont_dir = project_dir.join(".hm");
         let local_nm = harmont_dir.join("node_modules");
-        let local_pkg = local_nm.join("harmont");
-        let created_local_nm = !local_nm.exists();
+        let local_pkg = local_nm.join("@harmont/hm");
 
-        std::fs::create_dir_all(&local_nm)
-            .context("creating .harmont/node_modules for module resolution")?;
+        let _cleanup: Option<SymlinkCleanup> = if Self::should_create_symlink(&local_pkg) {
+            let created_local_nm = !local_nm.exists();
 
-        let src = tmp.path().join("node_modules/harmont");
-
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&src, &local_pkg)
-                .context("symlinking harmont package into .harmont/node_modules")?;
-        }
-        #[cfg(not(unix))]
-        {
-            // Fallback: copy files for non-unix platforms.
-            std::fs::create_dir_all(&local_pkg)?;
-            for entry in std::fs::read_dir(&src)? {
-                let entry = entry?;
-                std::fs::copy(entry.path(), local_pkg.join(entry.file_name()))?;
+            // Create the `@harmont/` scope dir (and node_modules) before
+            // symlinking the scoped package into it.
+            if let Some(scope_dir) = local_pkg.parent() {
+                std::fs::create_dir_all(scope_dir)
+                    .context("creating .hm/node_modules/@harmont for module resolution")?;
             }
-        }
 
-        let _cleanup = SymlinkCleanup {
-            pkg: local_pkg.clone(),
-            nm: local_nm.clone(),
-            remove_nm: created_local_nm,
+            let src = tmp.path().join("node_modules/@harmont/hm");
+
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(&src, &local_pkg)
+                    .context("symlinking @harmont/hm package into .hm/node_modules")?;
+            }
+            #[cfg(not(unix))]
+            {
+                // Fallback: copy files for non-unix platforms.
+                std::fs::create_dir_all(&local_pkg)?;
+                for entry in std::fs::read_dir(&src)? {
+                    let entry = entry?;
+                    std::fs::copy(entry.path(), local_pkg.join(entry.file_name()))?;
+                }
+            }
+
+            Some(SymlinkCleanup {
+                pkg: local_pkg.clone(),
+                nm: local_nm.clone(),
+                remove_nm: created_local_nm,
+            })
+        } else {
+            debug!(
+                ?local_pkg,
+                "npm-installed @harmont/hm found — skipping symlink"
+            );
+            None
         };
 
         let mut cmd = tokio::process::Command::new(&self.runtime_bin);
@@ -180,7 +231,7 @@ impl SubprocessTsEngine {
             }
         }
 
-        cmd.arg(project_dir).arg(mode);
+        cmd.arg(project_dir).arg(mode.to_string());
 
         if let Some(s) = slug {
             cmd.arg(s);
@@ -209,7 +260,7 @@ impl SubprocessTsEngine {
 impl DslEngine for SubprocessTsEngine {
     async fn list_pipelines(&self, project_dir: &Path) -> Result<Vec<PipelineMeta>> {
         let stdout = self
-            .run(project_dir, "list", None)
+            .run(project_dir, RunMode::List, None)
             .await
             .context("listing pipelines via JS runtime")?;
 
@@ -219,7 +270,7 @@ impl DslEngine for SubprocessTsEngine {
     }
 
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> Result<String> {
-        self.run(project_dir, "render", Some(slug))
+        self.run(project_dir, RunMode::Render, Some(slug))
             .await
             .context("rendering pipeline via JS runtime")
     }
@@ -229,5 +280,45 @@ impl DslEngine for SubprocessTsEngine {
             "the discovery envelope (hm pipelines) is not yet supported for \
              TypeScript pipelines; only Python pipelines are supported today"
         )
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn symlink_skipped_when_real_dir_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let harmont_dir = tmp.path().join(".hm");
+        let nm = harmont_dir.join("node_modules");
+        let pkg = nm.join("@harmont/hm");
+
+        // Simulate npm-installed package (real directory)
+        std::fs::create_dir_all(&pkg).unwrap();
+        std::fs::write(pkg.join("package.json"), "{}").unwrap();
+
+        assert!(!SubprocessTsEngine::should_create_symlink(&pkg));
+    }
+
+    #[test]
+    fn symlink_created_when_nothing_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg = tmp.path().join("node_modules/@harmont/hm");
+        assert!(SubprocessTsEngine::should_create_symlink(&pkg));
+    }
+
+    #[test]
+    fn symlink_created_when_stale_symlink_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg = tmp.path().join("node_modules/@harmont/hm");
+        std::fs::create_dir_all(pkg.parent().unwrap()).unwrap();
+
+        // Create a dangling symlink
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("/nonexistent", &pkg).unwrap();
+
+        assert!(SubprocessTsEngine::should_create_symlink(&pkg));
     }
 }

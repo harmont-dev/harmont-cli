@@ -66,13 +66,13 @@ fn run_local(fixture_name: &str) -> std::process::Output {
         .parent()
         .expect("CARGO_MANIFEST_DIR (cli/) must have a parent (repo root)");
 
-    // Stage the fixture under `<tmp>/.harmont/`. The new harness walks
-    // every `.harmont/*.py`; filename does not have to match the slug.
+    // Stage the fixture under `<tmp>/.hm/`. The new harness walks
+    // every `.hm/*.py`; filename does not have to match the slug.
     let tmp = tempfile::tempdir().expect("mktempdir");
-    let harmont_dir = tmp.path().join(".harmont");
-    std::fs::create_dir(&harmont_dir).expect("mkdir .harmont");
+    let harmont_dir = tmp.path().join(".hm");
+    std::fs::create_dir(&harmont_dir).expect("mkdir .hm");
     std::fs::copy(fixture(fixture_name), harmont_dir.join(fixture_name))
-        .expect("copy fixture into .harmont/");
+        .expect("copy fixture into .hm/");
 
     Command::new(bin)
         .args(["run", "--dir"])
@@ -229,12 +229,12 @@ fn resolves_pipeline_via_slug() {
         return;
     }
 
-    // The new harness walks every `.harmont/*.py` and resolves by the
+    // The new harness walks every `.hm/*.py` and resolves by the
     // decorator-registered slug — the filename can be anything. Copy
     // `scratch.py` (slug `scratch`) under a deliberately different
     // filename to exercise that.
     let tmp = tempfile::tempdir().expect("mktempdir");
-    let harmont_dir = tmp.path().join(".harmont");
+    let harmont_dir = tmp.path().join(".hm");
     std::fs::create_dir(&harmont_dir).unwrap();
     std::fs::copy(fixture("scratch.py"), harmont_dir.join("renamed.py")).unwrap();
 

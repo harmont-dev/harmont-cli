@@ -1,4 +1,4 @@
-export type Trigger = PushTrigger | PullRequestTrigger | ScheduleTrigger;
+export type Trigger = PushTrigger | PullRequestTrigger;
 
 function normalizeGlobs(
   value: string | readonly string[] | undefined,
@@ -86,33 +86,3 @@ export function pullRequest(opts?: {
   return new PullRequestTrigger(normalizeGlobs(opts?.branches), [...types]);
 }
 
-export class ScheduleTrigger {
-  readonly cron: string;
-
-  constructor(cron: string) {
-    this.cron = cron;
-  }
-
-  toJSON(): Record<string, unknown> {
-    return { event: "schedule", cron: this.cron };
-  }
-}
-
-const CRON_FIELD_RE = /^(\*|[0-9]+(-[0-9]+)?(\/[0-9]+)?|(\*\/[0-9]+))$/;
-
-function isValidCron(expr: string): boolean {
-  const fields = expr.trim().split(/\s+/);
-  if (fields.length !== 5) return false;
-  return fields.every((f) => {
-    return f.split(",").every((part) => CRON_FIELD_RE.test(part));
-  });
-}
-
-export function schedule(cron: string): ScheduleTrigger {
-  if (!isValidCron(cron)) {
-    throw new Error(
-      `hm.schedule: invalid cron expression "${cron}"\n  → five-field crontab, UTC, e.g. '0 4 * * *'`,
-    );
-  }
-  return new ScheduleTrigger(cron);
-}

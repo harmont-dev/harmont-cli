@@ -21,7 +21,7 @@ def _reset():
 
 
 def test_target_in_module_a_consumed_by_target_in_module_b():
-    """Simulate two .harmont/*.py files registering targets in one
+    """Simulate two .hm/*.py files registering targets in one
     envelope render. Module A defines apt_base; module B's target
     depends on it by parameter name."""
 

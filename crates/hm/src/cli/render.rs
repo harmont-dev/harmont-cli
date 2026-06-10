@@ -10,7 +10,7 @@ pub struct RenderArgs {
     #[arg()]
     pub slug: String,
 
-    /// Source root containing `.harmont/` (defaults to cwd).
+    /// Source root containing `.hm/` (defaults to cwd).
     #[arg(short, long)]
     pub dir: Option<PathBuf>,
 }

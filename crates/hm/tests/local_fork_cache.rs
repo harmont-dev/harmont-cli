@@ -16,8 +16,8 @@ use std::process::Command;
 use tempfile::tempdir;
 
 fn write_pipeline(dir: &Path, marker_contents: &str) {
-    let harmont = dir.join(".harmont");
-    fs::create_dir_all(&harmont).expect("mkdir .harmont");
+    let harmont = dir.join(".hm");
+    fs::create_dir_all(&harmont).expect("mkdir .hm");
     fs::write(dir.join("marker.txt"), marker_contents).expect("marker.txt");
     fs::write(
         harmont.join("pipeline.py"),

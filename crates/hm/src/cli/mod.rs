@@ -1,3 +1,4 @@
+pub mod init;
 pub mod pipelines;
 pub mod plugin;
 pub mod render;
@@ -38,12 +39,19 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_color: bool,
 
+    /// Write a Chrome trace JSON to the given path for performance analysis.
+    #[arg(long, global = true, hide = true, value_name = "PATH")]
+    pub debug_trace: Option<std::path::PathBuf>,
+
     #[command(subcommand)]
     pub command: Command,
 }
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Initialize a .hm/ pipeline from a project template.
+    Init(init::InitArgs),
+
     /// Run a pipeline locally via Docker.
     Run(RunArgs),
 
@@ -98,6 +106,7 @@ pub struct CacheRestoreArgs {
 /// Returns an error if the dispatched handler fails.
 pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
     match command {
+        Command::Init(args) => crate::commands::init::handle(args).await.map(|()| 0),
         Command::Run(args) => crate::commands::run::handle(args, ctx).await,
         Command::Pipelines(args) => crate::cli::pipelines::run(args).await.map(|()| 0),
         Command::Render(args) => crate::cli::render::run(args).await.map(|()| 0),
@@ -108,13 +117,9 @@ pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
         },
         Command::Version => version::run().await.map(|()| 0),
         Command::Plugin(cmd) => plugin::run(cmd).await.map(|()| 0),
-        Command::Cloud(_cmd) => {
-            tracing::info!(
-                "Harmont Cloud is not yet available.\n\
-                 \n\
-                 Sign up for the waitlist at https://harmont.dev to get early access."
-            );
-            Ok(0)
+        Command::Cloud(cmd) => {
+            let env = std::env::vars().collect();
+            hm_plugin_cloud::cli::dispatch_command(cmd, env).await
         }
     }
 }

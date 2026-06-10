@@ -1,10 +1,10 @@
 use std::io::IsTerminal;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::cli::Cli;
 use crate::config::Config;
-use crate::output::OutputMode;
+use hm_render::OutputMode;
 
 /// Runtime context that bundles resolved config and output preferences.
 ///
@@ -28,13 +28,14 @@ impl RunContext {
     ///
     /// Returns an error if the config file is unreadable or malformed.
     pub fn from_cli(cli: &Cli) -> Result<Self> {
-        let config = Config::load()?;
-
-        let color =
-            !cli.no_color && std::env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal();
+        let start_dir = std::env::current_dir().context("cannot determine current directory")?;
+        let project_root = hm_util::dirs::find_project_root(&start_dir);
+        let config = Config::load(project_root.as_deref())?;
 
         let output = OutputMode::Human {
-            color,
+            // Single source of truth for the color/TTY rule (still honors --no-color).
+            color: hm_render::color_enabled(cli.no_color),
+            // Interactive prompts/spinners key off stdout being a TTY.
             interactive: std::io::stdout().is_terminal(),
         };
 

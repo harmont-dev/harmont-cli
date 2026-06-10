@@ -17,6 +17,11 @@ export function bunInstallCmd(version?: string): string {
   return `curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash${versionArg}`;
 }
 
+export function denoInstallCmd(version?: string): string {
+  const versionArg = version != null ? ` -s "v${version}"` : "";
+  return `curl -fsSL https://deno.land/install.sh | sh${versionArg} && ln -sf $HOME/.deno/bin/deno /usr/local/bin/deno`;
+}
+
 export function aptBase(opts: {
   packages: readonly string[];
   image?: string;

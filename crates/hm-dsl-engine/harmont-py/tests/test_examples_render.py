@@ -32,9 +32,7 @@ def _example_dirs() -> list[pathlib.Path]:
     if EXAMPLES_ROOT is None:
         return []
     return sorted(
-        p
-        for p in EXAMPLES_ROOT.iterdir()
-        if p.is_dir() and (p / ".harmont" / "pipeline.py").is_file()
+        p for p in EXAMPLES_ROOT.iterdir() if p.is_dir() and (p / ".hm" / "pipeline.py").is_file()
     )
 
 

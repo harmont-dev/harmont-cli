@@ -154,7 +154,9 @@ function makeProject(opts?: RustProjectOptions): RustProject {
   const tc = makeToolchain(opts);
 
   const lockPath = path !== "." ? `${path}/Cargo.lock` : "Cargo.lock";
-  const warmupCache = opts?.cache ?? onChange(lockPath);
+  const tomlGlob = path !== "." ? `${path}/**/Cargo.toml` : "**/Cargo.toml";
+  const rsGlob = path !== "." ? `${path}/**/*.rs` : "**/*.rs";
+  const warmupCache = opts?.cache ?? onChange(lockPath, tomlGlob, rsGlob);
 
   const warm = tc._cargo(
     "cargo build --workspace --tests --locked",

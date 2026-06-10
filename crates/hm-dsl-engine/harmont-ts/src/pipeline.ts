@@ -1,15 +1,18 @@
 import type { CachePolicy } from "./cache.js";
+import { parseDuration } from "./duration.js";
 import { resolveKeys } from "./keys.js";
 import type { Step } from "./step.js";
 
 export interface PipelineOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly defaultImage?: string;
+  readonly timeout?: string | number;
 }
 
 export interface PipelineIR {
   version: string;
   default_image?: string;
+  timeout_seconds?: number;
   graph: {
     nodes: GraphNode[];
     node_holes: never[];
@@ -23,33 +26,26 @@ interface GraphNode {
   env: Record<string, string>;
 }
 
-export function pipeline(...args: (Step | PipelineOptions)[]): PipelineIR {
-  if (args.length === 0) {
-    throw new Error(
-      "pipeline must have at least one leaf — pass the terminal step(s) of each branch as positional args",
-    );
-  }
-
-  let leaves: Step[];
-  let opts: PipelineOptions | undefined;
-
-  const last = args[args.length - 1];
-  if (last && typeof last === "object" && !("_id" in last)) {
-    opts = last as PipelineOptions;
-    leaves = args.slice(0, -1) as Step[];
-  } else {
-    leaves = args as Step[];
+export function pipeline(
+  leaves: Step[],
+  opts?: PipelineOptions,
+): PipelineIR {
+  if (!Array.isArray(leaves)) {
+    throw new Error("pipeline() expects an array of steps as its first argument");
   }
 
   if (leaves.length === 0) {
     throw new Error(
-      "pipeline must have at least one leaf — pass the terminal step(s) of each branch as positional args",
+      "pipeline must have at least one leaf — pass the terminal step(s) of each branch as the first argument",
     );
   }
 
   const ir: PipelineIR = { version: "0", graph: lowerToGraph(leaves, opts) };
   if (opts?.defaultImage != null) {
     ir.default_image = opts.defaultImage;
+  }
+  if (opts?.timeout != null) {
+    ir.timeout_seconds = parseDuration(opts.timeout);
   }
   return ir;
 }
@@ -97,7 +93,10 @@ function lowerToGraph(
     if (s._runner != null) stepDict.runner = s._runner;
     if (s._runnerArgs != null) stepDict.runner_args = s._runnerArgs;
 
-    const mergedEnv: Record<string, string> = {};
+    const mergedEnv: Record<string, string> = {
+      DEBIAN_FRONTEND: "noninteractive",
+      TERM: "dumb",
+    };
     if (opts?.env) Object.assign(mergedEnv, opts.env);
     if (s._env) Object.assign(mergedEnv, s._env);
 

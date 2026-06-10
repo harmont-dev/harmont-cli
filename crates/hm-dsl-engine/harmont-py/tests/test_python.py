@@ -22,7 +22,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_python_object_form_full_chain():
     py = hm.python(path="svc")
-    p = hm.pipeline(py.test(), default_image="ubuntu:24.04")
+    p = hm.pipeline([py.test()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert any("apt-get install" in c for c in cmds)
     assert any("astral.sh/uv/install.sh" in c for c in cmds)
@@ -32,7 +32,7 @@ def test_python_object_form_full_chain():
 
 def test_python_actions_share_install_step():
     py = hm.python(path="svc")
-    p = hm.pipeline(py.test(), py.lint(), py.fmt(), py.typecheck(), default_image="ubuntu:24.04")
+    p = hm.pipeline([py.test(), py.lint(), py.fmt(), py.typecheck()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert len([c for c in cmds if "astral.sh/uv/install.sh" in c]) == 1
     assert len([c for c in cmds if "apt-get install" in c]) == 1
@@ -44,7 +44,7 @@ def test_python_actions_share_install_step():
 
 def test_python_sync_cached_on_change_of_lockfile():
     py = hm.python(path="svc")
-    p = hm.pipeline(py.test())
+    p = hm.pipeline([py.test()])
     sync = _step_by_substring(p, "uv sync")
     assert sync["cache"]["policy"] == "on_change"
     assert "svc/uv.lock" in sync["cache"]["paths"]
@@ -53,19 +53,19 @@ def test_python_sync_cached_on_change_of_lockfile():
 
 def test_python_install_cache_forever():
     py = hm.python(path=".")
-    p = hm.pipeline(py.test())
+    p = hm.pipeline([py.test()])
     install = _step_by_substring(p, "astral.sh/uv/install.sh")
     assert install["cache"]["policy"] == "forever"
 
 
 def test_python_bare_form_test():
-    p = hm.pipeline(hm.python.test())
+    p = hm.pipeline([hm.python.test()])
     cmds = _cmds(p)
     assert any("cd . && uv run pytest" in c for c in cmds)
 
 
 def test_python_bare_form_all_actions():
-    p = hm.pipeline(hm.python.test(), hm.python.lint(), hm.python.fmt(), hm.python.typecheck())
+    p = hm.pipeline([hm.python.test(), hm.python.lint(), hm.python.fmt(), hm.python.typecheck()])
     cmds = _cmds(p)
     assert any("pytest" in c for c in cmds)
     assert any("ruff check" in c for c in cmds)
@@ -112,7 +112,7 @@ def test_python_action_cache_forwarded():
 
 def test_python_image_emitted_on_apt_step():
     py = hm.python(path=".", image="ubuntu:24.04")
-    p = hm.pipeline(py.test())
+    p = hm.pipeline([py.test()])
     apt = _step_by_substring(p, "apt-get install")
     assert apt.get("image") == "ubuntu:24.04"
 
@@ -120,7 +120,7 @@ def test_python_image_emitted_on_apt_step():
 def test_python_with_base_skips_apt():
     base = hm.scratch().sh("custom base", label="base")
     py = hm.python(path="svc", base=base)
-    p = hm.pipeline(py.test(), default_image="ubuntu:24.04")
+    p = hm.pipeline([py.test()], default_image="ubuntu:24.04")
     cmds = _cmds(p)
     assert not any("apt-get install" in c for c in cmds)
     assert any("custom base" in c for c in cmds)
@@ -133,14 +133,14 @@ def test_python_installed_escape_hatch_chains():
         "cd svc && uv run python -m mytool",
         label=":python: custom",
     )
-    p = hm.pipeline(custom)
+    p = hm.pipeline([custom])
     cmds = _cmds(p)
     assert any("mytool" in c for c in cmds)
 
 
 def test_python_uv_version_in_install_cmd():
     py = hm.python(path=".", uv_version="0.4.18")
-    p = hm.pipeline(py.test())
+    p = hm.pipeline([py.test()])
     install = _step_by_substring(p, "astral.sh/uv/install.sh")
     assert "UV_VERSION=0.4.18" in install["cmd"]
 
