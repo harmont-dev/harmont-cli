@@ -34,7 +34,7 @@ import { readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const projectDir = process.argv[2];
-const mode = process.argv[3];       // "list" or "render"
+const mode = process.argv[3];       // "list", "registry", or "render"
 const slug = process.argv[4] || null;
 const harmontDir = join(projectDir, '.hm');
 
@@ -67,6 +67,11 @@ if (mode === 'render') {
     process.exit(2);
   }
   process.stdout.write(JSON.stringify(match.definition));
+} else if (mode === 'registry') {
+  // Full discovery envelope, byte-for-byte parity with the Python
+  // `dump_registry_json()` shape: { schema_version, pipelines: [{ slug,
+  // name, allow_manual, triggers, definition }] }.
+  process.stdout.write(JSON.stringify(envelope));
 } else {
   const metas = envelope.pipelines.map(p => ({ slug: p.slug, name: p.name }));
   process.stdout.write(JSON.stringify(metas));
@@ -262,11 +267,10 @@ impl DslEngine for SubprocessTsEngine {
             .context("rendering pipeline via JS runtime")
     }
 
-    async fn registry_json(&self, _project_dir: &Path) -> Result<String> {
-        bail!(
-            "the discovery envelope (hm pipelines) is not yet supported for \
-             TypeScript pipelines; only Python pipelines are supported today"
-        )
+    async fn registry_json(&self, project_dir: &Path) -> Result<String> {
+        self.run(project_dir, "registry", None)
+            .await
+            .context("dumping pipeline registry via JS runtime")
     }
 }
 

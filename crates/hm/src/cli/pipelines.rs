@@ -21,8 +21,10 @@ const EMPTY_ENVELOPE: &str = r#"{"schema_version":"1","pipelines":[]}"#;
 /// A repo with no `.hm/` directory (or one with no `.py`/`.ts` files)
 /// declares no pipelines and yields the empty envelope rather than an error —
 /// the backend fans discovery out across every repo in an installation, most of
-/// which carry no pipelines. When both Python and TypeScript are present, Python
-/// wins (the registry dump is Python-only today).
+/// which carry no pipelines. Both Python and TypeScript pipelines emit the same
+/// discovery envelope; a repo declaring both languages is rejected by
+/// [`detect::detect_language`] so local `hm run` and cloud discovery can never
+/// resolve different languages.
 ///
 /// # Errors
 ///
@@ -39,8 +41,7 @@ pub async fn run(args: PipelinesArgs) -> Result<()> {
         return Ok(());
     }
 
-    let lang =
-        detect::detect_language_python_first(&repo_root).context("detecting pipeline language")?;
+    let lang = detect::detect_language(&repo_root).context("detecting pipeline language")?;
     let engine = engine_for(lang).context("initializing DSL engine")?;
     let json = engine
         .registry_json(&repo_root)
