@@ -15,29 +15,26 @@ pub mod creds;
 
 pub const DEFAULT_API_URL: &str = "https://api.harmont.dev";
 
-/// Execution backend for `hm run`. Closed set parsed at the config boundary so
-/// invalid values are rejected at deserialize time instead of mis-dispatching
-/// later, and every consumer match is exhaustively checked by the compiler.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Execution backend for `hm run`.
+///
+/// Closed set parsed at the config boundary so invalid values are rejected at
+/// deserialize time instead of mis-dispatching later, and every consumer match
+/// is exhaustively checked by the compiler.
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Backend {
+    #[default]
     Docker,
     Cloud,
-}
-
-impl Default for Backend {
-    fn default() -> Self {
-        Backend::Docker
-    }
 }
 
 impl Backend {
     /// Stable lowercase wire/CLI name (matches the `serde` representation).
     #[must_use]
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
-            Backend::Docker => "docker",
-            Backend::Cloud => "cloud",
+            Self::Docker => "docker",
+            Self::Cloud => "cloud",
         }
     }
 }
@@ -78,7 +75,7 @@ impl Default for Preferences {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub backend: Backend,
@@ -86,16 +83,6 @@ pub struct Config {
     pub cloud: CloudConfig,
     #[serde(default)]
     pub preferences: Preferences,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            backend: Backend::default(),
-            cloud: CloudConfig::default(),
-            preferences: Preferences::default(),
-        }
-    }
 }
 
 impl Config {

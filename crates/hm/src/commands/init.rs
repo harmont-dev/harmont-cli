@@ -304,9 +304,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
             hm_config::Config::load_from_paths(None, Some(&project_config)).unwrap_or_default();
         match cfg.backend {
             hm_config::Backend::Cloud => {
-                tracing::info!(
-                    "next step: run `hm run` to execute your pipeline on Harmont Cloud"
-                );
+                tracing::info!("next step: run `hm run` to execute your pipeline on Harmont Cloud");
             }
             hm_config::Backend::Docker => {
                 tracing::info!("next step: run `hm run` to execute your pipeline locally");
