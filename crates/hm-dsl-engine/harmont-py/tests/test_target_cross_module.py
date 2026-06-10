@@ -42,7 +42,7 @@ def test_target_in_module_a_consumed_by_target_in_module_b():
 
     out = json.loads(hm.dump_registry_json())
     nodes = out["pipelines"][0]["definition"]["graph"]["nodes"]
-    cmds = sorted(n["step"].get("cmd") for n in nodes)
+    cmds = sorted(n["step"].get("eval", {}).get("cmd") for n in nodes)
     assert "apt-get update" in cmds
     assert "cd cidsl/py && pytest -v" in cmds
 

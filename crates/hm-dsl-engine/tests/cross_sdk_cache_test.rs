@@ -259,7 +259,7 @@ export default pipelines;
     // The corepack bootstrap node must carry the pinned command in both SDKs.
     let py_cmds: Vec<&str> = py_nodes
         .iter()
-        .filter_map(|n| n["step"]["cmd"].as_str())
+        .filter_map(|n| n["step"]["eval"]["cmd"].as_str())
         .collect();
     assert!(
         py_cmds.contains(&"corepack enable pnpm && corepack install -g pnpm@10.33.0"),

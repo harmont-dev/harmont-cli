@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use tracing::debug;
 
 use crate::bundled_sources;
-use crate::{DslEngine, PipelineMeta};
+use crate::{DslEngine, DynamicContext, PipelineMeta};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum JsRuntime {
@@ -34,9 +34,12 @@ import { readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const projectDir = process.argv[2];
-const mode = process.argv[3];       // "list" or "render"
+const mode = process.argv[3];       // "list", "render", or "render-target"
 const slug = process.argv[4] || null;
+const context = JSON.parse(process.argv[5] || '{}');
 const harmontDir = join(projectDir, '.hm');
+
+if (context.env) Object.assign(process.env, context.env);
 
 const tsFiles = readdirSync(harmontDir)
   .filter(f => f.endsWith('.ts'))
@@ -56,7 +59,13 @@ for (const file of tsFiles) {
   else if (d) defs.push(d);
 }
 
-const { renderEnvelope } = await import('@harmont/hm');
+const { renderDynamicTarget, renderEnvelope } = await import('@harmont/hm');
+
+if (mode === 'render-target') {
+  process.stdout.write(JSON.stringify(renderDynamicTarget(slug, context.env)));
+  process.exit(0);
+}
+
 const envelope = JSON.parse(renderEnvelope(defs, { basePath: projectDir }));
 
 if (mode === 'render') {
@@ -107,6 +116,8 @@ enum RunMode {
     List,
     #[display("render")]
     Render,
+    #[display("render-target")]
+    RenderTarget,
 }
 
 #[derive(Debug)]
@@ -167,7 +178,13 @@ impl SubprocessTsEngine {
         }
     }
 
-    async fn run(&self, project_dir: &Path, mode: RunMode, slug: Option<&str>) -> Result<String> {
+    async fn run(
+        &self,
+        project_dir: &Path,
+        mode: RunMode,
+        slug: Option<&str>,
+        context: Option<&str>,
+    ) -> Result<String> {
         let tmp = self.setup_temp()?;
         let runner_path = tmp.path().join("runner.mjs");
 
@@ -236,6 +253,9 @@ impl SubprocessTsEngine {
         if let Some(s) = slug {
             cmd.arg(s);
         }
+        if let Some(context) = context {
+            cmd.arg(context);
+        }
 
         cmd.env("NODE_PATH", tmp.path().join("node_modules"))
             .stdin(Stdio::null())
@@ -260,7 +280,7 @@ impl SubprocessTsEngine {
 impl DslEngine for SubprocessTsEngine {
     async fn list_pipelines(&self, project_dir: &Path) -> Result<Vec<PipelineMeta>> {
         let stdout = self
-            .run(project_dir, RunMode::List, None)
+            .run(project_dir, RunMode::List, None, None)
             .await
             .context("listing pipelines via JS runtime")?;
 
@@ -270,9 +290,27 @@ impl DslEngine for SubprocessTsEngine {
     }
 
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> Result<String> {
-        self.run(project_dir, RunMode::Render, Some(slug))
+        self.run(project_dir, RunMode::Render, Some(slug), None)
             .await
             .context("rendering pipeline via JS runtime")
+    }
+
+    async fn render_target_json(
+        &self,
+        project_dir: &Path,
+        target_name: &str,
+        context: &DynamicContext,
+    ) -> Result<String> {
+        let context_json =
+            serde_json::to_string(context).context("encoding dynamic target context")?;
+        self.run(
+            project_dir,
+            RunMode::RenderTarget,
+            Some(target_name),
+            Some(&context_json),
+        )
+        .await
+        .with_context(|| format!("rendering dynamic target {target_name:?} via JS runtime"))
     }
 
     async fn registry_json(&self, _project_dir: &Path) -> Result<String> {

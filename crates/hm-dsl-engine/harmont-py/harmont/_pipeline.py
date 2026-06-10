@@ -78,12 +78,16 @@ def _lower_to_graph(
     explicit ``depends_on`` edges.
     """
     ordered = _topo_collect(leaves)
-    command_steps = [s for s in ordered if s.cmd is not None and not s.is_wait]
-    keys = resolve_keys(command_steps)
+    emitted_steps = [
+        s
+        for s in ordered
+        if (s.cmd is not None or s.dynamic_target_name is not None) and not s.is_wait
+    ]
+    keys = resolve_keys(emitted_steps)
 
     # Assign integer node indices (dense, in emission order).
     idx_by_id: dict[int, int] = {}
-    for i, s in enumerate(command_steps):
+    for i, s in enumerate(emitted_steps):
         idx_by_id[id(s)] = i
 
     # Track which node indices have a builds_in parent (for default_image).
@@ -107,18 +111,26 @@ def _lower_to_graph(
             pre_wait_indices = []
             continue
 
-        if s.cmd is None:
+        if s.cmd is None and s.dynamic_target_name is None:
             # scratch or fork — passthrough, not emitted.
             continue
 
         node_idx = idx_by_id[id(s)]
         step_key = keys[id(s)]
 
-        # Build the CommandStep dict (no "type" or "builds_in" fields).
-        step_dict: dict[str, Any] = {
-            "key": step_key,
-            "cmd": s.cmd,
-        }
+        step_eval: dict[str, str]
+        if s.dynamic_target_name is not None:
+            step_eval = {
+                "type": "dynamic",
+                "target_name": s.dynamic_target_name,
+            }
+        else:
+            assert s.cmd is not None
+            step_eval = {
+                "type": "cmd",
+                "cmd": s.cmd,
+            }
+        step_dict: dict[str, Any] = {"key": step_key, "eval": step_eval}
         if s.label is not None:
             step_dict["label"] = s.label
         if s.cache is not None:
@@ -147,7 +159,7 @@ def _lower_to_graph(
         # builds_in edge from parent.
         parent_key = _resolved_parent_key(s, keys)
         if parent_key is not None:
-            parent_idx = _find_idx_by_key(parent_key, command_steps, keys, idx_by_id)
+            parent_idx = _find_idx_by_key(parent_key, emitted_steps, keys, idx_by_id)
             edges.append([parent_idx, node_idx, "builds_in"])
             has_builds_in_parent.add(node_idx)
 
@@ -216,7 +228,9 @@ def _resolved_parent_key(s: Step, keys: dict[int, str]) -> str | None:
     """Walk back through scratch/fork nodes to the nearest emitted ancestor."""
     node = s.parent
     while node is not None:
-        if node.cmd is not None and not node.is_wait:
+        if (
+            node.cmd is not None or node.dynamic_target_name is not None
+        ) and not node.is_wait:
             return keys[id(node)]
         node = node.parent
     return None

@@ -69,7 +69,7 @@ def test_minimal_command():
     step = _nodes(out)[0]["step"]
     assert step["key"] == "hello"
     assert step["label"] == "hello"
-    assert step["cmd"] == "echo hi"
+    assert step["eval"]["cmd"] == "echo hi"
     # No "type" or "builds_in" field on step dicts.
     assert "type" not in step
     assert "builds_in" not in step

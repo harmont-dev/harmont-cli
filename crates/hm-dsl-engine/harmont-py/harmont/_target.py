@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 
 
 _TARGET_CACHE: dict[Callable[..., Any], Any] = {}
+_DYNAMIC_TARGETS_BY_NAME: dict[str, Callable[..., Any]] = {}
 
 
 def clear_target_memo() -> None:
@@ -71,12 +72,45 @@ def clear_target_cache() -> None:
     is wiped via ``clear_target_memo()``.
     """
     _TARGET_CACHE.clear()
+    _DYNAMIC_TARGETS_BY_NAME.clear()
     clear_target_names()
+
+
+def evaluate_dynamic_target(name: str) -> Any:
+    """Evaluate a registered dynamic target for runtime graph expansion."""
+    try:
+        fn = _DYNAMIC_TARGETS_BY_NAME[name]
+    except KeyError as e:
+        raise KeyError(f"hm: dynamic target {name!r} not found") from e
+
+    from ._unwrap import as_leaves
+
+    return as_leaves(call_with_deps(fn))
+
+
+def render_dynamic_target_json(
+    name: str,
+    *,
+    env: dict[str, str] | None = None,
+) -> str:
+    """Evaluate one dynamic target and serialize its concrete graph fragment."""
+    from ._pipeline import pipeline, pipeline_to_json
+
+    clear_target_memo()
+    runtime_env = env if env is not None else {}
+    leaves = evaluate_dynamic_target(name)
+    fragment = pipeline(leaves, env=runtime_env)
+    return pipeline_to_json(
+        fragment,
+        pipeline_slug=name,
+        env=runtime_env,
+    )
 
 
 def target(
     *,
     name: str | None = None,
+    dynamic: bool = False,
 ) -> Callable[[Callable[..., Any]], Callable[[], Any]]:
     """Mark a function as a reusable, memoized pipeline building block.
 
@@ -89,6 +123,8 @@ def target(
         name: Registry key for this target. Defaults to the decorated
             function's name. Override when the name collides with another
             target or a more human-readable key is preferred.
+        dynamic: Defer this target's evaluation until pipeline execution.
+            The initial bake emits a dynamic placeholder referencing its name.
 
     Returns:
         A decorator that registers and memoizes the wrapped function.
@@ -106,11 +142,20 @@ def target(
 
         @wraps(fn)
         def wrapper() -> Any:
+            if dynamic:
+                from ._step import Step
+
+                return Step(
+                    dynamic_target_name=target_name,
+                    key_override=target_name,
+                )
             if fn not in _TARGET_CACHE:
                 _TARGET_CACHE[fn] = call_with_deps(fn)
             return _TARGET_CACHE[fn]
 
         register_named_target(target_name, wrapper)
+        if dynamic:
+            _DYNAMIC_TARGETS_BY_NAME[target_name] = fn
         return wrapper
 
     return decorator

@@ -1,36 +1,31 @@
 ---
 source: crates/hm-pipeline-ir/tests/schema_snapshot.rs
-assertion_line: 6
 expression: schema
 ---
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CommandStep",
-  "description": "A concrete build command passed to a step runner.\n\nPipeline graph nodes use [`PipelineStep`]. The scheduler converts `StepEval::Cmd` nodes to this runner protocol type immediately before execution.",
+  "title": "PipelineStep",
+  "description": "A node in the pipeline graph.\n\nGraph nodes always carry a [`StepEval`]. Concrete command nodes are converted to [`CommandStep`] only at the step-runner boundary.",
   "type": "object",
   "required": [
-    "cmd",
+    "eval",
     "key"
   ],
   "properties": {
     "key": {
-      "description": "Unique identifier for this step within the pipeline.",
       "type": "string"
     },
     "label": {
-      "description": "Human-readable label shown in build output.",
       "default": null,
       "type": [
         "string",
         "null"
       ]
     },
-    "cmd": {
-      "description": "Shell command to execute inside the container.",
-      "type": "string"
+    "eval": {
+      "$ref": "#/definitions/StepEval"
     },
     "image": {
-      "description": "Docker image to boot from. Root steps without an image inherit `PipelineGraph::default_image`; child steps boot from their parent's committed snapshot.",
       "default": null,
       "type": [
         "string",
@@ -38,7 +33,6 @@ expression: schema
       ]
     },
     "env": {
-      "description": "Per-step environment variables merged on top of the pipeline env.",
       "default": null,
       "type": [
         "object",
@@ -49,7 +43,6 @@ expression: schema
       }
     },
     "timeout_seconds": {
-      "description": "Maximum wall-clock seconds before the step is killed.\n\n`NonZeroU32`: a `0`-second budget is rejected at the wire boundary.",
       "default": null,
       "type": [
         "integer",
@@ -59,7 +52,6 @@ expression: schema
       "minimum": 1.0
     },
     "cache": {
-      "description": "Cache configuration for this step's committed snapshot.",
       "default": null,
       "anyOf": [
         {
@@ -71,17 +63,57 @@ expression: schema
       ]
     },
     "runner": {
-      "description": "Step-executor plugin name. `None` falls back to the default runner (Docker in the shipped configuration).",
       "type": [
         "string",
         "null"
       ]
     },
-    "runner_args": {
-      "description": "Plugin-specific extra fields passed verbatim to the runner."
-    }
+    "runner_args": true
   },
   "definitions": {
+    "StepEval": {
+      "description": "Evaluation performed when the scheduler reaches a pipeline node.",
+      "oneOf": [
+        {
+          "description": "Execute a concrete shell command.",
+          "type": "object",
+          "required": [
+            "cmd",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "cmd"
+              ]
+            },
+            "cmd": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "description": "Invoke a registered DSL target and lower its result to a graph fragment.",
+          "type": "object",
+          "required": [
+            "target_name",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "dynamic"
+              ]
+            },
+            "target_name": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
     "Cache": {
       "description": "Snapshot cache configuration for a step.",
       "type": "object",

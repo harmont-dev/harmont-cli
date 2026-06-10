@@ -8,12 +8,12 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["eval"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("eval", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
@@ -56,8 +56,8 @@ def test_elixir_version_in_install_cmd():
     ex = hm.elixir(elixir_version="1.18.3", otp_version="27.3.3")
     p = hm.pipeline([ex.compile()])
     elixir_step = _step_by_substring(p, "elixir-otp")
-    assert "1.18.3" in elixir_step["cmd"]
-    assert "27" in elixir_step["cmd"]
+    assert "1.18.3" in elixir_step["eval"]["cmd"]
+    assert "27" in elixir_step["eval"]["cmd"]
 
 
 def test_elixir_invalid_version_rejected():
@@ -98,7 +98,7 @@ def test_elixir_plt_cached_on_lock():
     assert step.label == ":ex: plt"
     p = hm.pipeline([step])
     plt_ir = next(
-        n["step"] for n in p["graph"]["nodes"] if "dialyzer --plt" in (n["step"].get("cmd") or "")
+        n["step"] for n in p["graph"]["nodes"] if "dialyzer --plt" in (n["step"].get("eval", {}).get("cmd") or "")
     )
     assert plt_ir["cache"]["policy"] == "on_change"
     assert "./mix.lock" in plt_ir["cache"]["paths"]

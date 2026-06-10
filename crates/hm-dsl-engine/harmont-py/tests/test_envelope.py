@@ -30,7 +30,7 @@ def _graph_edges(definition):
 
 
 def _step_cmds(definition):
-    return [n["step"].get("cmd") for n in _graph_nodes(definition)]
+    return [n["step"].get("eval", {}).get("cmd") for n in _graph_nodes(definition)]
 
 
 def _builds_in_children(definition, parent_key):
@@ -72,7 +72,7 @@ def test_single_pipeline_no_triggers():
     assert definition["version"] == "0"
     nodes = _graph_nodes(definition)
     assert len(nodes) == 1
-    assert nodes[0]["step"]["cmd"] == "echo hi"
+    assert nodes[0]["step"]["eval"]["cmd"] == "echo hi"
     assert nodes[0]["step"]["label"] == "hi"
 
 
@@ -107,7 +107,7 @@ def test_pipeline_with_tuple_leaves():
 
     out = json.loads(hm.dump_registry_json())
     p = out["pipelines"][0]
-    cmds = sorted(n["step"]["cmd"] for n in _graph_nodes(p["definition"]))
+    cmds = sorted(n["step"]["eval"]["cmd"] for n in _graph_nodes(p["definition"]))
     assert cmds == ["a", "b"]
 
 
@@ -152,7 +152,7 @@ def test_envelope_auto_unwraps_go_toolchain():
 
     out = json.loads(hm.dump_registry_json())
     nodes = _graph_nodes(out["pipelines"][0]["definition"])
-    cmds = [n["step"].get("cmd") for n in nodes]
+    cmds = [n["step"].get("eval", {}).get("cmd") for n in nodes]
     assert any("go build" in (c or "") for c in cmds)
 
 
@@ -176,11 +176,11 @@ def test_envelope_composes_targets_with_dedup(tmp_path, monkeypatch):
     out = json.loads(hm.dump_registry_json())
     definition = out["pipelines"][0]["definition"]
     nodes = _graph_nodes(definition)
-    apt_nodes = [n for n in nodes if n["step"].get("cmd") == "apt-get update"]
+    apt_nodes = [n for n in nodes if n["step"].get("eval", {}).get("cmd") == "apt-get update"]
     assert len(apt_nodes) == 1  # deduplicated via target memoization
     children = _builds_in_children(definition, apt_nodes[0]["step"]["key"])
     assert len(children) == 2
-    child_cmds = sorted(n["step"]["cmd"] for n in children)
+    child_cmds = sorted(n["step"]["eval"]["cmd"] for n in children)
     assert child_cmds == ["cabal build", "pytest"]
 
 

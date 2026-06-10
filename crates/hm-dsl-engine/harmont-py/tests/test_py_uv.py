@@ -9,12 +9,12 @@ from harmont.cache import CacheOnChange
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["eval"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("eval", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
@@ -167,7 +167,7 @@ class TestUvVersionValidation:
         proj = hm.py.uv(path=".", version="0.4.18")
         p = hm.pipeline([proj.test()])
         install = _step_by_substring(p, "astral.sh/uv/install.sh")
-        assert "UV_VERSION=0.4.18" in install["cmd"]
+        assert "UV_VERSION=0.4.18" in install["eval"]["cmd"]
 
     def test_invalid_version_rejected(self):
         with pytest.raises(ValueError, match="invalid version"):

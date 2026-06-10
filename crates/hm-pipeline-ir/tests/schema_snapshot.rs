@@ -5,3 +5,9 @@ fn command_step_schema_is_stable() {
     let schema = schemars::schema_for!(hm_pipeline_ir::CommandStep);
     insta::assert_json_snapshot!(schema);
 }
+
+#[test]
+fn pipeline_step_schema_is_stable() {
+    let schema = schemars::schema_for!(hm_pipeline_ir::PipelineStep);
+    insta::assert_json_snapshot!(schema);
+}

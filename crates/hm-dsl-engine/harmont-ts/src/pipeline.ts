@@ -55,12 +55,14 @@ function lowerToGraph(
   opts?: PipelineOptions,
 ): PipelineIR["graph"] {
   const ordered = topoCollect(leaves);
-  const commandSteps = ordered.filter((s) => s._cmd !== null && !s._isWait);
-  const keys = resolveKeys(commandSteps);
+  const emittedSteps = ordered.filter(
+    (s) => (s._cmd !== null || s._dynamicTargetName != null) && !s._isWait,
+  );
+  const keys = resolveKeys(emittedSteps);
 
   const idxById = new Map<number, number>();
-  for (let i = 0; i < commandSteps.length; i++) {
-    idxById.set(commandSteps[i]._id, i);
+  for (let i = 0; i < emittedSteps.length; i++) {
+    idxById.set(emittedSteps[i]._id, i);
   }
 
   const hasBuildsInParent = new Set<number>();
@@ -77,14 +79,17 @@ function lowerToGraph(
       continue;
     }
 
-    if (s._cmd === null) continue;
+    if (s._cmd === null && s._dynamicTargetName == null) continue;
 
     const nodeIdx = idxById.get(s._id)!;
     const stepKey = keys.get(s._id)!;
 
     const stepDict: Record<string, unknown> = {
       key: stepKey,
-      cmd: s._cmd,
+      eval:
+        s._dynamicTargetName != null
+          ? { type: "dynamic", target_name: s._dynamicTargetName }
+          : { type: "cmd", cmd: s._cmd },
     };
     if (s._label != null) stepDict.label = s._label;
     if (s._cache != null) stepDict.cache = cachePolicyToDict(s._cache);
@@ -104,7 +109,7 @@ function lowerToGraph(
 
     const parentKey = resolvedParentKey(s, keys);
     if (parentKey !== null) {
-      const parentIdx = findIdxByKey(parentKey, commandSteps, keys, idxById);
+      const parentIdx = findIdxByKey(parentKey, emittedSteps, keys, idxById);
       edges.push([parentIdx, nodeIdx, "builds_in"]);
       hasBuildsInParent.add(nodeIdx);
     }
@@ -165,7 +170,10 @@ function resolvedParentKey(
 ): string | null {
   let node = s._parent;
   while (node !== null) {
-    if (node._cmd !== null && !node._isWait) {
+    if (
+      (node._cmd !== null || node._dynamicTargetName != null) &&
+      !node._isWait
+    ) {
       return keys.get(node._id) ?? null;
     }
     node = node._parent;

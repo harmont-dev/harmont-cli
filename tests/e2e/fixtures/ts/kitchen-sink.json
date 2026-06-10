@@ -58,7 +58,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy",
+          "eval": {
+            "cmd": "apt-get update && apt-get install -y cmake build-essential pkg-config ninja-build ccache clang-format clang-tidy",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "fdcc2fd62363",
           "label": ":cmake: apt-base"
@@ -75,7 +78,10 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "cmake --version && ninja --version && ccache --version",
+          "eval": {
+            "cmd": "cmake --version && ninja --version && ccache --version",
+            "type": "cmd"
+          },
           "key": "verify",
           "label": ":cmake: verify"
         }
@@ -93,7 +99,10 @@
             ],
             "policy": "on_change"
           },
-          "cmd": "cd infra/agent && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && cmake --build build --parallel $(nproc)",
+          "eval": {
+            "cmd": "cd infra/agent && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && cmake --build build --parallel $(nproc)",
+            "type": "cmd"
+          },
           "key": "build",
           "label": ":cmake: build"
         }
@@ -105,7 +114,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cmake --build infra/agent/build --parallel $(nproc) && ctest --test-dir infra/agent/build --output-on-failure --parallel $(nproc)",
+          "eval": {
+            "cmd": "cmake --build infra/agent/build --parallel $(nproc) && ctest --test-dir infra/agent/build --output-on-failure --parallel $(nproc)",
+            "type": "cmd"
+          },
           "key": "431f35b84318",
           "label": ":cmake: test"
         }
@@ -117,7 +129,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd infra/agent && find . -not -path './build/*' \\( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' \\) | xargs clang-format --dry-run --Werror",
+          "eval": {
+            "cmd": "cd infra/agent && find . -not -path './build/*' \\( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' \\) | xargs clang-format --dry-run --Werror",
+            "type": "cmd"
+          },
           "key": "fmt",
           "label": ":cmake: fmt"
         }
@@ -134,7 +149,10 @@
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y curl ca-certificates python3 python3-venv",
+          "eval": {
+            "cmd": "apt-get update && apt-get install -y curl ca-certificates python3 python3-venv",
+            "type": "cmd"
+          },
           "image": "ubuntu:24.04",
           "key": "c8d9fda86ff3",
           "label": ":python: apt-base"
@@ -151,7 +169,10 @@
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -sf /root/.local/bin/uv /usr/local/bin/uv && uv --version",
+          "eval": {
+            "cmd": "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -sf /root/.local/bin/uv /usr/local/bin/uv && uv --version",
+            "type": "cmd"
+          },
           "key": "uv-install",
           "label": ":python: uv-install"
         }
@@ -170,7 +191,10 @@
             ],
             "policy": "on_change"
           },
-          "cmd": "cd services/web && uv sync --all-extras",
+          "eval": {
+            "cmd": "cd services/web && uv sync --all-extras",
+            "type": "cmd"
+          },
           "key": "uv-sync",
           "label": ":python: uv-sync"
         }
@@ -182,7 +206,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/web && uv run pytest",
+          "eval": {
+            "cmd": "cd services/web && uv run pytest",
+            "type": "cmd"
+          },
           "key": "239c4926568b",
           "label": ":python: test"
         }
@@ -194,7 +221,10 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": "cd services/web && uv run ruff check .",
+          "eval": {
+            "cmd": "cd services/web && uv run ruff check .",
+            "type": "cmd"
+          },
           "key": "lint",
           "label": ":python: lint"
         }

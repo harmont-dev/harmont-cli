@@ -7,6 +7,21 @@ use std::time::Duration;
 use hm_pipeline_ir::PipelineGraph;
 use hm_plugin_protocol::events::PlanSummary;
 
+/// Evaluates a deferred target in the source DSL.
+///
+/// The execution layer owns this narrow contract so local scheduling does not
+/// depend on Python, TypeScript, or `hm-dsl-engine` implementation details.
+#[async_trait::async_trait]
+pub trait DynamicEvaluator: Send + Sync + std::fmt::Debug {
+    /// Evaluate `target_name` using explicit runtime environment values.
+    async fn evaluate(
+        &self,
+        repo_root: &std::path::Path,
+        target_name: &str,
+        env: &BTreeMap<String, String>,
+    ) -> crate::Result<PipelineGraph>;
+}
+
 /// A rendered, ready-to-run pipeline.
 ///
 /// Carries both the typed graph (for client-scheduling backends like local) and
@@ -85,6 +100,8 @@ pub struct RunRequest {
     pub repo_root: PathBuf,
     pub pipeline_slug: String,
     pub env: BTreeMap<String, String>,
+    /// Runtime target evaluator used by client-scheduled backends.
+    pub dynamic_evaluator: Option<std::sync::Arc<dyn DynamicEvaluator>>,
     pub source: SourceMeta,
     pub options: RunOptions,
 }
@@ -118,8 +135,8 @@ mod tests {
             "default_image": "ubuntu:24.04",
             "graph": {
                 "nodes": [
-                    {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                    {"step": {"key": "b", "cmd": "echo b"}, "env": {}}
+                    {"step": {"key": "a", "eval": {"type": "cmd", "cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                    {"step": {"key": "b", "eval": {"type": "cmd", "cmd": "echo b"}}, "env": {}}
                 ],
                 "node_holes": [],
                 "edge_property": "directed",
@@ -143,8 +160,8 @@ mod tests {
             "version": "0",
             "graph": {
                 "nodes": [
-                    {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                    {"step": {"key": "b", "cmd": "echo b", "image": "ubuntu:24.04"}, "env": {}}
+                    {"step": {"key": "a", "eval": {"type": "cmd", "cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                    {"step": {"key": "b", "eval": {"type": "cmd", "cmd": "echo b"}, "image": "ubuntu:24.04"}, "env": {}}
                 ],
                 "node_holes": [],
                 "edge_property": "directed",
@@ -156,6 +173,40 @@ mod tests {
         let plan = Plan::parse(json).expect("parse");
         assert_eq!(plan.summary.step_count, 2);
         assert_eq!(plan.summary.chain_count, 2);
+    }
+
+    #[test]
+    fn plan_accepts_dynamic_node_and_keeps_verbatim_json() {
+        let json = r#"{
+            "version": "0",
+            "graph": {
+                "nodes": [
+                    {
+                        "step": {
+                            "key": "choose-build",
+                            "label": "Choose build",
+                            "eval": {
+                                "type": "dynamic",
+                                "target_name": "choose_build"
+                            }
+                        },
+                        "env": {}
+                    }
+                ],
+                "node_holes": [],
+                "edge_property": "directed",
+                "edges": []
+            }
+        }"#
+        .to_string();
+
+        let plan = Plan::parse(json.clone()).expect("parse");
+        assert_eq!(plan.ir_json, json);
+        assert_eq!(plan.summary.step_count, 1);
+        assert_eq!(
+            plan.graph.dag()[daggy::NodeIndex::new(0)].step.key,
+            "choose-build"
+        );
     }
 
     #[test]

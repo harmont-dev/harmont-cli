@@ -173,7 +173,7 @@ describe("resolvePipelineCacheKeys", () => {
         {
           step: {
             key: "build",
-            cmd: "make build",
+            eval: { type: "cmd", cmd: "make build" },
             cache: { policy: "forever", env_keys: [] },
           },
           env: {},
@@ -209,7 +209,10 @@ describe("resolvePipelineCacheKeys", () => {
         {
           step: {
             key: "setup",
-            cmd: "apt-get update && apt-get install -y gcc",
+            eval: {
+              type: "cmd",
+              cmd: "apt-get update && apt-get install -y gcc",
+            },
             cache: { policy: "forever", env_keys: [] },
           },
           env: {},
@@ -217,7 +220,7 @@ describe("resolvePipelineCacheKeys", () => {
         {
           step: {
             key: "compile",
-            cmd: "gcc -o main main.c",
+            eval: { type: "cmd", cmd: "gcc -o main main.c" },
             cache: { policy: "forever", env_keys: [] },
           },
           env: {},

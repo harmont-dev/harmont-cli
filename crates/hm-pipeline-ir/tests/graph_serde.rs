@@ -8,15 +8,17 @@
 
 use std::collections::BTreeMap;
 
-use hm_pipeline_ir::{CommandStep, EdgeKind, Transition};
+use hm_pipeline_ir::{EdgeKind, PipelineStep, StepEval, Transition};
 
 #[test]
 fn transition_round_trips() {
     let nw = Transition {
-        step: CommandStep {
+        step: PipelineStep {
             key: "a".into(),
             label: Some("step A".into()),
-            cmd: "echo a".into(),
+            eval: StepEval::Cmd {
+                cmd: "echo a".into(),
+            },
             image: Some("ubuntu:24.04".into()),
             env: None,
             timeout_seconds: None,
@@ -30,6 +32,75 @@ fn transition_round_trips() {
     let back: Transition = serde_json::from_str(&json).unwrap();
     assert_eq!(back.step.key, "a");
     assert_eq!(back.env.get("FOO").unwrap(), "bar");
+}
+
+#[test]
+fn command_transition_uses_eval_wire_shape() {
+    let transition = Transition {
+        step: PipelineStep {
+            key: "build".into(),
+            label: None,
+            eval: StepEval::Cmd {
+                cmd: "cargo build".into(),
+            },
+            image: None,
+            env: None,
+            timeout_seconds: None,
+            cache: None,
+            runner: None,
+            runner_args: None,
+        },
+        env: BTreeMap::new(),
+    };
+
+    let json = serde_json::to_value(transition).unwrap();
+    assert_eq!(json["step"]["eval"]["type"], "cmd");
+    assert_eq!(json["step"]["eval"]["cmd"], "cargo build");
+    assert!(json["step"].get("cmd").is_none());
+}
+
+#[test]
+fn dynamic_transition_round_trips() {
+    let transition = Transition {
+        step: PipelineStep {
+            key: "choose-build".into(),
+            label: Some("Choose build".into()),
+            eval: StepEval::Dynamic {
+                target_name: "choose_build".into(),
+            },
+            image: None,
+            env: None,
+            timeout_seconds: None,
+            cache: None,
+            runner: None,
+            runner_args: None,
+        },
+        env: BTreeMap::new(),
+    };
+
+    let json = serde_json::to_value(&transition).unwrap();
+    assert_eq!(json["step"]["eval"]["type"], "dynamic");
+    assert_eq!(json["step"]["eval"]["target_name"], "choose_build");
+
+    let back: Transition = serde_json::from_value(json).unwrap();
+    assert!(matches!(
+        back.step.eval,
+        StepEval::Dynamic { target_name } if target_name == "choose_build"
+    ));
+}
+
+#[test]
+fn legacy_command_shape_is_rejected() {
+    let json = serde_json::json!({
+        "step": {
+            "key": "build",
+            "cmd": "cargo build"
+        },
+        "env": {}
+    });
+
+    let error = serde_json::from_value::<Transition>(json).unwrap_err();
+    assert!(error.to_string().contains("eval"));
 }
 
 #[test]
@@ -60,9 +131,9 @@ fn build_test_graph() -> PipelineGraph {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
-                {"step": {"key": "c", "cmd": "echo c", "image": "ubuntu:24.04"}, "env": {}}
+                {"step": {"key": "a", "eval": {"type": "cmd", "cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "eval": {"type": "cmd", "cmd": "echo b"}}, "env": {}},
+                {"step": {"key": "c", "eval": {"type": "cmd", "cmd": "echo c"}, "image": "ubuntu:24.04"}, "env": {}}
             ],
             "node_holes": [],
             "edge_property": "directed",

@@ -6,11 +6,11 @@ use daggy::Dag;
 use schemars::JsonSchema as DeriveJsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// A single build command within a pipeline.
+/// A concrete build command passed to a step runner.
 ///
-/// Serialized as a JSON object inside each graph node's `step` field.
-/// The `key` is the unique identifier used to reference this step in
-/// edges and log output.
+/// Pipeline graph nodes use [`PipelineStep`]. The scheduler converts
+/// `StepEval::Cmd` nodes to this runner protocol type immediately before
+/// execution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
 pub struct CommandStep {
     /// Unique identifier for this step within the pipeline.
@@ -45,6 +45,61 @@ pub struct CommandStep {
     pub runner_args: Option<serde_json::Value>,
 }
 
+/// Evaluation performed when the scheduler reaches a pipeline node.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum StepEval {
+    /// Execute a concrete shell command.
+    Cmd { cmd: String },
+    /// Invoke a registered DSL target and lower its result to a graph fragment.
+    Dynamic { target_name: String },
+}
+
+/// A node in the pipeline graph.
+///
+/// Graph nodes always carry a [`StepEval`]. Concrete command nodes are
+/// converted to [`CommandStep`] only at the step-runner boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+pub struct PipelineStep {
+    pub key: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    pub eval: StepEval,
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub env: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    pub timeout_seconds: Option<NonZeroU32>,
+    #[serde(default)]
+    pub cache: Option<Cache>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner_args: Option<serde_json::Value>,
+}
+
+impl PipelineStep {
+    /// Convert a baked command node into the runner protocol type.
+    #[must_use]
+    pub fn into_command(self) -> Option<CommandStep> {
+        let StepEval::Cmd { cmd } = self.eval else {
+            return None;
+        };
+        Some(CommandStep {
+            key: self.key,
+            label: self.label,
+            cmd,
+            image: self.image,
+            env: self.env,
+            timeout_seconds: self.timeout_seconds,
+            cache: self.cache,
+            runner: self.runner,
+            runner_args: self.runner_args,
+        })
+    }
+}
+
 /// Snapshot cache configuration for a step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
 pub struct Cache {
@@ -55,13 +110,13 @@ pub struct Cache {
     pub key: Option<String>,
 }
 
-/// A graph node: a [`CommandStep`] paired with its resolved environment.
+/// A graph node paired with its resolved environment.
 ///
 /// The `env` map is the final merged result of pipeline-level defaults
 /// and per-step overrides — ready to hand to the executor as-is.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transition {
-    pub step: CommandStep,
+    pub step: PipelineStep,
     pub env: BTreeMap<String, String>,
 }
 

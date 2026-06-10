@@ -24,6 +24,8 @@ class Step:
     """
 
     cmd: str | None = None
+    dynamic_target_name: str | None = None
+    """Registered target to evaluate when execution reaches this node."""
     parent: Step | None = None
     """In-tree pointer used by the lowering pass to walk back to the
     nearest emitted ancestor. Distinct from the wire-format
@@ -107,7 +109,13 @@ class Step:
         # chain has a real cmd, inheritance stops — keeps wire format
         # identical for normal chains.
         effective_image = (
-            image if image is not None else (self.image if self.cmd is None else None)
+            image
+            if image is not None
+            else (
+                self.image
+                if self.cmd is None and self.dynamic_target_name is None
+                else None
+            )
         )
         return Step(
             cmd=effective_cmd,

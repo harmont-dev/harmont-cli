@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pipeline } from "../src/pipeline.js";
 import { scratch, sh, wait, timeout } from "../src/step.js";
 import { forever, onChange } from "../src/cache.js";
+import { target } from "../src/target.js";
 
 function stepKeys(ir: any): string[] {
   return ir.graph.nodes.map((n: any) => n.step.key);
@@ -135,7 +136,7 @@ describe("lowering: optional fields", () => {
     const ir = pipeline([s]);
     const step = ir.graph.nodes[0].step;
     expect(step.key).toBeDefined();
-    expect(step.cmd).toBe("make");
+    expect(step.eval).toEqual({ type: "cmd", cmd: "make" });
     expect("label" in step).toBe(false);
     expect("timeout_seconds" in step).toBe(false);
     expect("cache" in step).toBe(false);
@@ -151,6 +152,40 @@ describe("lowering: optional fields", () => {
     expect(step.label).toBe("build");
     expect(step.timeout_seconds).toBe(600);
     expect(step.cache).toEqual({ policy: "forever", env_keys: [] });
+  });
+});
+
+describe("lowering: dynamic target", () => {
+  it("emits a deferred target placeholder", () => {
+    const chooseBuild = target(
+      "choose-build",
+      () => sh("npm run build"),
+      { dynamic: true },
+    );
+
+    const ir = pipeline([chooseBuild()]);
+    expect(ir.graph.nodes[0].step).toMatchObject({
+      key: "choose-build",
+      eval: {
+        type: "dynamic",
+        target_name: "choose-build",
+      },
+    });
+  });
+
+  it("connects subsequent static steps to the placeholder", () => {
+    const chooseBuild = target(
+      "choose-build-chain",
+      () => sh("npm run build"),
+      { dynamic: true },
+    );
+
+    const ir = pipeline([chooseBuild().sh("npm test")]);
+    expect(buildsInEdges(ir)).toEqual([[0, 1]]);
+    expect(ir.graph.nodes[1].step.eval).toEqual({
+      type: "cmd",
+      cmd: "npm test",
+    });
   });
 });
 

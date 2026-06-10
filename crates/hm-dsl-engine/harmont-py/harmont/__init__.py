@@ -34,6 +34,7 @@ from ._cmake import CMakeProject, CMakeToolchain, cmake
 from ._duration import parse_duration as _parse_duration
 from ._elixir import elixir
 from ._envelope import dump_registry_json
+from ._env import env
 from ._go import go
 from ._js import JsProject, js, ts
 from ._pipeline import pipeline as _pipeline_factory

@@ -1,4 +1,5 @@
 export { Step, scratch, sh, timeout, wait, type StepOptions } from "./step.js";
+export { env } from "./env.js";
 export {
   type CachePolicy,
   type CacheForever,
@@ -18,7 +19,12 @@ export {
   pullRequest,
 } from "./triggers.js";
 export { pipeline, type PipelineIR, type PipelineOptions } from "./pipeline.js";
-export { target, clearTargetCache } from "./target.js";
+export {
+  target,
+  clearTargetCache,
+  renderDynamicTarget,
+  type TargetOptions,
+} from "./target.js";
 export { aptBase } from "./toolchains/shared.js";
 export {
   renderEnvelope,
