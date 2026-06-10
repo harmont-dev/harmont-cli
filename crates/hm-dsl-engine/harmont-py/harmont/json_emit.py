@@ -44,15 +44,9 @@ def pipeline_to_json(
       env           <- os.environ
     """
     env_map: Mapping[str, str] = env if env is not None else os.environ
-    org = (
-        pipeline_org
-        if pipeline_org is not None
-        else env_map.get("HM_PIPELINE_ORG", "default")
-    )
+    org = pipeline_org if pipeline_org is not None else env_map.get("HM_PIPELINE_ORG", "default")
     slug = (
-        pipeline_slug
-        if pipeline_slug is not None
-        else env_map.get("HM_PIPELINE_SLUG", "default")
+        pipeline_slug if pipeline_slug is not None else env_map.get("HM_PIPELINE_SLUG", "default")
     )
     render_now = now if now is not None else int(time.time())
     bp = base_path if base_path is not None else Path.cwd()
