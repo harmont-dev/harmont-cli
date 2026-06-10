@@ -22,10 +22,12 @@ fn write_pipeline(dir: &Path) {
         r#"
 import harmont as hm
 
-def build():
-    a = hm.scratch().run("sleep 3", label="sleep-a")
-    b = hm.scratch().run("sleep 3", label="sleep-b")
-    return hm.pipeline(a, b, default_image="alpine:3.20")
+
+@hm.pipeline("parallelism", default_image="alpine:3.20")
+def build() -> list[hm.Step]:
+    a = hm.scratch().sh("sleep 3", label="sleep-a")
+    b = hm.scratch().sh("sleep 3", label="sleep-b")
+    return [a, b]
 "#,
     )
     .expect("pipeline.py");

@@ -31,6 +31,32 @@ pub trait VmBackend: Send + Sync + fmt::Debug {
 
     /// Delete a snapshot from the backend store.
     async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()>;
+
+    /// Best-effort garbage collection of snapshots matching `reference`
+    /// (a backend-specific reference filter pattern) whose creation time is
+    /// older than `older_than`. Returns the number of snapshots removed.
+    ///
+    /// `keep` is consulted once per matching snapshot tag; tags for which
+    /// it returns `true` are retained. Callers use it to protect snapshots
+    /// that are still referenced (e.g. by the snapshot registry) so that GC
+    /// only ever removes orphans.
+    ///
+    /// Backends without a notion of aged snapshot storage may keep the
+    /// default no-op implementation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only when the backend cannot be queried at all;
+    /// per-snapshot removal failures are logged and skipped.
+    async fn gc_snapshots(
+        &self,
+        reference: &str,
+        older_than: std::time::Duration,
+        keep: &(dyn for<'a> Fn(&'a str) -> bool + Send + Sync),
+    ) -> Result<u64> {
+        let _ = (reference, older_than, keep);
+        Ok(0)
+    }
 }
 
 /// Handle to a running virtual machine.

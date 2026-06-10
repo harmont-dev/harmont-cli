@@ -22,11 +22,12 @@ fn write_pipeline(dir: &Path, marker: &str) {
         r#"
 import harmont as hm
 
-def build():
-    a = hm.scratch().run("echo step-a", label="a", cache=hm.forever())
-    b = a.run("echo step-b", label="b", cache=hm.forever())
-    c = b.run("cat /workspace/marker.txt", label="c")
-    return hm.pipeline(c, default_image="alpine:3.20")
+
+@hm.pipeline("deep-cache-chain", default_image="alpine:3.20")
+def build() -> hm.Step:
+    a = hm.scratch().sh("echo step-a", label="a", cache=hm.forever())
+    b = a.sh("echo step-b", label="b", cache=hm.forever())
+    return b.sh("cat /workspace/marker.txt", label="c")
 "#,
     )
     .expect("pipeline.py");
@@ -35,7 +36,7 @@ def build():
 fn run_hm(repo: &Path) -> String {
     let bin = env!("CARGO_BIN_EXE_hm");
     let out = Command::new(bin)
-        .args(["run"])
+        .args(["run", "--format", "human", "--logs"])
         .current_dir(repo)
         .output()
         .expect("spawn hm");
@@ -67,5 +68,15 @@ fn deep_chain_child_sees_fresh_workspace() {
     assert!(
         !out2.contains("deep-v1"),
         "run 2 leaked stale workspace through deep cache chain:\n{out2}"
+    );
+    // Freshness must come from rebasing onto current source, not from
+    // silently re-executing the cached ancestors.
+    assert!(
+        out2.contains("[a] cache hit"),
+        "run 2 expected step a to be a cache hit:\n{out2}"
+    );
+    assert!(
+        out2.contains("[b] cache hit"),
+        "run 2 expected step b to be a cache hit:\n{out2}"
     );
 }

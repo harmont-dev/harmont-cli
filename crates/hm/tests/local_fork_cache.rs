@@ -24,17 +24,18 @@ fn write_pipeline(dir: &Path, marker_contents: &str) {
         r#"
 import harmont as hm
 
-def build():
-    base = hm.scratch().run(
+
+@hm.pipeline("fork-cache", default_image="alpine:3.20")
+def build() -> hm.Step:
+    base = hm.scratch().sh(
         "echo base-ran",
         label="base",
         cache=hm.forever(),
     )
-    child = base.fork(label="child").run(
+    return base.fork(label="fork").sh(
         "cat /workspace/marker.txt",
         label="child",
     )
-    return hm.pipeline(child, default_image="alpine:3.20")
 "#,
     )
     .expect("pipeline.py");
@@ -43,7 +44,7 @@ def build():
 fn run_harmont(repo: &Path) -> String {
     let bin = env!("CARGO_BIN_EXE_hm");
     let output = Command::new(bin)
-        .args(["run"])
+        .args(["run", "--format", "human", "--logs"])
         .current_dir(repo)
         .output()
         .expect("spawn harmont");

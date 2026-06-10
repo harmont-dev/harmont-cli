@@ -142,6 +142,12 @@ def forever(env_keys: tuple[str, ...] = ()) -> CacheForever:
     itself encodes the version (e.g. downloading a pinned binary). Do not
     use for steps that fetch mutable remote resources.
 
+    On a cache hit only SYSTEM state (the snapshot) is restored — files the
+    step wrote into the workspace are not replayed across runs; downstream
+    steps see the current run's source tree instead. Write build outputs to
+    system paths (e.g. ``/usr/local``) or use ``on_change`` if the step's
+    workspace outputs must survive cache hits.
+
     Args:
         env_keys: Environment variable names whose values are folded into
             the cache key. Use this when the command's behavior varies by
@@ -180,7 +186,7 @@ def compose(*policies: CachePolicy) -> CacheCompose:
     return CacheCompose(policies=tuple(policies))
 
 
-def predicate(fn: "Callable[[], str]") -> CachePredicate:
+def predicate(fn: Callable[[], str]) -> CachePredicate:
     """Cache policy that invalidates when ``fn()`` returns a new value.
 
     ``fn`` is called once at plan time. Its string return value is

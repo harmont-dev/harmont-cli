@@ -115,15 +115,15 @@ def test_different_predicate_values_produce_different_keys():
         pipeline_org="o",
         pipeline_slug="s",
         now=0,
-        base_path=Path("/tmp"),
-        env={},  # noqa: S108
+        base_path=Path("/tmp"),  # noqa: S108
+        env={},
     )
     resolve_pipeline_keys(
         g2,
         pipeline_org="o",
         pipeline_slug="s",
         now=0,
-        base_path=Path("/tmp"),
-        env={},  # noqa: S108
+        base_path=Path("/tmp"),  # noqa: S108
+        env={},
     )
     assert g1["nodes"][0]["step"]["cache"]["key"] != g2["nodes"][0]["step"]["cache"]["key"]

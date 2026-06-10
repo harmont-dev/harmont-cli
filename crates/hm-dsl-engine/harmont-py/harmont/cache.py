@@ -33,6 +33,12 @@ class CacheForever(CachePolicy):
     Use for pure computations whose only inputs are visible to the planner.
     DO NOT use for installs that fetch the public internet — package repos
     drift; manual cache busts will be needed.
+
+    On a cache hit only SYSTEM state (the snapshot) is restored — files the
+    step wrote into the workspace are not replayed across runs; downstream
+    steps see the current run's source tree instead. Write build outputs to
+    system paths (e.g. ``/usr/local``) or use ``on_change`` if the step's
+    workspace outputs must survive cache hits.
     """
 
     env_keys: tuple[str, ...] = ()

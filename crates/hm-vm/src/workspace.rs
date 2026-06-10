@@ -7,69 +7,45 @@ use anyhow::{Context, Result, ensure};
 
 /// Create a copy-on-write clone of `src` contents into `dst`.
 ///
-/// macOS APFS: `cp -cR` with full-copy fallback for cross-volume.
-/// Linux: `cp --reflink=auto -a` (COW on btrfs/XFS, full copy on ext4).
+/// macOS: `cp -cpR` (APFS clonefile; `cp -c` itself falls back to
+/// `copyfile(2)` when cloning is unsupported, so no manual retry is
+/// needed). Linux: `cp --reflink=auto -a` (COW on btrfs/XFS, full copy
+/// on ext4). Symlinks are copied as symlinks; mode and mtime are
+/// preserved (incremental build tools depend on mtimes).
 ///
 /// # Errors
 ///
-/// Returns an error if `cp` cannot be spawned or exits with a non-zero status.
+/// Returns an error if `cp` cannot be spawned or exits with a non-zero
+/// status; `cp`'s stderr is captured into the error rather than leaked
+/// to the terminal.
 pub fn cow_copy(src: &Path, dst: &Path) -> Result<()> {
     let src_dot = format!("{}/.", src.display());
 
-    let status = if cfg!(target_os = "macos") {
-        let st = Command::new("cp")
-            .args(["-cpR", &src_dot])
-            .arg(dst)
-            .status();
-        match st {
-            Ok(s) if s.success() => s,
-            _ => {
-                // APFS clonefile failed (cross-volume or non-APFS). Wipe any
-                // partial state left by the failed attempt before falling back
-                // to a regular copy.
-                if dst.exists() {
-                    for entry in std::fs::read_dir(dst)
-                        .with_context(|| format!("cleaning partial COW dst {}", dst.display()))?
-                    {
-                        let p = entry?.path();
-                        if p.is_dir() {
-                            std::fs::remove_dir_all(&p).ok();
-                        } else {
-                            std::fs::remove_file(&p).ok();
-                        }
-                    }
-                }
-                Command::new("cp")
-                    .args(["-pR", &src_dot])
-                    .arg(dst)
-                    .status()
-                    .with_context(|| {
-                        format!(
-                            "spawning cp fallback: {} -> {}",
-                            src.display(),
-                            dst.display()
-                        )
-                    })?
-            }
-        }
+    let mut cmd = Command::new("cp");
+    if cfg!(target_os = "macos") {
+        cmd.args(["-cpR", &src_dot]);
     } else {
-        Command::new("cp")
-            .args(["--reflink=auto", "-a", &src_dot])
-            .arg(dst)
-            .status()
-            .with_context(|| format!("spawning cp: {} -> {}", src.display(), dst.display()))?
-    };
+        cmd.args(["--reflink=auto", "-a", &src_dot]);
+    }
+    cmd.arg(dst);
+
+    let output = cmd
+        .output()
+        .with_context(|| format!("spawning cp: {} -> {}", src.display(), dst.display()))?;
 
     ensure!(
-        status.success(),
-        "cp {} -> {} exited with {status}",
+        output.status.success(),
+        "cp {} -> {} exited with {}: {}",
         src.display(),
-        dst.display()
+        dst.display(),
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
     );
     Ok(())
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use std::fs;

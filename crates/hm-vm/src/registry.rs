@@ -61,7 +61,8 @@ impl ImageRegistry {
 
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = NORMAL;",
+             PRAGMA synchronous = NORMAL;
+             PRAGMA busy_timeout = 5000;",
         )?;
 
         conn.execute_batch(
@@ -127,34 +128,52 @@ impl ImageRegistry {
         result.map(|(snap, ws)| (SnapshotId(snap), ws))
     }
 
-    /// Insert or update a cache entry, optionally with a workspace directory.
+    /// Insert or update a cache entry.
     ///
-    /// Returns the evicted entries (snapshot ID and optional workspace directory)
-    /// to keep the registry within its configured capacity. The caller is
-    /// responsible for cleaning up backend resources and workspace directories
-    /// associated with evicted entries.
+    /// The `workspace_dir` column is always written as `NULL`: the registry
+    /// stores system-state snapshots only. Workspace state is strictly
+    /// run-scoped and never persisted across runs (non-`NULL` values are
+    /// legacy rows kept solely so their directories can be reaped).
     ///
-    /// Upsert + eviction run under a single lock acquisition to prevent
-    /// TOCTOU races between concurrent callers.
+    /// Returns the evicted entries (snapshot ID and optional legacy workspace
+    /// directory) to keep the registry within its configured capacity. The
+    /// caller is responsible for cleaning up backend resources and legacy
+    /// workspace directories associated with evicted entries.
+    ///
+    /// Upsert + eviction run inside a single transaction so concurrent
+    /// writers (including other processes sharing the database file) can
+    /// never observe a partially-applied put.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the registry mutex is poisoned or any statement
+    /// fails; the caller must treat the snapshot as unregistered.
+    #[allow(
+        clippy::significant_drop_tightening,
+        reason = "the transaction borrows the guarded connection until commit"
+    )]
     pub fn put(
         &self,
         key: &str,
         snapshot: &SnapshotId,
-        workspace_dir: Option<&str>,
-    ) -> Vec<(SnapshotId, Option<String>)> {
+    ) -> Result<Vec<(SnapshotId, Option<String>)>> {
         let now = epoch_secs();
 
-        let Ok(conn) = self.conn.lock() else {
-            return Vec::new();
-        };
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| anyhow::anyhow!("registry mutex poisoned"))?;
+        let tx = conn.transaction()?;
 
-        let _result = conn.execute(
-            "INSERT OR REPLACE INTO snapshots (key, snapshot_id, accessed_at, workspace_dir)
-             VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![key, snapshot.0, now, workspace_dir],
-        );
+        tx.execute(
+            "INSERT OR REPLACE INTO snapshots (key, snapshot_id, accessed_at)
+             VALUES (?1, ?2, ?3)",
+            rusqlite::params![key, snapshot.0, now],
+        )?;
 
-        Self::evict_overflow_locked(&conn, self.capacity)
+        let evicted = Self::evict_overflow_tx(&tx, self.capacity)?;
+        tx.commit()?;
+        Ok(evicted)
     }
 
     /// Remove a specific entry.
@@ -182,6 +201,61 @@ impl ImageRegistry {
         row.map(|(snap, ws)| (SnapshotId(snap), ws))
     }
 
+    /// Compare-and-delete: remove the entry for `key` only if it still maps
+    /// to `expected`.
+    ///
+    /// This closes the race where a stale entry is observed, the lock is
+    /// released for an async backend check, and a fresh entry is inserted
+    /// under the same key before the invalidation lands — a plain
+    /// [`Self::invalidate`] would destroy the fresh entry.
+    ///
+    /// Returns `Some(legacy_workspace_dir)` when the observed row was
+    /// deleted, or `None` when the key is absent or now holds a different
+    /// snapshot (the concurrently re-inserted entry survives).
+    #[must_use]
+    #[allow(
+        clippy::significant_drop_tightening,
+        reason = "the prepared statement borrows the guarded connection"
+    )]
+    pub fn invalidate_if(&self, key: &str, expected: &SnapshotId) -> Option<Option<String>> {
+        let conn = self.conn.lock().ok()?;
+        let mut stmt = conn
+            .prepare(
+                "DELETE FROM snapshots WHERE key = ?1 AND snapshot_id = ?2
+                 RETURNING workspace_dir",
+            )
+            .ok()?;
+        let mut rows = stmt
+            .query_map(rusqlite::params![key, expected.0], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .ok()?;
+        let legacy_ws = rows.next()?.ok()?;
+        Some(legacy_ws)
+    }
+
+    /// Returns `true` if any entry currently maps to `snapshot`.
+    ///
+    /// Used as a pre-removal guard for deferred eviction cleanup: a tag that
+    /// was evicted earlier may have been re-registered since (by a later step
+    /// in this run or by a concurrent process); Docker re-tagging means the
+    /// tag now names the *fresh* image, so removing it would destroy a live
+    /// cache entry.
+    #[must_use]
+    pub fn contains_snapshot(&self, snapshot: &SnapshotId) -> bool {
+        let Ok(conn) = self.conn.lock() else {
+            // A poisoned lock means we cannot prove the snapshot is unused;
+            // report it as referenced so callers err on the side of keeping it.
+            return true;
+        };
+        conn.query_row(
+            "SELECT COUNT(*) FROM snapshots WHERE snapshot_id = ?1",
+            [&snapshot.0],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_or(true, |n| n > 0)
+    }
+
     /// Returns the number of cached entries.
     #[must_use]
     pub fn len(&self) -> u64 {
@@ -203,53 +277,40 @@ impl ImageRegistry {
     }
 
     /// Evict the oldest entries (by `accessed_at`) when the registry exceeds
-    /// its capacity. Caller must already hold the connection lock.
+    /// its capacity. Runs inside the caller's transaction.
     ///
-    /// SELECT + DELETE run in one lock scope to prevent TOCTOU races
-    /// between concurrent callers.
-    fn evict_overflow_locked(
-        conn: &Connection,
+    /// A single `DELETE .. RETURNING` statement selects and removes the same
+    /// rows, with `key` as a deterministic tie-break for equal timestamps, so
+    /// the returned set can never diverge from the deleted set.
+    fn evict_overflow_tx(
+        tx: &rusqlite::Transaction<'_>,
         capacity: u64,
-    ) -> Vec<(SnapshotId, Option<String>)> {
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM snapshots", [], |row| row.get(0))
-            .unwrap_or(0);
-        #[allow(clippy::cast_sign_loss)]
-        let count = count as u64;
+    ) -> Result<Vec<(SnapshotId, Option<String>)>> {
+        let count: i64 = tx.query_row("SELECT COUNT(*) FROM snapshots", [], |row| row.get(0))?;
+        let count = u64::try_from(count).unwrap_or(0);
 
         if count <= capacity {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         let overflow = count - capacity;
 
-        let Ok(mut stmt) = conn.prepare(
-            "SELECT snapshot_id, workspace_dir FROM snapshots ORDER BY accessed_at ASC LIMIT ?1",
-        ) else {
-            return Vec::new();
-        };
+        let mut stmt = tx.prepare(
+            "DELETE FROM snapshots WHERE key IN (
+                 SELECT key FROM snapshots ORDER BY accessed_at ASC, key ASC LIMIT ?1
+             ) RETURNING snapshot_id, workspace_dir",
+        )?;
 
-        let evicted: Vec<(SnapshotId, Option<String>)> = stmt
+        let evicted = stmt
             .query_map([overflow], |row| {
                 Ok((
                     SnapshotId(row.get::<_, String>(0)?),
                     row.get::<_, Option<String>>(1)?,
                 ))
-            })
-            .ok()
-            .map(|rows| rows.filter_map(Result::ok).collect())
-            .unwrap_or_default();
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        drop(stmt);
-
-        let _deleted = conn.execute(
-            "DELETE FROM snapshots WHERE key IN (
-                 SELECT key FROM snapshots ORDER BY accessed_at ASC LIMIT ?1
-             )",
-            [overflow],
-        );
-
-        evicted
+        Ok(evicted)
     }
 }
 
@@ -271,11 +332,23 @@ mod tests {
         assert!(reg.get("nonexistent").is_none());
     }
 
+    /// Insert a legacy-style row with a non-NULL `workspace_dir`, as written
+    /// by pre-fix versions that persisted cached workspaces.
+    fn insert_legacy_row(reg: &ImageRegistry, key: &str, snap: &str, ws: &str) {
+        let conn = reg.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO snapshots (key, snapshot_id, accessed_at, workspace_dir)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![key, snap, epoch_secs(), ws],
+        )
+        .unwrap();
+    }
+
     #[test]
     fn put_then_get_returns_snapshot() {
         let (reg, _dir) = open_temp(10);
         let snap = SnapshotId("snap-abc".into());
-        let evicted = reg.put("my-key", &snap, None);
+        let evicted = reg.put("my-key", &snap).expect("put");
         assert!(evicted.is_empty());
 
         let got = reg.get("my-key");
@@ -287,12 +360,12 @@ mod tests {
         let (reg, _dir) = open_temp(2);
 
         // Insert a, then b. "a" is older by insertion order.
-        reg.put("a", &SnapshotId("snap-a".into()), None);
+        reg.put("a", &SnapshotId("snap-a".into())).expect("put a");
 
         // Tiny sleep so timestamps differ.
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        reg.put("b", &SnapshotId("snap-b".into()), None);
+        reg.put("b", &SnapshotId("snap-b".into())).expect("put b");
 
         // Touch "a" so it becomes the most recently accessed.
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -301,7 +374,7 @@ mod tests {
         // Now insert "c" -- capacity is 2, so one must be evicted.
         // "b" should be evicted since "a" was touched more recently.
         std::thread::sleep(std::time::Duration::from_secs(1));
-        let evicted = reg.put("c", &SnapshotId("snap-c".into()), None);
+        let evicted = reg.put("c", &SnapshotId("snap-c".into())).expect("put c");
 
         assert_eq!(evicted.len(), 1);
         assert_eq!(evicted[0].0, SnapshotId("snap-b".into()));
@@ -316,13 +389,13 @@ mod tests {
     fn eviction_returns_overflow_entries() {
         let (reg, _dir) = open_temp(2);
 
-        reg.put("x", &SnapshotId("snap-x".into()), None);
+        reg.put("x", &SnapshotId("snap-x".into())).expect("put x");
         std::thread::sleep(std::time::Duration::from_secs(1));
-        reg.put("y", &SnapshotId("snap-y".into()), None);
+        reg.put("y", &SnapshotId("snap-y".into())).expect("put y");
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         // This third insert should evict the oldest ("x").
-        let evicted = reg.put("z", &SnapshotId("snap-z".into()), None);
+        let evicted = reg.put("z", &SnapshotId("snap-z".into())).expect("put z");
 
         assert_eq!(evicted.len(), 1);
         assert_eq!(evicted[0].0, SnapshotId("snap-x".into()));
@@ -336,7 +409,8 @@ mod tests {
 
         {
             let reg = ImageRegistry::open(&db_path, 10).expect("open");
-            reg.put("persistent", &SnapshotId("snap-persist".into()), None);
+            reg.put("persistent", &SnapshotId("snap-persist".into()))
+                .expect("put");
             assert_eq!(reg.len(), 1);
             // reg is dropped here, closing the connection.
         }
@@ -351,7 +425,7 @@ mod tests {
     fn invalidate_returns_removed_snapshot() {
         let (reg, _dir) = open_temp(10);
         let snap = SnapshotId("snap-rm".into());
-        reg.put("to-remove", &snap, None);
+        reg.put("to-remove", &snap).expect("put");
 
         let removed = reg.invalidate("to-remove");
         assert_eq!(removed, Some((SnapshotId("snap-rm".into()), None)));
@@ -364,32 +438,92 @@ mod tests {
     }
 
     #[test]
-    fn put_with_workspace_then_get_returns_both() {
+    fn put_writes_null_workspace() {
         let (reg, _dir) = open_temp(10);
-        let snap = SnapshotId("snap-ws".into());
-        reg.put("ws-key", &snap, Some("/cache/workspaces/ws-key"));
-
-        let (got_snap, got_ws) = reg.get_with_workspace("ws-key").unwrap();
-        assert_eq!(got_snap, SnapshotId("snap-ws".into()));
-        assert_eq!(got_ws.as_deref(), Some("/cache/workspaces/ws-key"));
-    }
-
-    #[test]
-    fn put_without_workspace_returns_none_workspace() {
-        let (reg, _dir) = open_temp(10);
-        reg.put("plain-key", &SnapshotId("snap-plain".into()), None);
+        reg.put("plain-key", &SnapshotId("snap-plain".into()))
+            .expect("put");
 
         let (_, got_ws) = reg.get_with_workspace("plain-key").unwrap();
         assert!(got_ws.is_none());
     }
 
     #[test]
-    fn eviction_includes_workspace_path() {
+    fn put_overwrites_legacy_workspace_with_null() {
+        let (reg, _dir) = open_temp(10);
+        insert_legacy_row(&reg, "k", "snap-old", "/ws/legacy");
+
+        reg.put("k", &SnapshotId("snap-new".into())).expect("put");
+
+        let (snap, ws) = reg.get_with_workspace("k").unwrap();
+        assert_eq!(snap, SnapshotId("snap-new".into()));
+        assert!(ws.is_none());
+    }
+
+    #[test]
+    fn invalidate_if_matching_snapshot_deletes_row() {
+        let (reg, _dir) = open_temp(10);
+        let snap = SnapshotId("snap-cas".into());
+        reg.put("cas-key", &snap).expect("put");
+
+        let removed = reg.invalidate_if("cas-key", &snap);
+        assert_eq!(removed, Some(None));
+        assert!(reg.get("cas-key").is_none());
+    }
+
+    #[test]
+    fn invalidate_if_mismatched_snapshot_keeps_row() {
+        let (reg, _dir) = open_temp(10);
+        reg.put("cas-key", &SnapshotId("snap-fresh".into()))
+            .expect("put");
+
+        // A stale observer tries to invalidate with the snapshot it saw
+        // earlier; the fresh row must survive.
+        let removed = reg.invalidate_if("cas-key", &SnapshotId("snap-stale".into()));
+        assert!(removed.is_none());
+        assert_eq!(reg.get("cas-key"), Some(SnapshotId("snap-fresh".into())));
+
+        // Absent key is also a no-op.
+        assert!(
+            reg.invalidate_if("missing", &SnapshotId("whatever".into()))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn invalidate_if_returns_legacy_workspace_for_cleanup() {
+        let (reg, _dir) = open_temp(10);
+        insert_legacy_row(&reg, "legacy", "snap-legacy", "/ws/legacy");
+
+        let removed = reg.invalidate_if("legacy", &SnapshotId("snap-legacy".into()));
+        assert_eq!(removed, Some(Some("/ws/legacy".into())));
+        assert!(reg.get("legacy").is_none());
+    }
+
+    #[test]
+    fn contains_snapshot_tracks_rows() {
+        let (reg, _dir) = open_temp(10);
+        let snap = SnapshotId("snap-ref".into());
+        assert!(!reg.contains_snapshot(&snap));
+
+        reg.put("k", &snap).expect("put");
+        assert!(reg.contains_snapshot(&snap));
+
+        // The same snapshot under a second key still counts.
+        reg.put("k2", &snap).expect("put");
+        let _ = reg.invalidate("k");
+        assert!(reg.contains_snapshot(&snap));
+
+        let _ = reg.invalidate("k2");
+        assert!(!reg.contains_snapshot(&snap));
+    }
+
+    #[test]
+    fn eviction_returns_legacy_workspace_path() {
         let (reg, _dir) = open_temp(1);
-        reg.put("a", &SnapshotId("snap-a".into()), Some("/ws/a"));
+        insert_legacy_row(&reg, "a", "snap-a", "/ws/a");
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        let evicted = reg.put("b", &SnapshotId("snap-b".into()), Some("/ws/b"));
+        let evicted = reg.put("b", &SnapshotId("snap-b".into())).expect("put b");
         assert_eq!(evicted.len(), 1);
         assert_eq!(evicted[0].0, SnapshotId("snap-a".into()));
         assert_eq!(evicted[0].1.as_deref(), Some("/ws/a"));

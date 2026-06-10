@@ -1363,6 +1363,7 @@ dependencies = [
  "rusqlite",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "uuid",
 ]

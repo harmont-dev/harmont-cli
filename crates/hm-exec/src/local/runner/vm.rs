@@ -79,11 +79,14 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
                 .as_ref()
                 .map_or_else(String::new, |s| s.0.clone()),
         });
+        // Cache hits carry no workspace: workspace state is strictly
+        // run-scoped, so children rebase onto the current source instead
+        // of inheriting a stale tree from the original run.
         return Ok(StepResult {
             exit_code: 0,
             committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.0)),
             artifacts: vec![],
-            workspace_dir: result.workspace_dir.map(|p| p.display().to_string()),
+            workspace_dir: None,
             ephemeral_snapshot: false,
         });
     }
@@ -100,23 +103,38 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         )
     };
 
-    // Prepare the workspace: COW-copy from parent step's workspace (if this
-    // is a child in a BuildsIn chain) or extract from the source archive
-    // (root step). Either way, bind-mount the result into the VM.
+    // Prepare the workspace: COW-copy from the parent step's live workspace
+    // (child of a step that executed this run) or from the shared
+    // once-per-run source base (root step, or child of a cache-hit parent).
+    // Either way, bind-mount the result into the VM.
     let step_ws = tempfile::tempdir().context("creating step workspace")?;
 
-    if let Some(ref parent_ws) = ctx.parent_workspace_dir {
-        hm_vm::workspace::cow_copy(std::path::Path::new(parent_ws), step_ws.path())
-            .context("COW copy parent workspace")?;
+    let cow_src: std::path::PathBuf = if let Some(ref parent_ws) = ctx.parent_workspace_dir {
+        std::path::PathBuf::from(parent_ws)
     } else {
-        let archive_bytes = ctx
-            .archives
-            .get_bytes(input.workspace_archive_id)
-            .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
-        let base_dir =
-            extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
-        hm_vm::workspace::cow_copy(base_dir.path(), step_ws.path())
-            .context("COW copy source to workspace")?;
+        let base = ctx
+            .source_base
+            .get_or_try_init(|| async {
+                let archive_bytes = ctx
+                    .archives
+                    .get_bytes(input.workspace_archive_id)
+                    .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
+                tokio::task::spawn_blocking(move || extract_archive_to_tempdir(&archive_bytes))
+                    .await
+                    .context("archive extraction task panicked")?
+                    .context("extracting workspace archive")
+            })
+            .await?;
+        base.path().to_path_buf()
+    };
+
+    {
+        let dst = step_ws.path().to_path_buf();
+        let src = cow_src.clone();
+        tokio::task::spawn_blocking(move || hm_vm::workspace::cow_copy(&src, &dst))
+            .await
+            .context("workspace COW task panicked")?
+            .with_context(|| format!("COW copy {} into step workspace", cow_src.display()))?;
     }
 
     let workspace = Some(WorkspaceMount {
@@ -148,13 +166,17 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         bus: Arc::clone(&ctx.event_bus),
     };
 
-    let result = tokio::select! {
-        r = vm.execute(action, policy, &sink) => r,
-        () = ctx.cancel.cancelled() => {
-            anyhow::bail!("step cancelled (build timeout or sibling failure)")
-        }
-    }
-    .context("vm execute failed")?;
+    // Cancellation is cooperative INSIDE `HmVm::execute` (the token is
+    // threaded down): on Ctrl-C / sibling failure / step timeout it bails
+    // with exit 130 only after destroying the container, which reclaims
+    // bind-mount ownership of root-written files. Never `select!`-drop
+    // this future: doing so would tear down `step_ws` concurrently with a
+    // still-running container and leak a (root-owned, on native Linux)
+    // workspace directory.
+    let result = vm
+        .execute(action, policy, &sink, &ctx.cancel)
+        .await
+        .context("vm execute failed")?;
 
     if result.cached {
         ctx.event_bus.emit(BuildEvent::StepCacheHit {
@@ -172,13 +194,13 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         });
     }
 
-    // For cached steps HmVm persists the workspace to the cache dir and
-    // returns it. For uncached steps workspace_dir is None — keep the
-    // step tempdir alive so children can COW-copy from it.
-    let workspace_dir = result
-        .workspace_dir
-        .map(|p| p.display().to_string())
-        .or_else(|| (result.exit_code == 0).then(|| step_ws.keep().display().to_string()));
+    // Steps that executed successfully (cached-miss and uncached alike)
+    // keep their live tempdir alive so same-run children can COW-copy
+    // from it; the scheduler removes every kept dir after the DAG drains.
+    // Cache hits (rare race: a concurrent fill between peek and execute)
+    // and failures propagate no workspace -- the TempDir self-cleans.
+    let workspace_dir =
+        (result.exit_code == 0 && !result.cached).then(|| step_ws.keep().display().to_string());
 
     Ok(StepResult {
         exit_code: result.exit_code,

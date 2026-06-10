@@ -26,6 +26,15 @@ export interface CachePredicate {
 
 export type CachePolicy = CacheForever | CacheTTL | CacheOnChange | CacheCompose | CachePredicate;
 
+/**
+ * Create a permanent cache policy, keyed on (command, parent, envKeys).
+ *
+ * On a cache hit only SYSTEM state (the snapshot) is restored — files the
+ * step wrote into the workspace are not replayed across runs; downstream
+ * steps see the current run's source tree instead. Write build outputs to
+ * system paths (e.g. `/usr/local`) or use `onChange` if the step's
+ * workspace outputs must survive cache hits.
+ */
 export function forever(opts?: { envKeys?: string[] }): CacheForever {
   return { kind: "forever", envKeys: opts?.envKeys ?? [] };
 }

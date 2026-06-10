@@ -26,7 +26,10 @@ pub struct Action {
     pub working_dir: String,
     pub timeout: Option<Duration>,
     /// Host workspace directory to bind-mount into the VM.
-    /// Skipped on cache hits (snapshot already contains prior state).
+    ///
+    /// Bind mounts are EXCLUDED from snapshots (`docker commit` captures
+    /// system state only), so workspace contents never persist into the
+    /// cache and are never consulted on the cache-hit path.
     pub workspace: Option<WorkspaceMount>,
 }
 
@@ -50,7 +53,6 @@ pub struct ExecutionResult {
     pub exit_code: i32,
     pub snapshot: Option<SnapshotId>,
     pub cached: bool,
-    pub workspace_dir: Option<PathBuf>,
     /// True when the snapshot is ephemeral (not registered in the cache)
     /// and must be cleaned up by the caller after downstream steps finish.
     pub ephemeral_snapshot: bool,
@@ -62,7 +64,6 @@ pub struct VmConfig {
     pub cpus: Option<u32>,
     pub memory_mib: Option<u64>,
     pub disk_size_gb: Option<u64>,
-    pub workspace_cache_dir: Option<PathBuf>,
 }
 
 /// Receives stdout/stderr lines during execution.
