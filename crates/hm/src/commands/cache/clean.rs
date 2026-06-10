@@ -1,4 +1,5 @@
 use anyhow::Result;
+use hm_vm::VmBackend as _;
 
 /// # Errors
 /// Returns an error if workspace cache removal fails.
@@ -21,6 +22,15 @@ pub async fn handle_clean() -> Result<i32> {
     let db_cleaned = if let Some(cache_dir) = hm_util::dirs::hm_cache_dir() {
         let db_path = cache_dir.join("registry.db");
         if db_path.exists() {
+            // Remove the backing Docker images BEFORE deleting registry.db.
+            // The registry is the only index from a cache key to its tagged
+            // image (`forever-*`, etc.); once the DB is gone the images can't
+            // be located by key, and `docker image prune` only reclaims
+            // *dangling* images, so a tagged snapshot survives it. So we
+            // enumerate the registry, remove each image via the Docker
+            // backend (best-effort), then drop the DB.
+            remove_registered_images(&db_path).await;
+
             std::fs::remove_file(&db_path)?;
             tracing::info!(path = %db_path.display(), "removed VM image registry");
             true
@@ -31,17 +41,58 @@ pub async fn handle_clean() -> Result<i32> {
         false
     };
 
-    if db_cleaned {
-        tracing::warn!(
-            "Docker images from previous runs may still exist — run `docker image prune` to reclaim disk"
-        );
-    }
-
     if !ws_cleaned && !db_cleaned {
         tracing::info!("nothing to clean");
     }
 
     Ok(0)
+}
+
+/// Remove every Docker image tracked by the registry at `db_path`.
+///
+/// Best-effort: a missing Docker daemon or an already-deleted image is logged
+/// and skipped, never fatal — `clean` must still delete the registry DB so the
+/// cache index is reset.
+async fn remove_registered_images(db_path: &std::path::Path) {
+    // Capacity here is irrelevant — we only read existing rows, never insert.
+    let registry = match hm_vm::ImageRegistry::open(db_path, std::num::NonZeroU64::MAX) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, "could not open image registry; skipping image removal");
+            return;
+        }
+    };
+
+    let snapshots = registry.all_snapshot_ids();
+    if snapshots.is_empty() {
+        return;
+    }
+
+    let backend = match hm_vm::docker::DockerBackend::connect() {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "could not connect to Docker; {} cached image(s) may remain — remove them with `docker image rm`",
+                snapshots.len(),
+            );
+            return;
+        }
+    };
+
+    let mut removed = 0usize;
+    for snap in &snapshots {
+        match backend.remove_snapshot(snap).await {
+            Ok(()) => removed += 1,
+            Err(e) => {
+                tracing::warn!(image = %snap, error = %e, "failed to remove cached image");
+            }
+        }
+    }
+    tracing::info!(
+        "removed {removed} of {} cached Docker image(s)",
+        snapshots.len()
+    );
 }
 
 fn dir_size(path: &std::path::Path) -> u64 {

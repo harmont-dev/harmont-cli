@@ -4,6 +4,7 @@
 //! drives the [`hm_vm`] subsystem. The VM backend (Docker, etc.) is injected;
 //! snapshot caching is owned by `hm-vm`'s [`hm_vm::ImageRegistry`].
 
+use std::num::NonZeroU64;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -17,7 +18,7 @@ use crate::{BackendError, BackendHandle, Capabilities, ExecutionBackend, Result,
 
 /// Number of cached snapshots the image registry retains before evicting
 /// least-recently-used entries.
-const REGISTRY_CAPACITY: u64 = 64;
+const REGISTRY_CAPACITY: NonZeroU64 = NonZeroU64::new(64).expect("64 is non-zero");
 
 /// Runs the build locally via the in-process DAG scheduler, executing each
 /// step inside a VM provided by the injected [`hm_vm::VmBackend`].
