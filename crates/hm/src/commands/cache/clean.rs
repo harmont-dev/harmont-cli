@@ -40,8 +40,7 @@ pub async fn handle_clean() -> Result<i32> {
     // Legacy: pre-unification config + cache lived in ~/.harmont/. It's defunct
     // now (config + creds moved to ~/.config/hm, cache to ~/.cache/hm), so best-
     // effort remove it to reclaim disk. Current code never creates it again.
-    let legacy_cleaned = dirs::home_dir().is_some_and(|home| {
-        let legacy = home.join(".harmont");
+    let legacy_cleaned = hm_util::dirs::legacy_harmont_dir().is_some_and(|legacy| {
         if !legacy.is_dir() {
             return false;
         }
