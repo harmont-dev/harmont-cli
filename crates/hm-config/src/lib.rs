@@ -22,6 +22,7 @@ fn default_backend() -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CloudConfig {
     pub org: Option<String>,
     pub api_url: String,
@@ -37,6 +38,7 @@ impl Default for CloudConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Preferences {
     pub format: String,
     pub auto_watch: bool,
@@ -52,6 +54,7 @@ impl Default for Preferences {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Config {
     #[serde(default = "default_backend")]
     pub backend: String,
@@ -264,12 +267,11 @@ org = "project-org"
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("config.toml");
         let cfg = Config {
-            backend: default_backend(),
             cloud: CloudConfig {
                 org: Some("saved-org".into()),
-                api_url: DEFAULT_API_URL.to_owned(),
+                ..CloudConfig::default()
             },
-            preferences: Preferences::default(),
+            ..Config::default()
         };
         cfg.save_to(&path).unwrap();
 
