@@ -77,12 +77,7 @@ def clear_target_cache() -> None:
 
 
 def evaluate_dynamic_target(name: str) -> Any:
-    """Evaluate a registered dynamic target for runtime graph expansion.
-
-    Dynamic groups are intentionally rejected for the first implementation:
-    a single leaf gives the scheduler one unambiguous snapshot from which
-    subsequent ``builds_in`` steps can continue.
-    """
+    """Evaluate a registered dynamic target for runtime graph expansion."""
     try:
         fn = _DYNAMIC_TARGETS_BY_NAME[name]
     except KeyError as e:
@@ -90,15 +85,7 @@ def evaluate_dynamic_target(name: str) -> Any:
 
     from ._unwrap import as_leaves
 
-    leaves = as_leaves(call_with_deps(fn))
-    if len(leaves) != 1:
-        msg = (
-            f"hm: dynamic target {name!r} returned {len(leaves)} leaves\n"
-            "  → dynamic targets must currently return exactly one leaf; "
-            "group continuation semantics are not yet defined"
-        )
-        raise ValueError(msg)
-    return leaves[0]
+    return as_leaves(call_with_deps(fn))
 
 
 def render_dynamic_target_json(
@@ -111,8 +98,8 @@ def render_dynamic_target_json(
 
     clear_target_memo()
     runtime_env = env if env is not None else {}
-    leaf = evaluate_dynamic_target(name)
-    fragment = pipeline([leaf], env=runtime_env)
+    leaves = evaluate_dynamic_target(name)
+    fragment = pipeline(leaves, env=runtime_env)
     return pipeline_to_json(
         fragment,
         pipeline_slug=name,

@@ -134,18 +134,48 @@ def test_dynamic_target_body_can_be_evaluated_by_name():
     def choose_build() -> hm.Step:
         return hm.sh("cargo test")
 
-    leaf = evaluate_dynamic_target("choose_build")
+    leaves = evaluate_dynamic_target("choose_build")
 
-    assert leaf.cmd == "cargo test"
+    assert len(leaves) == 1
+    assert leaves[0].cmd == "cargo test"
 
 
-def test_dynamic_target_rejects_group_until_continuation_is_defined():
+def test_dynamic_target_returns_group_leaves():
     @hm.target(dynamic=True)
     def checks() -> tuple[hm.Step, ...]:
         return hm.group([hm.sh("cargo test"), hm.sh("cargo clippy")])
 
-    with pytest.raises(ValueError, match="must currently return exactly one leaf"):
-        evaluate_dynamic_target("checks")
+    leaves = evaluate_dynamic_target("checks")
+
+    assert [leaf.cmd for leaf in leaves] == ["cargo test", "cargo clippy"]
+
+    fragment = json.loads(render_dynamic_target_json("checks"))
+    assert len(fragment["graph"]["nodes"]) == 2
+    assert fragment["graph"]["edges"] == []
+
+
+def test_dynamic_group_can_define_explicit_continuation():
+    @hm.target(dynamic=True)
+    def checks() -> tuple[hm.Step, ...]:
+        return hm.group(
+            [
+                hm.sh("cargo test", label="test"),
+                hm.sh("cargo clippy", label="clippy"),
+                hm.wait(),
+                hm.sh("prepare deploy", label="merge"),
+            ]
+        )
+
+    fragment = json.loads(render_dynamic_target_json("checks"))
+    keys = [node["step"]["key"] for node in fragment["graph"]["nodes"]]
+    merge = keys.index("merge")
+    depends_on = {
+        (source, target)
+        for source, target, kind in fragment["graph"]["edges"]
+        if kind == "depends_on"
+    }
+
+    assert depends_on == {(keys.index("test"), merge), (keys.index("clippy"), merge)}
 
 
 def test_dynamic_target_json_contains_concrete_fragment_and_runtime_env():

@@ -68,14 +68,25 @@ pub(crate) struct LocalRunContext {
     pub dynamic_evaluator: Option<Arc<dyn DynamicEvaluator>>,
 }
 
-async fn resolve_dynamic_transitions(
+#[derive(Debug)]
+struct ExecutionBatch {
+    transitions: Vec<Transition>,
+    parents: Vec<Vec<(EdgeKind, usize)>>,
+    terminals: Vec<usize>,
+}
+
+async fn resolve_execution_batch(
     transition: Transition,
     repo_root: &std::path::Path,
     runtime_env: &BTreeMap<String, String>,
     evaluator: Option<&dyn DynamicEvaluator>,
-) -> anyhow::Result<Vec<Transition>> {
+) -> anyhow::Result<ExecutionBatch> {
     let StepEval::Dynamic { target_name } = &transition.step.eval else {
-        return Ok(vec![transition]);
+        return Ok(ExecutionBatch {
+            transitions: vec![transition],
+            parents: vec![Vec::new()],
+            terminals: vec![0],
+        });
     };
     let evaluator = evaluator.ok_or_else(|| {
         anyhow::anyhow!("dynamic target {target_name:?} cannot run without a DSL evaluator")
@@ -92,39 +103,60 @@ async fn resolve_dynamic_transitions(
     let dag = fragment.dag();
     let order = toposort(dag.graph(), None)
         .map_err(|_| anyhow::anyhow!("dynamic target {target_name:?} produced a cyclic graph"))?;
-    for (position, &node) in order.iter().enumerate() {
+    let position_by_node: HashMap<NodeIndex, usize> = order
+        .iter()
+        .enumerate()
+        .map(|(position, &node)| (node, position))
+        .collect();
+    let mut parents = Vec::with_capacity(order.len());
+    let mut terminals = Vec::new();
+
+    for &node in &order {
         if !matches!(dag[node].step.eval, StepEval::Cmd { .. }) {
             anyhow::bail!("dynamic target {target_name:?} returned another dynamic step");
         }
 
-        let parents: Vec<(EdgeKind, NodeIndex)> = dag
+        let node_parents: Vec<(EdgeKind, usize)> = dag
             .parents(node)
             .iter(dag)
-            .map(|(edge, parent)| (*dag.edge_weight(edge).expect("edge in dynamic DAG"), parent))
+            .map(|(edge, parent)| {
+                (
+                    *dag.edge_weight(edge).expect("edge in dynamic DAG"),
+                    position_by_node[&parent],
+                )
+            })
             .collect();
-        let valid = if position == 0 {
-            parents.is_empty()
-        } else {
-            parents.as_slice() == [(EdgeKind::BuildsIn, order[position - 1])]
-        };
-        if !valid {
+        if node_parents
+            .iter()
+            .filter(|(kind, _)| *kind == EdgeKind::BuildsIn)
+            .count()
+            > 1
+        {
             anyhow::bail!(
-                "dynamic target {target_name:?} produced a branched or grouped graph; only one linear command chain is supported"
+                "dynamic target {target_name:?} produced a step with multiple snapshot parents"
             );
+        }
+        parents.push(node_parents);
+        if dag.children(node).iter(dag).next().is_none() {
+            terminals.push(position_by_node[&node]);
         }
     }
 
     let placeholder = transition.step;
-    let terminal = order.len() - 1;
+    let single_terminal = terminals
+        .as_slice()
+        .first()
+        .copied()
+        .filter(|_| terminals.len() == 1);
     let mut transitions = Vec::with_capacity(order.len());
     for (position, node) in order.into_iter().enumerate() {
         let mut concrete = dag[node].clone();
-        concrete.step.key = if position == terminal {
+        concrete.step.key = if Some(position) == single_terminal {
             placeholder.key.clone()
         } else {
             format!("{}/{}", placeholder.key, concrete.step.key)
         };
-        if position == terminal {
+        if Some(position) == single_terminal {
             if concrete.step.label.is_none() {
                 concrete.step.label.clone_from(&placeholder.label);
             }
@@ -144,7 +176,7 @@ async fn resolve_dynamic_transitions(
                     .clone_from(&placeholder.runner_args);
             }
         }
-        if position == 0 && concrete.step.image.is_none() {
+        if parents[position].is_empty() && concrete.step.image.is_none() {
             concrete.step.image.clone_from(&placeholder.image);
         }
 
@@ -153,7 +185,11 @@ async fn resolve_dynamic_transitions(
         concrete.env = env;
         transitions.push(concrete);
     }
-    Ok(transitions)
+    Ok(ExecutionBatch {
+        transitions,
+        parents,
+        terminals,
+    })
 }
 
 /// Entry point: run a parsed pipeline locally end-to-end.
@@ -234,6 +270,7 @@ pub(crate) async fn run(
 
     let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism));
 
+    let default_image = graph.default_image().map(str::to_owned);
     let dag = graph.dag();
     let pipeline_timeout = graph.timeout_seconds();
     let chain_info = compute_chain_info(dag);
@@ -281,6 +318,7 @@ pub(crate) async fn run(
         let repo_root = repo_root.clone();
         let runtime_env = runtime_env.clone();
         let dynamic_evaluator = dynamic_evaluator.clone();
+        let default_image = default_image.clone();
 
         let fut: StepFuture = async move {
             // Await all predecessors.
@@ -337,6 +375,7 @@ pub(crate) async fn run(
                 repo_root,
                 runtime_env,
                 dynamic_evaluator,
+                default_image,
             )
             .await
             {
@@ -457,10 +496,10 @@ pub(crate) async fn run(
 async fn execute_step(
     _node_idx: NodeIndex,
     transition: Transition,
-    mut parent_snapshot: Option<SnapshotRef>,
+    parent_snapshot: Option<SnapshotRef>,
     chain_id: usize,
     chain_pos: usize,
-    mut parent_key: Option<String>,
+    parent_key: Option<String>,
     archive_id: ArchiveId,
     run_id: Uuid,
     run_ctx: StepContext,
@@ -471,24 +510,88 @@ async fn execute_step(
     repo_root: PathBuf,
     runtime_env: BTreeMap<String, String>,
     dynamic_evaluator: Option<Arc<dyn DynamicEvaluator>>,
+    default_image: Option<String>,
 ) -> anyhow::Result<StepOutcome> {
-    let transitions = resolve_dynamic_transitions(
+    let batch = resolve_execution_batch(
         transition,
         &repo_root,
         &runtime_env,
         dynamic_evaluator.as_deref(),
     )
     .await?;
-    let mut summaries = Vec::with_capacity(transitions.len());
+    let mut outcomes: Vec<Option<StepOutcome>> = vec![None; batch.transitions.len()];
+    let mut summaries = Vec::with_capacity(batch.transitions.len());
+    let mut first_failure = None;
+    let step_keys: Vec<String> = batch
+        .transitions
+        .iter()
+        .map(|transition| transition.step.key.clone())
+        .collect();
 
-    for (offset, transition) in transitions.into_iter().enumerate() {
+    for (offset, mut transition) in batch.transitions.into_iter().enumerate() {
+        let node_parents = &batch.parents[offset];
         let step_key = transition.step.key.clone();
+        let blocked = cancel.is_cancelled()
+            || node_parents.iter().any(|(_, parent)| {
+                outcomes[*parent]
+                    .as_ref()
+                    .is_some_and(|outcome| outcome.exit_code != 0)
+            });
+        if blocked {
+            let status = if cancel.is_cancelled() {
+                StepStatus::Canceled
+            } else {
+                StepStatus::Skipped
+            };
+            let summary = StepResultSummary {
+                step_id: Uuid::new_v4(),
+                key: step_key,
+                status,
+                exit_code: None,
+                duration_ms: 0,
+            };
+            summaries.push(summary.clone());
+            outcomes[offset] = Some(StepOutcome {
+                exit_code: 0,
+                snapshot: None,
+                summaries: vec![summary],
+            });
+            continue;
+        }
+
+        let builds_in_parent = node_parents
+            .iter()
+            .find(|(kind, _)| *kind == EdgeKind::BuildsIn)
+            .map(|(_, parent)| *parent);
+        let node_parent_snapshot = builds_in_parent
+            .and_then(|parent| outcomes[parent].as_ref())
+            .and_then(|outcome| outcome.snapshot.clone())
+            .or_else(|| {
+                if node_parents.is_empty() {
+                    parent_snapshot.clone()
+                } else {
+                    None
+                }
+            });
+        let node_parent_key = builds_in_parent
+            .map(|parent| step_keys[parent].clone())
+            .or_else(|| {
+                if node_parents.is_empty() {
+                    parent_key.clone()
+                } else {
+                    None
+                }
+            });
+        if node_parent_snapshot.is_none() && transition.step.image.is_none() {
+            transition.step.image.clone_from(&default_image);
+        }
+
         let outcome = execute_command(
             transition,
-            parent_snapshot,
+            node_parent_snapshot,
             chain_id,
             chain_pos + offset,
-            parent_key,
+            node_parent_key,
             archive_id,
             run_id,
             run_ctx.clone(),
@@ -498,21 +601,23 @@ async fn execute_step(
             keep_going,
         )
         .await?;
-        summaries.extend(outcome.summaries);
-        if outcome.exit_code != 0 {
-            return Ok(StepOutcome {
-                exit_code: outcome.exit_code,
-                snapshot: None,
-                summaries,
-            });
+        summaries.extend(outcome.summaries.clone());
+        if outcome.exit_code != 0 && first_failure.is_none() {
+            first_failure = Some(outcome.exit_code);
         }
-        parent_snapshot = outcome.snapshot;
-        parent_key = Some(step_key);
+        outcomes[offset] = Some(outcome);
     }
 
+    let snapshot = if batch.terminals.len() == 1 {
+        outcomes[batch.terminals[0]]
+            .as_ref()
+            .and_then(|outcome| outcome.snapshot.clone())
+    } else {
+        None
+    };
     Ok(StepOutcome {
-        exit_code: 0,
-        snapshot: parent_snapshot,
+        exit_code: first_failure.unwrap_or(0),
+        snapshot,
         summaries,
     })
 }
@@ -859,7 +964,7 @@ mod dynamic_tests {
             ),
         };
 
-        let resolved = resolve_dynamic_transitions(
+        let resolved = resolve_execution_batch(
             dynamic_transition(),
             std::path::Path::new("/repo"),
             &BTreeMap::from([("LANGUAGE".into(), "go".into())]),
@@ -867,7 +972,7 @@ mod dynamic_tests {
         )
         .await
         .unwrap();
-        let resolved = &resolved[0];
+        let resolved = &resolved.transitions[0];
 
         assert_eq!(resolved.step.key, "choose-build");
         assert_eq!(resolved.step.label.as_deref(), Some("Choose build"));
@@ -884,7 +989,7 @@ mod dynamic_tests {
 
     #[tokio::test]
     async fn dynamic_transition_requires_an_evaluator() {
-        let error = resolve_dynamic_transitions(
+        let error = resolve_execution_batch(
             dynamic_transition(),
             std::path::Path::new("/repo"),
             &BTreeMap::new(),
@@ -915,7 +1020,7 @@ mod dynamic_tests {
             ),
         };
 
-        let resolved = resolve_dynamic_transitions(
+        let resolved = resolve_execution_batch(
             dynamic_transition(),
             std::path::Path::new("/repo"),
             &BTreeMap::new(),
@@ -924,17 +1029,22 @@ mod dynamic_tests {
         .await
         .unwrap();
 
-        assert_eq!(resolved.len(), 2);
-        assert_eq!(resolved[0].step.key, "choose-build/a");
-        assert_eq!(resolved[1].step.key, "choose-build");
+        assert_eq!(resolved.transitions.len(), 2);
+        assert_eq!(resolved.transitions[0].step.key, "choose-build/a");
+        assert_eq!(resolved.transitions[1].step.key, "choose-build");
         assert_eq!(
-            resolved[0].step.eval,
+            resolved.parents,
+            vec![vec![], vec![(EdgeKind::BuildsIn, 0)]]
+        );
+        assert_eq!(resolved.terminals, vec![1]);
+        assert_eq!(
+            resolved.transitions[0].step.eval,
             StepEval::Cmd {
                 cmd: "echo a".into()
             }
         );
         assert_eq!(
-            resolved[1].step.eval,
+            resolved.transitions[1].step.eval,
             StepEval::Cmd {
                 cmd: "echo b".into()
             }
@@ -942,7 +1052,7 @@ mod dynamic_tests {
     }
 
     #[tokio::test]
-    async fn dynamic_transition_rejects_branched_fragment() {
+    async fn dynamic_transition_accepts_group_with_multiple_terminals() {
         let evaluator = FakeEvaluator {
             graph: graph(
                 r#"{
@@ -960,15 +1070,64 @@ mod dynamic_tests {
             ),
         };
 
-        let error = resolve_dynamic_transitions(
+        let resolved = resolve_execution_batch(
             dynamic_transition(),
             std::path::Path::new("/repo"),
             &BTreeMap::new(),
             Some(&evaluator),
         )
         .await
-        .unwrap_err();
+        .unwrap();
 
-        assert!(error.to_string().contains("branched or grouped graph"));
+        assert_eq!(resolved.transitions.len(), 2);
+        let mut keys: Vec<&str> = resolved
+            .transitions
+            .iter()
+            .map(|transition| transition.step.key.as_str())
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, vec!["choose-build/a", "choose-build/b"]);
+        assert_eq!(resolved.parents, vec![vec![], vec![]]);
+        assert_eq!(resolved.terminals, vec![0, 1]);
+    }
+
+    #[tokio::test]
+    async fn dynamic_transition_accepts_explicit_group_continuation() {
+        let evaluator = FakeEvaluator {
+            graph: graph(
+                r#"{
+                    "version":"0",
+                    "graph":{
+                        "nodes":[
+                            {"step":{"key":"a","eval":{"type":"cmd","cmd":"echo a"}}, "env":{}},
+                            {"step":{"key":"b","eval":{"type":"cmd","cmd":"echo b"}}, "env":{}},
+                            {"step":{"key":"merge","eval":{"type":"cmd","cmd":"echo merge"}}, "env":{}}
+                        ],
+                        "node_holes":[],
+                        "edge_property":"directed",
+                        "edges":[[0,2,"depends_on"],[1,2,"depends_on"]]
+                    }
+                }"#,
+            ),
+        };
+
+        let resolved = resolve_execution_batch(
+            dynamic_transition(),
+            std::path::Path::new("/repo"),
+            &BTreeMap::new(),
+            Some(&evaluator),
+        )
+        .await
+        .unwrap();
+
+        let terminal = resolved.terminals[0];
+        assert_eq!(resolved.terminals.len(), 1);
+        assert_eq!(resolved.transitions[terminal].step.key, "choose-build");
+        assert_eq!(resolved.parents[terminal].len(), 2);
+        assert!(
+            resolved.parents[terminal]
+                .iter()
+                .all(|(kind, _)| *kind == EdgeKind::DependsOn)
+        );
     }
 }
