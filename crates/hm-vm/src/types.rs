@@ -32,10 +32,53 @@ pub enum CachingPolicy {
     Cache { key: String },
 }
 
+/// Typed instruction for `Vm::snapshot`, describing how the committed
+/// snapshot should be tagged.
+///
+/// This replaces a previously stringly-encoded convention where a bare label
+/// meant "ephemeral" and a `repo:tag` label meant "cached", a contract that
+/// the producer (`vm.rs`) and consumer (the backend) had to agree on
+/// out-of-band. Encoding the distinction as an enum makes it compiler-checked.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SnapshotLabel {
+    /// Uncached snapshot. The backend chooses a unique tag (e.g. the
+    /// container id) so concurrent sibling steps do not race to write the
+    /// same image reference.
+    Ephemeral,
+    /// Cached snapshot tagged from this cache key (parsed as `repo:tag`).
+    Cached(String),
+}
+
 /// Opaque snapshot handle. Backend-specific contents.
+///
+/// The inner representation is private so a snapshot id can only be minted
+/// through [`SnapshotId::new`]; read access goes through the `AsRef<str>` /
+/// `Deref<Target = str>` impls or the `Display` impl. This keeps the handle a
+/// distinct domain newtype rather than an interchangeable `String`.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, derive_more::Display)]
 #[display("{_0}")]
-pub struct SnapshotId(pub String);
+pub struct SnapshotId(String);
+
+impl SnapshotId {
+    /// Construct a snapshot handle from a backend-specific id.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+impl AsRef<str> for SnapshotId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for SnapshotId {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
 
 /// Result of executing an action.
 #[derive(Clone, Debug)]

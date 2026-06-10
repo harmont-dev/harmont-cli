@@ -36,23 +36,30 @@ test changes to the export script.
 
 Versioning is **driven by git tags on the public mirror**. The release
 workflow in `.github/workflows/release.yml` triggers on any tag matching
-`v*`, seds the version from the tag into all three crates' `Cargo.toml`
-files plus the `workspace.dependencies` pins, and publishes
-`hm-plugin-protocol`, `hm-plugin-sdk`, and `harmont-cli` to crates.io in
-that order. The bundled WASM plugins (`hm-plugin-docker`,
-`hm-plugin-output-human`, `hm-plugin-output-json`, `hm-plugin-cloud`)
-and `hm-fixtures` are not published — they ship embedded inside the
-`hm` binary.
+`v*`, seds the version from the tag into every publishable crate's
+`Cargo.toml` plus the `workspace.dependencies` pins, runs
+`cargo package --workspace` as a fail-fast guard (it resolves sibling
+path deps locally, so it catches the `publish = false` /
+unpublished-dep class of regression without needing the deps on the
+index yet — which `cargo publish --dry-run` would), then publishes the
+crates to crates.io in dependency (topological) order:
+
+```
+hm-util → hm-pipeline-ir → hm-config → hm-plugin-protocol → hm-render
+→ hm-vm → hm-exec → hm-plugin-cloud → hm-dsl-engine → harmont-cli
+```
+
+`harmont-cli` (the `hm` binary) depends on every other crate, so they
+must all reach crates.io first — including `hm-vm`, which carries the
+local Docker backend. `hm-fixtures` is test-only and not published.
 
 ### Prerequisites (one-time)
 
 - `CRATES_IO_TOKEN` set as a repository secret on
   https://github.com/harmont-dev/harmont-cli/settings/secrets/actions.
-  Generate it from https://crates.io/me with the `publish-update` scope
-  on `hm-plugin-protocol`, `hm-plugin-sdk`, and `harmont-cli`.
-- The three crates exist on crates.io (first publish only requires
-  `publish-new` scope). After the initial publish, narrow the token to
-  `publish-update`.
+  Generate it from https://crates.io/me. The first release needs the
+  `publish-new` scope (the crates do not yet exist on crates.io); after
+  the initial publish, narrow the token to `publish-update`.
 
 ### Per-release procedure
 
@@ -72,9 +79,8 @@ and `hm-fixtures` are not published — they ship embedded inside the
    https://github.com/harmont-dev/harmont-cli/actions/workflows/release.yml.
    Each crate's publish step skips if the version is already on
    crates.io, so re-running after a partial success is safe.
-5. After the workflow completes, verify on crates.io:
-   - https://crates.io/crates/hm-plugin-protocol/1.2.3
-   - https://crates.io/crates/hm-plugin-sdk/1.2.3
+5. After the workflow completes, verify the leaf crate on crates.io
+   (it depends on all the others, so its presence implies theirs):
    - https://crates.io/crates/harmont-cli/1.2.3
 
 ### Tagging in the monorepo (optional)

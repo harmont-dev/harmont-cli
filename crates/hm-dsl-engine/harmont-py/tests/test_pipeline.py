@@ -25,6 +25,23 @@ def test_pipeline_factory_rejects_no_leaves():
         _factory([])
 
 
+def test_pipeline_rejects_legacy_single_step_form():
+    # Pre-CLI-9 `pipeline(step)` must fail fast with the migration hint, not
+    # silently route to the @hm.pipeline decorator and blow up downstream.
+    step = scratch().sh("echo", label="echo")
+    with pytest.raises(TypeError, match="single list of leaves") as exc:
+        pipeline(step)
+    assert "hm.pipeline([step])" in str(exc.value)
+
+
+def test_pipeline_rejects_legacy_variadic_step_form():
+    a = scratch().sh("a", label="a")
+    b = scratch().sh("b", label="b")
+    with pytest.raises(TypeError, match="single list of leaves") as exc:
+        pipeline(a, b)
+    assert "hm.pipeline([a, b])" in str(exc.value)
+
+
 def test_pipeline_default_image_lowers_to_dict():
     p = pipeline(
         [scratch().sh("echo", label="a", image="ubuntu:24.04")],

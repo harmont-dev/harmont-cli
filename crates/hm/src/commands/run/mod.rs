@@ -31,10 +31,8 @@ use crate::error::{ErrorCategory, HmError};
 /// the backend rejects the build, authentication fails, the network is
 /// unreachable, the local daemon is down, or the pipeline fails to render.
 pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
-    // 1. Build the backend. Cloud needs auth + org resolution BEFORE any
-    //    (local) render work — fail fast on a missing token.
-    //    Resolution: explicit --backend > legacy --cloud alias > config.backend
-    //    (figment-layered default "docker").
+    // 1. Resolve the backend name: explicit --backend > legacy --cloud alias >
+    //    config.backend (figment-layered default "docker").
     let backend_name = args
         .backend
         .clone()
@@ -47,7 +45,13 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         })
         .unwrap_or_else(|| ctx.config.backend.clone());
 
-    let backend: Box<dyn hm_exec::ExecutionBackend> = if backend_name == "cloud" {
+    // 2. Cloud needs auth + org resolution up front — fail fast on a missing
+    //    token before any render work. We resolve the credentials here but
+    //    defer *constructing* the backend (and, for local runs, *connecting* to
+    //    Docker) until after the pipeline renders, so an unknown slug or a
+    //    missing/ambiguous pipeline argument fails with a helpful message
+    //    instead of a daemon-connection error.
+    let cloud_creds = if backend_name == "cloud" {
         let api_url = ctx.config.cloud.api_url.clone();
         let token = hm_config::creds::cloud_token(&api_url).context(
             "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HARMONT_API_TOKEN",
@@ -57,23 +61,47 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             .clone()
             .or_else(|| ctx.config.cloud.org.clone())
             .context("no organization — pass --org or set `[cloud] org = \"…\"` in .hm/config.toml or ~/.config/hm/config.toml")?;
-        let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
-        Box::new(hm_exec::CloudBackend::new(client, api_url, org))
+        Some((api_url, token, org))
+    } else if backend_name != "docker" {
+        anyhow::bail!("unknown --backend '{backend_name}'\n  available: docker, cloud");
     } else {
-        // Local execution on a hm-vm VmBackend, selected by name.
-        let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = match backend_name.as_str() {
-            "docker" => std::sync::Arc::new(
-                hm_vm::docker::DockerBackend::connect().map_err(|e| anyhow::anyhow!("{e:#}"))?,
-            ),
-            other => anyhow::bail!("unknown --backend '{other}'\n  available: docker, cloud"),
-        };
-        Box::new(hm_exec::LocalBackend::new(
-            resolve_parallelism(&args),
-            vm_backend,
-        ))
+        None
     };
 
-    // 2. Capability-driven flag validation (replaces the old silent ignoring).
+    // 3. Render + parse the plan once (shared by every backend). This validates
+    //    the pipeline argument — unknown slug, or zero/many declared pipelines
+    //    — before we connect to any daemon.
+    let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;
+    let plan = hm_exec::Plan::parse(ir_json).map_err(|e| backend_anyhow(&e))?;
+
+    // 4. Pick the renderer — this validates `--format` — before any daemon
+    //    connection, so an unknown format fails fast without a running Docker.
+    let use_logs = args.logs
+        || std::env::var_os("CI").is_some_and(|v| !v.is_empty())
+        || !hm_render::stderr_interactive();
+    let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
+
+    // 5. Build the backend. For local runs this is where we connect to Docker.
+    let backend: Box<dyn hm_exec::ExecutionBackend> =
+        if let Some((api_url, token, org)) = cloud_creds {
+            let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
+            // The watch link must point at the dashboard (app.) host, not the
+            // API host — a link built from `api_url` lands on raw JSON.
+            let app_url =
+                hm_config::app_url(&api_url, std::env::var("HARMONT_APP_URL").ok().as_deref());
+            Box::new(hm_exec::CloudBackend::new(client, api_url, app_url, org))
+        } else {
+            // Local execution on a hm-vm VmBackend (docker).
+            let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = std::sync::Arc::new(
+                hm_vm::docker::DockerBackend::connect().map_err(|e| anyhow::anyhow!("{e:#}"))?,
+            );
+            Box::new(hm_exec::LocalBackend::new(
+                resolve_parallelism(&args),
+                vm_backend,
+            ))
+        };
+
+    // 6. Capability-driven flag validation (replaces the old silent ignoring).
     let caps = backend.capabilities();
     if args.no_watch && !caps.supports_no_watch {
         anyhow::bail!(
@@ -94,9 +122,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         );
     }
 
-    // 3. Render + parse the plan once (shared by every backend).
-    let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;
-    let plan = hm_exec::Plan::parse(ir_json).map_err(|e| backend_anyhow(&e))?;
+    // 7. Assemble the run request.
     let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
     let req = hm_exec::RunRequest {
         plan,
@@ -116,13 +142,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         },
     };
 
-    // 4. Renderer selection (unchanged): logs stream in CI or with --logs.
-    let use_logs = args.logs
-        || std::env::var_os("CI").is_some_and(|v| !v.is_empty())
-        || !hm_render::stderr_interactive();
-    let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
-
-    // 5. Start, drive events, own Ctrl-C, await the outcome.
+    // 8. Start, drive events, own Ctrl-C, await the outcome.
     let handle = backend.start(req).await.map_err(|e| backend_anyhow(&e))?;
     let (events, control) = handle.into_parts();
     let _ctrlc = crate::signal::install_ctrlc(control.cancel_token());
@@ -135,11 +155,17 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
 /// Resolve local-run parallelism: the explicit `--parallelism`, else the
 /// number of logical CPUs (4 as a last resort). Matches `hm run`'s prior
-/// behavior exactly.
-fn resolve_parallelism(args: &RunArgs) -> usize {
-    args.parallelism.unwrap_or_else(|| {
-        std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
-    })
+/// behavior exactly. A `--parallelism 0` is clamped to `1` at this boundary
+/// so the backend never has to defend against a zero count.
+fn resolve_parallelism(args: &RunArgs) -> std::num::NonZeroUsize {
+    use std::num::NonZeroUsize;
+    /// Last-resort parallelism when neither `--parallelism` nor
+    /// `available_parallelism()` yields a usable value.
+    const FALLBACK: NonZeroUsize = NonZeroUsize::new(4).unwrap();
+    args.parallelism.map_or_else(
+        || std::thread::available_parallelism().unwrap_or(FALLBACK),
+        |n| NonZeroUsize::new(n).unwrap_or(NonZeroUsize::MIN),
+    )
 }
 
 /// Parse `KEY=VALUE` pairs into a map, dropping malformed entries.
@@ -254,6 +280,8 @@ const fn exit_category(err: &hm_exec::BackendError) -> ErrorCategory {
     match err {
         // A plan/IR rejection is a pipeline-config problem.
         E::Rejected { .. } => ErrorCategory::PipelineInvalid,
+        // An oversized source archive is a user-fixable setup mistake.
+        E::SourceTooLarge { .. } => ErrorCategory::Usage,
         // Auth failures map to the dedicated auth exit code.
         E::Unauthorized => ErrorCategory::Auth,
         // Network unreachability and local-infra failures (Docker down) are
@@ -309,6 +337,32 @@ error[local]: {m}
   fix    check that the Docker daemon is running (`docker version`)
   docs   https://harmont.dev/docs/errors/local"
         ),
+        E::SourceTooLarge {
+            observed_bytes,
+            cap_bytes,
+            largest_paths,
+        } => {
+            #[allow(clippy::cast_precision_loss)] // display-only
+            let mb = |b: u64| format!("{:.1} MB", b as f64 / (1024.0 * 1024.0));
+            let biggest = if largest_paths.is_empty() {
+                "  (no large top-level paths identified)".to_string()
+            } else {
+                largest_paths
+                    .iter()
+                    .map(|(name, sz)| format!("           {name} — {}", mb(*sz)))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            format!(
+                "\
+error[source_too_large]: worktree archive is {observed} (cap {cap})
+  biggest\n{biggest}
+  fix    add the offending paths to .gitignore (build output, caches, vendored deps), then re-run `hm run`
+  docs   https://harmont.dev/docs/errors/source_too_large",
+                observed = mb(*observed_bytes),
+                cap = mb(*cap_bytes),
+            )
+        }
         other => format!(
             "\
 error[backend]: {other}
@@ -350,6 +404,16 @@ mod tests {
             message: "bad IR".into(),
         });
         assert!(r.contains("error[invalid_ir]") && r.contains("bad IR"));
+        let big = explain(&E::SourceTooLarge {
+            observed_bytes: 7 * 1024 * 1024,
+            cap_bytes: 6 * 1024 * 1024,
+            largest_paths: vec![("node_modules".into(), 5 * 1024 * 1024)],
+        });
+        assert!(big.contains("error[source_too_large]"));
+        // Points precisely (observed + cap), names the offender, states the fix.
+        assert!(big.contains("7.0 MB") && big.contains("6.0 MB"));
+        assert!(big.contains("node_modules") && big.contains(".gitignore"));
+        assert!(big.contains("docs   https://harmont.dev/docs/errors/source_too_large"));
         for s in [
             explain(&E::Unauthorized),
             explain(&E::NotFound("x".into())),
@@ -377,5 +441,13 @@ mod tests {
         );
         assert_eq!(exit_category(&E::Local("x".into())), ErrorCategory::Network);
         assert_eq!(exit_category(&E::NotFound("x".into())), ErrorCategory::Api);
+        assert_eq!(
+            exit_category(&E::SourceTooLarge {
+                observed_bytes: 1,
+                cap_bytes: 0,
+                largest_paths: vec![],
+            }),
+            ErrorCategory::Usage
+        );
     }
 }

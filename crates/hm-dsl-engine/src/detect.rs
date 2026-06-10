@@ -24,7 +24,8 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
     if !harmont_dir.is_dir() {
         bail!("no .hm/ directory found in {}", repo_root.display());
     }
-    match scan_extensions(repo_root)? {
+    let langs = scan_extensions(repo_root)?;
+    match (langs.has_py, langs.has_ts) {
         (true, true) => bail!(
             "ambiguous pipeline language in {dir}: found both Python (.py) and \
              TypeScript (.ts) pipeline files\n  \
@@ -48,15 +49,25 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
 /// an empty envelope instead of calling [`detect_language`].
 #[must_use]
 pub fn has_pipeline_files(repo_root: &Path) -> bool {
-    matches!(scan_extensions(repo_root), Ok((py, ts)) if py || ts)
+    matches!(scan_extensions(repo_root), Ok(langs) if langs.has_py || langs.has_ts)
 }
 
-/// Scan `.hm/` and report `(has_py, has_ts)`. A missing `.hm/`
-/// directory yields `(false, false)`; an unreadable one is an error.
-fn scan_extensions(repo_root: &Path) -> anyhow::Result<(bool, bool)> {
+/// Which DSL extensions a `.hm/` scan turned up. Named fields make a py/ts
+/// swap at a call site impossible to express, unlike a bare `(bool, bool)`.
+struct DetectedLangs {
+    has_py: bool,
+    has_ts: bool,
+}
+
+/// Scan `.hm/` and report which DSL extensions are present. A missing `.hm/`
+/// directory yields all-`false`; an unreadable one is an error.
+fn scan_extensions(repo_root: &Path) -> anyhow::Result<DetectedLangs> {
     let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
-        return Ok((false, false));
+        return Ok(DetectedLangs {
+            has_py: false,
+            has_ts: false,
+        });
     }
 
     let entries = std::fs::read_dir(&harmont_dir)
@@ -72,7 +83,7 @@ fn scan_extensions(repo_root: &Path) -> anyhow::Result<(bool, bool)> {
             _ => {}
         }
     }
-    Ok((has_py, has_ts))
+    Ok(DetectedLangs { has_py, has_ts })
 }
 
 #[cfg(test)]

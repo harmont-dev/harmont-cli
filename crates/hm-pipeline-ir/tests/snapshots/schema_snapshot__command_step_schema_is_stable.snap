@@ -48,14 +48,14 @@ expression: schema
       }
     },
     "timeout_seconds": {
-      "description": "Maximum wall-clock seconds before the step is killed.",
+      "description": "Maximum wall-clock seconds before the step is killed.\n\n`NonZeroU32`: a `0`-second budget is rejected at the wire boundary.",
       "default": null,
       "type": [
         "integer",
         "null"
       ],
       "format": "uint32",
-      "minimum": 0.0
+      "minimum": 1.0
     },
     "cache": {
       "description": "Cache configuration for this step's committed snapshot.",
