@@ -137,13 +137,13 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
             tag: result
                 .snapshot
                 .as_ref()
-                .map_or_else(String::new, |s| s.as_str().to_owned()),
+                .map_or_else(String::new, ToString::to_string),
         });
     }
 
     Ok(StepResult {
         exit_code: result.exit_code,
-        committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.as_str().to_owned())),
+        committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.to_string())),
         artifacts: vec![],
     })
 }

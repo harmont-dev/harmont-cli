@@ -52,9 +52,9 @@ pub enum SnapshotLabel {
 /// Opaque snapshot handle. Backend-specific contents.
 ///
 /// The inner representation is private so a snapshot id can only be minted
-/// through [`SnapshotId::new`]; read access goes through [`SnapshotId::as_str`]
-/// or the `Deref<Target = str>` impl. This keeps the handle a distinct domain
-/// newtype rather than an interchangeable `String`.
+/// through [`SnapshotId::new`]; read access goes through the `AsRef<str>` /
+/// `Deref<Target = str>` impls or the `Display` impl. This keeps the handle a
+/// distinct domain newtype rather than an interchangeable `String`.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, derive_more::Display)]
 #[display("{_0}")]
 pub struct SnapshotId(String);
@@ -64,10 +64,10 @@ impl SnapshotId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
+}
 
-    /// Borrow the underlying id as a string slice.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
+impl AsRef<str> for SnapshotId {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }

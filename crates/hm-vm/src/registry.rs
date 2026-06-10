@@ -118,10 +118,11 @@ impl ImageRegistry {
         };
 
         // INSERT OR REPLACE handles both new and updated entries.
+        let snapshot_id: &str = snapshot.as_ref();
         let _result = conn.execute(
             "INSERT OR REPLACE INTO snapshots (key, snapshot_id, accessed_at)
              VALUES (?1, ?2, ?3)",
-            rusqlite::params![key, snapshot.as_str(), now],
+            rusqlite::params![key, snapshot_id, now],
         );
 
         drop(conn);

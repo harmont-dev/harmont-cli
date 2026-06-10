@@ -112,7 +112,7 @@ impl VmBackend for DockerBackend {
 
     #[instrument(skip(self, _config))]
     async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
-        let container_id = self.start_container(snapshot.as_str()).await?;
+        let container_id = self.start_container(snapshot.as_ref()).await?;
         Ok(Box::new(DockerVm {
             client: self.client.clone(),
             container_id: Some(container_id),
@@ -121,14 +121,14 @@ impl VmBackend for DockerBackend {
 
     #[instrument(skip(self))]
     async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
-        self.image_exists_by_tag(snapshot.as_str()).await
+        self.image_exists_by_tag(snapshot.as_ref()).await
     }
 
     #[instrument(skip(self))]
     async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
         self.client
             .remove_image(
-                snapshot.as_str(),
+                snapshot.as_ref(),
                 Some(RemoveImageOptions {
                     force: true,
                     noprune: false,
@@ -136,7 +136,7 @@ impl VmBackend for DockerBackend {
                 None,
             )
             .await
-            .with_context(|| format!("removing image '{}'", snapshot.as_str()))?;
+            .with_context(|| format!("removing image '{snapshot}'"))?;
         Ok(())
     }
 }

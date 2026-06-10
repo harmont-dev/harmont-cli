@@ -118,7 +118,7 @@ impl HmVm {
                 let evicted = self.registry.put(key, &snap);
                 for old in &evicted {
                     if let Err(e) = self.backend.remove_snapshot(old).await {
-                        warn!(snapshot = %old.as_str(), error = %e, "failed to remove evicted snapshot");
+                        warn!(snapshot = %old, error = %e, "failed to remove evicted snapshot");
                     }
                 }
             }
@@ -184,10 +184,9 @@ mod tests {
         }
 
         async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
-            self.calls.lock().map_or_else(
-                |_| {},
-                |mut c| c.push(format!("restore:{}", snapshot.as_str())),
-            );
+            self.calls
+                .lock()
+                .map_or_else(|_| {}, |mut c| c.push(format!("restore:{snapshot}")));
             Ok(Box::new(MockVm {
                 calls: Arc::clone(&self.calls),
                 exit_code: self.exit_code,
@@ -197,7 +196,7 @@ mod tests {
         async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
             self.calls.lock().map_or_else(
                 |_| {},
-                |mut c| c.push(format!("snapshot_exists:{}", snapshot.as_str())),
+                |mut c| c.push(format!("snapshot_exists:{snapshot}")),
             );
             Ok(self.snapshot_exists)
         }
@@ -205,7 +204,7 @@ mod tests {
         async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
             self.calls.lock().map_or_else(
                 |_| {},
-                |mut c| c.push(format!("remove_snapshot:{}", snapshot.as_str())),
+                |mut c| c.push(format!("remove_snapshot:{snapshot}")),
             );
             Ok(())
         }
