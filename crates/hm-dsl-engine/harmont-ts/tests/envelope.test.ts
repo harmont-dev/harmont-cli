@@ -75,14 +75,19 @@ describe("renderEnvelope", () => {
     expect(cache.key.length).toBe(64);
   });
 
-  it("skips cache key resolution when basePath is absent", () => {
+  it("throws when cached steps exist but basePath is missing", () => {
     const def: PipelineDefinition = {
       slug: "ci",
       pipeline: pipeline([sh("apt-get update", { label: "apt", cache: forever() })]),
     };
-    const json = renderEnvelope([def]);
-    const parsed = JSON.parse(json);
-    const cache = parsed.pipelines[0].definition.graph.nodes[0].step.cache;
-    expect(cache.key).toBeUndefined();
+    expect(() => renderEnvelope([def])).toThrowError(/basePath/);
+  });
+
+  it("allows omitting basePath when no steps are cached", () => {
+    const def: PipelineDefinition = {
+      slug: "ci",
+      pipeline: pipeline([sh("echo hello", { label: "greet" })]),
+    };
+    expect(() => renderEnvelope([def])).not.toThrow();
   });
 });

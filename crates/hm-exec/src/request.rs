@@ -72,6 +72,10 @@ pub struct RunOptions {
     pub timeout: Option<Duration>,
     /// `false` == cloud `--no-watch` (submit, emit `BuildAccepted`, return).
     pub watch: bool,
+    /// When `true`, step failures do not cancel the entire build.
+    /// Direct dependents are still skipped, but independent branches
+    /// continue running.
+    pub keep_going: bool,
 }
 
 /// All inputs needed to start a build on any [`crate::ExecutionBackend`].

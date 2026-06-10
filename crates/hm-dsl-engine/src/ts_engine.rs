@@ -96,6 +96,19 @@ impl Drop for SymlinkCleanup {
     }
 }
 
+/// The operation the embedded JS runner should perform.
+///
+/// Modeled as a closed enum so the dispatch is exhaustive and typo-proof at
+/// compile time; the wire string lives in exactly one place (the per-variant
+/// `Display` derivation below).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
+enum RunMode {
+    #[display("list")]
+    List,
+    #[display("render")]
+    Render,
+}
+
 #[derive(Debug)]
 pub struct SubprocessTsEngine {
     runtime: JsRuntime,
@@ -154,7 +167,7 @@ impl SubprocessTsEngine {
         }
     }
 
-    async fn run(&self, project_dir: &Path, mode: &str, slug: Option<&str>) -> Result<String> {
+    async fn run(&self, project_dir: &Path, mode: RunMode, slug: Option<&str>) -> Result<String> {
         let tmp = self.setup_temp()?;
         let runner_path = tmp.path().join("runner.mjs");
 
@@ -218,7 +231,7 @@ impl SubprocessTsEngine {
             }
         }
 
-        cmd.arg(project_dir).arg(mode);
+        cmd.arg(project_dir).arg(mode.to_string());
 
         if let Some(s) = slug {
             cmd.arg(s);
@@ -247,7 +260,7 @@ impl SubprocessTsEngine {
 impl DslEngine for SubprocessTsEngine {
     async fn list_pipelines(&self, project_dir: &Path) -> Result<Vec<PipelineMeta>> {
         let stdout = self
-            .run(project_dir, "list", None)
+            .run(project_dir, RunMode::List, None)
             .await
             .context("listing pipelines via JS runtime")?;
 
@@ -257,7 +270,7 @@ impl DslEngine for SubprocessTsEngine {
     }
 
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> Result<String> {
-        self.run(project_dir, "render", Some(slug))
+        self.run(project_dir, RunMode::Render, Some(slug))
             .await
             .context("rendering pipeline via JS runtime")
     }

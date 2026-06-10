@@ -5,7 +5,7 @@ use std::fmt;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::types::{OutputSink, SnapshotId, VmConfig, WorkspaceMount};
+use crate::types::{OutputSink, SnapshotId, SnapshotLabel, VmConfig, WorkspaceMount};
 
 /// Factory that creates and manages virtual machines.
 #[async_trait]
@@ -72,7 +72,7 @@ pub trait Vm: Send {
     ) -> Result<i32>;
 
     /// Capture the current VM state as a named snapshot.
-    async fn snapshot(&mut self, label: &str) -> Result<SnapshotId>;
+    async fn snapshot(&mut self, label: &SnapshotLabel) -> Result<SnapshotId>;
 
     /// Tear down the VM and release all resources.
     async fn destroy(&mut self) -> Result<()>;

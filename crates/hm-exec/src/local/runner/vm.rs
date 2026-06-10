@@ -77,14 +77,14 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
             tag: result
                 .snapshot
                 .as_ref()
-                .map_or_else(String::new, |s| s.0.clone()),
+                .map_or_else(String::new, ToString::to_string),
         });
         // Cache hits carry no workspace: workspace state is strictly
         // run-scoped, so children rebase onto the current source instead
         // of inheriting a stale tree from the original run.
         return Ok(StepResult {
             exit_code: 0,
-            committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.0)),
+            committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.to_string())),
             artifacts: vec![],
             workspace_dir: None,
             ephemeral_snapshot: false,
@@ -92,7 +92,7 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
     }
 
     let source = if let Some(ref snap) = input.parent_snapshot {
-        ImageSource::Snapshot(SnapshotId(snap.0.clone()))
+        ImageSource::Snapshot(SnapshotId::new(snap.0.clone()))
     } else {
         ImageSource::Image(
             input
@@ -106,7 +106,10 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
     // Prepare the workspace: COW-copy from the parent step's live workspace
     // (child of a step that executed this run) or from the shared
     // once-per-run source base (root step, or child of a cache-hit parent).
-    // Either way, bind-mount the result into the VM.
+    // Either way, bind-mount the result into the VM. This overlays the
+    // current source onto the system state inherited from the parent
+    // snapshot on every executing step, so source edits always reach leaf
+    // steps even when ancestors are `CacheForever` and froze an older tree.
     let step_ws = tempfile::tempdir().context("creating step workspace")?;
 
     let cow_src: std::path::PathBuf = if let Some(ref parent_ws) = ctx.parent_workspace_dir {
@@ -190,7 +193,7 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
             tag: result
                 .snapshot
                 .as_ref()
-                .map_or_else(String::new, |s| s.0.clone()),
+                .map_or_else(String::new, ToString::to_string),
         });
     }
 
@@ -204,7 +207,7 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
 
     Ok(StepResult {
         exit_code: result.exit_code,
-        committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.0)),
+        committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.to_string())),
         artifacts: vec![],
         workspace_dir,
         ephemeral_snapshot: result.ephemeral_snapshot,

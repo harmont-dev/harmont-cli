@@ -20,7 +20,6 @@ from harmont._cmake import cmake
 from harmont._go import go
 from harmont._js import js
 from harmont._python import python as python_tc
-from harmont._ruby import ruby
 from harmont._rust import rust
 from harmont._zig import zig
 
@@ -110,15 +109,15 @@ def _build_zig_node_polyglot() -> dict:
 
 def _build_kitchen_sink() -> dict:
     c_project = cmake(path="infra/agent")
-    rb_project = ruby(path="services/web")
+    py_web = python_tc(path="services/web")
 
     return hm.pipeline(
         [
             c_project.build(),
             c_project.test(),
             c_project.fmt(),
-            rb_project.test(),
-            rb_project.lint(),
+            py_web.test(),
+            py_web.lint(),
         ],
         env={"CI": "true"},
         default_image="ubuntu:24.04",

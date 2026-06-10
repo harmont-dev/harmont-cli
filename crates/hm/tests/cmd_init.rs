@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
 
 fn hm() -> Command {
@@ -53,23 +54,40 @@ fn init_zig_creates_pipeline_ts() {
 }
 
 #[test]
-fn init_fails_on_existing_harmont_dir() {
+fn init_existing_hm_dir_no_pipeline_succeeds() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join(".hm")).unwrap();
 
     hm().args(["init", "--template", "rust", "--dir"])
         .arg(dir.path())
         .assert()
-        .failure()
-        .stderr(contains(".hm"));
+        .success();
 }
 
 #[test]
-fn init_force_overwrites_existing() {
+fn init_existing_pipeline_without_force_warns_and_succeeds() {
     let dir = tempfile::tempdir().unwrap();
     let harmont = dir.path().join(".hm");
     std::fs::create_dir(&harmont).unwrap();
-    std::fs::write(harmont.join("old.py"), "# old").unwrap();
+    std::fs::write(harmont.join("pipeline.py"), "# old").unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("pipeline already exists"));
+}
+
+#[test]
+fn init_force_preserves_coresident_files() {
+    // `--force` must overwrite ONLY the target template file. It must never
+    // wipe the whole `.hm/` directory: config.toml and any co-resident
+    // pipeline (e.g. a hand-written deploy.py) must survive.
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir(&harmont).unwrap();
+    std::fs::write(harmont.join("config.toml"), "backend = \"cloud\"\n").unwrap();
+    std::fs::write(harmont.join("deploy.py"), "# co-resident pipeline").unwrap();
 
     hm().args(["init", "--template", "rust", "--force", "--dir"])
         .arg(dir.path())
@@ -77,9 +95,74 @@ fn init_force_overwrites_existing() {
         .success();
 
     assert!(dir.path().join(".hm/pipeline.py").exists());
+    assert_eq!(
+        std::fs::read_to_string(harmont.join("config.toml")).unwrap(),
+        "backend = \"cloud\"\n",
+        "config.toml must survive --force"
+    );
+    assert_eq!(
+        std::fs::read_to_string(harmont.join("deploy.py")).unwrap(),
+        "# co-resident pipeline",
+        "co-resident pipeline must survive --force"
+    );
+}
+
+#[test]
+fn init_force_replaces_existing_pipeline() {
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir(&harmont).unwrap();
+    std::fs::write(harmont.join("pipeline.py"), "# old pipeline").unwrap();
+
+    hm().args(["init", "--template", "rust", "--force", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(harmont.join("pipeline.py")).unwrap();
     assert!(
-        !harmont.join("old.py").exists(),
-        "stale file should be removed on --force"
+        content.contains("hm.rust"),
+        "force should overwrite with new template content"
+    );
+    assert!(
+        !content.contains("# old pipeline"),
+        "old content should be gone"
+    );
+}
+
+#[test]
+fn init_skips_pipeline_when_one_exists() {
+    let dir = tempfile::tempdir().unwrap();
+    let hm_dir = dir.path().join(".hm");
+    std::fs::create_dir(&hm_dir).unwrap();
+    std::fs::write(hm_dir.join("pipeline.py"), "# existing").unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("pipeline already exists"));
+
+    let content = std::fs::read_to_string(hm_dir.join("pipeline.py")).unwrap();
+    assert_eq!(
+        content, "# existing",
+        "pipeline.py should be left untouched"
+    );
+}
+
+#[test]
+fn init_writes_pipeline_when_hm_dir_exists_but_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join(".hm")).unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    assert!(
+        dir.path().join(".hm/pipeline.py").exists(),
+        "pipeline should be created even though .hm/ existed"
     );
 }
 
@@ -183,4 +266,241 @@ fn init_ts_templates_roundtrip_render() {
             "template {slug}: expected graph object"
         );
     }
+}
+
+// ── skills ───────────────────────────────────────────────────────
+
+#[test]
+fn init_noninteractive_skips_skills() {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let skill_validate = dir.path().join(".claude/skills/validate-ci/SKILL.md");
+    assert!(
+        !skill_validate.exists(),
+        "non-interactive init should not create skills"
+    );
+
+    let skill_pipeline = dir.path().join(".claude/skills/write-pipeline/SKILL.md");
+    assert!(
+        !skill_pipeline.exists(),
+        "non-interactive init should not create write-pipeline skill"
+    );
+}
+
+#[test]
+fn init_noninteractive_skips_convert_gha_skill() {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let skill = dir.path().join(".claude/skills/convert-gha/SKILL.md");
+    assert!(
+        !skill.exists(),
+        "non-interactive init should not create convert-gha skill"
+    );
+}
+
+#[test]
+fn skill_validate_ci_content_is_well_formed() {
+    let content = include_str!("../src/commands/init_templates/skill_validate_ci.md");
+    assert!(!content.is_empty(), "skill template must not be empty");
+    assert!(content.contains("hm run"), "skill must reference `hm run`");
+    assert!(
+        content.contains("## When to use"),
+        "skill must have 'When to use' section"
+    );
+    assert!(
+        content.contains("## When NOT to use"),
+        "skill must have 'When NOT to use' section"
+    );
+    assert!(
+        content.contains("## Procedure"),
+        "skill must have 'Procedure' section"
+    );
+}
+
+#[test]
+fn skill_write_pipeline_content_is_well_formed() {
+    let content = include_str!("../src/commands/init_templates/skill_write_pipeline.md");
+    assert!(!content.is_empty(), "skill template must not be empty");
+    assert!(
+        content.contains("docs.harmont.dev"),
+        "skill must reference documentation site"
+    );
+    assert!(
+        content.contains("hm run"),
+        "skill must reference `hm run` for validation"
+    );
+    assert!(
+        content.contains("## When to use"),
+        "skill must have 'When to use' section"
+    );
+    assert!(
+        content.contains("## When NOT to use"),
+        "skill must have 'When NOT to use' section"
+    );
+    assert!(
+        content.contains("## Procedure"),
+        "skill must have 'Procedure' section"
+    );
+    assert!(
+        content.contains("gh issue create"),
+        "skill must include gh issue filing instructions"
+    );
+}
+
+#[test]
+fn init_detects_github_workflows_in_noninteractive_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let workflows = dir.path().join(".github/workflows");
+    std::fs::create_dir_all(&workflows).unwrap();
+    std::fs::write(workflows.join("ci.yml"), "name: CI\non: push").unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("convert-gha"));
+}
+
+#[test]
+fn skill_convert_gha_content_is_well_formed() {
+    let content = include_str!("../src/commands/init_templates/skill_convert_gha.md");
+    assert!(!content.is_empty(), "skill template must not be empty");
+    assert!(
+        content.contains("## When to use"),
+        "skill must have 'When to use' section"
+    );
+    assert!(
+        content.contains("## When NOT to use"),
+        "skill must have 'When NOT to use' section"
+    );
+    assert!(
+        content.contains("## Procedure"),
+        "skill must have 'Procedure' section"
+    );
+    assert!(
+        content.contains("write-pipeline"),
+        "skill must reference write-pipeline skill"
+    );
+    assert!(
+        content.contains("actions/cache"),
+        "skill must mention actions/cache and implicit caching"
+    );
+    assert!(
+        content.contains("actions/checkout"),
+        "skill must mention actions/checkout is not needed"
+    );
+}
+
+#[test]
+fn init_no_gha_hint_without_workflows_dir() {
+    let dir = tempfile::tempdir().unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("convert-gha").not());
+}
+
+#[test]
+fn init_skips_template_prompt_when_pipeline_exists() {
+    // A project that already has a pipeline. Running `hm init` with no
+    // --template (interactive intent) in a non-TTY context must NOT try to
+    // prompt for a template; it should skip template selection, leave the
+    // pipeline untouched, and exit successfully.
+    let dir = tempfile::tempdir().unwrap();
+    let hm_dir = dir.path().join(".hm");
+    std::fs::create_dir(&hm_dir).unwrap();
+    std::fs::write(hm_dir.join("pipeline.py"), "# existing").unwrap();
+
+    hm().args(["init", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("skipping template selection"))
+        .stderr(contains("template selection cancelled").not());
+
+    // Existing pipeline must be left exactly as-is.
+    let content = std::fs::read_to_string(hm_dir.join("pipeline.py")).unwrap();
+    assert_eq!(content, "# existing", "pipeline.py must be untouched");
+
+    // Non-TTY: skills are not installed (no prompt possible).
+    assert!(
+        !dir.path()
+            .join(".claude/skills/validate-ci/SKILL.md")
+            .exists(),
+        "skills should not install without a TTY"
+    );
+}
+
+#[test]
+fn init_no_gha_hint_with_empty_workflows_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".github/workflows")).unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("convert-gha").not());
+}
+
+#[test]
+fn init_without_template_in_non_tty_errors_clearly() {
+    // No pipeline, no --template, no TTY: cannot prompt, so fail with a
+    // helpful hint rather than a raw dialoguer IO error.
+    let dir = tempfile::tempdir().unwrap();
+
+    hm().args(["init", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .failure()
+        .stderr(contains("no template specified"));
+
+    assert!(
+        !dir.path().join(".hm/pipeline.py").exists(),
+        "no pipeline should be written when none could be chosen"
+    );
+}
+
+// ── cloud registration ──────────────────────────────────────
+
+#[test]
+fn init_noninteractive_skips_cloud_registration() {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let config = dir.path().join(".hm/config.toml");
+    assert!(
+        !config.exists(),
+        "non-interactive init should not create .hm/config.toml"
+    );
+}
+
+#[test]
+fn cloud_project_config_layers_correctly() {
+    let dir = tempfile::tempdir().unwrap();
+    let hm_dir = dir.path().join(".hm");
+    std::fs::create_dir(&hm_dir).unwrap();
+
+    let config_path = hm_dir.join("config.toml");
+    let content = "backend = \"cloud\"\n\n[cloud]\norg = \"test-org\"\n";
+    std::fs::write(&config_path, content).unwrap();
+
+    let cfg = hm_config::Config::load_from_paths(None, Some(&config_path)).unwrap();
+    assert_eq!(cfg.backend, "cloud");
+    assert_eq!(cfg.cloud.org.as_deref(), Some("test-org"));
+    // Unrelated defaults survive layering.
+    assert_eq!(cfg.preferences.format, "human");
 }

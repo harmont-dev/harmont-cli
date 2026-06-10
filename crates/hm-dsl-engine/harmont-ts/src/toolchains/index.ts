@@ -10,7 +10,6 @@ export {
   type CMakeProjectOptions,
   type CMakeOptions,
 } from "./cmake.js";
-export { ruby, RubyProject, type RubyOptions } from "./ruby.js";
 export {
   zig,
   ZigToolchain,

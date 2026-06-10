@@ -1238,6 +1238,7 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "async-trait",
+ "derive_more",
  "include_dir",
  "serde",
  "serde_json",

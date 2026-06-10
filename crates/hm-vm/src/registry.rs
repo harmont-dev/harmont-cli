@@ -125,7 +125,7 @@ impl ImageRegistry {
         }
 
         drop(conn);
-        result.map(|(snap, ws)| (SnapshotId(snap), ws))
+        result.map(|(snap, ws)| (SnapshotId::new(snap), ws))
     }
 
     /// Insert or update a cache entry.
@@ -165,10 +165,11 @@ impl ImageRegistry {
             .map_err(|_| anyhow::anyhow!("registry mutex poisoned"))?;
         let tx = conn.transaction()?;
 
+        let snapshot_id: &str = snapshot.as_ref();
         tx.execute(
             "INSERT OR REPLACE INTO snapshots (key, snapshot_id, accessed_at)
              VALUES (?1, ?2, ?3)",
-            rusqlite::params![key, snapshot.0, now],
+            rusqlite::params![key, snapshot_id, now],
         )?;
 
         let evicted = Self::evict_overflow_tx(&tx, self.capacity)?;
@@ -198,7 +199,7 @@ impl ImageRegistry {
         }
 
         drop(conn);
-        row.map(|(snap, ws)| (SnapshotId(snap), ws))
+        row.map(|(snap, ws)| (SnapshotId::new(snap), ws))
     }
 
     /// Compare-and-delete: remove the entry for `key` only if it still maps
@@ -226,7 +227,7 @@ impl ImageRegistry {
             )
             .ok()?;
         let mut rows = stmt
-            .query_map(rusqlite::params![key, expected.0], |row| {
+            .query_map(rusqlite::params![key, expected.as_ref()], |row| {
                 row.get::<_, Option<String>>(0)
             })
             .ok()?;
@@ -250,7 +251,7 @@ impl ImageRegistry {
         };
         conn.query_row(
             "SELECT COUNT(*) FROM snapshots WHERE snapshot_id = ?1",
-            [&snapshot.0],
+            [snapshot.as_ref()],
             |row| row.get::<_, i64>(0),
         )
         .map_or(true, |n| n > 0)
@@ -304,7 +305,7 @@ impl ImageRegistry {
         let evicted = stmt
             .query_map([overflow], |row| {
                 Ok((
-                    SnapshotId(row.get::<_, String>(0)?),
+                    SnapshotId::new(row.get::<_, String>(0)?),
                     row.get::<_, Option<String>>(1)?,
                 ))
             })?
@@ -347,12 +348,12 @@ mod tests {
     #[test]
     fn put_then_get_returns_snapshot() {
         let (reg, _dir) = open_temp(10);
-        let snap = SnapshotId("snap-abc".into());
+        let snap = SnapshotId::new("snap-abc");
         let evicted = reg.put("my-key", &snap).expect("put");
         assert!(evicted.is_empty());
 
         let got = reg.get("my-key");
-        assert_eq!(got, Some(SnapshotId("snap-abc".into())));
+        assert_eq!(got, Some(SnapshotId::new("snap-abc")));
     }
 
     #[test]
@@ -360,12 +361,12 @@ mod tests {
         let (reg, _dir) = open_temp(2);
 
         // Insert a, then b. "a" is older by insertion order.
-        reg.put("a", &SnapshotId("snap-a".into())).expect("put a");
+        reg.put("a", &SnapshotId::new("snap-a")).expect("put a");
 
         // Tiny sleep so timestamps differ.
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        reg.put("b", &SnapshotId("snap-b".into())).expect("put b");
+        reg.put("b", &SnapshotId::new("snap-b")).expect("put b");
 
         // Touch "a" so it becomes the most recently accessed.
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -374,10 +375,10 @@ mod tests {
         // Now insert "c" -- capacity is 2, so one must be evicted.
         // "b" should be evicted since "a" was touched more recently.
         std::thread::sleep(std::time::Duration::from_secs(1));
-        let evicted = reg.put("c", &SnapshotId("snap-c".into())).expect("put c");
+        let evicted = reg.put("c", &SnapshotId::new("snap-c")).expect("put c");
 
         assert_eq!(evicted.len(), 1);
-        assert_eq!(evicted[0].0, SnapshotId("snap-b".into()));
+        assert_eq!(evicted[0].0, SnapshotId::new("snap-b"));
 
         // "a" should still be present.
         assert!(reg.get("a").is_some());
@@ -389,16 +390,16 @@ mod tests {
     fn eviction_returns_overflow_entries() {
         let (reg, _dir) = open_temp(2);
 
-        reg.put("x", &SnapshotId("snap-x".into())).expect("put x");
+        reg.put("x", &SnapshotId::new("snap-x")).expect("put x");
         std::thread::sleep(std::time::Duration::from_secs(1));
-        reg.put("y", &SnapshotId("snap-y".into())).expect("put y");
+        reg.put("y", &SnapshotId::new("snap-y")).expect("put y");
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         // This third insert should evict the oldest ("x").
-        let evicted = reg.put("z", &SnapshotId("snap-z".into())).expect("put z");
+        let evicted = reg.put("z", &SnapshotId::new("snap-z")).expect("put z");
 
         assert_eq!(evicted.len(), 1);
-        assert_eq!(evicted[0].0, SnapshotId("snap-x".into()));
+        assert_eq!(evicted[0].0, SnapshotId::new("snap-x"));
         assert_eq!(reg.len(), 2);
     }
 
@@ -409,7 +410,7 @@ mod tests {
 
         {
             let reg = ImageRegistry::open(&db_path, 10).expect("open");
-            reg.put("persistent", &SnapshotId("snap-persist".into()))
+            reg.put("persistent", &SnapshotId::new("snap-persist"))
                 .expect("put");
             assert_eq!(reg.len(), 1);
             // reg is dropped here, closing the connection.
@@ -418,17 +419,17 @@ mod tests {
         let reg2 = ImageRegistry::open(&db_path, 10).expect("reopen");
         assert_eq!(reg2.len(), 1);
         let got = reg2.get("persistent");
-        assert_eq!(got, Some(SnapshotId("snap-persist".into())));
+        assert_eq!(got, Some(SnapshotId::new("snap-persist")));
     }
 
     #[test]
     fn invalidate_returns_removed_snapshot() {
         let (reg, _dir) = open_temp(10);
-        let snap = SnapshotId("snap-rm".into());
+        let snap = SnapshotId::new("snap-rm");
         reg.put("to-remove", &snap).expect("put");
 
         let removed = reg.invalidate("to-remove");
-        assert_eq!(removed, Some((SnapshotId("snap-rm".into()), None)));
+        assert_eq!(removed, Some((SnapshotId::new("snap-rm"), None)));
         assert!(reg.get("to-remove").is_none());
         assert_eq!(reg.len(), 0);
 
@@ -440,7 +441,7 @@ mod tests {
     #[test]
     fn put_writes_null_workspace() {
         let (reg, _dir) = open_temp(10);
-        reg.put("plain-key", &SnapshotId("snap-plain".into()))
+        reg.put("plain-key", &SnapshotId::new("snap-plain"))
             .expect("put");
 
         let (_, got_ws) = reg.get_with_workspace("plain-key").unwrap();
@@ -452,17 +453,17 @@ mod tests {
         let (reg, _dir) = open_temp(10);
         insert_legacy_row(&reg, "k", "snap-old", "/ws/legacy");
 
-        reg.put("k", &SnapshotId("snap-new".into())).expect("put");
+        reg.put("k", &SnapshotId::new("snap-new")).expect("put");
 
         let (snap, ws) = reg.get_with_workspace("k").unwrap();
-        assert_eq!(snap, SnapshotId("snap-new".into()));
+        assert_eq!(snap, SnapshotId::new("snap-new"));
         assert!(ws.is_none());
     }
 
     #[test]
     fn invalidate_if_matching_snapshot_deletes_row() {
         let (reg, _dir) = open_temp(10);
-        let snap = SnapshotId("snap-cas".into());
+        let snap = SnapshotId::new("snap-cas");
         reg.put("cas-key", &snap).expect("put");
 
         let removed = reg.invalidate_if("cas-key", &snap);
@@ -473,18 +474,18 @@ mod tests {
     #[test]
     fn invalidate_if_mismatched_snapshot_keeps_row() {
         let (reg, _dir) = open_temp(10);
-        reg.put("cas-key", &SnapshotId("snap-fresh".into()))
+        reg.put("cas-key", &SnapshotId::new("snap-fresh"))
             .expect("put");
 
         // A stale observer tries to invalidate with the snapshot it saw
         // earlier; the fresh row must survive.
-        let removed = reg.invalidate_if("cas-key", &SnapshotId("snap-stale".into()));
+        let removed = reg.invalidate_if("cas-key", &SnapshotId::new("snap-stale"));
         assert!(removed.is_none());
-        assert_eq!(reg.get("cas-key"), Some(SnapshotId("snap-fresh".into())));
+        assert_eq!(reg.get("cas-key"), Some(SnapshotId::new("snap-fresh")));
 
         // Absent key is also a no-op.
         assert!(
-            reg.invalidate_if("missing", &SnapshotId("whatever".into()))
+            reg.invalidate_if("missing", &SnapshotId::new("whatever"))
                 .is_none()
         );
     }
@@ -494,7 +495,7 @@ mod tests {
         let (reg, _dir) = open_temp(10);
         insert_legacy_row(&reg, "legacy", "snap-legacy", "/ws/legacy");
 
-        let removed = reg.invalidate_if("legacy", &SnapshotId("snap-legacy".into()));
+        let removed = reg.invalidate_if("legacy", &SnapshotId::new("snap-legacy"));
         assert_eq!(removed, Some(Some("/ws/legacy".into())));
         assert!(reg.get("legacy").is_none());
     }
@@ -502,7 +503,7 @@ mod tests {
     #[test]
     fn contains_snapshot_tracks_rows() {
         let (reg, _dir) = open_temp(10);
-        let snap = SnapshotId("snap-ref".into());
+        let snap = SnapshotId::new("snap-ref");
         assert!(!reg.contains_snapshot(&snap));
 
         reg.put("k", &snap).expect("put");
@@ -523,9 +524,9 @@ mod tests {
         insert_legacy_row(&reg, "a", "snap-a", "/ws/a");
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        let evicted = reg.put("b", &SnapshotId("snap-b".into())).expect("put b");
+        let evicted = reg.put("b", &SnapshotId::new("snap-b")).expect("put b");
         assert_eq!(evicted.len(), 1);
-        assert_eq!(evicted[0].0, SnapshotId("snap-a".into()));
+        assert_eq!(evicted[0].0, SnapshotId::new("snap-a"));
         assert_eq!(evicted[0].1.as_deref(), Some("/ws/a"));
     }
 }

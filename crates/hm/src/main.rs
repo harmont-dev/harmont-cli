@@ -23,6 +23,7 @@ async fn main() {
         && std::io::IsTerminal::is_terminal(&std::io::stderr());
 
     let use_indicatif = !is_ci::cached()
+        && std::io::IsTerminal::is_terminal(&std::io::stderr())
         && matches!(
             &args.command,
             cli::Command::Run(r) if !r.logs && r.format == "human"

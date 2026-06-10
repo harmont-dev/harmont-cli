@@ -10,6 +10,7 @@
 #[allow(clippy::struct_excessive_bools)]
 pub struct Capabilities {
     pub honors_parallelism: bool,
+    pub honors_keep_going: bool,
     pub is_observer: bool, // submits + watches (cloud) vs executes (local)
     pub reports_cache_hits: bool,
     pub supports_no_watch: bool,
@@ -22,6 +23,7 @@ impl Capabilities {
     pub const fn none() -> Self {
         Self {
             honors_parallelism: false,
+            honors_keep_going: false,
             is_observer: false,
             reports_cache_hits: false,
             supports_no_watch: false,
@@ -34,6 +36,7 @@ impl Capabilities {
     pub const fn local() -> Self {
         Self {
             honors_parallelism: true,
+            honors_keep_going: true,
             is_observer: false,
             reports_cache_hits: true,
             supports_no_watch: false,
@@ -46,6 +49,7 @@ impl Capabilities {
     pub const fn cloud() -> Self {
         Self {
             honors_parallelism: false,
+            honors_keep_going: false,
             is_observer: true,
             reports_cache_hits: false,
             supports_no_watch: true,

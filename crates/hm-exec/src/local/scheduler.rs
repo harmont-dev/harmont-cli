@@ -23,6 +23,7 @@
 )]
 
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -94,11 +95,12 @@ pub(crate) async fn run(
     graph: PipelineGraph,
     repo_root: PathBuf,
     pipeline_slug: String,
-    parallelism: usize,
+    parallelism: NonZeroUsize,
     runner_registry: Arc<RunnerRegistry>,
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
     cancel: CancellationToken,
     vm: Option<Arc<hm_vm::HmVm>>,
+    keep_going: bool,
 ) -> crate::Result<BuildOutcome> {
     // Set up per-run state.
     let bus = EventBus::new();
@@ -147,9 +149,7 @@ pub(crate) async fn run(
         source_base: Arc::new(tokio::sync::OnceCell::new()),
     };
 
-    let parallelism = parallelism.max(1);
-
-    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism));
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism.get()));
 
     let dag = graph.dag();
     let pipeline_timeout = graph.timeout_seconds();
@@ -287,6 +287,7 @@ pub(crate) async fn run(
                     reg,
                     bus,
                     cancel,
+                    keep_going,
                 )
                 .await
                 {
@@ -350,26 +351,23 @@ pub(crate) async fn run(
     // set twice: once racing the deadline (to fire cancellation promptly), then
     // again to drain every step to completion before tearing down.
     let pending: Vec<StepFuture> = done.into_values().collect();
-    let timed_out = match pipeline_timeout {
-        Some(secs) if secs > 0 => {
-            let join_fut = join_all(pending.clone());
-            tokio::pin!(join_fut);
-            tokio::select! {
-                _ = &mut join_fut => false,
-                () = tokio::time::sleep(Duration::from_secs(u64::from(secs))) => {
-                    // Whole-build budget blown: signal every step to stop. New
-                    // steps short-circuit via the `cancel.is_cancelled()` check
-                    // in the spawn closure; in-flight runners observe
-                    // run_ctx.cancel.
-                    cancel.cancel();
-                    true
-                }
+    let timed_out = if let Some(secs) = pipeline_timeout {
+        let join_fut = join_all(pending.clone());
+        tokio::pin!(join_fut);
+        tokio::select! {
+            _ = &mut join_fut => false,
+            () = tokio::time::sleep(Duration::from_secs(u64::from(secs.get()))) => {
+                // Whole-build budget blown: signal every step to stop. New
+                // steps short-circuit via the `cancel.is_cancelled()` check
+                // in the spawn closure; in-flight runners observe
+                // run_ctx.cancel.
+                cancel.cancel();
+                true
             }
         }
-        _ => {
-            let _ = join_all(pending.clone()).await;
-            false
-        }
+    } else {
+        let _ = join_all(pending.clone()).await;
+        false
     };
     let outcomes: Vec<StepOutcome> = join_all(pending).await;
     let any_failed = outcomes.iter().any(|o| o.exit_code != 0);
@@ -388,7 +386,7 @@ pub(crate) async fn run(
 
     if timed_out {
         tracing::warn!(
-            timeout_seconds = pipeline_timeout,
+            timeout_seconds = ?pipeline_timeout,
             "pipeline wall-clock timeout exceeded; build failed"
         );
     }
@@ -410,7 +408,7 @@ pub(crate) async fn run(
             // may have been re-registered by a concurrent run since this
             // step marked it ephemeral; destroying it would kill that run's
             // live cache entry.
-            vm.remove_snapshot_unless_registered(&hm_vm::SnapshotId(snap.0.clone()))
+            vm.remove_snapshot_unless_registered(&hm_vm::SnapshotId::new(snap.0.clone()))
                 .await;
         }
         if let Some(ref ws) = outcome.workspace_dir {
@@ -472,6 +470,7 @@ async fn execute_step(
     runner_registry: Arc<RunnerRegistry>,
     bus: Arc<EventBus>,
     cancel: CancellationToken,
+    keep_going: bool,
 ) -> anyhow::Result<StepOutcome> {
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
@@ -566,11 +565,11 @@ async fn execute_step(
 
     let exec = runner.execute(&run_ctx, input);
     let (result, step_timed_out): (anyhow::Result<StepResult>, bool) = match step_timeout_secs {
-        Some(secs) if secs > 0 => {
+        Some(secs) => {
             tokio::pin!(exec);
             tokio::select! {
                 r = &mut exec => (r, false),
-                () = tokio::time::sleep(Duration::from_secs(u64::from(secs))) => {
+                () = tokio::time::sleep(Duration::from_secs(u64::from(secs.get()))) => {
                     step_cancel.cancel();
                     // Await the cooperative teardown to completion; never
                     // drop the in-flight future.
@@ -612,11 +611,13 @@ async fn execute_step(
             exit_code: 124,
             message: format!(
                 "step '{step_key}' timed out after {}s",
-                step_timeout_secs.unwrap_or(0)
+                step_timeout_secs.map_or(0, std::num::NonZeroU32::get)
             ),
             ts: chrono::Utc::now(),
         });
-        cancel.cancel();
+        if !keep_going {
+            cancel.cancel();
+        }
         return Ok(StepOutcome {
             exit_code: 124,
             snapshot,
@@ -650,7 +651,9 @@ async fn execute_step(
                     message: format!("step '{}' exited with code {}", step_key, sr.exit_code),
                     ts: chrono::Utc::now(),
                 });
-                cancel.cancel();
+                if !keep_going {
+                    cancel.cancel();
+                }
             }
             let status = match sr.exit_code {
                 0 => StepStatus::Passed,
@@ -865,11 +868,12 @@ mod tests {
             graph,
             repo.path().to_path_buf(),
             "test-pipeline".into(),
-            1,
+            NonZeroUsize::new(1).unwrap(),
             Arc::new(registry),
             tx,
             CancellationToken::new(),
             None,
+            false,
         )
         .await
         .unwrap()
@@ -1011,11 +1015,12 @@ mod tests {
             graph,
             repo.path().to_path_buf(),
             "test-pipeline".into(),
-            1,
+            NonZeroUsize::new(1).unwrap(),
             Arc::new(registry),
             tx,
             CancellationToken::new(),
             None,
+            false,
         )
         .await
         .unwrap();

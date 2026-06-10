@@ -3,7 +3,8 @@ name = "hm-vm"
 version = "0.0.0-dev"
 edition.workspace = true
 license.workspace = true
-publish = false
+repository.workspace = true
+description = "Local VM/container backends (Docker) that run hm pipeline steps on the developer's machine."
 
 [dependencies]
 anyhow = { workspace = true }

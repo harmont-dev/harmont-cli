@@ -98,7 +98,7 @@ fn python_kitchen_sink() {
     assert_eq!(g.default_image(), Some("ubuntu:24.04"));
     assert!(g.node_count() >= 10, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
-    assert!(labels.iter().any(|l| l.contains("ruby")));
+    assert!(labels.iter().any(|l| l.contains("python")));
     assert!(
         labels
             .iter()

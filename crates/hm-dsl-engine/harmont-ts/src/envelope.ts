@@ -59,6 +59,22 @@ export function renderEnvelope(
         definition: def.pipeline,
       };
 
+      const hasCachedSteps = entry.definition.graph.nodes.some(
+        (node) => {
+          const policy = node.step.cache as
+            | { policy: string }
+            | undefined;
+          return policy != null && policy.policy !== "none";
+        },
+      );
+
+      if (hasCachedSteps && basePath == null) {
+        throw new Error(
+          `Pipeline "${def.slug}" contains cached steps but no basePath was provided. ` +
+            `Pass { basePath: process.cwd() } as the second argument to renderEnvelope().`,
+        );
+      }
+
       if (basePath != null) {
         resolvePipelineCacheKeys(entry.definition.graph, {
           pipelineOrg,

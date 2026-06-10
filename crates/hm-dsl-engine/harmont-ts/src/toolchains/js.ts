@@ -59,7 +59,7 @@ const RUN_PREFIX: Record<PackageManager, string> = {
 
 /** Command to bring `pm` onto the runtime image, or null when the PM already
  *  ships with the runtime (npm with node, bun with the bun runtime). */
-function pmBootstrap(pm: PackageManager, runtime: Runtime): string | null {
+function pmBootstrap(pm: PackageManager, runtime: Runtime, version?: string): string | null {
   switch (pm) {
     case "npm":
       return null; // bundled with node
@@ -68,12 +68,14 @@ function pmBootstrap(pm: PackageManager, runtime: Runtime): string | null {
     case "deno":
       return null; // bundled with deno
     case "pnpm":
-      return "corepack enable pnpm";
+      return version != null
+        ? `corepack enable pnpm && corepack install -g pnpm@${version}`
+        : "corepack enable pnpm";
     case "yarn-classic":
     case "yarn-berry":
-      // corepack resolves the exact yarn from the `packageManager` field;
-      // its bundled default is classic 1.x, which suits yarn-classic.
-      return "corepack enable";
+      return version != null
+        ? `corepack enable yarn && corepack install -g yarn@${version}`
+        : "corepack enable";
   }
 }
 
@@ -159,6 +161,7 @@ function makeProject(opts?: JsOptions): JsProject {
 
   // --- Node / Bun runtime ---
   const pm: PackageManager = opts?.pm ?? detected.pm ?? (runtime === "bun" ? "bun" : "npm");
+  const pmVersion = detected.pmVersion;
 
   if (pm === "deno") {
     throw new Error(
@@ -192,13 +195,14 @@ function makeProject(opts?: JsOptions): JsProject {
   });
 
   // Layer the package manager onto the runtime image when it isn't bundled.
-  const bootstrap = pmBootstrap(pm, runtime);
+  const bootstrap = pmBootstrap(pm, runtime, pmVersion);
+  const bootstrapCache = pmVersion != null ? onChange(`${path}/package.json`) : forever();
   const pmReady =
     bootstrap == null
       ? runtimeInstalled
       : runtimeInstalled.sh(bootstrap, {
         label: `:${langTag}: ${pm}`,
-        cache: forever(),
+        cache: bootstrapCache,
       });
 
   const depsInstalled = pmReady.sh(`cd ${path} && ${DEPS_CMD[pm]}`, {

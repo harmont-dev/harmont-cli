@@ -44,8 +44,8 @@ are two separate traits. Inside `LocalBackend`, `crates/hm-exec/src/local/`:
 
 `hm cloud` subcommands (login, token, org) are in `src/commands/cloud/`.
 HTTP goes through `reqwest` via the `harmont-cloud` SDK crate;
-credentials are file-backed at `~/.harmont/credentials.toml`, and
-organization state lives in `~/.harmont/cloud-state.json`.
+credentials are file-backed at `~/.config/hm/credentials.toml`, and
+organization state lives in `~/.config/hm/config.toml` (`[cloud] org`).
 
 ## Feature flags
 

@@ -15,6 +15,35 @@ pub mod creds;
 
 pub const DEFAULT_API_URL: &str = "https://api.harmont.dev";
 
+/// Derive the SPA (dashboard) base URL from the API base.
+///
+/// The CLI talks to `api.harmont.dev`, but a human clicks through to the
+/// dashboard at `app.harmont.dev`. A watch/login link built from the API host
+/// lands on raw JSON, so every surface that emits a user-clickable URL must map
+/// the host first.
+///
+/// Priority:
+/// 1. `override_url` (e.g. the `HARMONT_APP_URL` env override) when non-empty,
+/// 2. heuristic mapping of `api.` → `app.` on the API host,
+/// 3. the API base itself (last-resort dev fallback for hosts like
+///    `localhost` that have no `api.`/`app.` split).
+///
+/// The returned URL never has a trailing slash.
+#[must_use]
+pub fn app_url(api: &str, override_url: Option<&str>) -> String {
+    if let Some(u) = override_url.map(str::trim).filter(|u| !u.is_empty()) {
+        return u.trim_end_matches('/').to_string();
+    }
+    let api = api.trim_end_matches('/');
+    if let Some(rest) = api.strip_prefix("https://api.") {
+        return format!("https://app.{rest}");
+    }
+    if let Some(rest) = api.strip_prefix("http://api.") {
+        return format!("http://app.{rest}");
+    }
+    api.to_string()
+}
+
 /// Default execution backend for `hm run` when no `--backend`/`--cloud` flag
 /// is given.
 fn default_backend() -> String {
@@ -22,6 +51,7 @@ fn default_backend() -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CloudConfig {
     pub org: Option<String>,
     pub api_url: String,
@@ -37,6 +67,7 @@ impl Default for CloudConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Preferences {
     pub format: String,
     pub auto_watch: bool,
@@ -52,6 +83,7 @@ impl Default for Preferences {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Config {
     #[serde(default = "default_backend")]
     pub backend: String,
@@ -71,16 +103,6 @@ impl Default for Config {
     }
 }
 
-/// Backward-compat: resolve the legacy Harmont config dir (`~/.harmont/`).
-/// Used by `creds_store.rs`. Task 5 may migrate callers.
-///
-/// # Errors
-///
-/// Returns an error if the user's home directory cannot be determined.
-pub fn user_config_dir() -> Result<PathBuf> {
-    hm_util::dirs::harmont_config_dir().context("could not determine home directory")
-}
-
 impl Config {
     /// XDG-aware user config path (`~/.config/hm/config.toml`).
     ///
@@ -88,8 +110,7 @@ impl Config {
     ///
     /// Returns an error if the platform config directory cannot be determined.
     pub fn user_config_path() -> Result<PathBuf> {
-        let dir =
-            hm_util::dirs::hm_user_config_dir().context("could not determine config directory")?;
+        let dir = hm_util::dirs::hm_config_dir().context("could not determine config directory")?;
         Ok(dir.join("config.toml"))
     }
 
@@ -142,8 +163,8 @@ impl Config {
         hm_util::os::fs::blocking::write_atomic_restricted(
             path,
             serialized.as_bytes(),
-            0o644,
-            0o700,
+            hm_util::os::fs::FileMode(0o644),
+            hm_util::os::fs::DirMode(0o700),
         )
         .with_context(|| format!("writing {}", path.display()))
     }
@@ -163,6 +184,37 @@ impl Config {
 mod tests {
     use super::*;
     use std::io::Write as _;
+
+    #[test]
+    fn app_url_maps_prod_api_to_app() {
+        assert_eq!(app_url(DEFAULT_API_URL, None), "https://app.harmont.dev");
+    }
+
+    #[test]
+    fn app_url_override_wins_and_trims_trailing_slash() {
+        assert_eq!(
+            app_url(DEFAULT_API_URL, Some("http://localhost:5173/")),
+            "http://localhost:5173"
+        );
+    }
+
+    #[test]
+    fn app_url_empty_override_is_ignored() {
+        assert_eq!(
+            app_url(DEFAULT_API_URL, Some("   ")),
+            "https://app.harmont.dev"
+        );
+    }
+
+    #[test]
+    fn app_url_falls_back_to_api_for_unmapped_host() {
+        assert_eq!(
+            app_url("http://localhost:4000", None),
+            "http://localhost:4000"
+        );
+        // http api. → http app.
+        assert_eq!(app_url("http://api.dev.test/", None), "http://app.dev.test");
+    }
 
     #[test]
     fn default_config_values() {
@@ -275,12 +327,11 @@ org = "project-org"
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("config.toml");
         let cfg = Config {
-            backend: default_backend(),
             cloud: CloudConfig {
                 org: Some("saved-org".into()),
-                api_url: DEFAULT_API_URL.to_owned(),
+                ..CloudConfig::default()
             },
-            preferences: Preferences::default(),
+            ..Config::default()
         };
         cfg.save_to(&path).unwrap();
 

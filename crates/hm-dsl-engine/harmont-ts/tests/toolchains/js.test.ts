@@ -521,6 +521,86 @@ describe("js.project auto-detection", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Install chain — corepack version pinning
+// ---------------------------------------------------------------------------
+
+describe("js install chain: corepack version pinning", () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "hm-js-corepack-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("corepack command includes version from packageManager field", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "pnpm@10.33.0" }),
+    );
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cmd).toBe("corepack enable pnpm && corepack install -g pnpm@10.33.0");
+  });
+
+  it("corepack command includes version for yarn-berry", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "yarn@4.5.0" }),
+    );
+    writeFileSync(join(tmp, "yarn.lock"), "");
+    const p = js.project({ path: tmp });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cmd).toBe("corepack enable yarn && corepack install -g yarn@4.5.0");
+  });
+
+  it("corepack command has no version when packageManager field absent", () => {
+    writeFileSync(join(tmp, "package.json"), "{}");
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cmd).toBe("corepack enable pnpm");
+  });
+
+  it("explicit pm option without packageManager field omits version", () => {
+    const p = js.project({ pm: "pnpm" });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cmd).toBe("corepack enable pnpm");
+  });
+
+  it("corepack step cache watches package.json for version changes", () => {
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ packageManager: "pnpm@10.33.0" }),
+    );
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cache).toEqual({
+      kind: "on_change",
+      paths: [`${tmp}/package.json`],
+    });
+  });
+
+  it("corepack step cache is forever when no packageManager field", () => {
+    writeFileSync(join(tmp, "package.json"), "{}");
+    writeFileSync(join(tmp, "pnpm-lock.yaml"), "");
+    const p = js.project({ path: tmp });
+    const deps = p.install();
+    const corepack = deps._parent!;
+    expect(corepack._cache).toEqual({ kind: "forever", envKeys: [] });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // ts alias
 // ---------------------------------------------------------------------------
 

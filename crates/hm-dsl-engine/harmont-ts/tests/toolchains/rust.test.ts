@@ -163,19 +163,19 @@ describe("rust.project", () => {
     expect(proj.fmt()._cmd).toContain("cargo fmt --check");
   });
 
-  it("warmup has implicit CacheOnChange on Cargo.lock", () => {
+  it("warmup has implicit CacheOnChange on Cargo.lock, Cargo.toml, and *.rs", () => {
     const proj = rust.project({ path: "cli" });
     expect(proj.warmup._cache).toEqual({
       kind: "on_change",
-      paths: ["cli/Cargo.lock"],
+      paths: ["cli/Cargo.lock", "cli/**/Cargo.toml", "cli/**/*.rs"],
     });
   });
 
-  it("warmup cache uses plain Cargo.lock for dot path", () => {
+  it("warmup cache uses plain paths for dot path", () => {
     const proj = rust.project({ path: "." });
     expect(proj.warmup._cache).toEqual({
       kind: "on_change",
-      paths: ["Cargo.lock"],
+      paths: ["Cargo.lock", "**/Cargo.toml", "**/*.rs"],
     });
   });
 

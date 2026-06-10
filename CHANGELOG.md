@@ -36,6 +36,8 @@
 - **DSL:** Fix example Python pipelines to use current API (`hm.js.project()` instead of removed `hm.npm()`/`hm.bun()`) ([#77][pr77])
 - **DSL:** Use correct Zig download URL for >= 0.14.1 and bump default to 0.14.1 ([`1bf727e`][c1bf727e])
 - **CLI:** Fix `hm pipelines` returning errors on repos without pipeline files ([#34][pr34])
+- **CLI:** `hm init --force` no longer wipes the entire `.hm/` directory; it now overwrites only the target template file, preserving `config.toml` and any co-resident pipelines.
+- **CLI:** `hm init` no longer silently overwrites customized `.claude/skills/*/SKILL.md` files; edited skills are skipped with a warning unless `--force` is passed.
 
 [pr33]: https://github.com/harmont-dev/harmont-cli/pull/33
 [pr34]: https://github.com/harmont-dev/harmont-cli/pull/34

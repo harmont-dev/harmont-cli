@@ -7,6 +7,7 @@ type Pm = "npm" | "pnpm" | "yarn-classic" | "yarn-berry" | "bun";
 export interface DetectedToolchain {
   runtime?: Runtime;
   pm?: Pm;
+  pmVersion?: string;
 }
 
 export function detectFromPackageJson(
@@ -31,13 +32,14 @@ export function detectFromPackageJson(
     const pmField = packageJson.packageManager;
     if (typeof pmField === "string") {
       const name = pmField.split("@")[0];
+      const version = pmField.split("@")[1];
       if (name === "pnpm") result.pm = "pnpm";
       else if (name === "bun") result.pm = "bun";
       else if (name === "npm") result.pm = "npm";
       else if (name === "yarn") {
-        const ver = pmField.split("@")[1];
-        result.pm = ver && parseInt(ver, 10) >= 2 ? "yarn-berry" : "yarn-classic";
+        result.pm = version && parseInt(version, 10) >= 2 ? "yarn-berry" : "yarn-classic";
       }
+      if (version) result.pmVersion = version;
     }
   }
 
@@ -89,5 +91,7 @@ export function detect(path: string): DetectedToolchain {
   const pm = fromPkg.pm ?? fromLock.pm;
   if (runtime != null) result.runtime = runtime;
   if (pm != null) result.pm = pm;
+  const pmVersion = fromPkg.pmVersion;
+  if (pmVersion != null) result.pmVersion = pmVersion;
   return result;
 }

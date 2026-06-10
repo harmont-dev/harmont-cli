@@ -36,6 +36,12 @@ pub struct RunArgs {
     #[arg(long, value_name = "N")]
     pub parallelism: Option<usize>,
 
+    /// Continue running independent pipeline branches after a step
+    /// failure. Dependent steps are still skipped, but unrelated chains
+    /// proceed so you see all failures in one run.
+    #[arg(short = 'k', long)]
+    pub keep_going: bool,
+
     /// Output formatter (matches an installed output-formatter plugin
     /// `name`). Built-ins: `human`, `json`. Default: `human`.
     #[arg(long, value_name = "NAME", default_value = "human", global = false)]

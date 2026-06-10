@@ -96,9 +96,13 @@ impl hm_vm::VmBackend for NoopVmBackend {
 
 #[tokio::test]
 async fn local_backend_reports_capabilities() {
-    let b = hm_exec::LocalBackend::new(4, std::sync::Arc::new(NoopVmBackend));
+    let b = hm_exec::LocalBackend::new(
+        std::num::NonZeroUsize::new(4).unwrap(),
+        std::sync::Arc::new(NoopVmBackend),
+    );
     assert_eq!(b.name(), "local");
     assert!(b.capabilities().honors_parallelism);
+    assert!(b.capabilities().honors_keep_going);
     assert!(!b.capabilities().is_observer);
 }
 
@@ -108,12 +112,14 @@ fn cloud_backend_capabilities() {
     let c = hm_exec::CloudBackend::new(
         harmont_cloud::HarmontClient::with_base_url("t", "http://localhost"),
         "http://localhost".into(),
+        "http://localhost".into(),
         "acme".into(),
     );
     assert_eq!(c.name(), "cloud");
     assert!(c.capabilities().is_observer);
     assert!(c.capabilities().provides_watch_url);
     assert!(!c.capabilities().honors_parallelism);
+    assert!(!c.capabilities().honors_keep_going);
 }
 
 fn fake_request() -> RunRequest {

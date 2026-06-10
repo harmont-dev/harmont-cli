@@ -5,12 +5,12 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, warn};
-use uuid::Uuid;
 
 use crate::backend::VmBackend;
 use crate::registry::ImageRegistry;
 use crate::types::{
-    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotId, VmConfig,
+    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotId, SnapshotLabel,
+    VmConfig,
 };
 
 /// Exit code reported when execution is cut short by cooperative
@@ -97,7 +97,7 @@ impl HmVm {
         }
         // The image is already gone, so there is nothing to remove in the
         // backend -- only the registry row (and any legacy workspace dir).
-        warn!(key, snapshot = %snap.0, "cached snapshot missing from backend; invalidating entry");
+        warn!(key, snapshot = %snap, "cached snapshot missing from backend; invalidating entry");
         if let Some(Some(legacy_ws)) = self.registry.invalidate_if(key, &snap) {
             tokio::task::spawn_blocking(move || std::fs::remove_dir_all(legacy_ws).ok())
                 .await
@@ -140,9 +140,9 @@ impl HmVm {
         );
         for (snap, legacy_ws) in pending {
             if self.registry.contains_snapshot(&snap) {
-                tracing::debug!(snapshot = %snap.0, "evicted tag was re-registered; keeping image");
+                tracing::debug!(snapshot = %snap, "evicted tag was re-registered; keeping image");
             } else if let Err(e) = self.backend.remove_snapshot(&snap).await {
-                warn!(snapshot = %snap.0, error = %e, "failed to remove evicted snapshot");
+                warn!(snapshot = %snap, error = %e, "failed to remove evicted snapshot");
             }
             if let Some(ws_path) = legacy_ws {
                 tokio::task::spawn_blocking(move || std::fs::remove_dir_all(ws_path).ok())
@@ -164,9 +164,9 @@ impl HmVm {
     /// failures are logged, never propagated.
     pub async fn remove_snapshot_unless_registered(&self, snapshot: &SnapshotId) {
         if self.registry.contains_snapshot(snapshot) {
-            tracing::debug!(snapshot = %snapshot.0, "snapshot was re-registered; keeping image");
+            tracing::debug!(snapshot = %snapshot, "snapshot was re-registered; keeping image");
         } else if let Err(e) = self.backend.remove_snapshot(snapshot).await {
-            warn!(snapshot = %snapshot.0, error = %e, "failed to remove ephemeral snapshot");
+            warn!(snapshot = %snapshot, error = %e, "failed to remove ephemeral snapshot");
         }
     }
 
@@ -284,7 +284,8 @@ impl HmVm {
     ) -> Result<u64> {
         self.backend
             .gc_snapshots(reference, older_than, &|tag| {
-                self.registry.contains_snapshot(&SnapshotId(tag.to_owned()))
+                self.registry
+                    .contains_snapshot(&SnapshotId::new(tag.to_owned()))
                     || self.is_eviction_deferred(tag)
             })
             .await
@@ -298,7 +299,7 @@ impl HmVm {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
-            .any(|(snap, _)| snap.0 == tag)
+            .any(|(snap, _)| snap.as_ref() == tag)
     }
 
     /// Inner lifecycle: exec, snapshot, register. Separated so the caller
@@ -341,8 +342,8 @@ impl HmVm {
         // 4. Snapshot and cache on success
         let (snapshot, ephemeral) = if exit_code == 0 {
             let (label, mut is_ephemeral) = match &policy {
-                CachingPolicy::Cache { key } => (key.clone(), false),
-                CachingPolicy::None => (format!("harmont-ephemeral:{}", Uuid::new_v4()), true),
+                CachingPolicy::Cache { key } => (SnapshotLabel::Cached(key.clone()), false),
+                CachingPolicy::None => (SnapshotLabel::Ephemeral, true),
             };
             let snap = vm.snapshot(&label).await?;
 
@@ -460,7 +461,7 @@ mod tests {
         ) -> Result<Box<dyn Vm>> {
             self.calls
                 .lock()
-                .map_or_else(|_| {}, |mut c| c.push(format!("restore:{}", snapshot.0)));
+                .map_or_else(|_| {}, |mut c| c.push(format!("restore:{snapshot}")));
             Ok(Box::new(MockVm {
                 calls: Arc::clone(&self.calls),
                 exit_code: self.exit_code,
@@ -471,7 +472,7 @@ mod tests {
         async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
             self.calls.lock().map_or_else(
                 |_| {},
-                |mut c| c.push(format!("snapshot_exists:{}", snapshot.0)),
+                |mut c| c.push(format!("snapshot_exists:{snapshot}")),
             );
             Ok(self.snapshot_exists)
         }
@@ -479,7 +480,7 @@ mod tests {
         async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
             self.calls.lock().map_or_else(
                 |_| {},
-                |mut c| c.push(format!("remove_snapshot:{}", snapshot.0)),
+                |mut c| c.push(format!("remove_snapshot:{snapshot}")),
             );
             Ok(())
         }
@@ -528,11 +529,15 @@ mod tests {
             Ok(self.exit_code)
         }
 
-        async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
+        async fn snapshot(&mut self, label: &SnapshotLabel) -> Result<SnapshotId> {
+            let label = match label {
+                SnapshotLabel::Ephemeral => "ephemeral".to_string(),
+                SnapshotLabel::Cached(key) => key.clone(),
+            };
             self.calls
                 .lock()
                 .map_or_else(|_| {}, |mut c| c.push(format!("snapshot:{label}")));
-            Ok(SnapshotId(format!("snap-{label}")))
+            Ok(SnapshotId::new(format!("snap-{label}")))
         }
 
         async fn destroy(&mut self) -> Result<()> {
@@ -612,7 +617,7 @@ mod tests {
 
         // Pre-populate the registry.
         registry
-            .put("step-1", &SnapshotId("cached-snap".into()))
+            .put("step-1", &SnapshotId::new("cached-snap"))
             .expect("put");
 
         let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
@@ -631,7 +636,7 @@ mod tests {
 
         assert_eq!(result.exit_code, 0);
         assert!(result.cached);
-        assert_eq!(result.snapshot, Some(SnapshotId("cached-snap".into())));
+        assert_eq!(result.snapshot, Some(SnapshotId::new("cached-snap")));
 
         let log = calls(&backend);
         // Only snapshot_exists should have been called -- no create, exec, etc.
@@ -707,7 +712,7 @@ mod tests {
         let backend = MockBackend::new(0, false);
         let (registry, _dir) = open_temp_registry(10);
         registry
-            .put("step-1", &SnapshotId("gone-snap".into()))
+            .put("step-1", &SnapshotId::new("gone-snap"))
             .expect("put");
 
         let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
@@ -734,7 +739,7 @@ mod tests {
         // The stale row was replaced by the fresh snapshot.
         assert_eq!(
             hm.registry.get("step-1"),
-            Some(SnapshotId("snap-step-1".into()))
+            Some(SnapshotId::new("snap-step-1"))
         );
     }
 
@@ -801,7 +806,7 @@ mod tests {
         // one-second granularity).
         std::thread::sleep(std::time::Duration::from_secs(1));
         hm.registry
-            .put("step-a", &SnapshotId("snap-step-a".into()))
+            .put("step-a", &SnapshotId::new("snap-step-a"))
             .expect("put");
 
         hm.cleanup_deferred_evictions().await;
@@ -812,7 +817,7 @@ mod tests {
         assert!(!log.iter().any(|c| c == "remove_snapshot:snap-step-a"));
         assert_eq!(
             hm.registry.get("step-a"),
-            Some(SnapshotId("snap-step-a".into()))
+            Some(SnapshotId::new("snap-step-a"))
         );
     }
 
@@ -826,12 +831,12 @@ mod tests {
         let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
 
         hm.registry
-            .put("step-a", &SnapshotId("snap-live".into()))
+            .put("step-a", &SnapshotId::new("snap-live"))
             .expect("put");
 
-        hm.remove_snapshot_unless_registered(&SnapshotId("snap-live".into()))
+        hm.remove_snapshot_unless_registered(&SnapshotId::new("snap-live"))
             .await;
-        hm.remove_snapshot_unless_registered(&SnapshotId("snap-orphan".into()))
+        hm.remove_snapshot_unless_registered(&SnapshotId::new("snap-orphan"))
             .await;
 
         let log = calls(&backend);
@@ -867,7 +872,7 @@ mod tests {
 
         let mut action = make_action();
         // Simulate child step: source is a snapshot, not an image.
-        action.source = ImageSource::Snapshot(SnapshotId("parent-snap".into()));
+        action.source = ImageSource::Snapshot(SnapshotId::new("parent-snap"));
 
         let result = hm
             .execute(
@@ -1019,7 +1024,7 @@ mod tests {
         registry
             .put(
                 "harmont-cache/live:aaaabbbbccccdddd",
-                &SnapshotId("harmont-cache/live:aaaabbbbccccdddd".into()),
+                &SnapshotId::new("harmont-cache/live:aaaabbbbccccdddd"),
             )
             .expect("put");
         let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
