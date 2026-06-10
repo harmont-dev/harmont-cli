@@ -55,7 +55,7 @@ pub async fn handle_clean() -> Result<i32> {
 /// cache index is reset.
 async fn remove_registered_images(db_path: &std::path::Path) {
     // Capacity here is irrelevant — we only read existing rows, never insert.
-    let registry = match hm_vm::ImageRegistry::open(db_path, u64::MAX) {
+    let registry = match hm_vm::ImageRegistry::open(db_path, std::num::NonZeroU64::MAX) {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(error = %e, "could not open image registry; skipping image removal");
