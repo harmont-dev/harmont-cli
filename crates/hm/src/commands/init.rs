@@ -302,10 +302,15 @@ pub async fn handle(args: InitArgs) -> Result<()> {
     if project_config.exists() {
         let cfg =
             hm_config::Config::load_from_paths(None, Some(&project_config)).unwrap_or_default();
-        if cfg.backend == "cloud" {
-            tracing::info!("next step: run `hm run` to execute your pipeline on Harmont Cloud");
-        } else {
-            tracing::info!("next step: run `hm run` to execute your pipeline locally");
+        match cfg.backend {
+            hm_config::Backend::Cloud => {
+                tracing::info!(
+                    "next step: run `hm run` to execute your pipeline on Harmont Cloud"
+                );
+            }
+            hm_config::Backend::Docker => {
+                tracing::info!("next step: run `hm run` to execute your pipeline locally");
+            }
         }
     } else {
         tracing::info!("next step: run `hm run` to execute your pipeline locally");

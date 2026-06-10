@@ -489,7 +489,7 @@ fn cloud_project_config_layers_correctly() {
     std::fs::write(&config_path, content).unwrap();
 
     let cfg = hm_config::Config::load_from_paths(None, Some(&config_path)).unwrap();
-    assert_eq!(cfg.backend, "cloud");
+    assert_eq!(cfg.backend, hm_config::Backend::Cloud);
     assert_eq!(cfg.cloud.org.as_deref(), Some("test-org"));
     // Unrelated defaults survive layering.
     assert_eq!(cfg.preferences.format, "human");

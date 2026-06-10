@@ -43,7 +43,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
                 None
             }
         })
-        .unwrap_or_else(|| ctx.config.backend.clone());
+        .unwrap_or_else(|| ctx.config.backend.to_string());
 
     // 2. Cloud needs auth + org resolution up front — fail fast on a missing
     //    token before any render work. We resolve the credentials here but
