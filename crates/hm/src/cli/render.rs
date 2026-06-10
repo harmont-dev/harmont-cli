@@ -31,7 +31,8 @@ pub async fn run(args: RenderArgs) -> Result<()> {
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
-    let lang = detect::detect_language(&repo_root).context("detecting pipeline language")?;
+    let lang =
+        detect::detect_language_python_first(&repo_root).context("detecting pipeline language")?;
     let engine = engine_for(lang).context("initializing DSL engine")?;
     let json = engine
         .render_pipeline_json(&repo_root, &args.slug)

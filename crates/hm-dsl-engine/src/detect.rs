@@ -5,39 +5,53 @@ use anyhow::{Context, bail};
 use crate::DslLanguage;
 
 /// Detect the DSL language used in a project by scanning `.hm/` for file
-/// extensions.
-///
-/// A repo carrying **both** a `.py` and a `.ts` pipeline is rejected rather
-/// than silently tie-broken: `hm run` (local) and the backend discovery path
-/// (`hm pipelines` / `hm render`) both route through this one resolver, so a
-/// tie-break here would let the local build run one language while cloud
-/// discovery built the other. Failing fast keeps the two in lockstep. Keep a
-/// single pipeline language per `.hm/` directory.
+/// extensions. Prefers **TypeScript** when both are present (the `hm run`
+/// default).
 ///
 /// # Errors
 ///
 /// - The `.hm/` directory does not exist.
 /// - No `.py` or `.ts` files are found inside `.hm/`.
-/// - Both `.py` and `.ts` files are present (ambiguous language).
 pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
     let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
         bail!("no .hm/ directory found in {}", repo_root.display());
     }
     let langs = scan_extensions(repo_root)?;
-    match (langs.has_py, langs.has_ts) {
-        (true, true) => bail!(
-            "ambiguous pipeline language in {dir}: found both Python (.py) and \
-             TypeScript (.ts) pipeline files\n  \
-             → keep exactly one pipeline language per .hm/ directory; remove the \
-             extra .py or .ts files\n  \
-             (otherwise `hm run` and cloud discovery could resolve different \
-             languages for the same repo)",
-            dir = harmont_dir.display()
-        ),
-        (false, true) => Ok(DslLanguage::TypeScript),
-        (true, false) => Ok(DslLanguage::Python),
-        (false, false) => bail!("no .py or .ts files found in {}", harmont_dir.display()),
+    if langs.has_ts {
+        // When both languages are present, prefer TypeScript.
+        Ok(DslLanguage::TypeScript)
+    } else if langs.has_py {
+        Ok(DslLanguage::Python)
+    } else {
+        bail!("no .py or .ts files found in {}", harmont_dir.display())
+    }
+}
+
+/// Like [`detect_language`] but prefers **Python** when both are present.
+///
+/// Used by the machine-facing `hm pipelines` / `hm render` commands that the
+/// backend shells out to: the Python path is the fully-supported one (the
+/// discovery envelope is Python-only today), so a repo carrying both a `.py`
+/// and a redundant `.ts` resolves to Python rather than the unsupported TS
+/// registry. `hm run` keeps the TypeScript-preferring [`detect_language`].
+///
+/// # Errors
+///
+/// - The `.hm/` directory does not exist.
+/// - No `.py` or `.ts` files are found inside `.hm/`.
+pub fn detect_language_python_first(repo_root: &Path) -> anyhow::Result<DslLanguage> {
+    let harmont_dir = repo_root.join(".hm");
+    if !harmont_dir.is_dir() {
+        bail!("no .hm/ directory found in {}", repo_root.display());
+    }
+    let langs = scan_extensions(repo_root)?;
+    if langs.has_py {
+        Ok(DslLanguage::Python)
+    } else if langs.has_ts {
+        Ok(DslLanguage::TypeScript)
+    } else {
+        bail!("no .py or .ts files found in {}", harmont_dir.display())
     }
 }
 
@@ -46,7 +60,7 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
 /// The backend fans pipeline discovery out across every repo in an
 /// installation, most of which declare no pipelines at all. Those repos should
 /// yield an empty registry, not an error — callers use this to short-circuit to
-/// an empty envelope instead of calling [`detect_language`].
+/// an empty envelope instead of calling [`detect_language_python_first`].
 #[must_use]
 pub fn has_pipeline_files(repo_root: &Path) -> bool {
     matches!(scan_extensions(repo_root), Ok(langs) if langs.has_py || langs.has_ts)
@@ -120,18 +134,10 @@ mod tests {
     }
 
     #[test]
-    fn mixed_languages_is_ambiguous_error() {
-        // A repo declaring both .py and .ts must fail loudly rather than
-        // silently tie-break — otherwise local `hm run` and cloud discovery
-        // could resolve different languages for the same repo.
+    fn mixed_languages_prefers_typescript() {
         let tmp = setup(&["ci.py", "deploy.ts"]);
-        let err = detect_language(tmp.path()).unwrap_err();
-        let msg = err.to_string();
-        assert!(
-            msg.contains("ambiguous pipeline language"),
-            "unexpected error: {msg}"
-        );
-        assert!(msg.contains(".py") && msg.contains(".ts"), "msg: {msg}");
+        let lang = detect_language(tmp.path()).unwrap();
+        assert_eq!(lang, DslLanguage::TypeScript);
     }
 
     #[test]
@@ -152,6 +158,34 @@ mod tests {
         assert!(
             msg.contains("no .py or .ts files"),
             "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn python_first_prefers_python_when_mixed() {
+        let tmp = setup(&["ci.py", "deploy.ts"]);
+        assert_eq!(
+            detect_language_python_first(tmp.path()).unwrap(),
+            DslLanguage::Python
+        );
+    }
+
+    #[test]
+    fn python_first_falls_back_to_typescript_when_only_ts() {
+        let tmp = setup(&["ci.ts"]);
+        assert_eq!(
+            detect_language_python_first(tmp.path()).unwrap(),
+            DslLanguage::TypeScript
+        );
+    }
+
+    #[test]
+    fn python_first_no_harmont_dir_is_error() {
+        let tmp = TempDir::new().unwrap();
+        let err = detect_language_python_first(tmp.path()).unwrap_err();
+        assert!(
+            err.to_string().contains("no .hm/ directory"),
+            "unexpected error: {err}"
         );
     }
 
