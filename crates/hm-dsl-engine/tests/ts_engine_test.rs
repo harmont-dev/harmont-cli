@@ -92,11 +92,11 @@ async fn typescript_renders_dynamic_target_with_runtime_environment() {
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.ts"),
-        r#"import { pipeline, sh, target, type PipelineDefinition } from '@harmont/hm';
+        r#"import { env, pipeline, sh, target, type PipelineDefinition } from '@harmont/hm';
 
 const chooseBuild = target(
   'choose-build',
-  () => process.env.BUILD_KIND === 'release'
+  () => env('BUILD_KIND') === 'release'
     ? sh('npm run build:release')
     : sh('npm run build:debug'),
   { dynamic: true },

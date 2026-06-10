@@ -9,6 +9,7 @@ import {
   ttl,
   onChange,
   compose,
+  env,
   pipeline,
   target,
   clearTargetCache,
@@ -215,6 +216,7 @@ describe("public API completeness", () => {
     expect(typeof ttl).toBe("function");
     expect(typeof onChange).toBe("function");
     expect(typeof compose).toBe("function");
+    expect(typeof env).toBe("function");
     expect(typeof pipeline).toBe("function");
     expect(typeof target).toBe("function");
     expect(typeof clearTargetCache).toBe("function");

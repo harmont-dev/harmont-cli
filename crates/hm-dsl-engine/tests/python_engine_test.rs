@@ -86,12 +86,11 @@ async fn python_renders_dynamic_target_with_runtime_environment() {
     std::fs::create_dir_all(&harmont).unwrap();
     std::fs::write(
         harmont.join("ci.py"),
-        r#"import os
-import harmont as hm
+        r#"import harmont as hm
 
 @hm.target(dynamic=True)
 def choose_build() -> hm.Step:
-    command = 'go test ./...' if os.environ.get('LANGUAGE') == 'go' else 'cargo test'
+    command = 'go test ./...' if hm.env('LANGUAGE') == 'go' else 'cargo test'
     return hm.sh(command, label='selected build')
 
 @hm.pipeline('ci')
