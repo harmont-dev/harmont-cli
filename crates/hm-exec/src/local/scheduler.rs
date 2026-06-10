@@ -22,7 +22,7 @@
     clippy::missing_panics_doc
 )]
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -38,11 +38,11 @@ use hm_plugin_protocol::{
 };
 use uuid::Uuid;
 
-use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
+use hm_pipeline_ir::{EdgeKind, PipelineGraph, StepEval, Transition};
 
 use crate::local::runner::{RunnerRegistry, StepContext};
 use crate::local::source::build_archive_bytes;
-use crate::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};
+use crate::{BuildOutcome, BuildStatus, DynamicEvaluator, StepResultSummary, StepStatus};
 
 use super::archive::ArchiveStore;
 use super::cache;
@@ -63,6 +63,75 @@ struct StepOutcome {
 
 type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 
+pub(crate) struct LocalRunContext {
+    pub repo_root: PathBuf,
+    pub pipeline_slug: String,
+    pub runtime_env: BTreeMap<String, String>,
+    pub dynamic_evaluator: Option<Arc<dyn DynamicEvaluator>>,
+}
+
+async fn resolve_dynamic_transition(
+    transition: Transition,
+    repo_root: &std::path::Path,
+    runtime_env: &BTreeMap<String, String>,
+    evaluator: Option<&dyn DynamicEvaluator>,
+) -> anyhow::Result<Transition> {
+    let StepEval::Dynamic { target_name } = &transition.step.eval else {
+        return Ok(transition);
+    };
+    let evaluator = evaluator.ok_or_else(|| {
+        anyhow::anyhow!("dynamic target {target_name:?} cannot run without a DSL evaluator")
+    })?;
+
+    let fragment = evaluator
+        .evaluate(repo_root, target_name, runtime_env)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e:#}"))?;
+    if fragment.node_count() != 1 {
+        anyhow::bail!(
+            "dynamic target {target_name:?} produced {} steps; local execution currently requires exactly one concrete step",
+            fragment.node_count()
+        );
+    }
+
+    let node = fragment
+        .dag()
+        .graph()
+        .node_indices()
+        .next()
+        .expect("one-node fragment");
+    let mut concrete = fragment.dag()[node].clone();
+    if !matches!(concrete.step.eval, StepEval::Cmd { .. }) {
+        anyhow::bail!("dynamic target {target_name:?} returned another dynamic step");
+    }
+
+    let placeholder = transition.step;
+    concrete.step.key = placeholder.key;
+    if concrete.step.label.is_none() {
+        concrete.step.label = placeholder.label;
+    }
+    if concrete.step.image.is_none() {
+        concrete.step.image = placeholder.image;
+    }
+    if concrete.step.timeout_seconds.is_none() {
+        concrete.step.timeout_seconds = placeholder.timeout_seconds;
+    }
+    if concrete.step.cache.is_none() {
+        concrete.step.cache = placeholder.cache;
+    }
+    if concrete.step.runner.is_none() {
+        concrete.step.runner = placeholder.runner;
+    }
+    if concrete.step.runner_args.is_none() {
+        concrete.step.runner_args = placeholder.runner_args;
+    }
+
+    let mut env = transition.env;
+    env.extend(concrete.env);
+    concrete.env = env;
+    Ok(concrete)
+}
+
 /// Entry point: run a parsed pipeline locally end-to-end.
 ///
 /// Emits every [`BuildEvent`] to `tx` (via an internal broadcast bus that
@@ -79,14 +148,19 @@ type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 /// surfaced via the returned [`BuildOutcome`], not as an `Err`.
 pub(crate) async fn run(
     graph: PipelineGraph,
-    repo_root: PathBuf,
-    pipeline_slug: String,
+    context: LocalRunContext,
     parallelism: usize,
     runner_registry: Arc<RunnerRegistry>,
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
     cancel: CancellationToken,
     keep_going: bool,
 ) -> crate::Result<BuildOutcome> {
+    let LocalRunContext {
+        repo_root,
+        pipeline_slug,
+        runtime_env,
+        dynamic_evaluator,
+    } = context;
     // Set up per-run state.
     let bus = EventBus::new();
     let archives = Arc::new(ArchiveStore::new());
@@ -180,6 +254,9 @@ pub(crate) async fn run(
         let bus = bus.clone();
         let cancel = cancel.clone();
         let run_ctx = run_ctx.clone();
+        let repo_root = repo_root.clone();
+        let runtime_env = runtime_env.clone();
+        let dynamic_evaluator = dynamic_evaluator.clone();
 
         let fut: StepFuture = async move {
             // Await all predecessors.
@@ -233,6 +310,9 @@ pub(crate) async fn run(
                 bus,
                 cancel,
                 keep_going,
+                repo_root,
+                runtime_env,
+                dynamic_evaluator,
             )
             .await
             {
@@ -361,10 +441,21 @@ async fn execute_step(
     bus: Arc<EventBus>,
     cancel: CancellationToken,
     keep_going: bool,
+    repo_root: PathBuf,
+    runtime_env: BTreeMap<String, String>,
+    dynamic_evaluator: Option<Arc<dyn DynamicEvaluator>>,
 ) -> anyhow::Result<StepOutcome> {
-    let step_wire = transition.step.into_command().ok_or_else(|| {
-        anyhow::anyhow!("dynamic step expansion is not implemented by the local backend yet")
-    })?;
+    let transition = resolve_dynamic_transition(
+        transition,
+        &repo_root,
+        &runtime_env,
+        dynamic_evaluator.as_deref(),
+    )
+    .await?;
+    let step_wire = transition
+        .step
+        .into_command()
+        .ok_or_else(|| anyhow::anyhow!("dynamic target returned another dynamic step"))?;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
         let cmd = step_wire.cmd.trim();
@@ -621,5 +712,141 @@ fn compute_chain_info(dag: &Dag<Transition, EdgeKind>) -> ChainInfo {
         chain_count,
         node_chain_id,
         node_chain_pos,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod dynamic_tests {
+    use super::*;
+    use hm_pipeline_ir::{PipelineStep, StepEval};
+
+    #[derive(Debug)]
+    struct FakeEvaluator {
+        graph: PipelineGraph,
+    }
+
+    #[async_trait::async_trait]
+    impl DynamicEvaluator for FakeEvaluator {
+        async fn evaluate(
+            &self,
+            _repo_root: &std::path::Path,
+            _target_name: &str,
+            _env: &BTreeMap<String, String>,
+        ) -> crate::Result<PipelineGraph> {
+            Ok(self.graph.clone())
+        }
+    }
+
+    fn graph(json: &str) -> PipelineGraph {
+        serde_json::from_str(json).unwrap()
+    }
+
+    fn dynamic_transition() -> Transition {
+        Transition {
+            step: PipelineStep {
+                key: "choose-build".into(),
+                label: Some("Choose build".into()),
+                eval: StepEval::Dynamic {
+                    target_name: "choose_build".into(),
+                },
+                image: Some("ubuntu:24.04".into()),
+                env: None,
+                timeout_seconds: None,
+                cache: None,
+                runner: None,
+                runner_args: None,
+            },
+            env: BTreeMap::from([("PIPELINE_ENV".into(), "present".into())]),
+        }
+    }
+
+    #[tokio::test]
+    async fn dynamic_transition_resolves_to_one_concrete_step() {
+        let evaluator = FakeEvaluator {
+            graph: graph(
+                r#"{
+                    "version":"0",
+                    "graph":{
+                        "nodes":[
+                            {"step":{"key":"generated","eval":{"type":"cmd","cmd":"go test ./..."}}, "env":{"LANGUAGE":"go"}}
+                        ],
+                        "node_holes":[],
+                        "edge_property":"directed",
+                        "edges":[]
+                    }
+                }"#,
+            ),
+        };
+
+        let resolved = resolve_dynamic_transition(
+            dynamic_transition(),
+            std::path::Path::new("/repo"),
+            &BTreeMap::from([("LANGUAGE".into(), "go".into())]),
+            Some(&evaluator),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(resolved.step.key, "choose-build");
+        assert_eq!(resolved.step.label.as_deref(), Some("Choose build"));
+        assert_eq!(resolved.step.image.as_deref(), Some("ubuntu:24.04"));
+        assert_eq!(
+            resolved.step.eval,
+            StepEval::Cmd {
+                cmd: "go test ./...".into()
+            }
+        );
+        assert_eq!(resolved.env["PIPELINE_ENV"], "present");
+        assert_eq!(resolved.env["LANGUAGE"], "go");
+    }
+
+    #[tokio::test]
+    async fn dynamic_transition_requires_an_evaluator() {
+        let error = resolve_dynamic_transition(
+            dynamic_transition(),
+            std::path::Path::new("/repo"),
+            &BTreeMap::new(),
+            None,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("without a DSL evaluator"));
+    }
+
+    #[tokio::test]
+    async fn dynamic_transition_rejects_multi_step_fragment() {
+        let evaluator = FakeEvaluator {
+            graph: graph(
+                r#"{
+                    "version":"0",
+                    "graph":{
+                        "nodes":[
+                            {"step":{"key":"a","eval":{"type":"cmd","cmd":"echo a"}}, "env":{}},
+                            {"step":{"key":"b","eval":{"type":"cmd","cmd":"echo b"}}, "env":{}}
+                        ],
+                        "node_holes":[],
+                        "edge_property":"directed",
+                        "edges":[[0,1,"builds_in"]]
+                    }
+                }"#,
+            ),
+        };
+
+        let error = resolve_dynamic_transition(
+            dynamic_transition(),
+            std::path::Path::new("/repo"),
+            &BTreeMap::new(),
+            Some(&evaluator),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("currently requires exactly one concrete step")
+        );
     }
 }

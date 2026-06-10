@@ -15,6 +15,7 @@ mod source;
 pub use backend::LocalBackend;
 pub(crate) use runner::RunnerRegistry; // intra-crate: local/backend.rs via crate::local::
 pub(crate) use runner::vm::VmRunner; // intra-crate: local/backend.rs via crate::local::
+pub(crate) use scheduler::LocalRunContext;
 pub(crate) use scheduler::chain_count;
 pub(crate) use scheduler::run;
 pub(crate) use source::build_archive_bytes; // intra-crate: cloud/backend.rs via crate::local::

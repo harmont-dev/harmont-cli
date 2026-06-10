@@ -30,7 +30,7 @@ mod error;
 pub use error::{BackendError, Result};
 
 mod request;
-pub use request::{Plan, RunOptions, RunRequest, SourceMeta};
+pub use request::{DynamicEvaluator, Plan, RunOptions, RunRequest, SourceMeta};
 
 mod outcome;
 pub use outcome::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};

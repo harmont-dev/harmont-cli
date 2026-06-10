@@ -122,6 +122,7 @@ fn fake_request() -> RunRequest {
         repo_root: std::path::PathBuf::from("/tmp"),
         pipeline_slug: "p".into(),
         env: Default::default(),
+        dynamic_evaluator: None,
         source: SourceMeta {
             branch: "main".into(),
             commit: "0".repeat(40),

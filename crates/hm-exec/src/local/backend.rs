@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 
 use hm_vm::{HmVm, ImageRegistry, VmBackend, VmConfig};
 
-use crate::local::{RunnerRegistry, VmRunner};
+use crate::local::{LocalRunContext, RunnerRegistry, VmRunner};
 use crate::{BackendError, BackendHandle, Capabilities, ExecutionBackend, Result, RunRequest};
 
 /// Number of cached snapshots the image registry retains before evicting
@@ -87,8 +87,12 @@ impl ExecutionBackend for LocalBackend {
         let join = tokio::spawn(async move {
             crate::local::run(
                 req.plan.graph,
-                req.repo_root,
-                req.pipeline_slug,
+                LocalRunContext {
+                    repo_root: req.repo_root,
+                    pipeline_slug: req.pipeline_slug,
+                    runtime_env: req.env,
+                    dynamic_evaluator: req.dynamic_evaluator,
+                },
                 parallelism,
                 registry,
                 tx,

@@ -30,7 +30,7 @@ pub struct DynamicContext {
 }
 
 #[async_trait]
-pub trait DslEngine: Send + Sync {
+pub trait DslEngine: Send + Sync + std::fmt::Debug {
     async fn list_pipelines(&self, project_dir: &Path) -> anyhow::Result<Vec<PipelineMeta>>;
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> anyhow::Result<String>;
     /// Evaluate one registered dynamic target and return its v0 IR graph

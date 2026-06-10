@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
@@ -7,6 +8,29 @@ use hm_dsl_engine::detect;
 use crate::cli::RunArgs;
 use crate::context::RunContext;
 use crate::error::{ErrorCategory, HmError};
+
+#[derive(Debug)]
+struct DslDynamicEvaluator {
+    engine: Arc<dyn hm_dsl_engine::DslEngine>,
+}
+
+#[async_trait::async_trait]
+impl hm_exec::DynamicEvaluator for DslDynamicEvaluator {
+    async fn evaluate(
+        &self,
+        repo_root: &std::path::Path,
+        target_name: &str,
+        env: &std::collections::BTreeMap<String, String>,
+    ) -> hm_exec::Result<hm_pipeline_ir::PipelineGraph> {
+        let context = hm_dsl_engine::DynamicContext { env: env.clone() };
+        let json = self
+            .engine
+            .render_target_json(repo_root, target_name, &context)
+            .await
+            .map_err(|e| hm_exec::BackendError::Local(format!("{e:#}")))?;
+        hm_exec::Plan::parse(json).map(|plan| plan.graph)
+    }
+}
 
 /// Top-level driver for `hm run`.
 ///
@@ -20,10 +44,12 @@ use crate::error::{ErrorCategory, HmError};
 /// - neither            → `ctx.config.backend` (figment-layered, default `docker`)
 ///
 /// This is a THIN driver over the `hm-exec` backends: it builds an
-/// [`hm_exec::ExecutionBackend`], renders the pipeline to v0 IR once, starts
-/// the build, drives its event stream through an `hm_render` renderer, owns
-/// Ctrl-C, and returns the build's process exit code. Cloud authentication is
-/// resolved BEFORE the (local) render work so a missing token fails fast.
+/// [`hm_exec::ExecutionBackend`], renders the initial pipeline to v0 IR,
+/// starts the build, drives its event stream through an `hm_render` renderer,
+/// owns Ctrl-C, and returns the build's process exit code. Local runs retain
+/// the DSL engine so deferred targets can be evaluated when reached. Cloud
+/// authentication is resolved BEFORE the (local) render work so a missing
+/// token fails fast.
 ///
 /// # Errors
 ///
@@ -95,14 +121,21 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     }
 
     // 3. Render + parse the plan once (shared by every backend).
-    let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;
+    let (repo_root, slug, ir_json, dsl_engine) = render_pipeline(&args, &ctx).await?;
     let plan = hm_exec::Plan::parse(ir_json).map_err(|e| backend_anyhow(&e))?;
     let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
+    let dynamic_evaluator = if backend_name == "cloud" {
+        None
+    } else {
+        Some(Arc::new(DslDynamicEvaluator { engine: dsl_engine })
+            as Arc<dyn hm_exec::DynamicEvaluator>)
+    };
     let req = hm_exec::RunRequest {
         plan,
         repo_root,
         pipeline_slug: slug,
         env: parse_env(&args.env).into_iter().collect(),
+        dynamic_evaluator,
         source: hm_exec::SourceMeta {
             branch,
             commit,
@@ -192,7 +225,12 @@ fn git_metadata(root: &std::path::Path, branch_override: Option<String>) -> (Str
 async fn render_pipeline(
     args: &RunArgs,
     _ctx: &RunContext,
-) -> Result<(std::path::PathBuf, String, String)> {
+) -> Result<(
+    std::path::PathBuf,
+    String,
+    String,
+    Arc<dyn hm_dsl_engine::DslEngine>,
+)> {
     let repo_root = match args.dir.clone() {
         Some(p) => p,
         None => std::env::current_dir().context("cannot determine current directory")?,
@@ -200,8 +238,9 @@ async fn render_pipeline(
 
     let lang =
         detect::detect_language(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
-    let engine =
-        hm_dsl_engine::engine_for(lang).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
+    let engine: Arc<dyn hm_dsl_engine::DslEngine> = Arc::from(
+        hm_dsl_engine::engine_for(lang).map_err(|e| HmError::DslEngine(format!("{e:#}")))?,
+    );
 
     let slug = if let Some(s) = &args.pipeline {
         s.clone()
@@ -229,7 +268,7 @@ async fn render_pipeline(
         .await
         .map_err(|e| HmError::PipelineRender(format!("{e:#}")))?;
 
-    Ok((repo_root, slug, json_str))
+    Ok((repo_root, slug, json_str, engine))
 }
 
 /// Convert an [`hm_exec::BackendError`] into an [`anyhow::Error`] that carries

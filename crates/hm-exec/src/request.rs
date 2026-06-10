@@ -7,6 +7,21 @@ use std::time::Duration;
 use hm_pipeline_ir::PipelineGraph;
 use hm_plugin_protocol::events::PlanSummary;
 
+/// Evaluates a deferred target in the source DSL.
+///
+/// The execution layer owns this narrow contract so local scheduling does not
+/// depend on Python, TypeScript, or `hm-dsl-engine` implementation details.
+#[async_trait::async_trait]
+pub trait DynamicEvaluator: Send + Sync + std::fmt::Debug {
+    /// Evaluate `target_name` using explicit runtime environment values.
+    async fn evaluate(
+        &self,
+        repo_root: &std::path::Path,
+        target_name: &str,
+        env: &BTreeMap<String, String>,
+    ) -> crate::Result<PipelineGraph>;
+}
+
 /// A rendered, ready-to-run pipeline.
 ///
 /// Carries both the typed graph (for client-scheduling backends like local) and
@@ -85,6 +100,8 @@ pub struct RunRequest {
     pub repo_root: PathBuf,
     pub pipeline_slug: String,
     pub env: BTreeMap<String, String>,
+    /// Runtime target evaluator used by client-scheduled backends.
+    pub dynamic_evaluator: Option<std::sync::Arc<dyn DynamicEvaluator>>,
     pub source: SourceMeta,
     pub options: RunOptions,
 }
