@@ -45,7 +45,7 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
 /// The backend fans pipeline discovery out across every repo in an
 /// installation, most of which declare no pipelines at all. Those repos should
 /// yield an empty registry, not an error — callers use this to short-circuit to
-/// an empty envelope instead of calling [`detect_language_python_first`].
+/// an empty envelope instead of calling [`detect_language`].
 #[must_use]
 pub fn has_pipeline_files(repo_root: &Path) -> bool {
     matches!(scan_extensions(repo_root), Ok((py, ts)) if py || ts)
