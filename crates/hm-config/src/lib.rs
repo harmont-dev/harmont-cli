@@ -20,29 +20,19 @@ pub const DEFAULT_API_URL: &str = "https://api.harmont.dev";
 /// Closed set parsed at the config boundary so invalid values are rejected at
 /// deserialize time instead of mis-dispatching later, and every consumer match
 /// is exhaustively checked by the compiler.
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// The `#[display(...)]` strings are the stable lowercase wire/CLI names and
+/// must match the `#[serde(rename_all = "lowercase")]` representation.
+#[derive(
+    Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Backend {
     #[default]
+    #[display("docker")]
     Docker,
+    #[display("cloud")]
     Cloud,
-}
-
-impl Backend {
-    /// Stable lowercase wire/CLI name (matches the `serde` representation).
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Docker => "docker",
-            Self::Cloud => "cloud",
-        }
-    }
-}
-
-impl std::fmt::Display for Backend {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
 }
 
 /// Derive the SPA (dashboard) base URL from the API base.
@@ -313,6 +303,12 @@ org = "project-org"
         assert_eq!(cfg.cloud.org.as_deref(), Some("project-org"));
         assert_eq!(cfg.cloud.api_url, "https://user.api");
         assert_eq!(cfg.preferences.format, "json");
+    }
+
+    #[test]
+    fn backend_display_matches_wire_strings() {
+        assert_eq!(Backend::Docker.to_string(), "docker");
+        assert_eq!(Backend::Cloud.to_string(), "cloud");
     }
 
     #[test]

@@ -1224,6 +1224,7 @@ name = "hm-config"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "derive_more",
  "figment",
  "hm-util",
  "serde",

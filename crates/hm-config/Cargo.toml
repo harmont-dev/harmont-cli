@@ -8,6 +8,7 @@ description = "Layered (project/user/env) configuration + credential storage for
 
 [dependencies]
 hm-util = { workspace = true }
+derive_more = { workspace = true }
 figment = { workspace = true }
 serde = { workspace = true }
 toml = "0.8"
