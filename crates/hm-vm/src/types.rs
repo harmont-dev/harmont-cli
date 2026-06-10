@@ -32,6 +32,23 @@ pub enum CachingPolicy {
     Cache { key: String },
 }
 
+/// Typed instruction for `Vm::snapshot`, describing how the committed
+/// snapshot should be tagged.
+///
+/// This replaces a previously stringly-encoded convention where a bare label
+/// meant "ephemeral" and a `repo:tag` label meant "cached", a contract that
+/// the producer (`vm.rs`) and consumer (the backend) had to agree on
+/// out-of-band. Encoding the distinction as an enum makes it compiler-checked.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SnapshotLabel {
+    /// Uncached snapshot. The backend chooses a unique tag (e.g. the
+    /// container id) so concurrent sibling steps do not race to write the
+    /// same image reference.
+    Ephemeral,
+    /// Cached snapshot tagged from this cache key (parsed as `repo:tag`).
+    Cached(String),
+}
+
 /// Opaque snapshot handle. Backend-specific contents.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, derive_more::Display)]
 #[display("{_0}")]
