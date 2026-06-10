@@ -198,6 +198,13 @@ jobs:
           cache: npm
           cache-dependency-path: crates/hm-dsl-engine/harmont-ts/package-lock.json
 
+      # node 20 ships npm 10, which can sign provenance but cannot AUTHENTICATE
+      # via OIDC trusted publishing — that needs npm >= 11.5.1. Without it the
+      # publish PUT goes out unauthenticated and npm masks it as a 404. Upgrade
+      # so the configured trusted publisher actually authenticates the publish.
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         working-directory: crates/hm-dsl-engine/harmont-ts
         run: npm ci
