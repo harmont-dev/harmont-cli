@@ -69,10 +69,7 @@ const fn job_logs_available(state: JobState) -> bool {
         | JobState::Canceled
         | JobState::TimingOut => true,
         // No logs yet (not started) or never produced (skipped).
-        JobState::Pending
-        | JobState::Scheduled
-        | JobState::Assigned
-        | JobState::Skipped => false,
+        JobState::Pending | JobState::Scheduled | JobState::Assigned | JobState::Skipped => false,
     }
 }
 
