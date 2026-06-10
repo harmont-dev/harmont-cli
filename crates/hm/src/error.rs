@@ -15,19 +15,11 @@ pub enum HmError {
     #[error("not authenticated\n  → run `hm login`")]
     NotAuthenticated,
 
-    #[error("no active organization\n  → run `hm org switch <slug>` or set HARMONT_ORG=<slug>")]
-    NoOrganization,
-
     #[error("API error (HTTP {status}): {message}")]
     Api { status: u16, message: String },
 
     #[error("network error: {0}")]
     Network(#[from] reqwest::Error),
-
-    #[error(
-        "source archive exceeds the {max_mb} MB limit\n  → trim the source tree or add ignores in .harmontignore"
-    )]
-    ArchiveTooLarge { max_mb: u64 },
 
     #[error("pipeline not found: {slug}\n  → list available pipelines with `hm pipeline list`")]
     PipelineNotFound { slug: String },
@@ -106,11 +98,7 @@ impl HmError {
         match self {
             Self::NotAuthenticated => ErrorCategory::Auth,
             Self::Api { status, .. } if *status == 401 || *status == 403 => ErrorCategory::Auth,
-            Self::NoOrganization
-            | Self::ArchiveTooLarge { .. }
-            | Self::Config(_)
-            | Self::DslEngine(_)
-            | Self::PipelineRender(_) => ErrorCategory::Usage,
+            Self::Config(_) | Self::DslEngine(_) | Self::PipelineRender(_) => ErrorCategory::Usage,
             Self::Api { .. }
             | Self::PipelineNotFound { .. }
             | Self::PipelineManualDisabled

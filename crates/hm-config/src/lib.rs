@@ -96,9 +96,14 @@ impl Config {
     /// figment extraction fails (malformed TOML, type mismatches).
     pub fn load(project_root: Option<&Path>) -> Result<Self> {
         let user_path = Self::user_config_path()?;
+        let legacy_user_path = hm_util::dirs::legacy_hm_config_dir().map(|d| d.join("config.toml"));
         let project_path = project_root.map(Self::project_config_path);
-        Self::load_from_paths(Some(&user_path), project_path.as_deref())
-            .context("loading configuration")
+        Self::load_layered(
+            legacy_user_path.as_deref(),
+            Some(&user_path),
+            project_path.as_deref(),
+        )
+        .context("loading configuration")
     }
 
     /// Testable core: build a `Config` from explicit file paths.
@@ -107,8 +112,36 @@ impl Config {
     ///
     /// Returns an error if figment extraction fails (malformed TOML, type mismatches).
     pub fn load_from_paths(user_path: Option<&Path>, project_path: Option<&Path>) -> Result<Self> {
+        Self::load_layered(None, user_path, project_path)
+    }
+
+    /// Build a `Config` from explicit file paths with an optional legacy
+    /// (`~/.harmont/`) user layer at the bottom.
+    ///
+    /// Layering, lowest to highest precedence: defaults -> legacy user file
+    /// -> user file -> project file -> env. The legacy layer means a custom
+    /// `[cloud] api_url`/`org` written by the pre-rename CLI survives an
+    /// upgrade even when the user never re-runs `hm cloud login`; an explicit
+    /// value in the new `~/.config/hm/config.toml` always wins over it.
+    ///
+    /// Env precedence (highest): both the `HM_`-prefixed split form
+    /// (`HM_CLOUD__ORG`, `HM_CLOUD__API_URL`) and the documented
+    /// `HARMONT_ORG` / `HARMONT_API_URL` are honored; the latter map onto
+    /// `cloud.org` / `cloud.api_url`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if figment extraction fails (malformed TOML, type mismatches).
+    pub fn load_layered(
+        legacy_user_path: Option<&Path>,
+        user_path: Option<&Path>,
+        project_path: Option<&Path>,
+    ) -> Result<Self> {
         let mut figment = Figment::new().merge(Serialized::defaults(Self::default()));
 
+        if let Some(p) = legacy_user_path {
+            figment = figment.merge(Toml::file(p));
+        }
         if let Some(p) = user_path {
             figment = figment.merge(Toml::file(p));
         }
@@ -116,7 +149,9 @@ impl Config {
             figment = figment.merge(Toml::file(p));
         }
 
-        figment = figment.merge(Env::prefixed("HM_").split("__"));
+        figment = figment
+            .merge(Env::prefixed("HM_").split("__"))
+            .merge(harmont_env());
 
         Ok(figment.extract()?)
     }
@@ -147,11 +182,45 @@ impl Config {
     }
 }
 
+/// Figment env provider mapping the documented `HARMONT_*` variables onto
+/// the `cloud` config keys.
+///
+/// The cloud settings docs and `hm`'s error messages tell users to
+/// `set HARMONT_ORG=<slug>` / `HARMONT_API_URL=<url>`, so those names must
+/// actually feed the config. This binds them to `cloud.org` / `cloud.api_url`
+/// without disturbing the existing `HM_`-prefixed layer.
+fn harmont_env() -> Env {
+    Env::raw()
+        .only(&["HARMONT_ORG", "HARMONT_API_URL"])
+        .map(|key| match key.as_str() {
+            "HARMONT_ORG" => "cloud.org".into(),
+            "HARMONT_API_URL" => "cloud.api_url".into(),
+            other => other.into(),
+        })
+        .split(".")
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::io::Write as _;
+    use std::sync::{Mutex, MutexGuard};
+
+    /// Serializes every test that resolves config through `load_*`.
+    ///
+    /// All `load_*` paths merge the process environment as their top layer, so
+    /// a test that sets `HARMONT_*` (via `figment::Jail`, which mutates the
+    /// real process env for the duration of its closure) would otherwise leak
+    /// into a concurrently-running file-layering test. Holding this lock for
+    /// the whole body of any env-or-load test makes them mutually exclusive.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn env_guard() -> MutexGuard<'static, ()> {
+        ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
 
     #[test]
     fn default_config_values() {
@@ -183,6 +252,7 @@ auto_watch = true
 
     #[test]
     fn deserialize_sparse_toml() {
+        let _g = env_guard();
         let toml_str = r#"
 [cloud]
 org = "sparse-co"
@@ -199,6 +269,7 @@ org = "sparse-co"
 
     #[test]
     fn deserialize_empty_toml() {
+        let _g = env_guard();
         let mut f = tempfile::NamedTempFile::new().unwrap();
         f.write_all(b"").unwrap();
 
@@ -211,6 +282,7 @@ org = "sparse-co"
 
     #[test]
     fn figment_project_overrides_user() {
+        let _g = env_guard();
         let user_toml = r#"
 [cloud]
 org = "user-org"
@@ -240,6 +312,7 @@ org = "project-org"
 
     #[test]
     fn backend_defaults_docker_and_parses_and_layers() {
+        let _g = env_guard();
         // default
         assert_eq!(Config::default().backend, "docker");
 
@@ -261,6 +334,7 @@ org = "project-org"
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn save_and_reload_roundtrip() {
+        let _g = env_guard();
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("config.toml");
         let cfg = Config {
@@ -280,7 +354,90 @@ org = "project-org"
     }
 
     #[test]
+    fn legacy_user_file_carried_forward_when_new_absent() {
+        let _g = env_guard();
+        // Pre-rename ~/.harmont/config.toml exists; new ~/.config/hm absent.
+        let legacy_toml = r#"
+[cloud]
+org = "legacy-org"
+api_url = "https://legacy.api"
+"#;
+        let mut legacy_file = tempfile::NamedTempFile::new().unwrap();
+        legacy_file.write_all(legacy_toml.as_bytes()).unwrap();
+
+        let absent_user = Path::new("/tmp/harmont-test-absent-user-cfg/config.toml");
+
+        let cfg = Config::load_layered(Some(legacy_file.path()), Some(absent_user), None).unwrap();
+        assert_eq!(cfg.cloud.org.as_deref(), Some("legacy-org"));
+        assert_eq!(cfg.cloud.api_url, "https://legacy.api");
+    }
+
+    #[test]
+    fn new_user_file_wins_over_legacy() {
+        let _g = env_guard();
+        let legacy_toml = r#"
+[cloud]
+org = "legacy-org"
+api_url = "https://legacy.api"
+"#;
+        let new_toml = r#"
+[cloud]
+org = "new-org"
+"#;
+        let mut legacy_file = tempfile::NamedTempFile::new().unwrap();
+        legacy_file.write_all(legacy_toml.as_bytes()).unwrap();
+        let mut new_file = tempfile::NamedTempFile::new().unwrap();
+        new_file.write_all(new_toml.as_bytes()).unwrap();
+
+        let cfg =
+            Config::load_layered(Some(legacy_file.path()), Some(new_file.path()), None).unwrap();
+        // Explicit value in the new file overrides the legacy one...
+        assert_eq!(cfg.cloud.org.as_deref(), Some("new-org"));
+        // ...while keys absent from the new file still fall through to legacy.
+        assert_eq!(cfg.cloud.api_url, "https://legacy.api");
+    }
+
+    #[test]
+    #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
+    fn harmont_env_overrides_cloud_keys() {
+        let _g = env_guard();
+        // `Jail` isolates env mutation from concurrently-running tests.
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("HARMONT_ORG", "env-org");
+            jail.set_env("HARMONT_API_URL", "https://env.api");
+
+            let cfg = Config::load_from_paths(None, None).unwrap();
+            assert_eq!(cfg.cloud.org.as_deref(), Some("env-org"));
+            assert_eq!(cfg.cloud.api_url, "https://env.api");
+            Ok(())
+        });
+    }
+
+    #[test]
+    #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
+    fn harmont_env_overrides_user_file() {
+        let _g = env_guard();
+        // Env is the highest-precedence layer: it wins over a user file.
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("HARMONT_ORG", "env-org");
+
+            jail.create_file(
+                "config.toml",
+                "[cloud]\norg = \"file-org\"\napi_url = \"https://file.api\"\n",
+            )?;
+            let user = jail.directory().join("config.toml");
+
+            let cfg = Config::load_from_paths(Some(&user), None).unwrap();
+            assert_eq!(cfg.cloud.org.as_deref(), Some("env-org"));
+            // Unset env keys still come from the file.
+            assert_eq!(cfg.cloud.api_url, "https://file.api");
+            Ok(())
+        });
+    }
+
+    #[test]
     fn figment_missing_files_still_resolve() {
+        let _g = env_guard();
         let nonexistent_user = Path::new("/tmp/harmont-test-nonexistent-user/config.toml");
         let nonexistent_project = Path::new("/tmp/harmont-test-nonexistent-project/config.toml");
 

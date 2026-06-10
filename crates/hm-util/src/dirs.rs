@@ -17,6 +17,16 @@ pub fn hm_config_dir() -> Option<PathBuf> {
     platform::config_dir().map(|c| c.join("hm"))
 }
 
+/// `~/.harmont/` — the pre-rename (v0.0.5) user config root.
+///
+/// The config/credential format is unchanged across the rename, so callers
+/// use this as a best-effort fallback/migration source when the new
+/// `~/.config/hm/` location is empty. Returns `None` when the home directory
+/// cannot be determined.
+pub fn legacy_hm_config_dir() -> Option<PathBuf> {
+    platform::home_dir().map(|h| h.join(".harmont"))
+}
+
 /// `~/.cache/hm/` — local build cache root (regenerable).
 pub fn hm_cache_dir() -> Option<PathBuf> {
     platform::cache_dir().map(|c| c.join("hm"))
@@ -53,6 +63,15 @@ mod tests {
         assert!(
             parent.ends_with(".config") || parent.ends_with("AppData/Roaming"),
             "unexpected parent: {parent:?}"
+        );
+    }
+
+    #[test]
+    fn legacy_hm_config_dir_is_dot_harmont() {
+        let p = legacy_hm_config_dir().unwrap();
+        assert!(
+            p.ends_with(".harmont"),
+            "expected path ending in '.harmont', got {p:?}"
         );
     }
 

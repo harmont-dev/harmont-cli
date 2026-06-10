@@ -20,14 +20,30 @@ fn path() -> Result<PathBuf> {
     Ok(dir.join("credentials.toml"))
 }
 
+/// Pre-rename (v0.0.5) credential file at `~/.harmont/credentials.toml`.
+///
+/// The on-disk format is unchanged across the rename, so we read it through
+/// as a fallback when the new location is empty. Writes always target the new
+/// [`path`], so the first `hm cloud login`/`set` after upgrade migrates the
+/// store forward.
+fn legacy_path() -> Option<PathBuf> {
+    hm_util::dirs::legacy_hm_config_dir().map(|d| d.join("credentials.toml"))
+}
+
 fn load() -> CredentialFile {
-    let Ok(p) = path() else {
-        return CredentialFile::default();
-    };
-    let Ok(contents) = std::fs::read_to_string(&p) else {
-        return CredentialFile::default();
-    };
-    toml::from_str(&contents).unwrap_or_default()
+    if let Ok(p) = path()
+        && let Ok(contents) = std::fs::read_to_string(&p)
+    {
+        return toml::from_str(&contents).unwrap_or_default();
+    }
+    // New location absent/unreadable: fall back to the legacy store so tokens
+    // and the active org written by the pre-rename CLI survive an upgrade.
+    if let Some(legacy) = legacy_path()
+        && let Ok(contents) = std::fs::read_to_string(&legacy)
+    {
+        return toml::from_str(&contents).unwrap_or_default();
+    }
+    CredentialFile::default()
 }
 
 fn save(file: &CredentialFile) -> Result<()> {

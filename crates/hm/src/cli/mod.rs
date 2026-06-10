@@ -27,10 +27,6 @@ use crate::context::RunContext;
     disable_help_subcommand = true
 )]
 pub struct Cli {
-    /// Override the API base URL. Hidden flag — set `HARMONT_API_URL` instead.
-    #[arg(long, global = true, env = "HARMONT_API_URL", hide = true)]
-    pub api_url: Option<String>,
-
     /// Enable verbose/debug logging.
     #[arg(long, short, global = true)]
     pub verbose: bool,
