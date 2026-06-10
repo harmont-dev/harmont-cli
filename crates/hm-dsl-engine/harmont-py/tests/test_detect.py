@@ -30,23 +30,31 @@ class TestDetectFromPackageJson:
 
     def test_package_manager_pnpm(self) -> None:
         pkg = {"packageManager": "pnpm@8.15.4"}
-        assert detect_from_package_json(pkg) == DetectedToolchain(pm="pnpm")
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="pnpm", pm_version="8.15.4")
 
     def test_package_manager_bun(self) -> None:
         pkg = {"packageManager": "bun@1.1.0"}
-        assert detect_from_package_json(pkg) == DetectedToolchain(pm="bun")
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="bun", pm_version="1.1.0")
 
     def test_package_manager_npm(self) -> None:
         pkg = {"packageManager": "npm@10.2.4"}
-        assert detect_from_package_json(pkg) == DetectedToolchain(pm="npm")
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="npm", pm_version="10.2.4")
 
     def test_package_manager_yarn_classic(self) -> None:
         pkg = {"packageManager": "yarn@1.22.22"}
-        assert detect_from_package_json(pkg) == DetectedToolchain(pm="yarn-classic")
+        assert detect_from_package_json(pkg) == DetectedToolchain(
+            pm="yarn-classic", pm_version="1.22.22"
+        )
 
     def test_package_manager_yarn_berry(self) -> None:
         pkg = {"packageManager": "yarn@4.0.0"}
-        assert detect_from_package_json(pkg) == DetectedToolchain(pm="yarn-berry")
+        assert detect_from_package_json(pkg) == DetectedToolchain(
+            pm="yarn-berry", pm_version="4.0.0"
+        )
+
+    def test_package_manager_without_version_omits_pm_version(self) -> None:
+        pkg = {"packageManager": "pnpm"}
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="pnpm", pm_version=None)
 
     def test_ignores_unknown_package_manager(self) -> None:
         pkg = {"packageManager": "unknown@1.0"}
@@ -60,7 +68,7 @@ class TestDetectFromPackageJson:
     def test_engines_node_plus_package_manager_pnpm(self) -> None:
         pkg = {"engines": {"node": ">=18"}, "packageManager": "pnpm@8"}
         result = detect_from_package_json(pkg)
-        assert result == DetectedToolchain(runtime="node", pm="pnpm")
+        assert result == DetectedToolchain(runtime="node", pm="pnpm", pm_version="8")
 
 
 class TestDetectFromLockfiles:
@@ -130,4 +138,12 @@ class TestDetect:
         pkg = json.dumps({"packageManager": "yarn@4.5.0"})
         (tmp_path / "package.json").write_text(pkg)
         (tmp_path / "yarn.lock").touch()
-        assert detect(str(tmp_path)) == DetectedToolchain(pm="yarn-berry")
+        assert detect(str(tmp_path)) == DetectedToolchain(pm="yarn-berry", pm_version="4.5.0")
+
+    def test_pm_version_propagates_through_detect(self, tmp_path) -> None:
+        pkg = json.dumps({"packageManager": "pnpm@10.33.0"})
+        (tmp_path / "package.json").write_text(pkg)
+        (tmp_path / "pnpm-lock.yaml").touch()
+        result = detect(str(tmp_path))
+        assert result.pm == "pnpm"
+        assert result.pm_version == "10.33.0"

@@ -132,8 +132,8 @@ def ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:
 <summary><b>TypeScript</b></summary>
 
 ```typescript
-import { pipeline, push, type PipelineDefinition } from "harmont";
-import { python } from "harmont/toolchains";
+import { pipeline, push, type PipelineDefinition } from "@harmont/hm";
+import { python } from "@harmont/hm/toolchains";
 
 const project = python({ path: "." });
 

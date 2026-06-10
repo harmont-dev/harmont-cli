@@ -4,6 +4,7 @@
 //! drives the [`hm_vm`] subsystem. The VM backend (Docker, etc.) is injected;
 //! snapshot caching is owned by `hm-vm`'s [`hm_vm::ImageRegistry`].
 
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -26,17 +27,18 @@ const REGISTRY_CAPACITY: u64 = 64;
 /// chains; the scheduler serialises within each chain regardless.
 #[derive(Debug)]
 pub struct LocalBackend {
-    parallelism: usize,
+    parallelism: NonZeroUsize,
     vm_backend: Arc<dyn VmBackend>,
 }
 
 impl LocalBackend {
     /// Build a backend that executes steps on the given [`hm_vm::VmBackend`].
     ///
-    /// `parallelism` = max concurrent step chains. `0` is coerced to `1`
-    /// by the scheduler.
+    /// `parallelism` = max concurrent step chains. The [`NonZeroUsize`] type
+    /// makes the scheduler's semaphore construction deadlock-free by
+    /// construction (a zero-permit semaphore would stall every step).
     #[must_use]
-    pub fn new(parallelism: usize, vm_backend: Arc<dyn VmBackend>) -> Self {
+    pub fn new(parallelism: NonZeroUsize, vm_backend: Arc<dyn VmBackend>) -> Self {
         Self {
             parallelism,
             vm_backend,
