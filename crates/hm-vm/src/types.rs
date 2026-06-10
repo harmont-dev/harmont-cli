@@ -33,9 +33,35 @@ pub enum CachingPolicy {
 }
 
 /// Opaque snapshot handle. Backend-specific contents.
+///
+/// The inner representation is private so a snapshot id can only be minted
+/// through [`SnapshotId::new`]; read access goes through [`SnapshotId::as_str`]
+/// or the `Deref<Target = str>` impl. This keeps the handle a distinct domain
+/// newtype rather than an interchangeable `String`.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, derive_more::Display)]
 #[display("{_0}")]
-pub struct SnapshotId(pub String);
+pub struct SnapshotId(String);
+
+impl SnapshotId {
+    /// Construct a snapshot handle from a backend-specific id.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// Borrow the underlying id as a string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for SnapshotId {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
 
 /// Result of executing an action.
 #[derive(Clone, Debug)]
