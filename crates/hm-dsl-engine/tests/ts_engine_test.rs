@@ -81,21 +81,57 @@ export const pipelines: PipelineDefinition[] = [
 }
 
 #[tokio::test]
-async fn typescript_dynamic_target_rendering_is_explicitly_unsupported() {
+async fn typescript_renders_dynamic_target_with_runtime_environment() {
     if which::which("bun").is_err() && which::which("node").is_err() {
         eprintln!("skipping: no JS runtime on PATH");
         return;
     }
 
-    let engine = hm_dsl_engine::engine_for(hm_dsl_engine::DslLanguage::TypeScript).unwrap();
-    let error = engine
-        .render_target_json(
-            std::path::Path::new("."),
-            "choose_build",
-            &hm_dsl_engine::DynamicContext::default(),
-        )
-        .await
-        .unwrap_err();
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir_all(&harmont).unwrap();
+    std::fs::write(
+        harmont.join("ci.ts"),
+        r#"import { pipeline, sh, target, type PipelineDefinition } from '@harmont/hm';
 
-    assert!(format!("{error:#}").contains("cannot be rendered from TypeScript"));
+const chooseBuild = target(
+  'choose-build',
+  () => process.env.BUILD_KIND === 'release'
+    ? sh('npm run build:release')
+    : sh('npm run build:debug'),
+  { dynamic: true },
+);
+
+export default [{
+  slug: 'ci',
+  pipeline: pipeline([chooseBuild()]),
+}] satisfies PipelineDefinition[];
+"#,
+    )
+    .unwrap();
+
+    let engine = hm_dsl_engine::engine_for(hm_dsl_engine::DslLanguage::TypeScript).unwrap();
+    let pipeline_json = engine.render_pipeline_json(dir.path(), "ci").await.unwrap();
+    let pipeline: serde_json::Value = serde_json::from_str(&pipeline_json).unwrap();
+    assert_eq!(
+        pipeline["graph"]["nodes"][0]["step"]["eval"]["type"],
+        "dynamic"
+    );
+    assert_eq!(
+        pipeline["graph"]["nodes"][0]["step"]["eval"]["target_name"],
+        "choose-build"
+    );
+
+    let mut context = hm_dsl_engine::DynamicContext::default();
+    context.env.insert("BUILD_KIND".into(), "release".into());
+    let rendered = engine
+        .render_target_json(dir.path(), "choose-build", &context)
+        .await
+        .unwrap();
+
+    let fragment: serde_json::Value = serde_json::from_str(&rendered).unwrap();
+    assert_eq!(
+        fragment["graph"]["nodes"][0]["step"]["eval"]["cmd"],
+        "npm run build:release"
+    );
 }

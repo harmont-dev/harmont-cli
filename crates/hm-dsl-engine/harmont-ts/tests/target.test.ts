@@ -1,5 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { target, clearTargetCache } from "../src/target.js";
+import {
+  target,
+  clearTargetCache,
+  renderDynamicTarget,
+} from "../src/target.js";
 import { sh } from "../src/step.js";
 import { forever } from "../src/cache.js";
 
@@ -68,5 +72,48 @@ describe("target", () => {
     const b = factory();
     expect(a).toBe(b);
     expect(a.value).toBe(b.value);
+  });
+
+  it("defers dynamic target evaluation", () => {
+    let callCount = 0;
+    const chooseBuild = target(
+      "choose-build",
+      () => {
+        callCount++;
+        return sh("npm run build");
+      },
+      { dynamic: true },
+    );
+
+    const placeholder = chooseBuild();
+    expect(callCount).toBe(0);
+    expect(placeholder._dynamicTargetName).toBe("choose-build");
+
+    const rendered = renderDynamicTarget("choose-build");
+    expect(callCount).toBe(1);
+    expect(rendered.graph.nodes[0].step.eval).toEqual({
+      type: "cmd",
+      cmd: "npm run build",
+    });
+  });
+
+  it("renders dynamic target groups", () => {
+    target(
+      "checks",
+      () => [sh("npm test"), sh("npm run lint")],
+      { dynamic: true },
+    );
+
+    const rendered = renderDynamicTarget("checks");
+    expect(rendered.graph.nodes.map((node) => node.step.eval)).toEqual([
+      { type: "cmd", cmd: "npm test" },
+      { type: "cmd", cmd: "npm run lint" },
+    ]);
+  });
+
+  it("rejects unknown dynamic target names", () => {
+    expect(() => renderDynamicTarget("missing")).toThrow(
+      "dynamic target 'missing' not found",
+    );
   });
 });
