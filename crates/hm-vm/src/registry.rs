@@ -5,6 +5,7 @@
 //! exceeded, returning the evicted snapshot IDs so the caller can clean up
 //! backend resources.
 
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -28,7 +29,7 @@ use crate::types::SnapshotId;
 pub struct ImageRegistry {
     #[debug(skip)]
     conn: Mutex<Connection>,
-    capacity: u64,
+    capacity: NonZeroU64,
 }
 
 /// Returns the current Unix epoch in seconds.
@@ -52,7 +53,7 @@ impl ImageRegistry {
     ///
     /// Returns an error if the database cannot be opened or the schema cannot
     /// be applied.
-    pub fn open(path: &Path, capacity: u64) -> Result<Self> {
+    pub fn open(path: &Path, capacity: NonZeroU64) -> Result<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -285,11 +286,11 @@ impl ImageRegistry {
     /// the returned set can never diverge from the deleted set.
     fn evict_overflow_tx(
         tx: &rusqlite::Transaction<'_>,
-        capacity: u64,
+        capacity: NonZeroU64,
     ) -> Result<Vec<(SnapshotId, Option<String>)>> {
         let count: i64 = tx.query_row("SELECT COUNT(*) FROM snapshots", [], |row| row.get(0))?;
         let count = u64::try_from(count).unwrap_or(0);
-
+        let capacity = capacity.get();
         if count <= capacity {
             return Ok(Vec::new());
         }
@@ -323,6 +324,7 @@ mod tests {
     fn open_temp(capacity: u64) -> (ImageRegistry, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("registry.db");
+        let capacity = NonZeroU64::new(capacity).expect("capacity must be non-zero");
         let registry = ImageRegistry::open(&db_path, capacity).expect("failed to open registry");
         (registry, dir)
     }
@@ -408,15 +410,17 @@ mod tests {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("registry.db");
 
+        let capacity = NonZeroU64::new(10).expect("capacity must be non-zero");
+
         {
-            let reg = ImageRegistry::open(&db_path, 10).expect("open");
+            let reg = ImageRegistry::open(&db_path, capacity).expect("open");
             reg.put("persistent", &SnapshotId::new("snap-persist"))
                 .expect("put");
             assert_eq!(reg.len(), 1);
             // reg is dropped here, closing the connection.
         }
 
-        let reg2 = ImageRegistry::open(&db_path, 10).expect("reopen");
+        let reg2 = ImageRegistry::open(&db_path, capacity).expect("reopen");
         assert_eq!(reg2.len(), 1);
         let got = reg2.get("persistent");
         assert_eq!(got, Some(SnapshotId::new("snap-persist")));
