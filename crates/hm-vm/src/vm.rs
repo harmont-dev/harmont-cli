@@ -258,8 +258,7 @@ mod tests {
     fn open_temp_registry(capacity: u64) -> (ImageRegistry, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db = dir.path().join("registry.db");
-        let capacity =
-            std::num::NonZeroU64::new(capacity).expect("capacity must be non-zero");
+        let capacity = std::num::NonZeroU64::new(capacity).expect("capacity must be non-zero");
         let reg = ImageRegistry::open(&db, capacity).expect("failed to open registry");
         (reg, dir)
     }
