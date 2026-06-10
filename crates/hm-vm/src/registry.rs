@@ -5,6 +5,7 @@
 //! exceeded, returning the evicted snapshot IDs so the caller can clean up
 //! backend resources.
 
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -28,7 +29,7 @@ use crate::types::SnapshotId;
 pub struct ImageRegistry {
     #[debug(skip)]
     conn: Mutex<Connection>,
-    capacity: u64,
+    capacity: NonZeroU64,
 }
 
 /// Returns the current Unix epoch in seconds.
@@ -52,7 +53,7 @@ impl ImageRegistry {
     ///
     /// Returns an error if the database cannot be opened or the schema cannot
     /// be applied.
-    pub fn open(path: &Path, capacity: u64) -> Result<Self> {
+    pub fn open(path: &Path, capacity: NonZeroU64) -> Result<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -153,6 +154,25 @@ impl ImageRegistry {
         snapshot.map(SnapshotId::new)
     }
 
+    /// Return every stored snapshot ID.
+    ///
+    /// Used by `hm cache clean` to remove the backing backend images before
+    /// the registry DB is deleted — without this the images orphan beyond
+    /// recovery by key. Order is unspecified.
+    #[must_use]
+    pub fn all_snapshot_ids(&self) -> Vec<SnapshotId> {
+        let Ok(conn) = self.conn.lock() else {
+            return Vec::new();
+        };
+        let Ok(mut stmt) = conn.prepare("SELECT snapshot_id FROM snapshots") else {
+            return Vec::new();
+        };
+        stmt.query_map([], |row| row.get::<_, String>(0).map(SnapshotId::new))
+            .ok()
+            .map(|rows| rows.filter_map(Result::ok).collect())
+            .unwrap_or_default()
+    }
+
     /// Returns the number of cached entries.
     #[must_use]
     pub fn len(&self) -> u64 {
@@ -177,11 +197,12 @@ impl ImageRegistry {
     /// its capacity. Returns the snapshot IDs of evicted entries.
     fn evict_overflow(&self) -> Vec<SnapshotId> {
         let count = self.len();
-        if count <= self.capacity {
+        let capacity = self.capacity.get();
+        if count <= capacity {
             return Vec::new();
         }
 
-        let overflow = count - self.capacity;
+        let overflow = count - capacity;
 
         let Ok(conn) = self.conn.lock() else {
             return Vec::new();
@@ -224,6 +245,7 @@ mod tests {
     fn open_temp(capacity: u64) -> (ImageRegistry, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("registry.db");
+        let capacity = NonZeroU64::new(capacity).expect("capacity must be non-zero");
         let registry = ImageRegistry::open(&db_path, capacity).expect("failed to open registry");
         (registry, dir)
     }
@@ -297,17 +319,36 @@ mod tests {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("registry.db");
 
+        let capacity = NonZeroU64::new(10).expect("capacity must be non-zero");
+
         {
-            let reg = ImageRegistry::open(&db_path, 10).expect("open");
+            let reg = ImageRegistry::open(&db_path, capacity).expect("open");
             reg.put("persistent", &SnapshotId::new("snap-persist"));
             assert_eq!(reg.len(), 1);
             // reg is dropped here, closing the connection.
         }
 
-        let reg2 = ImageRegistry::open(&db_path, 10).expect("reopen");
+        let reg2 = ImageRegistry::open(&db_path, capacity).expect("reopen");
         assert_eq!(reg2.len(), 1);
         let got = reg2.get("persistent");
         assert_eq!(got, Some(SnapshotId::new("snap-persist")));
+    }
+
+    #[test]
+    fn all_snapshot_ids_returns_every_entry() {
+        let (reg, _dir) = open_temp(10);
+        assert!(reg.all_snapshot_ids().is_empty());
+
+        reg.put("k1", &SnapshotId::new("forever-a"));
+        reg.put("k2", &SnapshotId::new("forever-b"));
+
+        let mut ids: Vec<String> = reg
+            .all_snapshot_ids()
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+        ids.sort();
+        assert_eq!(ids, vec!["forever-a".to_string(), "forever-b".to_string()]);
     }
 
     #[test]
