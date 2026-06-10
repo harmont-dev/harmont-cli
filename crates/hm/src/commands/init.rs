@@ -103,9 +103,7 @@ async fn prompt_cloud_registration(dir: &std::path::Path) -> Result<()> {
 
     if !is_logged_in {
         let want_login = dialoguer::Confirm::new()
-            .with_prompt(
-                "You are not logged in to Harmont Cloud. Log in now?",
-            )
+            .with_prompt("You are not logged in to Harmont Cloud. Log in now?")
             .default(false)
             .interact()
             .unwrap_or(false);
@@ -129,9 +127,7 @@ async fn prompt_cloud_registration(dir: &std::path::Path) -> Result<()> {
         .into_inner();
 
     if orgs.data.is_empty() {
-        tracing::warn!(
-            "no organizations found — create one at https://app.harmont.dev"
-        );
+        tracing::warn!("no organizations found — create one at https://app.harmont.dev");
         return Ok(());
     }
 
@@ -285,9 +281,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         }
     }
 
-    if tty
-        && let Err(e) = prompt_cloud_registration(&args.dir).await
-    {
+    if tty && let Err(e) = prompt_cloud_registration(&args.dir).await {
         tracing::warn!("cloud registration skipped: {e:#}");
     }
 
@@ -306,8 +300,8 @@ pub async fn handle(args: InitArgs) -> Result<()> {
 
     let project_config = hm_config::Config::project_config_path(&args.dir);
     if project_config.exists() {
-        let cfg = hm_config::Config::load_from_paths(None, Some(&project_config))
-            .unwrap_or_default();
+        let cfg =
+            hm_config::Config::load_from_paths(None, Some(&project_config)).unwrap_or_default();
         if cfg.backend == "cloud" {
             tracing::info!("next step: run `hm run` to execute your pipeline on Harmont Cloud");
         } else {
