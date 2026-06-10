@@ -37,7 +37,7 @@ export function renderEnvelope(
   const pipelineOrg =
     opts?.pipelineOrg ??
     (typeof process !== "undefined"
-      ? process.env.HARMONT_PIPELINE_ORG
+      ? process.env.HM_PIPELINE_ORG
       : undefined) ??
     "default";
   const now = opts?.now ?? Math.floor(Date.now() / 1000);

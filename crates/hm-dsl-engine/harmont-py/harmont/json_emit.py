@@ -37,8 +37,8 @@ def pipeline_to_json(
 
     Resolves cache keys before serialization. Defaults mirror the
     environment hooks of the old Scheme renderer:
-      pipeline_org  <- env["HARMONT_PIPELINE_ORG"] or "default"
-      pipeline_slug <- env["HARMONT_PIPELINE_SLUG"] or "default"
+      pipeline_org  <- env["HM_PIPELINE_ORG"] or "default"
+      pipeline_slug <- env["HM_PIPELINE_SLUG"] or "default"
       now           <- int(time.time())
       base_path     <- Path.cwd()
       env           <- os.environ
@@ -47,12 +47,12 @@ def pipeline_to_json(
     org = (
         pipeline_org
         if pipeline_org is not None
-        else env_map.get("HARMONT_PIPELINE_ORG", "default")
+        else env_map.get("HM_PIPELINE_ORG", "default")
     )
     slug = (
         pipeline_slug
         if pipeline_slug is not None
-        else env_map.get("HARMONT_PIPELINE_SLUG", "default")
+        else env_map.get("HM_PIPELINE_SLUG", "default")
     )
     render_now = now if now is not None else int(time.time())
     bp = base_path if base_path is not None else Path.cwd()

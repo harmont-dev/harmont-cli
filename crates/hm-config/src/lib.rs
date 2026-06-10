@@ -108,7 +108,7 @@ impl Config {
     ///
     /// Env precedence (highest): both the `HM_`-prefixed split form
     /// (`HM_CLOUD__ORG`, `HM_CLOUD__API_URL`) and the documented
-    /// `HARMONT_ORG` / `HARMONT_API_URL` are honored; the latter map onto
+    /// `HM_ORG` / `HM_API_URL` are honored; the latter map onto
     /// `cloud.org` / `cloud.api_url`.
     ///
     /// # Errors
@@ -126,7 +126,7 @@ impl Config {
 
         figment = figment
             .merge(Env::prefixed("HM_").split("__"))
-            .merge(harmont_env());
+            .merge(hm_alias_env());
 
         Ok(figment.extract()?)
     }
@@ -157,19 +157,19 @@ impl Config {
     }
 }
 
-/// Figment env provider mapping the documented `HARMONT_*` variables onto
-/// the `cloud` config keys.
+/// Figment env provider mapping the friendly `HM_ORG` / `HM_API_URL`
+/// variables onto the nested `cloud` config keys.
 ///
 /// The cloud settings docs and `hm`'s error messages tell users to
-/// `set HARMONT_ORG=<slug>` / `HARMONT_API_URL=<url>`, so those names must
-/// actually feed the config. This binds them to `cloud.org` / `cloud.api_url`
-/// without disturbing the existing `HM_`-prefixed layer.
-fn harmont_env() -> Env {
+/// `set HM_ORG=<slug>` / `HM_API_URL=<url>`, so those flat names must feed
+/// the config. This binds them to `cloud.org` / `cloud.api_url` alongside the
+/// generic `HM_`-prefixed split layer (`HM_CLOUD__ORG`, …).
+fn hm_alias_env() -> Env {
     Env::raw()
-        .only(&["HARMONT_ORG", "HARMONT_API_URL"])
+        .only(&["HM_ORG", "HM_API_URL"])
         .map(|key| match key.as_str() {
-            "HARMONT_ORG" => "cloud.org".into(),
-            "HARMONT_API_URL" => "cloud.api_url".into(),
+            "HM_ORG" => "cloud.org".into(),
+            "HM_API_URL" => "cloud.api_url".into(),
             other => other.into(),
         })
         .split(".")
@@ -185,7 +185,7 @@ mod tests {
     /// Serializes every test that resolves config through `load_*`.
     ///
     /// All `load_*` paths merge the process environment as their top layer, so
-    /// a test that sets `HARMONT_*` (via `figment::Jail`, which mutates the
+    /// a test that sets `HM_*` (via `figment::Jail`, which mutates the
     /// real process env for the duration of its closure) would otherwise leak
     /// into a concurrently-running file-layering test. Holding this lock for
     /// the whole body of any env-or-load test makes them mutually exclusive.
@@ -330,12 +330,12 @@ org = "project-org"
 
     #[test]
     #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
-    fn harmont_env_overrides_cloud_keys() {
+    fn hm_env_overrides_cloud_keys() {
         let _g = env_guard();
         // `Jail` isolates env mutation from concurrently-running tests.
         figment::Jail::expect_with(|jail| {
-            jail.set_env("HARMONT_ORG", "env-org");
-            jail.set_env("HARMONT_API_URL", "https://env.api");
+            jail.set_env("HM_ORG", "env-org");
+            jail.set_env("HM_API_URL", "https://env.api");
 
             let cfg = Config::load_from_paths(None, None).unwrap();
             assert_eq!(cfg.cloud.org.as_deref(), Some("env-org"));
@@ -346,11 +346,11 @@ org = "project-org"
 
     #[test]
     #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
-    fn harmont_env_overrides_user_file() {
+    fn hm_env_overrides_user_file() {
         let _g = env_guard();
         // Env is the highest-precedence layer: it wins over a user file.
         figment::Jail::expect_with(|jail| {
-            jail.set_env("HARMONT_ORG", "env-org");
+            jail.set_env("HM_ORG", "env-org");
 
             jail.create_file(
                 "config.toml",

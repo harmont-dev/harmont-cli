@@ -1,6 +1,6 @@
 """End-to-end render checks against harmont-cli example pipelines.
 
-Gated: skipped when HARMONT_CLI_PATH is unset. CI sets it after
+Gated: skipped when HM_CLI_PATH is unset. CI sets it after
 cloning harmont-cli.
 """
 
@@ -24,7 +24,7 @@ EXAMPLES_ROOT = harmont_cli_examples_root()
 
 pytestmark = pytest.mark.skipif(
     EXAMPLES_ROOT is None,
-    reason="HARMONT_CLI_PATH not set or examples/ missing",
+    reason="HM_CLI_PATH not set or examples/ missing",
 )
 
 

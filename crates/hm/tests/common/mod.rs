@@ -15,11 +15,11 @@ pub fn hm_bin() -> assert_cmd::Command {
 /// Build an `hm` command wired against a wiremock `MockServer`.
 ///
 /// The harness sets:
-/// - `HARMONT_API_URL`  → the mock server's URI (random localhost port)
-/// - `HARMONT_API_TOKEN` → a fake bearer (`test-token`) so `require_auth`
+/// - `HM_API_URL`  → the mock server's URI (random localhost port)
+/// - `HM_API_TOKEN` → a fake bearer (`test-token`) so `require_auth`
 ///   passes without reading from the file credential store; the mock
 ///   accepts any value
-/// - `HARMONT_ORG` → the supplied slug, so subcommands that need an org
+/// - `HM_ORG` → the supplied slug, so subcommands that need an org
 ///   resolve it without reading a config file
 ///
 /// The returned `Command` is ready to `.assert()`. Callers can chain
@@ -27,9 +27,9 @@ pub fn hm_bin() -> assert_cmd::Command {
 #[must_use]
 pub fn hm_command(server: &wiremock::MockServer, org: &str, args: &[&str]) -> assert_cmd::Command {
     let mut cmd = hm_bin();
-    cmd.env("HARMONT_API_URL", server.uri())
-        .env("HARMONT_API_TOKEN", "test-token")
-        .env("HARMONT_ORG", org)
+    cmd.env("HM_API_URL", server.uri())
+        .env("HM_API_TOKEN", "test-token")
+        .env("HM_ORG", org)
         .args(args);
     cmd
 }

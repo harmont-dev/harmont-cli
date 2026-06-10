@@ -3,10 +3,10 @@
 //! Config and credentials are owned by the shared [`hm_config`] crate:
 //!
 //! - layered config (user `~/.config/hm/config.toml` + project
-//!   `.hm/config.toml` + `HARMONT_*` env) supplies the API base
+//!   `.hm/config.toml` + `HM_*` env) supplies the API base
 //!   (`cloud.api_url`) and the active org (`cloud.org`);
 //! - bearer tokens live in `hm_config::creds`, keyed by API base, with
-//!   `HARMONT_API_TOKEN` taking precedence.
+//!   `HM_API_TOKEN` taking precedence.
 //!
 //! This module only assembles an SDK client from that config; it does not own
 //! any config or credential storage of its own.
@@ -46,7 +46,7 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
     let cfg = hm_config::Config::load(None).context("loading config")?; // user + env layering
     let api = cfg.cloud.api_url.clone();
     let token = hm_config::creds::cloud_token(&api)
-        .context("not logged in — run `hm cloud login` or set HARMONT_API_TOKEN")?;
+        .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
     let client = HarmontClient::with_base_url(token, &api);
     Ok((
         client,

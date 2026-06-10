@@ -13,7 +13,7 @@ use predicates::str::contains;
 /// user exactly how to fix it.
 ///
 /// Hermetic: `HOME` is overridden to a fresh temp dir (no
-/// `~/.config/hm/credentials.toml`) and `HARMONT_API_TOKEN` is explicitly
+/// `~/.config/hm/credentials.toml`) and `HM_API_TOKEN` is explicitly
 /// unset, so no credentials can bleed in from the developer's machine.
 #[test]
 fn cloud_unauthed_verb_fails_with_login_hint() {
@@ -22,7 +22,7 @@ fn cloud_unauthed_verb_fails_with_login_hint() {
         .unwrap()
         .args(["cloud", "billing", "balance"])
         .env("HOME", tmp.path())
-        .env_remove("HARMONT_API_TOKEN")
+        .env_remove("HM_API_TOKEN")
         .assert()
         .failure()
         .stderr(contains("not logged in"));

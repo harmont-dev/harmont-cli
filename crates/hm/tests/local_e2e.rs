@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! End-to-end tests for `harmont run --local`.
 //!
-//! Skipped unless `HARMONT_LOCAL_E2E=1` is set AND a Docker daemon is
+//! Skipped unless `HM_LOCAL_E2E=1` is set AND a Docker daemon is
 //! reachable — we don't want CI matrices that lack docker-in-docker
 //! to fail.
 //!
@@ -9,12 +9,12 @@
 //! on identical container names like `harmont-local-<pid>-<step>`:
 //!
 //! ```sh
-//! HARMONT_LOCAL_E2E=1 cargo test --test local_e2e -- --test-threads=1
+//! HM_LOCAL_E2E=1 cargo test --test local_e2e -- --test-threads=1
 //! ```
 //!
 //! The harness auto-discovers the Python `cidsl` package by walking up
 //! from `CARGO_MANIFEST_DIR` (= `cli/`). No env-var setup required from
-//! the operator beyond `HARMONT_LOCAL_E2E=1`.
+//! the operator beyond `HM_LOCAL_E2E=1`.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -27,7 +27,7 @@ use std::process::Command;
 /// exits 0 (printing help) on a healthy CLI even when the daemon is
 /// down, which would defeat the gate.
 fn skip_if_no_docker() -> bool {
-    if std::env::var_os("HARMONT_LOCAL_E2E").is_none() {
+    if std::env::var_os("HM_LOCAL_E2E").is_none() {
         return true;
     }
     let out = Command::new("docker")
@@ -78,7 +78,7 @@ fn run_local(fixture_name: &str) -> std::process::Output {
         .args(["run", "--dir"])
         .arg(tmp.path())
         .arg(fixture_slug(fixture_name))
-        .env("HARMONT_CIDSL_PY", repo_root.join("cidsl/py"))
+        .env("HM_CIDSL_PY", repo_root.join("cidsl/py"))
         .output()
         .expect("spawning harmont binary should not fail")
 }
@@ -245,7 +245,7 @@ fn resolves_pipeline_via_slug() {
         .args(["run", "--dir"])
         .arg(tmp.path())
         .arg("scratch")
-        .env("HARMONT_CIDSL_PY", repo_root.join("cidsl/py"))
+        .env("HM_CIDSL_PY", repo_root.join("cidsl/py"))
         .output()
         .unwrap();
 

@@ -61,12 +61,12 @@ pub const CLOUD_SERVICE: &str = "harmont-cloud";
 
 /// Resolve the cloud bearer token for `api_base`.
 ///
-/// Priority: `HARMONT_API_TOKEN` env (non-empty) first, then the stored
+/// Priority: `HM_API_TOKEN` env (non-empty) first, then the stored
 /// credential keyed by `(CLOUD_SERVICE, api_base)`. Returns `None` when
 /// neither is present, so the caller can produce a clear "not logged in" error.
 #[must_use]
 pub fn cloud_token(api_base: &str) -> Option<String> {
-    if let Ok(t) = std::env::var("HARMONT_API_TOKEN")
+    if let Ok(t) = std::env::var("HM_API_TOKEN")
         && !t.is_empty()
     {
         return Some(t);

@@ -17,18 +17,18 @@ BIN_NAME="hm"
 err() { printf 'error: %s\n' "$*" >&2; }
 die() { err "$*"; exit 1; }
 
-uname_s() { printf '%s' "${HARMONT_UNAME_S:-$(uname -s)}"; }
-uname_m() { printf '%s' "${HARMONT_UNAME_M:-$(uname -m)}"; }
+uname_s() { printf '%s' "${HM_UNAME_S:-$(uname -s)}"; }
+uname_m() { printf '%s' "${HM_UNAME_M:-$(uname -m)}"; }
 
-REPO_RELEASES="${HARMONT_INSTALL_BASE_URL:-https://github.com/harmont-dev/harmont-cli/releases}"
-VERSION="${HARMONT_INSTALL_VERSION:-latest}"
+REPO_RELEASES="${HM_INSTALL_BASE_URL:-https://github.com/harmont-dev/harmont-cli/releases}"
+VERSION="${HM_INSTALL_VERSION:-latest}"
 
 # release.yml names archives `hm-<target>.tar.gz`. Probe the binary name first
 # (what we actually ship), then the package name as a defensive fallback so a
 # future rename of the release asset doesn't silently break installs.
 ASSET_PREFIXES="hm harmont-cli"
 
-install_dir() { printf '%s' "${HARMONT_INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}"; }
+install_dir() { printf '%s' "${HM_INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}"; }
 
 # Build a download URL for an asset (handles "latest" vs a pinned tag).
 asset_url() {

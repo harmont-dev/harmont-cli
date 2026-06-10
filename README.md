@@ -271,7 +271,7 @@ and stores the token in `~/.config/hm/credentials.toml` (mode 0600). No browser?
 Use `hm cloud login --paste`. In CI, set a token instead:
 
 ```sh
-export HARMONT_API_TOKEN=hm_live_...   # takes precedence over the file
+export HM_API_TOKEN=hm_live_...   # takes precedence over the file
 hm run --cloud --org acme
 ```
 
@@ -284,7 +284,7 @@ hm run --cloud --org acme
 
 Settings layer **defaults → user config → project `.hm/config.toml` → env**, so
 you can commit per-repo defaults and still override them locally. Env overrides:
-`HARMONT_API_URL`, `HARMONT_API_TOKEN`.
+`HM_API_URL`, `HM_API_TOKEN`.
 
 ### Managing builds from the CLI
 

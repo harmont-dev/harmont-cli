@@ -1,7 +1,7 @@
 """Shared helpers for rendering external example pipelines.
 
 These tests render the pipeline definitions in harmont-cli/examples/
-to v0 IR JSON. They are gated behind HARMONT_CLI_PATH so they only
+to v0 IR JSON. They are gated behind HM_CLI_PATH so they only
 run when a sibling harmont-cli checkout is available.
 """
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 def harmont_cli_examples_root() -> pathlib.Path | None:
-    raw = os.environ.get("HARMONT_CLI_PATH")
+    raw = os.environ.get("HM_CLI_PATH")
     if not raw:
         return None
     p = pathlib.Path(raw) / "examples"
