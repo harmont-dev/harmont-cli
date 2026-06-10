@@ -107,6 +107,7 @@ fn cloud_backend_capabilities() {
     let c = hm_exec::CloudBackend::new(
         harmont_cloud::HarmontClient::with_base_url("t", "http://localhost"),
         "http://localhost".into(),
+        "http://localhost".into(),
         "acme".into(),
     );
     assert_eq!(c.name(), "cloud");
