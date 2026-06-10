@@ -8,7 +8,8 @@ use tracing::{instrument, warn};
 use crate::backend::VmBackend;
 use crate::registry::ImageRegistry;
 use crate::types::{
-    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotId, VmConfig,
+    Action, CachingPolicy, ExecutionResult, ImageSource, OutputSink, SnapshotId, SnapshotLabel,
+    VmConfig,
 };
 
 /// High-level orchestrator that drives the VM lifecycle.
@@ -123,16 +124,16 @@ impl HmVm {
         // 5. Snapshot and cache on success
         let snapshot = if exit_code == 0 {
             let label = match policy {
-                CachingPolicy::Cache { key } => key.as_str(),
-                CachingPolicy::None => "ephemeral",
+                CachingPolicy::Cache { key } => SnapshotLabel::Cached(key.clone()),
+                CachingPolicy::None => SnapshotLabel::Ephemeral,
             };
-            let snap = vm.snapshot(label).await?;
+            let snap = vm.snapshot(&label).await?;
 
             if let CachingPolicy::Cache { key } = policy {
                 let evicted = self.registry.put(key, &snap);
                 for old in &evicted {
                     if let Err(e) = self.backend.remove_snapshot(old).await {
-                        warn!(snapshot = %old.0, error = %e, "failed to remove evicted snapshot");
+                        warn!(snapshot = %old, error = %e, "failed to remove evicted snapshot");
                     }
                 }
             }
@@ -200,7 +201,7 @@ mod tests {
         async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
             self.calls
                 .lock()
-                .map_or_else(|_| {}, |mut c| c.push(format!("restore:{}", snapshot.0)));
+                .map_or_else(|_| {}, |mut c| c.push(format!("restore:{snapshot}")));
             Ok(Box::new(MockVm {
                 calls: Arc::clone(&self.calls),
                 exit_code: self.exit_code,
@@ -210,7 +211,7 @@ mod tests {
         async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
             self.calls.lock().map_or_else(
                 |_| {},
-                |mut c| c.push(format!("snapshot_exists:{}", snapshot.0)),
+                |mut c| c.push(format!("snapshot_exists:{snapshot}")),
             );
             Ok(self.snapshot_exists)
         }
@@ -218,7 +219,7 @@ mod tests {
         async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
             self.calls.lock().map_or_else(
                 |_| {},
-                |mut c| c.push(format!("remove_snapshot:{}", snapshot.0)),
+                |mut c| c.push(format!("remove_snapshot:{snapshot}")),
             );
             Ok(())
         }
@@ -252,11 +253,15 @@ mod tests {
             Ok(self.exit_code)
         }
 
-        async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
+        async fn snapshot(&mut self, label: &SnapshotLabel) -> Result<SnapshotId> {
+            let label = match label {
+                SnapshotLabel::Ephemeral => "ephemeral".to_string(),
+                SnapshotLabel::Cached(key) => key.clone(),
+            };
             self.calls
                 .lock()
                 .map_or_else(|_| {}, |mut c| c.push(format!("snapshot:{label}")));
-            Ok(SnapshotId(format!("snap-{label}")))
+            Ok(SnapshotId::new(format!("snap-{label}")))
         }
 
         async fn destroy(&mut self) -> Result<()> {
@@ -332,7 +337,7 @@ mod tests {
         let (registry, _dir) = open_temp_registry(10);
 
         // Pre-populate the registry.
-        registry.put("step-1", &SnapshotId("cached-snap".into()));
+        registry.put("step-1", &SnapshotId::new("cached-snap"));
 
         let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
 
@@ -349,7 +354,7 @@ mod tests {
 
         assert_eq!(result.exit_code, 0);
         assert!(result.cached);
-        assert_eq!(result.snapshot, Some(SnapshotId("cached-snap".into())));
+        assert_eq!(result.snapshot, Some(SnapshotId::new("cached-snap")));
 
         let log = calls(&backend);
         // Only snapshot_exists should have been called -- no create, exec, etc.

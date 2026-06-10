@@ -85,7 +85,7 @@ async fn remove_registered_images(db_path: &std::path::Path) {
         match backend.remove_snapshot(snap).await {
             Ok(()) => removed += 1,
             Err(e) => {
-                tracing::warn!(image = %snap.0, error = %e, "failed to remove cached image");
+                tracing::warn!(image = %snap, error = %e, "failed to remove cached image");
             }
         }
     }

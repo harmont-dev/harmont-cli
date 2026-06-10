@@ -69,10 +69,13 @@ _RUN_PREFIX: dict[PackageManager, str] = {
 }
 
 
-def _pm_bootstrap(pm: PackageManager, runtime: Runtime) -> str | None:
+def _pm_bootstrap(pm: PackageManager, runtime: Runtime, version: str | None = None) -> str | None:
     """Command to bring ``pm`` onto the runtime image, or ``None`` when the PM
     already ships with the runtime (npm with node, bun/deno with their own
-    runtime)."""
+    runtime).
+
+    When ``version`` is set (from the project's ``packageManager`` field),
+    corepack-managed PMs pin that exact version with ``corepack install -g``."""
     if pm == "npm":
         return None  # bundled with node
     if pm == "bun":
@@ -80,10 +83,18 @@ def _pm_bootstrap(pm: PackageManager, runtime: Runtime) -> str | None:
     if pm == "deno":
         return None  # bundled with deno
     if pm == "pnpm":
-        return "corepack enable pnpm"
+        return (
+            f"corepack enable pnpm && corepack install -g pnpm@{version}"
+            if version is not None
+            else "corepack enable pnpm"
+        )
     # corepack resolves the exact yarn from the `packageManager` field; its
     # bundled default is classic 1.x, which suits yarn-classic.
-    return "corepack enable"
+    return (
+        f"corepack enable yarn && corepack install -g yarn@{version}"
+        if version is not None
+        else "corepack enable"
+    )
 
 
 def _validate_version(runtime: Runtime, version: str) -> None:
@@ -171,6 +182,7 @@ def _make_js(
 
     # --- Node / Bun runtime ---
     detected_pm = detected.pm if detected else None
+    pm_version = detected.pm_version if detected else None
     resolved_pm: PackageManager = (
         pm
         if pm is not None
@@ -205,14 +217,22 @@ def _make_js(
     )
 
     # Layer the package manager onto the runtime image when it isn't bundled.
-    bootstrap = _pm_bootstrap(resolved_pm, runtime)
+    # When a pinned version is detected, the bootstrap step's snapshot must be
+    # rebuilt whenever package.json (hence the pin) changes; otherwise it is a
+    # deterministic, forever-cacheable install.
+    bootstrap = _pm_bootstrap(resolved_pm, runtime, pm_version)
+    bootstrap_cache = (
+        CacheOnChange(paths=(f"{path}/package.json",))
+        if pm_version is not None
+        else CacheForever(env_keys=())
+    )
     pm_ready = (
         runtime_installed
         if bootstrap is None
         else runtime_installed.sh(
             bootstrap,
             label=f":{lang_tag}: {resolved_pm}",
-            cache=CacheForever(env_keys=()),
+            cache=bootstrap_cache,
         )
     )
 

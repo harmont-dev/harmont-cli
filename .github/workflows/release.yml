@@ -34,10 +34,16 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-          # Bump crate versions
+          # Bump crate versions. Every workspace member that harmont-cli
+          # depends on (directly or transitively) must be published, so each
+          # one needs the tagged version stamped in.
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-util/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-pipeline-ir/Cargo.toml
+          sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-config/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-plugin-protocol/Cargo.toml
+          sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-render/Cargo.toml
+          sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-vm/Cargo.toml
+          sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-exec/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-plugin-cloud/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-dsl-engine/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm/Cargo.toml
@@ -45,13 +51,28 @@ jobs:
           # Rewrite workspace.dependencies pins so dependents resolve to the
           # tagged version (cargo publish strips path deps; the version field
           # is what consumers will receive).
-          sed -i "s|hm-util            = { path = \"crates/hm-util\",            version = \"0.0.0-dev\" }|hm-util            = { path = \"crates/hm-util\",            version = \"$VERSION\" }|" Cargo.toml
-          sed -i "s|hm-pipeline-ir     = { path = \"crates/hm-pipeline-ir\",     version = \"0.0.0-dev\" }|hm-pipeline-ir     = { path = \"crates/hm-pipeline-ir\",     version = \"$VERSION\" }|" Cargo.toml
+          sed -i "s|hm-exec           = { path = \"crates/hm-exec\",            version = \"0.0.0-dev\" }|hm-exec           = { path = \"crates/hm-exec\",            version = \"$VERSION\" }|" Cargo.toml
           sed -i "s|hm-plugin-protocol = { path = \"crates/hm-plugin-protocol\", version = \"0.0.0-dev\" }|hm-plugin-protocol = { path = \"crates/hm-plugin-protocol\", version = \"$VERSION\" }|" Cargo.toml
           sed -i "s|hm-plugin-cloud    = { path = \"crates/hm-plugin-cloud\",    version = \"0.0.0-dev\" }|hm-plugin-cloud    = { path = \"crates/hm-plugin-cloud\",    version = \"$VERSION\" }|" Cargo.toml
+          sed -i "s|hm-pipeline-ir     = { path = \"crates/hm-pipeline-ir\",     version = \"0.0.0-dev\" }|hm-pipeline-ir     = { path = \"crates/hm-pipeline-ir\",     version = \"$VERSION\" }|" Cargo.toml
+          sed -i "s|hm-util            = { path = \"crates/hm-util\",            version = \"0.0.0-dev\" }|hm-util            = { path = \"crates/hm-util\",            version = \"$VERSION\" }|" Cargo.toml
+          sed -i "s|hm-config          = { path = \"crates/hm-config\",          version = \"0.0.0-dev\" }|hm-config          = { path = \"crates/hm-config\",          version = \"$VERSION\" }|" Cargo.toml
           sed -i "s|hm-dsl-engine      = { path = \"crates/hm-dsl-engine\",     version = \"0.0.0-dev\" }|hm-dsl-engine      = { path = \"crates/hm-dsl-engine\",     version = \"$VERSION\" }|" Cargo.toml
+          sed -i "s|hm-render          = { path = \"crates/hm-render\",          version = \"0.0.0-dev\" }|hm-render          = { path = \"crates/hm-render\",          version = \"$VERSION\" }|" Cargo.toml
+          sed -i "s|hm-vm              = { path = \"crates/hm-vm\",              version = \"0.0.0-dev\" }|hm-vm              = { path = \"crates/hm-vm\",              version = \"$VERSION\" }|" Cargo.toml
 
           cargo check --workspace --exclude hm-fixtures
+
+      - name: Publishability guard (dry-run package the whole graph)
+        # Fail fast before any real `cargo publish` if the dependency graph
+        # isn't publishable — e.g. a publishable crate depending on a
+        # `publish = false` crate, or a missing version bump. `cargo package
+        # --workspace` resolves sibling path deps locally (no index lookup,
+        # unlike `cargo publish --dry-run`, which the not-yet-published deps
+        # would fail), so it catches exactly the publish=false / unpublished-dep
+        # class of regression. `--no-verify` skips the per-crate rebuild;
+        # `cargo check --workspace` above already proved it compiles.
+        run: cargo package --workspace --exclude hm-fixtures --allow-dirty --no-verify
 
       - name: Publish hm-util
         run: |
@@ -75,12 +96,56 @@ jobs:
       - name: Wait for crates.io index
         run: sleep 30
 
+      - name: Publish hm-config
+        run: |
+          if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-config/$VERSION" > /dev/null 2>&1; then
+            echo "hm-config@$VERSION already published, skipping"
+          else
+            cargo publish -p hm-config --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+          fi
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
       - name: Publish hm-plugin-protocol
         run: |
           if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-plugin-protocol/$VERSION" > /dev/null 2>&1; then
             echo "hm-plugin-protocol@$VERSION already published, skipping"
           else
             cargo publish -p hm-plugin-protocol --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+          fi
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish hm-render
+        run: |
+          if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-render/$VERSION" > /dev/null 2>&1; then
+            echo "hm-render@$VERSION already published, skipping"
+          else
+            cargo publish -p hm-render --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+          fi
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish hm-vm
+        run: |
+          if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-vm/$VERSION" > /dev/null 2>&1; then
+            echo "hm-vm@$VERSION already published, skipping"
+          else
+            cargo publish -p hm-vm --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+          fi
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish hm-exec
+        run: |
+          if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-exec/$VERSION" > /dev/null 2>&1; then
+            echo "hm-exec@$VERSION already published, skipping"
+          else
+            cargo publish -p hm-exec --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
           fi
 
       - name: Wait for crates.io index
