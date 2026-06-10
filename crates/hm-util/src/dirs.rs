@@ -27,14 +27,6 @@ pub fn hm_workspace_cache_dir() -> Option<PathBuf> {
     hm_cache_dir().map(|c| c.join("workspaces"))
 }
 
-/// `~/.harmont/` — the pre-unification config + cache directory. Defunct:
-/// current code resolves config/creds under `~/.config/hm/` and cache under
-/// `~/.cache/hm/`. This accessor exists only so `hm cache clean` can remove
-/// stale leftovers; nothing should ever write here.
-pub fn legacy_harmont_dir() -> Option<PathBuf> {
-    platform::home_dir().map(|h| h.join(".harmont"))
-}
-
 /// Walk up from `start` looking for a directory containing `.hm/`.
 /// Returns the project root (the directory *containing* `.hm/`),
 /// or `None` if the filesystem root is reached without finding one.
@@ -74,12 +66,6 @@ mod tests {
     fn hm_workspace_cache_dir_resolves() {
         let p = hm_workspace_cache_dir().unwrap();
         assert!(p.ends_with("hm/workspaces"), "got {p:?}");
-    }
-
-    #[test]
-    fn legacy_harmont_dir_under_home() {
-        let p = legacy_harmont_dir().unwrap();
-        assert!(p.ends_with(".harmont"), "got {p:?}");
     }
 
     #[test]
