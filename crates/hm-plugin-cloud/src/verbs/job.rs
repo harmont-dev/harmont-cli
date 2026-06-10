@@ -69,10 +69,10 @@ async fn log_cmd(
     let token = client.log_token(org, pipe, build).await?;
     let log_base = client.base_url().to_string();
 
-    let (color, _logs) = settings::render_prefs();
+    let prefs = settings::RenderPrefs::detect();
     // A single-job tail is always a flat log stream, so force the streaming
     // HumanRenderer (logs = true) regardless of TTY.
-    let renderer = hm_render::renderer_for("human", color, true)?;
+    let renderer = hm_render::renderer_for("human", prefs.color, true)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1024);
     let driver = tokio::spawn(hm_render::drive(renderer, rx));
 
