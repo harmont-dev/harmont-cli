@@ -131,8 +131,8 @@ impl Config {
         hm_util::os::fs::blocking::write_atomic_restricted(
             path,
             serialized.as_bytes(),
-            0o644,
-            0o700,
+            hm_util::os::fs::FileMode(0o644),
+            hm_util::os::fs::DirMode(0o700),
         )
         .with_context(|| format!("writing {}", path.display()))
     }
