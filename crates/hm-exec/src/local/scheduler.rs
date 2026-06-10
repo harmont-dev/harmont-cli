@@ -72,6 +72,12 @@ struct StepOutcome {
     /// True when the snapshot is ephemeral and must be cleaned up after
     /// all downstream steps finish.
     ephemeral_snapshot: bool,
+    /// Set when this step did not complete successfully — it failed, timed
+    /// out, was cancelled, or was itself skipped. Descendants gate on this
+    /// (not on `exit_code`) so a skip propagates transitively: a skipped
+    /// step reports `exit_code == 0`, so the exit code alone cannot
+    /// distinguish "passed" from "skipped" and the cascade would break.
+    failed_or_skipped: bool,
 }
 
 type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
@@ -233,8 +239,12 @@ pub(crate) async fn run(
             // Run the step (or short-circuit). All exit paths of this inner
             // block flow into the workspace refcount release below.
             let outcome = async {
-                // Early exit if any predecessor failed or the build was cancelled.
-                if cancel.is_cancelled() || pred_outcomes.iter().any(|o| o.exit_code != 0) {
+                // Early exit if any predecessor failed/was skipped, or the build
+                // was cancelled. Gating on `failed_or_skipped` (not `exit_code`)
+                // is what makes the skip propagate transitively: a skipped
+                // predecessor reports `exit_code == 0`, so an exit-code-only gate
+                // would let a skipped step's descendants run anyway.
+                if cancel.is_cancelled() || pred_outcomes.iter().any(|o| o.failed_or_skipped) {
                     let status = if cancel.is_cancelled() {
                         StepStatus::Canceled
                     } else {
@@ -252,6 +262,7 @@ pub(crate) async fn run(
                         }),
                         ephemeral_snapshot: false,
                         workspace_dir: None,
+                        failed_or_skipped: true,
                     };
                 }
 
@@ -306,6 +317,7 @@ pub(crate) async fn run(
                             }),
                             workspace_dir: None,
                             ephemeral_snapshot: false,
+                            failed_or_skipped: true,
                         }
                     }
                 }
@@ -371,6 +383,22 @@ pub(crate) async fn run(
     };
     let outcomes: Vec<StepOutcome> = join_all(pending).await;
     let any_failed = outcomes.iter().any(|o| o.exit_code != 0);
+
+    // Reap ephemeral leaf snapshots. Uncached steps commit an `ephemeral:*`
+    // image for downstream container lineage; the cache registry never tracks
+    // them, so once the run is over nothing else will. Collect every such
+    // snapshot the steps produced and ask the default runner to remove them
+    // (best-effort — failures are logged, not fatal).
+    let ephemeral: Vec<SnapshotRef> = outcomes
+        .iter()
+        .filter_map(|o| o.snapshot.clone())
+        .filter(|s| s.0.starts_with("ephemeral:"))
+        .collect();
+    if !ephemeral.is_empty()
+        && let Some(runner) = runner_registry.resolve(None)
+    {
+        runner.reap_snapshots(ephemeral).await;
+    }
 
     // Derive the overall verdict. Timeout wins (it also fired cancellation);
     // then cancellation; then any failed step; otherwise the build passed.
@@ -476,10 +504,13 @@ async fn execute_step(
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
         let cmd = step_wire.cmd.trim();
-        if cmd.len() <= 40 {
+        if cmd.chars().count() <= 40 {
             cmd.to_owned()
         } else {
-            format!("{}…", &cmd[..39])
+            // Truncate on a char boundary, not a byte offset: `&cmd[..39]`
+            // panics if byte 39 falls inside a multibyte UTF-8 sequence.
+            let truncated: String = cmd.chars().take(39).collect();
+            format!("{truncated}…")
         }
     });
     let env_map = transition.env;
@@ -630,6 +661,7 @@ async fn execute_step(
             }),
             workspace_dir,
             ephemeral_snapshot,
+            failed_or_skipped: true,
         });
     }
 
@@ -674,6 +706,7 @@ async fn execute_step(
                 }),
                 workspace_dir: sr.workspace_dir,
                 ephemeral_snapshot: sr.ephemeral_snapshot,
+                failed_or_skipped: sr.exit_code != 0,
             })
         }
         Err(e) => {

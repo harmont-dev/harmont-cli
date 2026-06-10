@@ -254,6 +254,20 @@ impl HmVm {
         result
     }
 
+    /// Remove a snapshot from the backend store.
+    ///
+    /// Used to reap ephemeral (uncached) leaf snapshots once a run finishes —
+    /// `CachingPolicy::None` commits a transient `ephemeral:*` image purely for
+    /// downstream container lineage, and nothing in the registry ever evicts
+    /// it. The scheduler reaps these explicitly at run end.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to remove the snapshot.
+    pub async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
+        self.backend.remove_snapshot(snapshot).await
+    }
+
     /// Best-effort sweep of aged snapshot images that neither a registry
     /// row nor this run's deferred-eviction queue references.
     ///
