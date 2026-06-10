@@ -155,11 +155,13 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 /// so the backend never has to defend against a zero count.
 fn resolve_parallelism(args: &RunArgs) -> std::num::NonZeroUsize {
     use std::num::NonZeroUsize;
-    match args.parallelism {
-        Some(n) => NonZeroUsize::new(n).unwrap_or(NonZeroUsize::MIN),
-        None => std::thread::available_parallelism()
-            .unwrap_or(NonZeroUsize::new(4).unwrap_or(NonZeroUsize::MIN)),
-    }
+    /// Last-resort parallelism when neither `--parallelism` nor
+    /// `available_parallelism()` yields a usable value.
+    const FALLBACK: NonZeroUsize = NonZeroUsize::new(4).unwrap();
+    args.parallelism.map_or_else(
+        || std::thread::available_parallelism().unwrap_or(FALLBACK),
+        |n| NonZeroUsize::new(n).unwrap_or(NonZeroUsize::MIN),
+    )
 }
 
 /// Parse `KEY=VALUE` pairs into a map, dropping malformed entries.
