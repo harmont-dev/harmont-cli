@@ -30,6 +30,7 @@ pub enum StdStream {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant,
 )]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BuildEvent {
     BuildStart {
         run_id: Uuid,

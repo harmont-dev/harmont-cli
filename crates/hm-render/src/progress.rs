@@ -336,14 +336,13 @@ where
                 }
             }
 
-            BuildEvent::BuildAccepted { build, watch_url } => {
-                if let Some(url) = watch_url {
-                    let n = build.number.map(|n| format!("#{n} ")).unwrap_or_default();
-                    let _ = writeln!(self.out, "build {n}\u{2192} {url}");
-                }
+            BuildEvent::BuildAccepted {
+                build,
+                watch_url: Some(url),
+            } => {
+                let n = build.number.map(|n| format!("#{n} ")).unwrap_or_default();
+                let _ = writeln!(self.out, "build {n}\u{2192} {url}");
             }
-
-            BuildEvent::ChainFailed { .. } => {}
 
             BuildEvent::BuildEnd {
                 exit_code,
@@ -373,6 +372,8 @@ where
                     );
                 }
             }
+
+            _ => {} // unknown future event: no progress update
         }
     }
 }

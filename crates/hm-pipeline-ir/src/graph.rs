@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 use daggy::Dag;
 
@@ -28,8 +29,10 @@ pub struct CommandStep {
     #[serde(default)]
     pub env: Option<BTreeMap<String, String>>,
     /// Maximum wall-clock seconds before the step is killed.
+    ///
+    /// `NonZeroU32`: a `0`-second budget is rejected at the wire boundary.
     #[serde(default)]
-    pub timeout_seconds: Option<u32>,
+    pub timeout_seconds: Option<NonZeroU32>,
     /// Cache configuration for this step's committed snapshot.
     #[serde(default)]
     pub cache: Option<Cache>,
@@ -88,8 +91,11 @@ pub struct PipelineGraph {
     default_image: Option<String>,
     /// Whole-build wall-clock budget in seconds. When set, the local
     /// orchestrator kills the run and fails it once this elapses.
+    ///
+    /// `NonZeroU32` makes a `0`-second budget (kill immediately) an
+    /// unrepresentable, wire-rejected value rather than a runtime footgun.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    timeout_seconds: Option<u32>,
+    timeout_seconds: Option<NonZeroU32>,
     #[serde(rename = "graph")]
     inner: Dag<Transition, EdgeKind>,
 }
@@ -112,8 +118,11 @@ impl PipelineGraph {
     }
 
     /// Whole-build wall-clock budget in seconds, if the author set one.
+    ///
+    /// The returned value is positive by construction (`0` is rejected at
+    /// the wire boundary), so consumers need no `> 0` guard.
     #[must_use]
-    pub const fn timeout_seconds(&self) -> Option<u32> {
+    pub const fn timeout_seconds(&self) -> Option<NonZeroU32> {
         self.timeout_seconds
     }
 
@@ -128,6 +137,8 @@ impl PipelineGraph {
 mod timeout_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+    use std::num::NonZeroU32;
+
     use super::PipelineGraph;
 
     #[test]
@@ -138,7 +149,17 @@ mod timeout_tests {
             "graph": {"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}
         }"#;
         let g: PipelineGraph = serde_json::from_str(json).unwrap();
-        assert_eq!(g.timeout_seconds(), Some(1800));
+        assert_eq!(g.timeout_seconds(), NonZeroU32::new(1800));
+    }
+
+    #[test]
+    fn rejects_zero_pipeline_timeout_seconds() {
+        let json = r#"{
+            "version": "0",
+            "timeout_seconds": 0,
+            "graph": {"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}
+        }"#;
+        assert!(serde_json::from_str::<PipelineGraph>(json).is_err());
     }
 
     #[test]

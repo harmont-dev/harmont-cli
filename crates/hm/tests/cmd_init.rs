@@ -79,11 +79,15 @@ fn init_existing_pipeline_without_force_warns_and_succeeds() {
 }
 
 #[test]
-fn init_force_overwrites_existing() {
+fn init_force_preserves_coresident_files() {
+    // `--force` must overwrite ONLY the target template file. It must never
+    // wipe the whole `.hm/` directory: config.toml and any co-resident
+    // pipeline (e.g. a hand-written deploy.py) must survive.
     let dir = tempfile::tempdir().unwrap();
     let harmont = dir.path().join(".hm");
     std::fs::create_dir(&harmont).unwrap();
-    std::fs::write(harmont.join("old.py"), "# old").unwrap();
+    std::fs::write(harmont.join("config.toml"), "backend = \"cloud\"\n").unwrap();
+    std::fs::write(harmont.join("deploy.py"), "# co-resident pipeline").unwrap();
 
     hm().args(["init", "--template", "rust", "--force", "--dir"])
         .arg(dir.path())
@@ -91,9 +95,15 @@ fn init_force_overwrites_existing() {
         .success();
 
     assert!(dir.path().join(".hm/pipeline.py").exists());
-    assert!(
-        !harmont.join("old.py").exists(),
-        "stale file should be removed on --force"
+    assert_eq!(
+        std::fs::read_to_string(harmont.join("config.toml")).unwrap(),
+        "backend = \"cloud\"\n",
+        "config.toml must survive --force"
+    );
+    assert_eq!(
+        std::fs::read_to_string(harmont.join("deploy.py")).unwrap(),
+        "# co-resident pipeline",
+        "co-resident pipeline must survive --force"
     );
 }
 

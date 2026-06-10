@@ -22,7 +22,7 @@ use futures::StreamExt;
 use tracing::instrument;
 
 use crate::backend::{Vm, VmBackend};
-use crate::types::{OutputSink, SnapshotId, VmConfig};
+use crate::types::{OutputSink, SnapshotId, SnapshotLabel, VmConfig};
 
 /// Docker-based VM backend.
 ///
@@ -112,7 +112,7 @@ impl VmBackend for DockerBackend {
 
     #[instrument(skip(self, _config))]
     async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
-        let container_id = self.start_container(&snapshot.0).await?;
+        let container_id = self.start_container(snapshot.as_ref()).await?;
         Ok(Box::new(DockerVm {
             client: self.client.clone(),
             container_id: Some(container_id),
@@ -121,14 +121,14 @@ impl VmBackend for DockerBackend {
 
     #[instrument(skip(self))]
     async fn snapshot_exists(&self, snapshot: &SnapshotId) -> Result<bool> {
-        self.image_exists_by_tag(&snapshot.0).await
+        self.image_exists_by_tag(snapshot.as_ref()).await
     }
 
     #[instrument(skip(self))]
     async fn remove_snapshot(&self, snapshot: &SnapshotId) -> Result<()> {
         self.client
             .remove_image(
-                &snapshot.0,
+                snapshot.as_ref(),
                 Some(RemoveImageOptions {
                     force: true,
                     noprune: false,
@@ -136,7 +136,7 @@ impl VmBackend for DockerBackend {
                 None,
             )
             .await
-            .with_context(|| format!("removing image '{}'", snapshot.0))?;
+            .with_context(|| format!("removing image '{snapshot}'"))?;
         Ok(())
     }
 }
@@ -308,20 +308,22 @@ impl Vm for DockerVm {
     }
 
     #[instrument(skip(self))]
-    async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
+    async fn snapshot(&mut self, label: &SnapshotLabel) -> Result<SnapshotId> {
         let cid = self
             .container_id
             .as_deref()
             .context("container already destroyed")?;
-        let parts: Vec<&str> = label.splitn(2, ':').collect();
-        // A bare label (no explicit `repo:tag`) is an ephemeral, uncached
-        // snapshot. Tag it with the unique container id rather than a shared
-        // `:latest`: concurrent sibling leaf steps off the same parent all
-        // commit ephemeral snapshots, and racing to write the same
-        // `ephemeral:latest` image fails the loser of the race in dockerd.
-        let (repo, tag) = match parts.as_slice() {
-            [r, v] => (*r, *v),
-            _ => (label, cid),
+        // An ephemeral, uncached snapshot is committed under a unique tag (the
+        // container id) rather than a shared `:latest`: concurrent sibling leaf
+        // steps off the same parent all commit ephemeral snapshots, and racing
+        // to write the same `ephemeral:latest` image fails the loser of the
+        // race in dockerd. A cached snapshot parses its cache key as `repo:tag`.
+        let (repo, tag) = match label {
+            SnapshotLabel::Ephemeral => ("ephemeral", cid),
+            SnapshotLabel::Cached(key) => match key.split_once(':') {
+                Some((r, v)) => (r, v),
+                None => (key.as_str(), cid),
+            },
         };
         let opts = CommitContainerOptions {
             container: cid,
@@ -344,7 +346,7 @@ impl Vm for DockerVm {
             .await
             .context("commit container")?;
         let full_tag = format!("{repo}:{tag}");
-        Ok(SnapshotId(full_tag))
+        Ok(SnapshotId::new(full_tag))
     }
 
     #[instrument(skip(self))]

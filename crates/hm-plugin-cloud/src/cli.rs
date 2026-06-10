@@ -7,6 +7,29 @@ use clap::{Parser, Subcommand};
 
 use crate::{auth, verbs};
 
+/// Process exit status for the cloud subcommands.
+///
+/// Centralizes the otherwise-magic 0/1/2 integers so each status is
+/// self-documenting and the mapping lives in exactly one place.
+enum ExitCode {
+    /// The command completed successfully.
+    Success,
+    /// The command ran but failed at runtime.
+    RuntimeError,
+    /// The arguments could not be parsed.
+    UsageError,
+}
+
+impl From<ExitCode> for i32 {
+    fn from(code: ExitCode) -> Self {
+        match code {
+            ExitCode::Success => 0,
+            ExitCode::RuntimeError => 1,
+            ExitCode::UsageError => 2,
+        }
+    }
+}
+
 #[derive(Debug, Parser)]
 #[command(
     name = "hm cloud",
@@ -163,7 +186,7 @@ pub async fn dispatch(argv: Vec<String>, env: BTreeMap<String, String>) -> Resul
                         use std::io::Write;
                         std::io::stdout().write_all(msg.as_bytes()).ok();
                     }
-                    Ok(0)
+                    Ok(ExitCode::Success.into())
                 }
                 _ => {
                     #[allow(clippy::print_stderr)]
@@ -171,7 +194,7 @@ pub async fn dispatch(argv: Vec<String>, env: BTreeMap<String, String>) -> Resul
                         use std::io::Write;
                         std::io::stderr().write_all(msg.as_bytes()).ok();
                     }
-                    Ok(2)
+                    Ok(ExitCode::UsageError.into())
                 }
             };
         }
@@ -193,10 +216,10 @@ pub async fn dispatch_command(command: CloudCommand, env: BTreeMap<String, Strin
         CloudCommand::Run(args) => verbs::run::run(&env, args).await,
     };
     match result {
-        Ok(()) => Ok(0),
+        Ok(()) => Ok(ExitCode::Success.into()),
         Err(e) => {
             tracing::error!("{e:#}");
-            Ok(1)
+            Ok(ExitCode::RuntimeError.into())
         }
     }
 }

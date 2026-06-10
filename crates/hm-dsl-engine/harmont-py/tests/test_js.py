@@ -345,6 +345,54 @@ class TestAutoDetection:
 
 
 # ---------------------------------------------------------------------------
+# Corepack version pin (parity with the TypeScript DSL)
+# ---------------------------------------------------------------------------
+
+
+class TestCorepackPin:
+    def test_pnpm_command_includes_version(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text(json.dumps({"packageManager": "pnpm@10.33.0"}))
+        (tmp_path / "pnpm-lock.yaml").touch()
+        deps = js.project(path=str(tmp_path)).install()
+        corepack = deps.parent
+        assert corepack.cmd == "corepack enable pnpm && corepack install -g pnpm@10.33.0"
+
+    def test_yarn_berry_command_includes_version(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text(json.dumps({"packageManager": "yarn@4.5.0"}))
+        (tmp_path / "yarn.lock").touch()
+        deps = js.project(path=str(tmp_path)).install()
+        corepack = deps.parent
+        assert corepack.cmd == "corepack enable yarn && corepack install -g yarn@4.5.0"
+
+    def test_command_has_no_version_when_field_absent(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "pnpm-lock.yaml").touch()
+        deps = js.project(path=str(tmp_path)).install()
+        corepack = deps.parent
+        assert corepack.cmd == "corepack enable pnpm"
+
+    def test_explicit_pm_omits_version(self) -> None:
+        # An explicit pm option skips detection entirely, so no pin is applied.
+        deps = js.project(pm="pnpm").install()
+        corepack = deps.parent
+        assert corepack.cmd == "corepack enable pnpm"
+
+    def test_cache_watches_package_json_when_pinned(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text(json.dumps({"packageManager": "pnpm@10.33.0"}))
+        (tmp_path / "pnpm-lock.yaml").touch()
+        deps = js.project(path=str(tmp_path)).install()
+        corepack = deps.parent
+        assert corepack.cache.paths == (f"{tmp_path}/package.json",)
+
+    def test_cache_is_forever_when_no_field(self, tmp_path) -> None:
+        (tmp_path / "package.json").write_text("{}")
+        (tmp_path / "pnpm-lock.yaml").touch()
+        deps = js.project(path=str(tmp_path)).install()
+        corepack = deps.parent
+        assert corepack.cache == hm.CacheForever(env_keys=())
+
+
+# ---------------------------------------------------------------------------
 # ts alias
 # ---------------------------------------------------------------------------
 

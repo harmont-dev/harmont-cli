@@ -20,6 +20,16 @@ pub enum BackendError {
     LogStream(String),
     #[error("local execution error: {0}")]
     Local(String),
+    /// The worktree archive exceeds the upload cap. Carries the observed
+    /// (compressed) size, the cap, and a human hint naming the largest
+    /// top-level paths so the user can `.gitignore` the offenders. Fails fast
+    /// BEFORE the upload (see the cloud backend's `start`).
+    #[error("source archive is {observed_bytes} bytes (cap {cap_bytes})")]
+    SourceTooLarge {
+        observed_bytes: u64,
+        cap_bytes: u64,
+        largest_paths: Vec<(String, u64)>,
+    },
     #[error(transparent)]
     Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
