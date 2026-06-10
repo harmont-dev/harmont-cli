@@ -15,7 +15,7 @@ use crate::DslLanguage;
 pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
     let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
-        missing_hm_dir(repo_root)?;
+        bail!("no .hm/ directory found in {}", repo_root.display());
     }
     match scan_extensions(repo_root)? {
         // When both languages are present, prefer TypeScript.
@@ -40,28 +40,13 @@ pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
 pub fn detect_language_python_first(repo_root: &Path) -> anyhow::Result<DslLanguage> {
     let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
-        missing_hm_dir(repo_root)?;
+        bail!("no .hm/ directory found in {}", repo_root.display());
     }
     match scan_extensions(repo_root)? {
         (true, _) => Ok(DslLanguage::Python),
         (false, true) => Ok(DslLanguage::TypeScript),
         (false, false) => bail!("no .py or .ts files found in {}", harmont_dir.display()),
     }
-}
-
-/// Bail with a doctrine-shaped error when `.hm/` is absent.
-///
-/// If the repo still carries a pre-rename `.harmont/` pipeline directory, the
-/// message points precisely at the rename and the one-line fix instead of the
-/// bare "no .hm/ directory found", which left upgrading users stranded.
-fn missing_hm_dir(repo_root: &Path) -> anyhow::Result<()> {
-    if repo_root.join(".harmont").is_dir() {
-        bail!(
-            "found a legacy .harmont/ pipeline directory in {} — it was renamed to .hm/ in this release\n  \u{2192} rename it: mv .harmont .hm",
-            repo_root.display()
-        );
-    }
-    bail!("no .hm/ directory found in {}", repo_root.display());
 }
 
 /// True when `.hm/` exists and holds at least one `.py` or `.ts` file.
@@ -146,23 +131,6 @@ mod tests {
         let err = detect_language(tmp.path()).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("no .hm/ directory"), "unexpected error: {msg}");
-    }
-
-    #[test]
-    fn legacy_harmont_dir_emits_migration_hint() {
-        let tmp = TempDir::new().unwrap();
-        // Pre-rename layout: `.harmont/` present, `.hm/` absent.
-        fs::create_dir(tmp.path().join(".harmont")).unwrap();
-        let err = detect_language(tmp.path()).unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("legacy .harmont/"), "unexpected error: {msg}");
-        assert!(msg.contains("mv .harmont .hm"), "unexpected error: {msg}");
-        // The same hint flows through the python-first path.
-        let err2 = detect_language_python_first(tmp.path()).unwrap_err();
-        assert!(
-            err2.to_string().contains("mv .harmont .hm"),
-            "unexpected error: {err2}"
-        );
     }
 
     #[test]

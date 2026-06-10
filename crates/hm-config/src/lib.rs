@@ -96,33 +96,15 @@ impl Config {
     /// figment extraction fails (malformed TOML, type mismatches).
     pub fn load(project_root: Option<&Path>) -> Result<Self> {
         let user_path = Self::user_config_path()?;
-        let legacy_user_path = hm_util::dirs::legacy_hm_config_dir().map(|d| d.join("config.toml"));
         let project_path = project_root.map(Self::project_config_path);
-        Self::load_layered(
-            legacy_user_path.as_deref(),
-            Some(&user_path),
-            project_path.as_deref(),
-        )
-        .context("loading configuration")
+        Self::load_from_paths(Some(&user_path), project_path.as_deref())
+            .context("loading configuration")
     }
 
     /// Testable core: build a `Config` from explicit file paths.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if figment extraction fails (malformed TOML, type mismatches).
-    pub fn load_from_paths(user_path: Option<&Path>, project_path: Option<&Path>) -> Result<Self> {
-        Self::load_layered(None, user_path, project_path)
-    }
-
-    /// Build a `Config` from explicit file paths with an optional legacy
-    /// (`~/.harmont/`) user layer at the bottom.
-    ///
-    /// Layering, lowest to highest precedence: defaults -> legacy user file
-    /// -> user file -> project file -> env. The legacy layer means a custom
-    /// `[cloud] api_url`/`org` written by the pre-rename CLI survives an
-    /// upgrade even when the user never re-runs `hm cloud login`; an explicit
-    /// value in the new `~/.config/hm/config.toml` always wins over it.
+    /// Layering, lowest to highest precedence: defaults -> user file ->
+    /// project file -> env.
     ///
     /// Env precedence (highest): both the `HM_`-prefixed split form
     /// (`HM_CLOUD__ORG`, `HM_CLOUD__API_URL`) and the documented
@@ -132,16 +114,9 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if figment extraction fails (malformed TOML, type mismatches).
-    pub fn load_layered(
-        legacy_user_path: Option<&Path>,
-        user_path: Option<&Path>,
-        project_path: Option<&Path>,
-    ) -> Result<Self> {
+    pub fn load_from_paths(user_path: Option<&Path>, project_path: Option<&Path>) -> Result<Self> {
         let mut figment = Figment::new().merge(Serialized::defaults(Self::default()));
 
-        if let Some(p) = legacy_user_path {
-            figment = figment.merge(Toml::file(p));
-        }
         if let Some(p) = user_path {
             figment = figment.merge(Toml::file(p));
         }
@@ -351,50 +326,6 @@ org = "project-org"
         assert_eq!(loaded.cloud.org.as_deref(), Some("saved-org"));
         assert_eq!(loaded.cloud.api_url, DEFAULT_API_URL);
         assert_eq!(loaded.preferences.format, "human");
-    }
-
-    #[test]
-    fn legacy_user_file_carried_forward_when_new_absent() {
-        let _g = env_guard();
-        // Pre-rename ~/.harmont/config.toml exists; new ~/.config/hm absent.
-        let legacy_toml = r#"
-[cloud]
-org = "legacy-org"
-api_url = "https://legacy.api"
-"#;
-        let mut legacy_file = tempfile::NamedTempFile::new().unwrap();
-        legacy_file.write_all(legacy_toml.as_bytes()).unwrap();
-
-        let absent_user = Path::new("/tmp/harmont-test-absent-user-cfg/config.toml");
-
-        let cfg = Config::load_layered(Some(legacy_file.path()), Some(absent_user), None).unwrap();
-        assert_eq!(cfg.cloud.org.as_deref(), Some("legacy-org"));
-        assert_eq!(cfg.cloud.api_url, "https://legacy.api");
-    }
-
-    #[test]
-    fn new_user_file_wins_over_legacy() {
-        let _g = env_guard();
-        let legacy_toml = r#"
-[cloud]
-org = "legacy-org"
-api_url = "https://legacy.api"
-"#;
-        let new_toml = r#"
-[cloud]
-org = "new-org"
-"#;
-        let mut legacy_file = tempfile::NamedTempFile::new().unwrap();
-        legacy_file.write_all(legacy_toml.as_bytes()).unwrap();
-        let mut new_file = tempfile::NamedTempFile::new().unwrap();
-        new_file.write_all(new_toml.as_bytes()).unwrap();
-
-        let cfg =
-            Config::load_layered(Some(legacy_file.path()), Some(new_file.path()), None).unwrap();
-        // Explicit value in the new file overrides the legacy one...
-        assert_eq!(cfg.cloud.org.as_deref(), Some("new-org"));
-        // ...while keys absent from the new file still fall through to legacy.
-        assert_eq!(cfg.cloud.api_url, "https://legacy.api");
     }
 
     #[test]
