@@ -87,7 +87,6 @@ jobs:
           - nextjs
           - python-uv
           - react
-          - ruby
           - rust
           - typescript
           - zig-js

@@ -257,8 +257,12 @@ mod tests {
     async fn rewrite_preserves_0600() {
         let tmp = tempfile::tempdir().unwrap();
         let file = tmp.path().join("credentials.toml");
-        write_atomic_restricted(&file, b"a", 0o600, 0o700).await.unwrap();
-        write_atomic_restricted(&file, b"bb", 0o600, 0o700).await.unwrap();
+        write_atomic_restricted(&file, b"a", 0o600, 0o700)
+            .await
+            .unwrap();
+        write_atomic_restricted(&file, b"bb", 0o600, 0o700)
+            .await
+            .unwrap();
         let fmode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
         assert_eq!(fmode, 0o600, "file mode must stay 0o600, got {fmode:o}");
     }

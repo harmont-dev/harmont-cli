@@ -361,9 +361,7 @@ fn init_detects_github_workflows_in_noninteractive_mode() {
 
 #[test]
 fn skill_convert_gha_content_is_well_formed() {
-    let content = include_str!(
-        "../src/commands/init_templates/skill_convert_gha.md"
-    );
+    let content = include_str!("../src/commands/init_templates/skill_convert_gha.md");
     assert!(!content.is_empty(), "skill template must not be empty");
     assert!(
         content.contains("## When to use"),
@@ -426,7 +424,9 @@ fn init_skips_template_prompt_when_pipeline_exists() {
 
     // Non-TTY: skills are not installed (no prompt possible).
     assert!(
-        !dir.path().join(".claude/skills/validate-ci/SKILL.md").exists(),
+        !dir.path()
+            .join(".claude/skills/validate-ci/SKILL.md")
+            .exists(),
         "skills should not install without a TTY"
     );
 }

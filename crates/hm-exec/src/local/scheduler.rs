@@ -77,6 +77,7 @@ type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 /// Returns an error if the source archive cannot be built or any
 /// scheduler-level failure occurs. Non-zero step exit codes are
 /// surfaced via the returned [`BuildOutcome`], not as an `Err`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run(
     graph: PipelineGraph,
     repo_root: PathBuf,

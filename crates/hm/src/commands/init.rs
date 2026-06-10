@@ -152,17 +152,12 @@ fn ensure_gitignore_entry(dir: &Path, entry: &str) -> Result<()> {
 fn has_github_workflows(dir: &Path) -> bool {
     let workflows = dir.join(".github/workflows");
     workflows.is_dir()
-        && std::fs::read_dir(&workflows)
-            .map(|entries| {
-                entries.filter_map(Result::ok).any(|e| {
-                    let p = e.path();
-                    matches!(
-                        p.extension().and_then(|x| x.to_str()),
-                        Some("yml" | "yaml")
-                    )
-                })
+        && std::fs::read_dir(&workflows).is_ok_and(|entries| {
+            entries.filter_map(Result::ok).any(|e| {
+                let p = e.path();
+                matches!(p.extension().and_then(|x| x.to_str()), Some("yml" | "yaml"))
             })
-            .unwrap_or(false)
+        })
 }
 
 /// # Errors
@@ -182,17 +177,16 @@ pub async fn handle(args: InitArgs) -> Result<()> {
     if skip_template {
         tracing::info!("existing pipeline detected in .hm/ — skipping template selection");
     } else {
-        let kind = match args.template {
-            Some(k) => k,
-            None => {
-                if !tty {
-                    bail!(
-                        "no template specified and no terminal available\n  \
-                         hint: pass --template <name> in non-interactive contexts"
-                    );
-                }
-                pick_interactive()?
+        let kind = if let Some(k) = args.template {
+            k
+        } else {
+            if !tty {
+                bail!(
+                    "no template specified and no terminal available\n  \
+                     hint: pass --template <name> in non-interactive contexts"
+                );
             }
+            pick_interactive()?
         };
         let tmpl = kind.meta();
         let wrote_pipeline = write_template(&args.dir, &tmpl, args.force)?;
