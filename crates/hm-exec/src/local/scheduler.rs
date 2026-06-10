@@ -23,6 +23,7 @@
 )]
 
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -82,7 +83,7 @@ pub(crate) async fn run(
     graph: PipelineGraph,
     repo_root: PathBuf,
     pipeline_slug: String,
-    parallelism: usize,
+    parallelism: NonZeroUsize,
     runner_registry: Arc<RunnerRegistry>,
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
     cancel: CancellationToken,
@@ -133,9 +134,7 @@ pub(crate) async fn run(
         cancel: cancel.clone(),
     };
 
-    let parallelism = parallelism.max(1);
-
-    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism));
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism.get()));
 
     let dag = graph.dag();
     let pipeline_timeout = graph.timeout_seconds();

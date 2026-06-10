@@ -94,7 +94,10 @@ impl hm_vm::VmBackend for NoopVmBackend {
 
 #[tokio::test]
 async fn local_backend_reports_capabilities() {
-    let b = hm_exec::LocalBackend::new(4, std::sync::Arc::new(NoopVmBackend));
+    let b = hm_exec::LocalBackend::new(
+        std::num::NonZeroUsize::new(4).unwrap(),
+        std::sync::Arc::new(NoopVmBackend),
+    );
     assert_eq!(b.name(), "local");
     assert!(b.capabilities().honors_parallelism);
     assert!(b.capabilities().honors_keep_going);

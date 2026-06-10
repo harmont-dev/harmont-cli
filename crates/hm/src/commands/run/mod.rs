@@ -151,11 +151,15 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
 /// Resolve local-run parallelism: the explicit `--parallelism`, else the
 /// number of logical CPUs (4 as a last resort). Matches `hm run`'s prior
-/// behavior exactly.
-fn resolve_parallelism(args: &RunArgs) -> usize {
-    args.parallelism.unwrap_or_else(|| {
-        std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
-    })
+/// behavior exactly. A `--parallelism 0` is clamped to `1` at this boundary
+/// so the backend never has to defend against a zero count.
+fn resolve_parallelism(args: &RunArgs) -> std::num::NonZeroUsize {
+    use std::num::NonZeroUsize;
+    match args.parallelism {
+        Some(n) => NonZeroUsize::new(n).unwrap_or(NonZeroUsize::MIN),
+        None => std::thread::available_parallelism()
+            .unwrap_or(NonZeroUsize::new(4).unwrap_or(NonZeroUsize::MIN)),
+    }
 }
 
 /// Parse `KEY=VALUE` pairs into a map, dropping malformed entries.
