@@ -193,7 +193,9 @@ impl ImageRegistry {
         };
 
         let evicted: Vec<SnapshotId> = stmt
-            .query_map([overflow], |row| row.get::<_, String>(0).map(SnapshotId::new))
+            .query_map([overflow], |row| {
+                row.get::<_, String>(0).map(SnapshotId::new)
+            })
             .ok()
             .map(|rows| rows.filter_map(Result::ok).collect())
             .unwrap_or_default();

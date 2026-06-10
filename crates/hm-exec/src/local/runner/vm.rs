@@ -61,7 +61,7 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
     };
 
     let source = if let Some(ref snap) = input.parent_snapshot {
-        ImageSource::Snapshot(SnapshotId(snap.0.clone()))
+        ImageSource::Snapshot(SnapshotId::new(snap.0.clone()))
     } else {
         ImageSource::Image(
             input
@@ -137,13 +137,13 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
             tag: result
                 .snapshot
                 .as_ref()
-                .map_or_else(String::new, |s| s.0.clone()),
+                .map_or_else(String::new, |s| s.as_str().to_owned()),
         });
     }
 
     Ok(StepResult {
         exit_code: result.exit_code,
-        committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.0)),
+        committed_snapshot: result.snapshot.map(|s| SnapshotRef(s.as_str().to_owned())),
         artifacts: vec![],
     })
 }

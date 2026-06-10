@@ -184,9 +184,10 @@ mod tests {
         }
 
         async fn restore(&self, snapshot: &SnapshotId, _config: &VmConfig) -> Result<Box<dyn Vm>> {
-            self.calls
-                .lock()
-                .map_or_else(|_| {}, |mut c| c.push(format!("restore:{}", snapshot.as_str())));
+            self.calls.lock().map_or_else(
+                |_| {},
+                |mut c| c.push(format!("restore:{}", snapshot.as_str())),
+            );
             Ok(Box::new(MockVm {
                 calls: Arc::clone(&self.calls),
                 exit_code: self.exit_code,
