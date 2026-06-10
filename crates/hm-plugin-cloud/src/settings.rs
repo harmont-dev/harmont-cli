@@ -70,18 +70,36 @@ pub fn anon_client() -> Result<(HarmontClient, String)> {
 
 /// Render preferences for cloud commands that stream through `hm-render`.
 ///
-/// Returns `(color, logs)`, both derived from `hm-render`'s shared TTY/color
-/// helpers (the single source of truth, also used by `hm/src/context.rs`):
-/// - `color` — ANSI enabled when `NO_COLOR` is unset and stderr is a TTY.
-///   The plugin verbs have no `--no-color` flag, so we pass `false` for the
-///   flag; the `--no-color` asymmetry vs. the host `hm run` path is explicit
-///   here at the call site.
-/// - `logs` — force the streaming `HumanRenderer` over the live
-///   `ProgressRenderer`. True when stdout is **not** an interactive terminal
-///   (CI / pipe / log file), so nothing animates into a non-TTY sink.
-#[must_use]
-pub fn render_prefs() -> (bool, bool) {
-    (hm_render::color_enabled(false), hm_render::stdout_piped())
+/// Both fields are derived from `hm-render`'s shared TTY/color helpers (the
+/// single source of truth, also used by `hm/src/context.rs`).
+#[derive(Debug, Clone, Copy)]
+pub struct RenderPrefs {
+    /// ANSI enabled when `NO_COLOR` is unset and stderr is a TTY.
+    ///
+    /// The plugin verbs have no `--no-color` flag, so we pass `false` for the
+    /// flag; the `--no-color` asymmetry vs. the host `hm run` path is explicit
+    /// here at the call site.
+    pub color: bool,
+    /// Force the streaming `HumanRenderer` over the live `ProgressRenderer`.
+    ///
+    /// True when stdout is **not** an interactive terminal (CI / pipe / log
+    /// file), so nothing animates into a non-TTY sink.
+    pub logs: bool,
+}
+
+impl RenderPrefs {
+    /// Detect render preferences from the live environment via `hm-render`'s
+    /// shared TTY/color helpers — the single source of truth, also used by
+    /// `hm/src/context.rs`. This inspects `NO_COLOR` and the stdout/stderr
+    /// TTY state at call time, so it is a deliberate observation of the
+    /// environment rather than a constant default.
+    #[must_use]
+    pub fn detect() -> Self {
+        Self {
+            color: hm_render::color_enabled(false),
+            logs: hm_render::stdout_piped(),
+        }
+    }
 }
 
 /// Map a raw generated-client error into an `anyhow` error with a readable

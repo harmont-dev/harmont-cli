@@ -33,8 +33,13 @@ fn load() -> CredentialFile {
 fn save(file: &CredentialFile) -> Result<()> {
     let p = path()?;
     let serialized = toml::to_string_pretty(file).context("serializing credentials")?;
-    hm_util::os::fs::blocking::write_atomic_restricted(&p, serialized.as_bytes(), 0o600, 0o700)
-        .with_context(|| format!("writing {}", p.display()))?;
+    hm_util::os::fs::blocking::write_atomic_restricted(
+        &p,
+        serialized.as_bytes(),
+        hm_util::os::fs::FileMode(0o600),
+        hm_util::os::fs::DirMode(0o700),
+    )
+    .with_context(|| format!("writing {}", p.display()))?;
     Ok(())
 }
 

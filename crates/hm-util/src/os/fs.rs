@@ -12,20 +12,35 @@
 use std::io;
 use std::path::Path;
 
-/// Write `contents` to `path` atomically with `file_mode`, ensuring the
-/// parent directory exists and is set to `dir_mode`.
+/// Unix mode bits for a file (e.g. `0o600`).
+///
+/// A distinct newtype from [`DirMode`] so the file- and directory-mode
+/// arguments of [`write_atomic_restricted`] cannot be transposed: passing
+/// them in the wrong order is a compile error rather than a silent
+/// security regression (a secrets file landing at `0o700`, say).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileMode(pub u32);
+
+/// Unix mode bits for a directory (e.g. `0o700`).
+///
+/// See [`FileMode`] for why this is a distinct newtype.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DirMode(pub u32);
+
+/// Write `contents` to `path` atomically with `file`, ensuring the
+/// parent directory exists and is set to `dir`.
 ///
 /// # Errors
 ///
 /// Returns an error if `path` has no parent or no file-name component,
-/// the parent directory cannot be created or chmod'd to `dir_mode`, the
-/// tempfile cannot be opened with `file_mode` or written, or the final
+/// the parent directory cannot be created or chmod'd to `dir`, the
+/// tempfile cannot be opened with `file` or written, or the final
 /// `rename` over `path` fails.
 pub async fn write_atomic_restricted(
     path: impl AsRef<Path>,
     contents: impl AsRef<[u8]>,
-    file_mode: u32,
-    dir_mode: u32,
+    file: FileMode,
+    dir: DirMode,
 ) -> io::Result<()> {
     let path = path.as_ref().to_owned();
     let contents = contents.as_ref().to_vec();
@@ -40,7 +55,7 @@ pub async fn write_atomic_restricted(
         })?
         .to_owned();
 
-    create_dir_with_mode(&parent, dir_mode).await?;
+    create_dir_with_mode(&parent, dir.0).await?;
 
     let file_name = path
         .file_name()
@@ -55,7 +70,7 @@ pub async fn write_atomic_restricted(
     tmp_name.push(format!(".tmp.{}", std::process::id()));
     let tmp_path = parent.join(&tmp_name);
 
-    write_file_with_mode(&tmp_path, &contents, file_mode).await?;
+    write_file_with_mode(&tmp_path, &contents, file.0).await?;
 
     let rename_result = atomic_rename_over(&tmp_path, &path).await;
     if rename_result.is_err() {
@@ -189,6 +204,7 @@ async fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Re
 /// `tokio::task::block_in_place`. Safe to call from sync contexts
 /// that run inside a tokio runtime (e.g. extism `host_fn` callbacks).
 pub mod blocking {
+    use super::{DirMode, FileMode};
     use std::io;
     use std::path::Path;
 
@@ -203,18 +219,16 @@ pub mod blocking {
     /// # Errors
     ///
     /// Returns an error if `path` has no parent or no file-name component,
-    /// the parent directory cannot be created or chmod'd to `dir_mode`, the
-    /// tempfile cannot be opened with `file_mode` or written, or the final
+    /// the parent directory cannot be created or chmod'd to `dir`, the
+    /// tempfile cannot be opened with `file` or written, or the final
     /// `rename` over `path` fails.
     pub fn write_atomic_restricted(
         path: impl AsRef<Path>,
         contents: impl AsRef<[u8]>,
-        file_mode: u32,
-        dir_mode: u32,
+        file: FileMode,
+        dir: DirMode,
     ) -> io::Result<()> {
-        block_on(super::write_atomic_restricted(
-            path, contents, file_mode, dir_mode,
-        ))
+        block_on(super::write_atomic_restricted(path, contents, file, dir))
     }
 
     /// Blocking counterpart of [`super::remove_file_if_exists`].
@@ -241,9 +255,14 @@ mod tests {
         let dir = tmp.path().join("hm");
         let file = dir.join("credentials.toml");
 
-        write_atomic_restricted(&file, b"token = \"hunter2\"\n", 0o600, 0o700)
-            .await
-            .unwrap();
+        write_atomic_restricted(
+            &file,
+            b"token = \"hunter2\"\n",
+            FileMode(0o600),
+            DirMode(0o700),
+        )
+        .await
+        .unwrap();
 
         let fmode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
         assert_eq!(fmode, 0o600, "file mode must be 0o600, got {fmode:o}");
@@ -257,10 +276,10 @@ mod tests {
     async fn rewrite_preserves_0600() {
         let tmp = tempfile::tempdir().unwrap();
         let file = tmp.path().join("credentials.toml");
-        write_atomic_restricted(&file, b"a", 0o600, 0o700)
+        write_atomic_restricted(&file, b"a", FileMode(0o600), DirMode(0o700))
             .await
             .unwrap();
-        write_atomic_restricted(&file, b"bb", 0o600, 0o700)
+        write_atomic_restricted(&file, b"bb", FileMode(0o600), DirMode(0o700))
             .await
             .unwrap();
         let fmode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;

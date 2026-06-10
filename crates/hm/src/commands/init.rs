@@ -181,10 +181,10 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
         return Ok(false);
     }
 
-    if harmont_dir.exists() && force {
-        std::fs::remove_dir_all(&harmont_dir)
-            .with_context(|| format!("removing {}", harmont_dir.display()))?;
-    }
+    // `--force` overwrites only the single target template file. We never
+    // wipe the whole `.hm/` directory: that would also delete config.toml,
+    // .gitignore, and any co-resident pipeline (e.g. a repo with both
+    // pipeline.py and deploy.py). `std::fs::write` clobbers just the target.
     std::fs::create_dir_all(&harmont_dir)
         .with_context(|| format!("creating {}", harmont_dir.display()))?;
     let dest = harmont_dir.join(tmpl.filename);
@@ -194,7 +194,7 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     Ok(true)
 }
 
-fn write_skills(dir: &Path) -> Result<()> {
+fn write_skills(dir: &Path, force: bool) -> Result<()> {
     let skills: &[(&str, &str)] = &[
         ("validate-ci", SKILL_VALIDATE_CI),
         ("write-pipeline", SKILL_WRITE_PIPELINE),
@@ -202,11 +202,32 @@ fn write_skills(dir: &Path) -> Result<()> {
     ];
     for (slug, content) in skills {
         let skill_dir = dir.join(format!(".claude/skills/{slug}"));
+        let dest = skill_dir.join("SKILL.md");
+
+        // Never silently clobber a customized skill. If the file is already
+        // present and the user edited it, leave it alone unless --force is set.
+        if dest.exists() && !force {
+            let existing = std::fs::read_to_string(&dest)
+                .with_context(|| format!("reading {}", dest.display()))?;
+            if existing == *content {
+                continue;
+            }
+            tracing::warn!(
+                "skill .claude/skills/{slug}/SKILL.md already exists with local edits — skipping\n  \
+                 hint: pass --force to overwrite it with the bundled version"
+            );
+            continue;
+        }
+
+        let updated = dest.exists();
         std::fs::create_dir_all(&skill_dir)
             .with_context(|| format!("creating {}", skill_dir.display()))?;
-        let dest = skill_dir.join("SKILL.md");
         std::fs::write(&dest, content).with_context(|| format!("writing {}", dest.display()))?;
-        tracing::info!("installed Claude Code skill: .claude/skills/{slug}/SKILL.md");
+        if updated {
+            tracing::info!("overwrote Claude Code skill: .claude/skills/{slug}/SKILL.md");
+        } else {
+            tracing::info!("installed Claude Code skill: .claude/skills/{slug}/SKILL.md");
+        }
     }
     Ok(())
 }
@@ -295,7 +316,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
     // Skills are offered whenever a terminal is present, independent of
     // whether a template flag was passed.
     if tty && prompt_skills()? {
-        write_skills(&args.dir)?;
+        write_skills(&args.dir, args.force)?;
     }
 
     let project_config = hm_config::Config::project_config_path(&args.dir);
@@ -311,4 +332,71 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         tracing::info!("next step: run `hm run` to execute your pipeline locally");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    fn skill_path(dir: &Path, slug: &str) -> std::path::PathBuf {
+        dir.join(format!(".claude/skills/{slug}/SKILL.md"))
+    }
+
+    #[test]
+    fn write_skills_installs_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        write_skills(dir.path(), false).unwrap();
+
+        let dest = skill_path(dir.path(), "validate-ci");
+        assert!(dest.exists());
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), SKILL_VALIDATE_CI);
+    }
+
+    #[test]
+    fn write_skills_preserves_customized_file_without_force() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = skill_path(dir.path(), "validate-ci");
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, "# my local edits").unwrap();
+
+        write_skills(dir.path(), false).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&dest).unwrap(),
+            "# my local edits",
+            "a customized skill must not be clobbered without --force"
+        );
+        // Other skills, which were absent, are still installed.
+        assert!(skill_path(dir.path(), "write-pipeline").exists());
+    }
+
+    #[test]
+    fn write_skills_force_overwrites_customized_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = skill_path(dir.path(), "validate-ci");
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, "# my local edits").unwrap();
+
+        write_skills(dir.path(), true).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&dest).unwrap(),
+            SKILL_VALIDATE_CI,
+            "--force must overwrite a customized skill with the bundled version"
+        );
+    }
+
+    #[test]
+    fn write_skills_skips_unchanged_file_idempotently() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = skill_path(dir.path(), "validate-ci");
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, SKILL_VALIDATE_CI).unwrap();
+
+        // Re-running with an identical, bundled file is a silent no-op.
+        write_skills(dir.path(), false).unwrap();
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), SKILL_VALIDATE_CI);
+    }
 }

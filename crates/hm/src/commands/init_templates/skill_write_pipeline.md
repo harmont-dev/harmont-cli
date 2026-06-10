@@ -29,7 +29,7 @@ Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py` (Pyth
    Read it carefully. It covers correct vs. incorrect approaches, when to use toolchains vs. raw shell, and common anti-patterns.
 
 2. If you need the full API reference for a specific toolchain or feature, fetch the relevant page (append `.md` to any docs.harmont.dev URL for raw Markdown):
-   - Toolchain reference: `https://docs.harmont.dev/pipeline-sdk/reference/toolchains/<name>.md` (rust, python, npm, go, cmake, zig, elixir, etc.)
+   - Toolchain reference: `https://docs.harmont.dev/pipeline-sdk/reference/toolchains/<name>.md` (rust, python, js, go, cmake, zig, elixir, etc.)
    - Chains and steps: `https://docs.harmont.dev/pipeline-sdk/reference/chains.md`
    - Triggers: `https://docs.harmont.dev/pipeline-sdk/reference/triggers.md`
    - Caching: `https://docs.harmont.dev/pipeline-sdk/reference/cache.md`
@@ -57,7 +57,7 @@ Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py` (Pyth
 4. **Write or modify the pipeline.** Follow the patterns guide strictly:
    - Prefer toolchains over raw `sh()` calls when a toolchain exists for the language.
    - Use `.fork()` for steps that can run in parallel.
-   - Set triggers (`push`, `pull_request`, `schedule`) appropriate to the project.
+   - Set triggers (`push`, `pull_request`) appropriate to the project.
    - Use `default_image: "ubuntu:24.04"` unless the project needs something specific.
    - Set `env: {"CI": "true"}` on the pipeline.
 

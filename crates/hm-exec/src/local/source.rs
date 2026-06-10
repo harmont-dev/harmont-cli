@@ -76,6 +76,50 @@ pub(crate) fn write_archive(source_dir: &Path, w: impl Write) -> Result<()> {
     Ok(())
 }
 
+/// Sum the uncompressed byte size of each top-level entry under `source_dir`,
+/// honoring the same `.gitignore`/`.git`/`.hm` exclusions as [`write_archive`].
+///
+/// Returns `(top_level_name, bytes)` pairs sorted largest-first. Used only to
+/// build the "biggest paths" hint when the archive trips the size guard, so a
+/// second walk here is off the hot path.
+pub(crate) fn top_level_sizes(source_dir: &Path) -> Vec<(String, u64)> {
+    use std::collections::BTreeMap;
+
+    let mut totals: BTreeMap<String, u64> = BTreeMap::new();
+    let walker = WalkBuilder::new(source_dir)
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .filter_entry(|entry: &ignore::DirEntry| {
+            let name = entry.file_name().to_string_lossy();
+            name != ".git" && name != ".hm"
+        })
+        .build();
+
+    for entry in walker.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Ok(rel) = path.strip_prefix(source_dir) else {
+            continue;
+        };
+        // The first path component is the top-level bucket; a file directly in
+        // the root is its own bucket.
+        let bucket = rel.components().next().map_or_else(
+            || rel.to_string_lossy().into_owned(),
+            |c| c.as_os_str().to_string_lossy().into_owned(),
+        );
+        let size = entry.metadata().map_or(0, |m| m.len());
+        *totals.entry(bucket).or_insert(0) += size;
+    }
+
+    let mut pairs: Vec<(String, u64)> = totals.into_iter().collect();
+    pairs.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    pairs
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

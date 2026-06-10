@@ -82,9 +82,28 @@ def pipeline(*args: Any, **kwargs: Any) -> Any:
 
     Returns:
         A v0 IR ``dict`` in factory form, or a decorator in decorator form.
+
+    Raises:
+        TypeError: When called with the legacy variadic ``Step`` form
+            (``pipeline(step)`` / ``pipeline(a, b)``). The factory now takes
+            a single list of leaves.
     """
     if args and isinstance(args[0], (list, tuple)):
         return _pipeline_factory(args[0], **kwargs)
+    # Legacy form: leaves passed as positional Step args (pre-CLI-9
+    # `pipeline(step)` / `pipeline(a, b)`). Without this guard the call would
+    # fall through to the decorator and fail far downstream with a cryptic
+    # AttributeError. Fail fast with the migration hint instead.
+    if args and all(isinstance(a, Step) for a in args):
+        msg = (
+            "hm.pipeline() takes a single list of leaves, not variadic Step "
+            "arguments\n"
+            f"  observed: {len(args)} positional Step "
+            f"argument{'s' if len(args) != 1 else ''}\n"
+            "  → wrap the leaves in a list, e.g. "
+            "hm.pipeline([step]) or hm.pipeline([a, b])"
+        )
+        raise TypeError(msg)
     return _decorator.pipeline(*args, **kwargs)
 
 

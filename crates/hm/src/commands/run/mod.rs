@@ -85,7 +85,10 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let backend: Box<dyn hm_exec::ExecutionBackend> =
         if let Some((api_url, token, org)) = cloud_creds {
             let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
-            Box::new(hm_exec::CloudBackend::new(client, api_url, org))
+            // The watch link must point at the dashboard (app.) host, not the
+            // API host — a link built from `api_url` lands on raw JSON.
+            let app_url = hm_config::app_url(&api_url, std::env::var("HM_APP_URL").ok().as_deref());
+            Box::new(hm_exec::CloudBackend::new(client, api_url, app_url, org))
         } else {
             // Local execution on a hm-vm VmBackend (docker).
             let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = std::sync::Arc::new(
@@ -151,11 +154,17 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
 /// Resolve local-run parallelism: the explicit `--parallelism`, else the
 /// number of logical CPUs (4 as a last resort). Matches `hm run`'s prior
-/// behavior exactly.
-fn resolve_parallelism(args: &RunArgs) -> usize {
-    args.parallelism.unwrap_or_else(|| {
-        std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
-    })
+/// behavior exactly. A `--parallelism 0` is clamped to `1` at this boundary
+/// so the backend never has to defend against a zero count.
+fn resolve_parallelism(args: &RunArgs) -> std::num::NonZeroUsize {
+    use std::num::NonZeroUsize;
+    /// Last-resort parallelism when neither `--parallelism` nor
+    /// `available_parallelism()` yields a usable value.
+    const FALLBACK: NonZeroUsize = NonZeroUsize::new(4).unwrap();
+    args.parallelism.map_or_else(
+        || std::thread::available_parallelism().unwrap_or(FALLBACK),
+        |n| NonZeroUsize::new(n).unwrap_or(NonZeroUsize::MIN),
+    )
 }
 
 /// Parse `KEY=VALUE` pairs into a map, dropping malformed entries.
@@ -270,6 +279,8 @@ const fn exit_category(err: &hm_exec::BackendError) -> ErrorCategory {
     match err {
         // A plan/IR rejection is a pipeline-config problem.
         E::Rejected { .. } => ErrorCategory::PipelineInvalid,
+        // An oversized source archive is a user-fixable setup mistake.
+        E::SourceTooLarge { .. } => ErrorCategory::Usage,
         // Auth failures map to the dedicated auth exit code.
         E::Unauthorized => ErrorCategory::Auth,
         // Network unreachability and local-infra failures (Docker down) are
@@ -325,6 +336,32 @@ error[local]: {m}
   fix    check that the Docker daemon is running (`docker version`)
   docs   https://harmont.dev/docs/errors/local"
         ),
+        E::SourceTooLarge {
+            observed_bytes,
+            cap_bytes,
+            largest_paths,
+        } => {
+            #[allow(clippy::cast_precision_loss)] // display-only
+            let mb = |b: u64| format!("{:.1} MB", b as f64 / (1024.0 * 1024.0));
+            let biggest = if largest_paths.is_empty() {
+                "  (no large top-level paths identified)".to_string()
+            } else {
+                largest_paths
+                    .iter()
+                    .map(|(name, sz)| format!("           {name} — {}", mb(*sz)))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            format!(
+                "\
+error[source_too_large]: worktree archive is {observed} (cap {cap})
+  biggest\n{biggest}
+  fix    add the offending paths to .gitignore (build output, caches, vendored deps), then re-run `hm run`
+  docs   https://harmont.dev/docs/errors/source_too_large",
+                observed = mb(*observed_bytes),
+                cap = mb(*cap_bytes),
+            )
+        }
         other => format!(
             "\
 error[backend]: {other}
@@ -366,6 +403,16 @@ mod tests {
             message: "bad IR".into(),
         });
         assert!(r.contains("error[invalid_ir]") && r.contains("bad IR"));
+        let big = explain(&E::SourceTooLarge {
+            observed_bytes: 7 * 1024 * 1024,
+            cap_bytes: 6 * 1024 * 1024,
+            largest_paths: vec![("node_modules".into(), 5 * 1024 * 1024)],
+        });
+        assert!(big.contains("error[source_too_large]"));
+        // Points precisely (observed + cap), names the offender, states the fix.
+        assert!(big.contains("7.0 MB") && big.contains("6.0 MB"));
+        assert!(big.contains("node_modules") && big.contains(".gitignore"));
+        assert!(big.contains("docs   https://harmont.dev/docs/errors/source_too_large"));
         for s in [
             explain(&E::Unauthorized),
             explain(&E::NotFound("x".into())),
@@ -393,5 +440,13 @@ mod tests {
         );
         assert_eq!(exit_category(&E::Local("x".into())), ErrorCategory::Network);
         assert_eq!(exit_category(&E::NotFound("x".into())), ErrorCategory::Api);
+        assert_eq!(
+            exit_category(&E::SourceTooLarge {
+                observed_bytes: 1,
+                cap_bytes: 0,
+                largest_paths: vec![],
+            }),
+            ErrorCategory::Usage
+        );
     }
 }
