@@ -49,6 +49,21 @@ impl StepRunner for VmRunner {
         let vm = Arc::clone(&self.vm);
         Box::pin(async move { run_step_vm(&vm, &ctx, input).await })
     }
+
+    fn reap_snapshots<'a>(
+        &'a self,
+        snapshots: Vec<SnapshotRef>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        let vm = Arc::clone(&self.vm);
+        Box::pin(async move {
+            for snap in snapshots {
+                let id = SnapshotId::new(snap.0);
+                if let Err(e) = vm.remove_snapshot(&id).await {
+                    tracing::warn!(snapshot = %id, error = %e, "failed to reap ephemeral snapshot");
+                }
+            }
+        })
+    }
 }
 
 #[tracing::instrument(skip(vm, ctx), fields(step_key = %input.step.key))]
