@@ -78,12 +78,15 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
     let source = if let Some(ref snap) = input.parent_snapshot {
         ImageSource::Snapshot(SnapshotId::new(snap.0.clone()))
     } else {
+        // Imageless root step: default to an apt-capable base. The SDK's
+        // toolchains all assume `apt-get`, so `ubuntu:24.04` is the
+        // across-the-board default (alpine has no apt-get).
         ImageSource::Image(
             input
                 .step
                 .image
                 .clone()
-                .unwrap_or_else(|| "alpine:latest".to_string()),
+                .unwrap_or_else(|| "ubuntu:24.04".to_string()),
         )
     };
 
