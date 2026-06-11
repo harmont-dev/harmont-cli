@@ -163,19 +163,21 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     });
 
     // 8. Start, drive events, own Ctrl-C, await the outcome.
-    // Submit. If the pipeline doesn't exist yet, optionally create it and retry
-    // once. Clone the request up front so the retry has its own copy (the first
-    // `start` consumes it).
+    // Submit. If the pipeline doesn't exist yet, resolve-or-create it and retry
+    // by submitting directly to its global slug (the repo-identity path can't
+    // see API-created pipelines). Clone the request up front so the retry has
+    // its own copy (the first `start` consumes it).
     let req_retry = req.clone();
     let handle = match backend.start(req).await {
         Ok(handle) => handle,
-        Err(err) => {
-            if maybe_autocreate(&err, autocreate.as_ref()).await? {
-                backend.start(req_retry).await.map_err(|e| backend_anyhow(&e))?
-            } else {
-                return Err(backend_anyhow(&err));
+        Err(err) => match resolve_or_create_cloud_pipeline(&err, autocreate.as_ref()).await? {
+            Some(slug) => {
+                let mut retry = req_retry;
+                retry.cloud_pipeline_slug = Some(slug);
+                backend.start(retry).await.map_err(|e| backend_anyhow(&e))?
             }
-        }
+            None => return Err(backend_anyhow(&err)),
+        },
     };
     let (events, control) = handle.into_parts();
     let _ctrlc = crate::signal::install_ctrlc(control.cancel_token());
@@ -417,26 +419,49 @@ struct AutoCreate {
     default_branch: String,
 }
 
-/// On a `pipeline_not_found`, create the pipeline (confirming on a TTY, auto in
-/// CI) and report whether the caller should retry the submit.
+/// On a `pipeline_not_found`, resolve the build's target pipeline and return
+/// its org-global slug so the caller can retry by submitting directly to it
+/// (`RunRequest::cloud_pipeline_slug`), bypassing the repo-identity resolution
+/// that can't see API-created pipelines.
 ///
-/// Returns `Ok(true)` when a pipeline was created and the build should be
-/// resubmitted; `Ok(false)` when the error isn't a missing pipeline, there's
-/// no auto-create context, the repo can't be identified, or the user declined
-/// (the caller then surfaces the original error). Returns `Err` only when the
-/// create request itself failed (e.g. a slug collision) — worth surfacing over
-/// the original `pipeline_not_found`.
-async fn maybe_autocreate(err: &hm_exec::BackendError, ac: Option<&AutoCreate>) -> Result<bool> {
+/// The pipeline may already exist from a prior `hm run` (the repo-identity path
+/// can't find it, so a `pipeline_not_found` does NOT mean it's absent). So we
+/// look it up by slug first and only create — after confirming on a TTY, or
+/// automatically when non-interactive — when it's truly missing.
+///
+/// Returns `Ok(Some(slug))` to retry by that slug; `Ok(None)` when the error
+/// isn't a missing pipeline, there's no auto-create context, the repo can't be
+/// identified, or the user declined (caller then surfaces the original error).
+/// Returns `Err` only when a lookup or create request itself failed.
+async fn resolve_or_create_cloud_pipeline(
+    err: &hm_exec::BackendError,
+    ac: Option<&AutoCreate>,
+) -> Result<Option<String>> {
     use std::io::IsTerminal;
 
     if !is_missing_pipeline(err) {
-        return Ok(false);
+        return Ok(None);
     }
-    let Some(ac) = ac else { return Ok(false) };
+    let Some(ac) = ac else { return Ok(None) };
     let (Some(repo_name), Some(repository)) = (&ac.repo_name, &ac.repository) else {
-        return Ok(false);
+        return Ok(None);
     };
 
+    // Already created on a prior run? Look it up by slug; the repo-identity
+    // submit can't see it, but `get_pipeline` (by global slug) can. This
+    // assumes the org-global slug equals `ac.name` (the source slug we create
+    // the pipeline under) — true for a slug-shaped name; a server-normalized
+    // mismatch falls through to a clear create-collision error below.
+    match ac.client.raw().get_pipeline(&ac.org, &ac.name).await {
+        Ok(p) => return Ok(Some(p.into_inner().slug)),
+        Err(e) if e.status().is_some_and(|s| s.as_u16() == 404) => {} // truly absent → create
+        Err(e) => {
+            return Err(hm_plugin_cloud::settings::map_raw(e))
+                .with_context(|| format!("looking up pipeline '{}' in org {}", ac.name, ac.org));
+        }
+    }
+
+    // Truly missing — confirm on a TTY, auto-create when non-interactive.
     if std::io::stdin().is_terminal() {
         let ok = dialoguer::Confirm::new()
             .with_prompt(format!(
@@ -447,24 +472,23 @@ async fn maybe_autocreate(err: &hm_exec::BackendError, ac: Option<&AutoCreate>) 
             .interact()
             .unwrap_or(false);
         if !ok {
-            return Ok(false);
+            return Ok(None);
         }
     } else {
-        tracing::info!(
-            "no pipeline for {repo_name} yet — creating it in org {}",
-            ac.org
-        );
+        tracing::info!("no pipeline for {repo_name} yet — creating it in org {}", ac.org);
     }
 
     let body = build_create_pipeline_request(&ac.name, &ac.default_branch, repository, repo_name);
-    ac.client
+    let created = ac
+        .client
         .raw()
         .create_pipeline(&ac.org, &body)
         .await
         .map_err(hm_plugin_cloud::settings::map_raw)
         .with_context(|| format!("creating pipeline '{}' in org {}", ac.name, ac.org))?;
-    tracing::info!("created pipeline '{}' — submitting build", ac.name);
-    Ok(true)
+    let slug = created.into_inner().slug;
+    tracing::info!("created pipeline '{slug}' — submitting build");
+    Ok(Some(slug))
 }
 
 /// Map a [`hm_exec::BackendError`] to the process exit-code category.
