@@ -1,7 +1,7 @@
 import type { Step, StepOptions } from "../step.js";
 import { type CachePolicy, forever, onChange } from "../cache.js";
 import { makeInstallChain } from "./shared.js";
-import { type CargoOpts, cargoFlags } from "./cargo.js";
+import { type CargoOpts, cargoFlags, shQuote } from "./cargo.js";
 
 const APT_PACKAGES = [
   "curl",
@@ -115,9 +115,9 @@ function hackCmd(o: FeaturePowersetOptions): string {
   if (o.eachFeature) toks.push("--each-feature");
   else toks.push("--feature-powerset", "--depth", String(o.depth ?? 2));
   if (o.noDevDeps ?? true) toks.push("--no-dev-deps");
-  if (o.skip?.length) toks.push("--skip " + o.skip.join(","));
+  if (o.skip?.length) toks.push("--skip " + o.skip.map(shQuote).join(","));
   if (o.includeFeatures?.length)
-    toks.push("--include-features " + o.includeFeatures.join(","));
+    toks.push("--include-features " + o.includeFeatures.map(shQuote).join(","));
   if (o.keepGoing) toks.push("--keep-going");
   toks.push(...(o.flags ?? []));
   return toks.join(" ");

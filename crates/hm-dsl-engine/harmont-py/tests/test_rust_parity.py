@@ -26,3 +26,6 @@ def test_golden_commands():
     assert _tail(p.build(packages=("core",), target="wasm32-unknown-unknown").cmd) == (
         "cargo build -p core --target wasm32-unknown-unknown --locked"
     )
+    assert _tail(
+        p.feature_powerset(subcommand="check", skip=("a b", "c")).cmd
+    ) == "cargo hack check --feature-powerset --depth 2 --no-dev-deps --skip 'a b',c"
