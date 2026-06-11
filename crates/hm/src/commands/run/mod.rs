@@ -129,7 +129,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // 7. Assemble the run request.
     let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
     let repo_name = git_remote_repo_name(&repo_root);
-    let req = hm_exec::RunRequest {
+    let mut req = hm_exec::RunRequest {
         plan,
         repo_root,
         pipeline_slug: slug,
@@ -148,6 +148,22 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         },
         cloud_pipeline_slug: None,
     };
+
+    // Cloud target resolution (before the first submit): a persisted pipeline
+    // slug wins; otherwise a remoteless worktree (no git remote) is registered
+    // interactively now and its slug persisted. A worktree WITH a remote falls
+    // through to the repo-identity submit + get-or-create fallback below.
+    if let Some((client, org)) = autocreate_client.as_ref() {
+        if let Some(slug) = ctx.config.cloud.pipeline.clone() {
+            req.cloud_pipeline_slug = Some(slug);
+        } else if req.source.repo_name.is_none() {
+            let default_branch =
+                git_default_branch(&req.repo_root).unwrap_or_else(|| req.source.branch.clone());
+            let slug =
+                register_remoteless_pipeline(client, org, &req.repo_root, &default_branch).await?;
+            req.cloud_pipeline_slug = Some(slug);
+        }
+    }
 
     // Cloud-only auto-create context. Borrow `req` here (before it's moved into
     // `start`): the repository URL and default branch come from the worktree's
@@ -393,15 +409,101 @@ fn build_create_pipeline_request(
     name: &str,
     default_branch: &str,
     repository: &str,
-    repo_name: &str,
+    repo_name: Option<&str>,
 ) -> harmont_cloud::types::CreatePipelineRequest {
     harmont_cloud::types::CreatePipelineRequest {
         default_branch: default_branch.to_string(),
         description: None,
         name: name.to_string(),
-        repo_name: Some(repo_name.to_string()),
+        repo_name: repo_name.map(str::to_string),
         repository: repository.to_string(),
     }
+}
+
+/// Merge `backend = "cloud"` and `[cloud] org/pipeline = …` into the project's
+/// `.hm/config.toml`, preserving any other keys already in the file. Creates
+/// the file (and `.hm/`) when absent. Used after registering a remoteless
+/// directory so later runs submit by the persisted slug without prompting.
+fn persist_project_pipeline(dir: &std::path::Path, org: &str, slug: &str) -> Result<()> {
+    let path = dir.join(".hm/config.toml");
+    let mut doc: toml::Table = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| toml::from_str(&s).ok())
+        .unwrap_or_default();
+    doc.insert("backend".into(), toml::Value::String("cloud".into()));
+    let cloud = doc
+        .entry("cloud".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+    if let Some(t) = cloud.as_table_mut() {
+        t.insert("org".into(), toml::Value::String(org.to_string()));
+        t.insert("pipeline".into(), toml::Value::String(slug.to_string()));
+    }
+    let serialized = toml::to_string_pretty(&doc).context("serializing .hm/config.toml")?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
+    }
+    std::fs::write(&path, serialized).with_context(|| format!("writing {}", path.display()))?;
+    Ok(())
+}
+
+/// Register the current directory as a Harmont pipeline when there's no git
+/// remote to identify one. Prompts for a name (default: the directory name) on
+/// a TTY; auto-uses the directory name when non-interactive. Reuses an existing
+/// pipeline of that name, else creates it (`repository` = the name, no
+/// `repo_name`). Persists the resolved slug to `.hm/config.toml`. Returns the
+/// org-global slug to submit by.
+async fn register_remoteless_pipeline(
+    client: &harmont_cloud::HarmontClient,
+    org: &str,
+    dir: &std::path::Path,
+    default_branch: &str,
+) -> Result<String> {
+    use std::io::IsTerminal;
+
+    let dirname = dir
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("pipeline")
+        .to_string();
+
+    let name = if std::io::stdin().is_terminal() {
+        // Propagate a genuine prompt I/O error rather than silently registering
+        // under the default name — creating a cloud pipeline is a side effect we
+        // shouldn't perform on an interrupted/failed read. (Hitting Enter accepts
+        // the default and returns `Ok`, so this only fires on a real failure.)
+        dialoguer::Input::<String>::new()
+            .with_prompt("No pipeline linked here — register this directory. Pipeline name")
+            .default(dirname)
+            .interact_text()
+            .context("reading the pipeline name")?
+    } else {
+        tracing::info!("no pipeline linked — registering '{dirname}' in org {org}");
+        dirname
+    };
+
+    // Reuse an existing pipeline of that name, else create one.
+    let slug = match client.raw().get_pipeline(org, &name).await {
+        Ok(p) => p.into_inner().slug,
+        Err(e) if e.status().is_some_and(|s| s.as_u16() == 404) => {
+            let body = build_create_pipeline_request(&name, default_branch, &name, None);
+            let created = client
+                .raw()
+                .create_pipeline(org, &body)
+                .await
+                .map_err(hm_plugin_cloud::settings::map_raw)
+                .with_context(|| format!("registering pipeline '{name}' in org {org}"))?;
+            created.into_inner().slug
+        }
+        Err(e) => {
+            return Err(hm_plugin_cloud::settings::map_raw(e))
+                .with_context(|| format!("looking up pipeline '{name}' in org {org}"));
+        }
+    };
+
+    persist_project_pipeline(dir, org, &slug).context("saving .hm/config.toml")?;
+    tracing::info!("registered pipeline '{slug}' — submitting build");
+    Ok(slug)
 }
 
 /// Everything the run driver needs to create a missing cloud pipeline and
@@ -478,7 +580,8 @@ async fn resolve_or_create_cloud_pipeline(
         tracing::info!("no pipeline for {repo_name} yet — creating it in org {}", ac.org);
     }
 
-    let body = build_create_pipeline_request(&ac.name, &ac.default_branch, repository, repo_name);
+    let body =
+        build_create_pipeline_request(&ac.name, &ac.default_branch, repository, Some(repo_name));
     let created = ac
         .client
         .raw()
@@ -745,12 +848,54 @@ mod tests {
             "web",
             "main",
             "git@github.com:acme/my-app.git",
-            "acme/my-app",
+            Some("acme/my-app"),
         );
         assert_eq!(body.name, "web");
         assert_eq!(body.default_branch, "main");
         assert_eq!(body.repository, "git@github.com:acme/my-app.git");
         assert_eq!(body.repo_name.as_deref(), Some("acme/my-app"));
         assert!(body.description.is_none());
+
+        // The remoteless path passes `None`: no `repo_name`, and `repository`
+        // falls back to the pipeline name itself.
+        let body = build_create_pipeline_request("my-app-2", "main", "my-app-2", None);
+        assert!(body.repo_name.is_none());
+        assert_eq!(body.repository, "my-app-2");
+        assert_eq!(body.name, "my-app-2");
+    }
+
+    #[test]
+    fn persist_creates_config_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        persist_project_pipeline(dir.path(), "acme", "my-app-2").unwrap();
+
+        let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
+        let doc: toml::Table = toml::from_str(&raw).unwrap();
+        assert_eq!(doc["backend"].as_str(), Some("cloud"));
+        let cloud = doc["cloud"].as_table().unwrap();
+        assert_eq!(cloud["org"].as_str(), Some("acme"));
+        assert_eq!(cloud["pipeline"].as_str(), Some("my-app-2"));
+    }
+
+    #[test]
+    fn persist_preserves_existing_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".hm")).unwrap();
+        std::fs::write(
+            dir.path().join(".hm/config.toml"),
+            "backend = \"docker\"\n[cloud]\norg = \"old\"\napi_url = \"https://example.test\"\n",
+        )
+        .unwrap();
+
+        persist_project_pipeline(dir.path(), "acme", "web").unwrap();
+
+        let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
+        let doc: toml::Table = toml::from_str(&raw).unwrap();
+        assert_eq!(doc["backend"].as_str(), Some("cloud"));
+        let cloud = doc["cloud"].as_table().unwrap();
+        assert_eq!(cloud["pipeline"].as_str(), Some("web"));
+        assert_eq!(cloud["org"].as_str(), Some("acme"));
+        // The unrelated key is preserved across the merge.
+        assert_eq!(cloud["api_url"].as_str(), Some("https://example.test"));
     }
 }
