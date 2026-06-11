@@ -53,7 +53,7 @@ fn edge_kinds(g: &PipelineGraph) -> (usize, usize) {
 #[test]
 fn python_monorepo_ci() {
     let g = load_fixture("python", "monorepo-ci");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 15, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
     assert!(labels.iter().any(|l| l.contains("go")));
@@ -72,16 +72,28 @@ fn python_monorepo_ci() {
 #[test]
 fn python_rust_release() {
     let g = load_fixture("python", "rust-release");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 5, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
     assert!(labels.iter().any(|l| l.contains("rust")));
+    // The DSL now injects image on each imageless root step directly.
+    let apt_base = g
+        .dag()
+        .graph()
+        .node_references()
+        .find(|(_, t)| t.step.key == "apt-base")
+        .map(|(_, t)| t.step.image.as_deref());
+    assert_eq!(
+        apt_base,
+        Some(Some("ubuntu:24.04")),
+        "root step apt-base must carry explicit image"
+    );
 }
 
 #[test]
 fn python_zig_node_polyglot() {
     let g = load_fixture("python", "zig-node-polyglot");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 10, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
     assert!(labels.iter().any(|l| l.contains("zig")));
@@ -95,7 +107,7 @@ fn python_zig_node_polyglot() {
 #[test]
 fn python_kitchen_sink() {
     let g = load_fixture("python", "kitchen-sink");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 10, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
     assert!(labels.iter().any(|l| l.contains("python")));
@@ -116,28 +128,28 @@ fn python_kitchen_sink() {
 #[test]
 fn ts_monorepo_ci() {
     let g = load_fixture("ts", "monorepo-ci");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 15);
 }
 
 #[test]
 fn ts_rust_release() {
     let g = load_fixture("ts", "rust-release");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 5);
 }
 
 #[test]
 fn ts_zig_node_polyglot() {
     let g = load_fixture("ts", "zig-node-polyglot");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 10);
 }
 
 #[test]
 fn ts_kitchen_sink() {
     let g = load_fixture("ts", "kitchen-sink");
-    assert_eq!(g.default_image(), Some("ubuntu:24.04"));
+    assert_eq!(g.default_image(), None);
     assert!(g.node_count() >= 10);
 }
 
