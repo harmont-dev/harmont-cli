@@ -351,6 +351,25 @@ fn is_missing_pipeline(err: &hm_exec::BackendError) -> bool {
     }
 }
 
+/// Build the create-pipeline request body. `name` is the in-repo source slug
+/// (so the server's derived global slug matches what the retry submits);
+/// `repo_name` (`owner/repo`) is passed explicitly so the server need not
+/// re-parse the clone URL.
+fn build_create_pipeline_request(
+    name: &str,
+    default_branch: &str,
+    repository: &str,
+    repo_name: &str,
+) -> harmont_cloud::types::CreatePipelineRequest {
+    harmont_cloud::types::CreatePipelineRequest {
+        default_branch: default_branch.to_string(),
+        description: None,
+        name: name.to_string(),
+        repo_name: Some(repo_name.to_string()),
+        repository: repository.to_string(),
+    }
+}
+
 /// Map a [`hm_exec::BackendError`] to the process exit-code category.
 ///
 /// Note: the old taxonomy distinguished a downed Docker daemon
@@ -609,5 +628,20 @@ mod tests {
             }),
             ErrorCategory::Usage
         );
+    }
+
+    #[test]
+    fn create_request_maps_fields_and_sets_repo_name() {
+        let body = build_create_pipeline_request(
+            "web",
+            "main",
+            "git@github.com:acme/my-app.git",
+            "acme/my-app",
+        );
+        assert_eq!(body.name, "web");
+        assert_eq!(body.default_branch, "main");
+        assert_eq!(body.repository, "git@github.com:acme/my-app.git");
+        assert_eq!(body.repo_name.as_deref(), Some("acme/my-app"));
+        assert!(body.description.is_none());
     }
 }
