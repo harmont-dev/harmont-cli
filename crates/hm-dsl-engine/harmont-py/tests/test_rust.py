@@ -280,20 +280,24 @@ class TestRustProject:
 
     def test_clippy_command(self):
         proj = hm.rust.project(path="cli")
-        assert "cargo clippy --workspace --tests --locked -- -D warnings" in proj.clippy().cmd
+        assert (
+            "cargo clippy --workspace --all-targets --locked -- -D warnings" in proj.clippy().cmd
+        )
 
     def test_clippy_flags(self):
         proj = hm.rust.project(path=".")
         step = proj.clippy(flags=("--fix",))
-        assert "cargo clippy --workspace --tests --locked --fix -- -D warnings" in step.cmd
+        assert "cargo clippy --workspace --all-targets --locked --fix -- -D warnings" in step.cmd
 
     def test_fmt_command(self):
         proj = hm.rust.project(path="cli")
-        assert "cargo fmt --check" in proj.fmt().cmd
+        assert proj.fmt().cmd.endswith("cargo fmt --all --check")
 
     def test_fmt_flags(self):
         proj = hm.rust.project(path=".")
-        assert "cargo fmt --check --all" in proj.fmt(flags=("--all",)).cmd
+        assert (
+            "cargo fmt --all --check --config-path x" in proj.fmt(flags=("--config-path", "x")).cmd
+        )
 
     def test_test_chains_off_warmup(self):
         proj = hm.rust.project(path=".")
@@ -334,7 +338,7 @@ class TestRustProject:
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
         assert any("cargo clippy" in c for c in cmds)
-        assert any("cargo fmt --check" in c for c in cmds)
+        assert any("cargo fmt --all --check" in c for c in cmds)
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
         assert len([c for c in cmds if "apt-get install" in c]) == 1
 
@@ -343,3 +347,58 @@ class TestRustProject:
         p = hm.pipeline([proj.test()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
         assert "--default-toolchain 1.81.0" in rustup["cmd"]
+
+    def test_test_packages(self):
+        proj = hm.rust.project(path=".")
+        step = proj.test(packages=("core",))
+        assert "cargo test -p core --locked" in step.cmd
+
+    def test_test_nextest(self):
+        proj = hm.rust.project(path=".")
+        assert "cargo nextest run --workspace --locked" in proj.test(nextest=True).cmd
+
+    def test_build_method_exists(self):
+        proj = hm.rust.project(path=".")
+        assert "cargo build --workspace --locked" in proj.build().cmd
+        assert proj.build().parent is proj.warmup
+
+    def test_doctest_method(self):
+        proj = hm.rust.project(path=".")
+        assert proj.doctest().cmd.endswith("cargo test --workspace --locked --doc")
+        assert proj.doctest().label == ":rust: doctest"
+
+    def test_clippy_packages(self):
+        proj = hm.rust.project(path=".")
+        step = proj.clippy(packages=("core",))
+        assert "cargo clippy -p core --all-targets --locked -- -D warnings" in step.cmd
+
+    def test_doc_method(self):
+        proj = hm.rust.project(path=".")
+        s = proj.doc()
+        assert "cargo doc --no-deps --workspace --locked" in s.cmd
+        assert s.env == {"RUSTDOCFLAGS": "-D warnings"}
+
+    def test_ci_returns_test_clippy_fmt(self):
+        proj = hm.rust.project(path=".")
+        steps = proj.ci()
+        labels = [s.label for s in steps]
+        assert labels == [":rust: test", ":rust: clippy", ":rust: fmt"]
+
+    def test_ci_nextest_adds_doctest(self):
+        proj = hm.rust.project(path=".")
+        steps = proj.ci(nextest=True)
+        labels = [s.label for s in steps]
+        assert labels == [":rust: test", ":rust: doctest", ":rust: clippy", ":rust: fmt"]
+        assert any("cargo nextest run" in s.cmd for s in steps)
+        assert any(s.cmd.endswith("--doc") for s in steps)
+
+    def test_ci_doc_flag_adds_doc(self):
+        proj = hm.rust.project(path=".")
+        labels = [s.label for s in proj.ci(doc=True)]
+        assert ":rust: doc" in labels
+
+    def test_ci_in_pipeline(self):
+        proj = hm.rust.project(path="cli")
+        p = hm.pipeline(list(proj.ci()), default_image="ubuntu:24.04")
+        cmds = _cmds(p)
+        assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1

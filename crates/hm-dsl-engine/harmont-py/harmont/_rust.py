@@ -314,44 +314,226 @@ class RustToolchain:
 class RustProject:
     """High-level Rust CI DAG — constructed via ``hm.rust.project()``.
 
-    Wraps a ``RustToolchain`` and a pre-built warmup step. Action methods
-    (``test``, ``clippy``, ``fmt``) attach leaves to the warmup so
-    dependency compilation is shared across CI actions.
+    Action methods (``build``, ``test``, ``doctest``, ``clippy``, ``fmt``,
+    ``doc``) attach leaves to the shared warmup step so dependency compilation
+    is reused. ``ci()`` returns the standard DAG in one call. Methods default
+    to ``workspace=True``.
     """
 
     toolchain: RustToolchain
     warmup: Step
 
+    def _emit(self, cargo: str, default_label: str, **kw: Any) -> Step:
+        if kw.get("label") is None:
+            kw["label"] = default_label
+        return self.warmup.sh(self.toolchain._wrap(cargo), **kw)  # noqa: SLF001
+
+    def build(
+        self,
+        *,
+        workspace: bool = True,
+        packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        all_targets: bool = False,
+        release: bool = False,
+        profile: str | None = None,
+        locked: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        return self._emit(
+            _build_cmd(
+                workspace=workspace,
+                packages=packages,
+                exclude=exclude,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                all_targets=all_targets,
+                release=release,
+                profile=profile,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: build",
+            **kw,
+        )
+
     def test(
         self,
         *,
-        flags: tuple[str, ...] = (),
+        nextest: bool = False,
+        workspace: bool = True,
         packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        all_targets: bool = False,
+        release: bool = False,
+        profile: str | None = None,
+        locked: bool = True,
+        flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
-        scope = " ".join(f"-p {p}" for p in packages) if packages else "--workspace"
-        extra = (" " + " ".join(flags)) if flags else ""
-        return self.warmup.sh(
-            self.toolchain._wrap(f"cargo test {scope} --locked{extra}"),  # noqa: SLF001
-            label=kw.pop("label", ":rust: test"),
-            **kw,
-        )
-
-    def clippy(self, *, flags: tuple[str, ...] = (), **kw: Any) -> Step:
-        extra = (" " + " ".join(flags)) if flags else ""
-        return self.warmup.sh(
-            self.toolchain._wrap(  # noqa: SLF001
-                f"cargo clippy --workspace --tests --locked{extra} -- -D warnings"
+        return self._emit(
+            _test_cmd(
+                nextest=nextest,
+                workspace=workspace,
+                packages=packages,
+                exclude=exclude,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                all_targets=all_targets,
+                release=release,
+                profile=profile,
+                locked=locked,
+                flags=flags,
             ),
-            label=kw.pop("label", ":rust: clippy"),
+            ":rust: test",
             **kw,
         )
 
-    def fmt(self, *, flags: tuple[str, ...] = (), **kw: Any) -> Step:
-        extra = (" " + " ".join(flags)) if flags else ""
-        return self.toolchain._emit(  # noqa: SLF001
-            f"cargo fmt --check{extra}", ":rust: fmt", **kw
+    def doctest(
+        self,
+        *,
+        workspace: bool = True,
+        packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        locked: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        return self._emit(
+            _doctest_cmd(
+                workspace=workspace,
+                packages=packages,
+                exclude=exclude,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: doctest",
+            **kw,
         )
+
+    def clippy(
+        self,
+        *,
+        workspace: bool = True,
+        packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        all_targets: bool = True,
+        locked: bool = True,
+        deny_warnings: bool = True,
+        extra_lints: tuple[str, ...] = (),
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        return self._emit(
+            _clippy_cmd(
+                deny_warnings=deny_warnings,
+                extra_lints=extra_lints,
+                workspace=workspace,
+                packages=packages,
+                exclude=exclude,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                all_targets=all_targets,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: clippy",
+            **kw,
+        )
+
+    def fmt(
+        self,
+        *,
+        all: bool = True,  # noqa: A002
+        check: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        # fmt has no warmup dependency; chain off the install step (like the
+        # toolchain) so it can run without waiting on the build warmup.
+        return self.toolchain.fmt(all=all, check=check, flags=flags, **kw)
+
+    def doc(
+        self,
+        *,
+        no_deps: bool = True,
+        document_private_items: bool = False,
+        workspace: bool = True,
+        packages: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        locked: bool = True,
+        deny_warnings: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        _doc_env(kw, deny_warnings=deny_warnings)
+        return self._emit(
+            _doc_cmd(
+                no_deps=no_deps,
+                document_private_items=document_private_items,
+                workspace=workspace,
+                packages=packages,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: doc",
+            **kw,
+        )
+
+    def ci(self, *, nextest: bool = False, doc: bool = False) -> tuple[Step, ...]:
+        """The zero-config Rust CI DAG: test + clippy + fmt, sharing one warmup.
+
+        With ``nextest=True`` the test step uses ``cargo nextest run`` and a
+        companion ``doctest()`` step is appended (nextest cannot run doctests).
+        With ``doc=True`` a ``doc()`` step is appended.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.rust.project()
+            >>> hm.pipeline(list(proj.ci(nextest=True)))
+        """
+        steps: list[Step] = [self.test(nextest=nextest)]
+        if nextest:
+            steps.append(self.doctest())
+        steps.append(self.clippy())
+        steps.append(self.fmt())
+        if doc:
+            steps.append(self.doc())
+        return tuple(steps)
 
 
 def _make_rust(
