@@ -12,7 +12,6 @@ def project():
 @hm.pipeline(
     "ci",
     env={"CI": "true", "MIX_ENV": "test"},
-    default_image="ubuntu:24.04",
     triggers=[hm.push(branch="main"), hm.pr()],
 )
 def ci(project: hm.Target) -> tuple[hm.Step, ...]:
@@ -31,7 +30,6 @@ def ci(project: hm.Target) -> tuple[hm.Step, ...]:
 @hm.pipeline(
     "deploy",
     env={"MIX_ENV": "prod"},
-    default_image="ubuntu:24.04",
     triggers=[hm.push(branch="main")],
 )
 def deploy(project: hm.Target) -> tuple[hm.Step, ...]:

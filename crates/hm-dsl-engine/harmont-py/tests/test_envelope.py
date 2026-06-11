@@ -111,14 +111,13 @@ def test_pipeline_with_tuple_leaves():
     assert cmds == ["a", "b"]
 
 
-def test_pipeline_forwards_env_and_default_image_to_assemble():
-    @hm.pipeline("ci", env={"CI": "true"}, default_image="alpine:3.20")
+def test_pipeline_forwards_env_to_assemble():
+    @hm.pipeline("ci", env={"CI": "true"})
     def ci() -> hm.Step:
         return hm.scratch().sh("echo")
 
     out = json.loads(hm.dump_registry_json())
     definition = out["pipelines"][0]["definition"]
-    assert definition["default_image"] == "alpine:3.20"
     # Pipeline-level env is merged into node env dicts.
     for node in _graph_nodes(definition):
         assert node["env"].get("CI") == "true"

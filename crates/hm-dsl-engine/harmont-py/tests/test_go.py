@@ -21,7 +21,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_go_object_form_full_chain():
     go = hm.go(path="svc")
-    p = hm.pipeline([go.build()], default_image="ubuntu:24.04")
+    p = hm.pipeline([go.build()])
     cmds = _cmds(p)
     assert any("apt-get install" in c for c in cmds)
     assert any("go.dev/dl/" in c for c in cmds)
@@ -30,7 +30,7 @@ def test_go_object_form_full_chain():
 
 def test_go_actions_share_install_step():
     go = hm.go(path="svc")
-    p = hm.pipeline([go.build(), go.test(), go.vet(), go.fmt()], default_image="ubuntu:24.04")
+    p = hm.pipeline([go.build(), go.test(), go.vet(), go.fmt()])
     cmds = _cmds(p)
     assert len([c for c in cmds if "go.dev/dl/" in c]) == 1
     assert any("go build ./..." in c for c in cmds)
@@ -78,7 +78,7 @@ def test_go_action_labels_auto_generated():
 def test_go_with_base_skips_apt():
     base = hm.scratch().sh("custom base", label="base")
     go = hm.go(path="svc", base=base)
-    p = hm.pipeline([go.build()], default_image="ubuntu:24.04")
+    p = hm.pipeline([go.build()])
     cmds = _cmds(p)
     assert not any("apt-get install" in c for c in cmds)
     assert any("custom base" in c for c in cmds)

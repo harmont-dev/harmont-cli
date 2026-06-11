@@ -53,7 +53,6 @@ def web_project(apt_base: hm.Target[hm.Step]) -> JsProject:
 @hm.pipeline(
     "ci",
     env={"CI": "true"},
-    default_image="ubuntu:24.04",
     triggers=[hm.push(branch="main")],
 )
 def ci(

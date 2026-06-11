@@ -110,9 +110,10 @@ def test_pipeline_env_merged_into_node_env():
     assert _nodes(out)[0]["env"]["DEBIAN_FRONTEND"] == "noninteractive"
 
 
-def test_default_image_emitted_when_set():
-    out = _emit(pipeline([scratch().sh("a", label="a")], default_image="alpine:3"))
-    assert out["default_image"] == "alpine:3"
+def test_imageless_root_emitted_with_ubuntu_default():
+    out = _emit(pipeline([scratch().sh("a", label="a")]))
+    assert _nodes(out)[0]["step"]["image"] == "ubuntu:24.04"
+    assert "default_image" not in out
 
 
 def test_cache_ttl_resolves_key():
@@ -158,7 +159,8 @@ def test_cache_on_change_paths_round_trip(tmp_path):
 def test_no_optional_fields_when_not_set():
     out = _emit(pipeline([scratch().sh("x", label="x")]))
     s = _nodes(out)[0]["step"]
-    assert "image" not in s
+    # Root imageless steps now receive ubuntu:24.04 automatically.
+    assert s.get("image") == "ubuntu:24.04"
     assert "timeout_seconds" not in s
     assert "cache" not in s
 

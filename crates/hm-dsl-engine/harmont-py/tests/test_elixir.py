@@ -21,7 +21,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_elixir_object_form_full_chain():
     ex = hm.elixir(path="apps/api")
-    p = hm.pipeline([ex.compile()], default_image="ubuntu:24.04")
+    p = hm.pipeline([ex.compile()])
     cmds = _cmds(p)
     assert any("apt-get install" in c for c in cmds)
     assert any("erlang" in c.lower() for c in cmds)
@@ -33,7 +33,6 @@ def test_elixir_actions_share_install_step():
     ex = hm.elixir(path=".")
     p = hm.pipeline(
         [ex.compile(), ex.test(), ex.format(), ex.credo()],
-        default_image="ubuntu:24.04",
     )
     cmds = _cmds(p)
     assert len([c for c in cmds if "mix deps.get" in c]) == 1
@@ -115,7 +114,7 @@ def test_elixir_dialyzer_chains_through_plt():
 def test_elixir_with_base_skips_apt():
     base = hm.scratch().sh("custom base", label="base")
     ex = hm.elixir(path=".", base=base)
-    p = hm.pipeline([ex.compile()], default_image="ubuntu:24.04")
+    p = hm.pipeline([ex.compile()])
     cmds = _cmds(p)
     assert not any("apt-get update && apt-get install -y" in c for c in cmds)
     assert any("custom base" in c for c in cmds)

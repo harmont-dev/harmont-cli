@@ -273,7 +273,7 @@ def test_default_label(runtime: str, expected: str) -> None:
 )
 def test_pipeline_ir(opts: dict) -> None:
     p = js.project(**opts)
-    ir = hm.pipeline([p.run("test"), p.run("lint")], default_image="ubuntu:24.04")
+    ir = hm.pipeline([p.run("test"), p.run("lint")])
     assert ir["version"] == "0"
     assert len(ir["graph"]["nodes"]) >= 4
 

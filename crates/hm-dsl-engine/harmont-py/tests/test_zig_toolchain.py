@@ -58,7 +58,7 @@ def test_pipeline_with_shared_toolchain_emits_one_install() -> None:
     def lib_b(zig: hm.Target[ZigToolchain]) -> ZigProject:
         return zig.project(path="lib-b")
 
-    @hm.pipeline("ci", default_image="ubuntu:24.04")
+    @hm.pipeline("ci")
     def ci(
         lib_a: hm.Target[ZigProject],
         lib_b: hm.Target[ZigProject],

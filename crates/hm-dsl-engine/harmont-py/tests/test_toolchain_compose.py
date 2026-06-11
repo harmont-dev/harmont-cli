@@ -37,7 +37,7 @@ def test_deterministic_emission():
 
     def build() -> dict:
         rust = hm.rust.toolchain(path="cli")
-        return hm.pipeline([rust.build(), rust.test()], default_image="ubuntu:24.04")
+        return hm.pipeline([rust.build(), rust.test()])
 
     assert build() == build()
 
@@ -49,7 +49,6 @@ def test_mixed_pipeline_compiles():
     go = hm.go(path="services/api")
     p = hm.pipeline(
         [rust.test(), rust.clippy(), node.install(), go.build(), go.test()],
-        default_image="ubuntu:24.04",
     )
     assert p["version"] == "0"
     assert len(p["graph"]["nodes"]) > 0
@@ -80,7 +79,6 @@ def test_apt_base_shared_across_toolchains():
     py = hm.py.uv(path="dsls/harmont-py", base=base)
     p = hm.pipeline(
         [rust.build(), py.test()],
-        default_image="ubuntu:24.04",
     )
     cmds = _cmds(p)
     assert len([c for c in cmds if "apt-get install" in c]) == 1
@@ -96,7 +94,7 @@ def test_apt_base_default_label():
 def test_apt_base_custom_image():
     base = hm.apt_base(packages=("curl",), image="debian:bookworm")
     rust = hm.rust.toolchain(path=".", base=base)
-    p = hm.pipeline([rust.build()], default_image="ubuntu:24.04")
+    p = hm.pipeline([rust.build()])
     apt_step = _step_by_substring(p, "apt-get install")
     assert apt_step.get("image") == "debian:bookworm"
 

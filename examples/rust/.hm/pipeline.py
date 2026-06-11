@@ -13,7 +13,6 @@ def project() -> RustToolchain:
 @hm.pipeline(
     "ci",
     env={"CI": "true"},
-    default_image="ubuntu:24.04",
     triggers=[hm.push(branch="main")],
 )
 def ci(project: hm.Target[RustToolchain]) -> tuple[hm.Step, ...]:

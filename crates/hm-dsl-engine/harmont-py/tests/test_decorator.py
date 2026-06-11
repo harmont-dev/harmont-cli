@@ -25,7 +25,6 @@ def test_explicit_slug():
     assert reg.triggers == ()
     assert reg.allow_manual is True
     assert reg.env is None
-    assert reg.default_image is None
 
 
 def test_default_slug_from_function_name():
@@ -44,14 +43,13 @@ def test_name_override():
     assert REGISTRATIONS[0].name == "Continuous Integration"
 
 
-def test_forwards_env_and_default_image():
-    @hm.pipeline("ci", env={"FOO": "bar"}, default_image="alpine:3.20")
+def test_forwards_env():
+    @hm.pipeline("ci", env={"FOO": "bar"})
     def ci() -> hm.Step:
         return hm.scratch().sh("echo")
 
     reg = REGISTRATIONS[0]
     assert reg.env == {"FOO": "bar"}
-    assert reg.default_image == "alpine:3.20"
 
 
 def test_allow_manual_false():
