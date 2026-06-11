@@ -136,5 +136,6 @@ fn fake_request() -> RunRequest {
             watch: true,
             ..Default::default()
         },
+        cloud_pipeline_slug: None,
     }
 }

@@ -91,6 +91,13 @@ pub struct RunRequest {
     pub env: BTreeMap<String, String>,
     pub source: SourceMeta,
     pub options: RunOptions,
+    /// When `Some`, the cloud backend submits the build directly to this
+    /// already-resolved org-global pipeline slug (via `submit_build`) instead
+    /// of resolving by repo identity (`submit_repo_build`). Set by the `hm run`
+    /// driver after it has created or looked up the pipeline for a repo the
+    /// server hasn't "discovered" (connected/pushed). `None` for the normal
+    /// repo-identity path. Ignored by non-cloud backends.
+    pub cloud_pipeline_slug: Option<String>,
 }
 
 #[cfg(test)]

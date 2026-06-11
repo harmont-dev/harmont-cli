@@ -146,6 +146,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             watch: !args.no_watch,
             keep_going: args.keep_going,
         },
+        cloud_pipeline_slug: None,
     };
 
     // Cloud-only auto-create context. Borrow `req` here (before it's moved into

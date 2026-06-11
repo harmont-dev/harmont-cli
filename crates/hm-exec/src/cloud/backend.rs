@@ -2,7 +2,7 @@
 //! to Harmont Cloud, and watch it to completion. The server schedules and runs;
 //! this backend is an *observer* (see [`Capabilities::cloud`]).
 
-use harmont_cloud::{HarmontClient, HarmontError, builds::NewRepoBuild};
+use harmont_cloud::{HarmontClient, HarmontError, builds::{NewBuild, NewRepoBuild}};
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -74,6 +74,10 @@ impl ExecutionBackend for CloudBackend {
         Capabilities::cloud()
     }
 
+    // The two submit branches (by-slug vs. repo-identity) plus the
+    // watch/no-watch handling push this just over the 100-line lint; splitting
+    // it would only scatter the linear submit-then-watch flow.
+    #[allow(clippy::too_many_lines)]
     async fn start(&self, req: RunRequest) -> Result<BackendHandle> {
         // Archive the worktree (fail fast as a setup error).
         let source_tgz = crate::local::build_archive_bytes(&req.repo_root)
@@ -84,32 +88,49 @@ impl ExecutionBackend for CloudBackend {
         // the size so the upload isn't a silent gulf of evaluation.
         guard_archive_size(source_tgz.len(), &req.repo_root)?;
 
-        // Resolve the repo's `owner/repo`; cloud runs address the pipeline by
-        // (repo_name, source_slug) — the bare DSL slug is not the server's
-        // global slug. A worktree with no remote can't be matched to a pipeline.
-        let repo_name = req.source.repo_name.clone().ok_or_else(|| {
-            BackendError::Local(
-                "cloud runs need a git remote to identify the pipeline — add an \
-                 `origin` remote, or run from a cloned repo"
-                    .into(),
-            )
-        })?;
-
-        let build = self
-            .client
-            .submit_repo_build(NewRepoBuild {
-                org: self.org.clone(),
-                repo_name,
-                source_slug: req.pipeline_slug.clone(),
-                branch: req.source.branch.clone(),
-                commit: req.source.commit.clone(),
-                message: req.source.message.clone(),
-                pipeline_ir: req.plan.ir_json.clone(), // verbatim
-                source_tgz,
-                env: req.env.clone().into_iter().collect(),
-            })
-            .await
-            .map_err(map_harmont_err)?;
+        // Submit the build. Normally we address the pipeline by repo identity
+        // (`submit_repo_build` resolves `(repo_name, source_slug)` to the
+        // server's global slug). But when the driver has already resolved or
+        // created the pipeline — for a repo the server hasn't discovered — it
+        // passes the global slug directly, and we submit by slug
+        // (`submit_build`), bypassing repo-identity resolution.
+        let build = if let Some(slug) = req.cloud_pipeline_slug.clone() {
+            self.client
+                .submit_build(NewBuild {
+                    org: self.org.clone(),
+                    pipeline: slug,
+                    branch: req.source.branch.clone(),
+                    commit: req.source.commit.clone(),
+                    message: req.source.message.clone(),
+                    pipeline_ir: req.plan.ir_json.clone(), // verbatim
+                    source_tgz,
+                    env: req.env.clone().into_iter().collect(),
+                })
+                .await
+                .map_err(map_harmont_err)?
+        } else {
+            let repo_name = req.source.repo_name.clone().ok_or_else(|| {
+                BackendError::Local(
+                    "cloud runs need a git remote to identify the pipeline — add an \
+                     `origin` remote, or run from a cloned repo"
+                        .into(),
+                )
+            })?;
+            self.client
+                .submit_repo_build(NewRepoBuild {
+                    org: self.org.clone(),
+                    repo_name,
+                    source_slug: req.pipeline_slug.clone(),
+                    branch: req.source.branch.clone(),
+                    commit: req.source.commit.clone(),
+                    message: req.source.message.clone(),
+                    pipeline_ir: req.plan.ir_json.clone(), // verbatim
+                    source_tgz,
+                    env: req.env.clone().into_iter().collect(),
+                })
+                .await
+                .map_err(map_harmont_err)?
+        };
 
         // The server resolved (and returns) the global slug; watch/cancel/log
         // endpoints are addressed by it, NOT by the source slug we submitted.
