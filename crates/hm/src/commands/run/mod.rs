@@ -229,8 +229,16 @@ fn parse_repo_name(url: &str) -> Option<String> {
     Some(segs[segs.len() - 2..].join("/"))
 }
 
-/// Best-effort `owner/repo` from the worktree's `origin` remote.
-fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
+/// Extract the default branch name from a `git symbolic-ref
+/// refs/remotes/origin/HEAD` result (e.g. `refs/remotes/origin/main` → `main`).
+/// `None` when the line is empty or lacks the expected prefix.
+fn parse_default_branch(symbolic_ref: &str) -> Option<String> {
+    let branch = symbolic_ref.trim().strip_prefix("refs/remotes/origin/")?;
+    (!branch.is_empty()).then(|| branch.to_string())
+}
+
+/// The worktree's raw `origin` remote URL (the pipeline's `repository`).
+fn git_remote_url(root: &std::path::Path) -> Option<String> {
     let out = std::process::Command::new("git")
         .arg("-C")
         .arg(root)
@@ -238,7 +246,26 @@ fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
         .output()
         .ok()
         .filter(|o| o.status.success())?;
-    parse_repo_name(&String::from_utf8_lossy(&out.stdout))
+    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!url.is_empty()).then_some(url)
+}
+
+/// The repo's default branch, from `origin/HEAD`. `None` when `origin/HEAD`
+/// isn't set (common on fresh clones without `git remote set-head`).
+fn git_default_branch(root: &std::path::Path) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+    parse_default_branch(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// Best-effort `owner/repo` from the worktree's `origin` remote.
+fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
+    parse_repo_name(&git_remote_url(root)?)
 }
 
 /// Resolve repo root, detect the DSL, select the pipeline slug, and render
@@ -488,6 +515,25 @@ mod tests {
     fn parse_repo_name_rejects_unparseable() {
         assert_eq!(parse_repo_name(""), None);
         assert_eq!(parse_repo_name("not-a-url"), None);
+    }
+
+    #[test]
+    fn parses_default_branch_from_symbolic_ref() {
+        assert_eq!(
+            parse_default_branch("refs/remotes/origin/main\n").as_deref(),
+            Some("main")
+        );
+        assert_eq!(
+            parse_default_branch("refs/remotes/origin/master").as_deref(),
+            Some("master")
+        );
+    }
+
+    #[test]
+    fn default_branch_none_when_unexpected_or_empty() {
+        assert_eq!(parse_default_branch(""), None);
+        assert_eq!(parse_default_branch("refs/heads/main"), None);
+        assert_eq!(parse_default_branch("refs/remotes/origin/"), None);
     }
 
     #[test]
