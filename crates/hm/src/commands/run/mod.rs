@@ -513,9 +513,8 @@ async fn register_remoteless_pipeline(
             created.into_inner().slug
         }
         Err(e) => {
-            return Err(hm_plugin_cloud::settings::map_raw(e)).with_context(|| {
-                format!("looking up pipeline '{pipeline_name}' in org {org}")
-            });
+            return Err(hm_plugin_cloud::settings::map_raw(e))
+                .with_context(|| format!("looking up pipeline '{pipeline_name}' in org {org}"));
         }
     };
 
@@ -595,7 +594,10 @@ async fn resolve_or_create_cloud_pipeline(
             return Ok(None);
         }
     } else {
-        tracing::info!("no pipeline for {repo_name} yet — creating it in org {}", ac.org);
+        tracing::info!(
+            "no pipeline for {repo_name} yet — creating it in org {}",
+            ac.org
+        );
     }
 
     let body =
@@ -725,9 +727,8 @@ mod tests {
 
     #[test]
     fn missing_pipeline_detected_from_opaque_not_found() {
-        let err = hm_exec::BackendError::NotFound(
-            r#"{"error":{"code":"pipeline_not_found"}}"#.into(),
-        );
+        let err =
+            hm_exec::BackendError::NotFound(r#"{"error":{"code":"pipeline_not_found"}}"#.into());
         assert!(is_missing_pipeline(&err));
     }
 
