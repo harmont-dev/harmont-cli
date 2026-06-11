@@ -159,6 +159,73 @@ class TestRustToolchain:
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
         assert len([c for c in cmds if "apt-get install" in c]) == 1
 
+    def test_build_locked_by_default(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.build().cmd.endswith("cargo build --locked")
+
+    def test_build_unlocked(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.build(locked=False).cmd.endswith("cargo build")
+
+    def test_build_features(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.build(features=("a", "b"), release=True)
+        assert "cargo build --features a,b --release --locked" in s.cmd
+
+    def test_build_packages(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.build(packages=("core", "cli"))
+        assert "cargo build -p core -p cli --locked" in s.cmd
+
+    def test_test_all_features(self):
+        tc = hm.rust.toolchain(path=".")
+        assert "cargo test --all-features --locked" in tc.test(all_features=True).cmd
+
+    def test_test_nextest_switches_runner(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.test(nextest=True, workspace=True)
+        assert "cargo nextest run --workspace --locked" in s.cmd
+
+    def test_doctest_appends_doc(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.doctest(workspace=True).cmd.endswith("cargo test --workspace --locked --doc")
+
+    def test_doctest_default_label(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.doctest().label == ":rust: doctest"
+
+    def test_clippy_all_targets_locked_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        assert "cargo clippy --all-targets --locked -- -D warnings" in tc.clippy().cmd
+
+    def test_clippy_extra_lints(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.clippy(extra_lints=("-W clippy::pedantic",))
+        assert "-- -D warnings -W clippy::pedantic" in s.cmd
+
+    def test_clippy_no_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        assert " -- " not in tc.clippy(deny_warnings=False).cmd
+
+    def test_fmt_all_check_default(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.fmt().cmd.endswith("cargo fmt --all --check")
+
+    def test_doc_sets_rustdocflags_env(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.doc()
+        assert "cargo doc --no-deps --locked" in s.cmd
+        assert s.env == {"RUSTDOCFLAGS": "-D warnings"}
+
+    def test_doc_respects_user_rustdocflags(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.doc(env={"RUSTDOCFLAGS": "-D rustdoc::all"})
+        assert s.env == {"RUSTDOCFLAGS": "-D rustdoc::all"}
+
+    def test_doc_no_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.doc(deny_warnings=False).env is None
+
 
 # --- RustProject (hm.rust.project) ---
 

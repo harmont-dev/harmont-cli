@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ._cargo import CargoOpts, cargo_flags
 from ._toolchain import make_install_chain
 from .cache import CacheForever, CacheOnChange
 
@@ -40,12 +41,70 @@ def _rustup_cmd(version: str, components: tuple[str, ...]) -> str:
     )
 
 
+def _build_cmd(**o: Any) -> str:
+    return f"cargo build{cargo_flags(CargoOpts(**o))}"
+
+
+def _test_cmd(*, nextest: bool = False, **o: Any) -> str:
+    runner = "cargo nextest run" if nextest else "cargo test"
+    return f"{runner}{cargo_flags(CargoOpts(**o))}"
+
+
+def _doctest_cmd(**o: Any) -> str:
+    return f"cargo test{cargo_flags(CargoOpts(**o))} --doc"
+
+
+def _clippy_cmd(*, deny_warnings: bool = True, extra_lints: tuple[str, ...] = (), **o: Any) -> str:
+    mid = cargo_flags(CargoOpts(**o))
+    trail = (["-D warnings"] if deny_warnings else []) + list(extra_lints)
+    suffix = (" -- " + " ".join(trail)) if trail else ""
+    return f"cargo clippy{mid}{suffix}"
+
+
+def _fmt_cmd(
+    *,
+    all: bool = True,  # noqa: A002
+    check: bool = True,
+    flags: tuple[str, ...] = (),
+) -> str:
+    toks = ["cargo fmt"]
+    if all:
+        toks.append("--all")
+    if check:
+        toks.append("--check")
+    toks += list(flags)
+    return " ".join(toks)
+
+
+def _doc_cmd(*, no_deps: bool = True, document_private_items: bool = False, **o: Any) -> str:
+    doc_toks: list[str] = []
+    if no_deps:
+        doc_toks.append("--no-deps")
+    if document_private_items:
+        doc_toks.append("--document-private-items")
+    prefix = (" " + " ".join(doc_toks)) if doc_toks else ""
+    return f"cargo doc{prefix}{cargo_flags(CargoOpts(**o))}"
+
+
+def _doc_env(kw: dict[str, Any], *, deny_warnings: bool) -> None:
+    if deny_warnings:
+        user_env = kw.get("env")
+        merged = dict(user_env) if user_env else {}
+        merged.setdefault("RUSTDOCFLAGS", "-D warnings")
+        kw["env"] = merged
+
+
 @dataclass(frozen=True)
 class RustToolchain:
     """Rust toolchain install chain — constructed via ``hm.rust.toolchain()``.
 
-    Holds the install step produced by rustup. Action methods (``build``,
-    ``test``, ``clippy``, ``fmt``, ``doc``) attach leaves to ``installed``.
+    Holds the rustup install step. Action methods (``build``, ``test``,
+    ``doctest``, ``clippy``, ``fmt``, ``doc``, ``warmup``) attach leaves to
+    ``installed``. Every action accepts the shared cargo options (``packages``,
+    ``features``, ``all_features``, ``no_default_features``, ``target``,
+    ``release``, ``profile``, ``locked``, ``workspace``) plus a ``flags``
+    escape hatch, and forwards Step kwargs (``label``, ``cache``, ``env``,
+    ``image`` …) unchanged.
     """
 
     path: str
@@ -59,23 +118,183 @@ class RustToolchain:
             kw["label"] = default_label
         return self.installed.sh(self._wrap(cargo), **kw)
 
-    def build(self, *, release: bool = False, **kw: Any) -> Step:
-        flag = " --release" if release else ""
-        return self._emit(f"cargo build{flag}", ":rust: build", **kw)
-
-    def test(self, *, release: bool = False, **kw: Any) -> Step:
-        flag = " --release" if release else ""
-        return self._emit(f"cargo test{flag}", ":rust: test", **kw)
-
-    def clippy(self, **kw: Any) -> Step:
+    def build(
+        self,
+        *,
+        workspace: bool = False,
+        packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        all_targets: bool = False,
+        release: bool = False,
+        profile: str | None = None,
+        locked: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
         return self._emit(
-            "cargo clippy --all-targets -- -D warnings",
+            _build_cmd(
+                workspace=workspace,
+                packages=packages,
+                exclude=exclude,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                all_targets=all_targets,
+                release=release,
+                profile=profile,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: build",
+            **kw,
+        )
+
+    def test(
+        self,
+        *,
+        nextest: bool = False,
+        workspace: bool = False,
+        packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        release: bool = False,
+        profile: str | None = None,
+        locked: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        return self._emit(
+            _test_cmd(
+                nextest=nextest,
+                workspace=workspace,
+                packages=packages,
+                exclude=exclude,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                release=release,
+                profile=profile,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: test",
+            **kw,
+        )
+
+    def doctest(
+        self,
+        *,
+        workspace: bool = False,
+        packages: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        locked: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        return self._emit(
+            _doctest_cmd(
+                workspace=workspace,
+                packages=packages,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: doctest",
+            **kw,
+        )
+
+    def clippy(
+        self,
+        *,
+        workspace: bool = False,
+        packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        all_targets: bool = True,
+        locked: bool = True,
+        deny_warnings: bool = True,
+        extra_lints: tuple[str, ...] = (),
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        return self._emit(
+            _clippy_cmd(
+                deny_warnings=deny_warnings,
+                extra_lints=extra_lints,
+                workspace=workspace,
+                packages=packages,
+                exclude=exclude,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                all_targets=all_targets,
+                locked=locked,
+                flags=flags,
+            ),
             ":rust: clippy",
             **kw,
         )
 
-    def fmt(self, **kw: Any) -> Step:
-        return self._emit("cargo fmt --check", ":rust: fmt", **kw)
+    def fmt(
+        self,
+        *,
+        all: bool = True,  # noqa: A002
+        check: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        return self._emit(_fmt_cmd(all=all, check=check, flags=flags), ":rust: fmt", **kw)
+
+    def doc(
+        self,
+        *,
+        no_deps: bool = True,
+        document_private_items: bool = False,
+        workspace: bool = False,
+        packages: tuple[str, ...] = (),
+        all_features: bool = False,
+        no_default_features: bool = False,
+        features: tuple[str, ...] = (),
+        target: str | None = None,
+        locked: bool = True,
+        deny_warnings: bool = True,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        _doc_env(kw, deny_warnings=deny_warnings)
+        return self._emit(
+            _doc_cmd(
+                no_deps=no_deps,
+                document_private_items=document_private_items,
+                workspace=workspace,
+                packages=packages,
+                all_features=all_features,
+                no_default_features=no_default_features,
+                features=features,
+                target=target,
+                locked=locked,
+                flags=flags,
+            ),
+            ":rust: doc",
+            **kw,
+        )
 
     def warmup(self, **kw: Any) -> Step:
         return self._emit(
@@ -83,9 +302,6 @@ class RustToolchain:
             ":rust: warmup",
             **kw,
         )
-
-    def doc(self, **kw: Any) -> Step:
-        return self._emit("cargo doc --no-deps", ":rust: doc", **kw)
 
 
 @dataclass(frozen=True)
