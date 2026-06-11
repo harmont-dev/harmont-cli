@@ -22,7 +22,6 @@ class PipelineRegistration:
     triggers: tuple[Trigger, ...]
     allow_manual: bool
     env: dict[str, str] | None
-    default_image: str | None
     fn: Callable[[], object]
     timeout: str | int | None = None
 
