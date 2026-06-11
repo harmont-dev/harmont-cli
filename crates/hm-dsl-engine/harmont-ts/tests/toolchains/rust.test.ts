@@ -59,13 +59,13 @@ describe("rust.toolchain", () => {
   it("clippy runs with -D warnings", () => {
     const r = rust.toolchain();
     expect(r.clippy()._cmd).toContain(
-      "cargo clippy --all-targets -- -D warnings",
+      "cargo clippy --all-targets --locked -- -D warnings",
     );
   });
 
   it("fmt runs cargo fmt --check", () => {
     const r = rust.toolchain();
-    expect(r.fmt()._cmd).toContain("cargo fmt --check");
+    expect(r.fmt()._cmd).toContain("cargo fmt --all --check");
   });
 
   it("doc runs cargo doc --no-deps", () => {
@@ -148,6 +148,36 @@ describe("rust.toolchain", () => {
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
     expect(ir.version).toBe("0");
   });
+
+  it("build is locked by default", () => {
+    expect(rust.toolchain().build()._cmd!.endsWith("cargo build --locked")).toBe(true);
+  });
+
+  it("test nextest switches runner", () => {
+    expect(rust.toolchain().test({ nextest: true, workspace: true })._cmd).toContain(
+      "cargo nextest run --workspace --locked",
+    );
+  });
+
+  it("doctest appends --doc", () => {
+    expect(
+      rust.toolchain().doctest({ workspace: true })._cmd!.endsWith(
+        "cargo test --workspace --locked --doc",
+      ),
+    ).toBe(true);
+  });
+
+  it("doc sets RUSTDOCFLAGS env", () => {
+    const s = rust.toolchain().doc();
+    expect(s._cmd).toContain("cargo doc --no-deps --locked");
+    expect(s._env).toEqual({ RUSTDOCFLAGS: "-D warnings" });
+  });
+
+  it("feature_powerset installs cargo-hack", () => {
+    const s = rust.toolchain().featurePowerset();
+    expect(s._cmd).toContain("cargo hack check --feature-powerset --depth 2 --no-dev-deps");
+    expect(s._parent!._cmd).toContain("cargo install cargo-hack --locked");
+  });
 });
 
 describe("rust.project", () => {
@@ -158,9 +188,9 @@ describe("rust.project", () => {
     );
     expect(proj.test()._cmd).toContain("cargo test --workspace --locked");
     expect(proj.clippy()._cmd).toContain(
-      "cargo clippy --workspace --tests --locked",
+      "cargo clippy --workspace --all-targets --locked",
     );
-    expect(proj.fmt()._cmd).toContain("cargo fmt --check");
+    expect(proj.fmt()._cmd).toContain("cargo fmt --all --check");
   });
 
   it("warmup has implicit CacheOnChange on Cargo.lock, Cargo.toml, and *.rs", () => {
@@ -200,14 +230,14 @@ describe("rust.project", () => {
   it("clippy flags are inserted before --", () => {
     const proj = rust.project({ path: "." });
     expect(proj.clippy({ flags: ["--fix"] })._cmd).toContain(
-      "cargo clippy --workspace --tests --locked --fix -- -D warnings",
+      "cargo clippy --workspace --all-targets --locked --fix -- -D warnings",
     );
   });
 
   it("fmt flags are appended", () => {
     const proj = rust.project({ path: "." });
-    expect(proj.fmt({ flags: ["--all"] })._cmd).toContain(
-      "cargo fmt --check --all",
+    expect(proj.fmt({ flags: ["--config-path", "x"] })._cmd).toContain(
+      "cargo fmt --all --check --config-path x",
     );
   });
 
@@ -269,5 +299,35 @@ describe("rust.project", () => {
     const ir = pipeline([proj.test()]);
     const rustup = stepBySubstring(ir, "sh.rustup.rs");
     expect(rustup.cmd).toContain("--default-toolchain 1.81.0");
+  });
+
+  it("build/doc/doctest exist", () => {
+    const p = rust.project({ path: "." });
+    expect(p.build()._cmd).toContain("cargo build --workspace --locked");
+    expect(p.doctest()._cmd!.endsWith("cargo test --workspace --locked --doc")).toBe(true);
+    expect(p.doc()._cmd).toContain("cargo doc --no-deps --workspace --locked");
+  });
+
+  it("ci returns standard DAG", () => {
+    const p = rust.project({ path: "." });
+    expect(p.ci().map((s) => s._label)).toEqual([":rust: test", ":rust: clippy", ":rust: fmt"]);
+    expect(p.ci({ nextest: true }).map((s) => s._label)).toEqual([
+      ":rust: test",
+      ":rust: doctest",
+      ":rust: clippy",
+      ":rust: fmt",
+    ]);
+  });
+
+  it("clippy accepts packages", () => {
+    expect(rust.project({ path: "." }).clippy({ packages: ["core"] })._cmd).toContain(
+      "cargo clippy -p core --all-targets --locked -- -D warnings",
+    );
+  });
+
+  it("no shell injection via packages", () => {
+    expect(rust.toolchain().build({ packages: ["a; touch /tmp/x"] })._cmd).toContain(
+      "-p 'a; touch /tmp/x'",
+    );
   });
 });
