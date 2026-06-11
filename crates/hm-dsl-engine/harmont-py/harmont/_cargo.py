@@ -49,6 +49,23 @@ def _validate(opts: CargoOpts) -> None:
             '  → use profile="release" (identical effect) or drop one'
         )
         raise ValueError(msg)
+    if opts.exclude:
+        if opts.packages:
+            msg = (
+                "hm.rust: exclude= cannot combine with packages=\n"
+                f"  observed: packages={list(opts.packages)!r}, "
+                f"exclude={list(opts.exclude)!r}\n"
+                "  → --exclude pairs with --workspace; packages= already selects "
+                "explicitly, so drop one"
+            )
+            raise ValueError(msg)
+        if not opts.workspace:
+            msg = (
+                "hm.rust: exclude= requires workspace=True\n"
+                f"  observed: exclude={list(opts.exclude)!r} without workspace=True\n"
+                "  → cargo --exclude only applies to --workspace; pass workspace=True"
+            )
+            raise ValueError(msg)
 
 
 def cargo_flags(opts: CargoOpts) -> str:
@@ -61,9 +78,9 @@ def cargo_flags(opts: CargoOpts) -> str:
     # scope
     if opts.packages:
         toks += [f"-p {shlex.quote(p)}" for p in opts.packages]
-        toks += [f"--exclude {shlex.quote(e)}" for e in opts.exclude]
     elif opts.workspace:
         toks.append("--workspace")
+        toks += [f"--exclude {shlex.quote(e)}" for e in opts.exclude]
 
     # target selection
     if opts.all_targets:

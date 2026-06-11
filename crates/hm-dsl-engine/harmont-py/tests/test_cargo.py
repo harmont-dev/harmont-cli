@@ -24,9 +24,19 @@ def test_packages_take_precedence_over_workspace():
     assert out == " -p a -p b --locked"
 
 
-def test_exclude_only_with_packages():
-    out = cargo_flags(CargoOpts(packages=("a",), exclude=("b", "c")))
-    assert out == " -p a --exclude b --exclude c --locked"
+def test_exclude_pairs_with_workspace():
+    out = cargo_flags(CargoOpts(workspace=True, exclude=("b", "c")))
+    assert out == " --workspace --exclude b --exclude c --locked"
+
+
+def test_exclude_without_workspace_raises():
+    with pytest.raises(ValueError, match="workspace"):
+        cargo_flags(CargoOpts(exclude=("b",)))
+
+
+def test_exclude_with_packages_raises():
+    with pytest.raises(ValueError, match="exclude"):
+        cargo_flags(CargoOpts(packages=("a",), exclude=("b",)))
 
 
 def test_all_features():
