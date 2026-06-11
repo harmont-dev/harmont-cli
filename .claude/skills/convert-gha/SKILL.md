@@ -54,7 +54,7 @@ Convert existing GitHub Actions workflows (`.github/workflows/*.yml` / `*.yaml`)
    | `actions/cache` | **Not needed — caching is implicit in Harmont** | Harmont automatically caches build artifacts, dependency installs, and toolchain outputs between runs. Remove all cache steps. |
    | `actions/setup-*` (setup-node, setup-python, etc.) | Harmont toolchains (`hm.js`, `hm.python`, etc.) | Toolchains handle installation. Specify version via toolchain config. |
    | `actions/checkout` | **Not needed — source is always available** | Harmont automatically provides the source code to every step. |
-   | `runs-on: ubuntu-latest` | `default_image: "ubuntu:24.04"` | Harmont runs steps in Docker containers |
+   | `runs-on: ubuntu-latest` | (default base is `ubuntu:24.04`; set a per-step `image="..."` to override) | Harmont runs steps in Docker containers |
    | `services:` (e.g., postgres) | Service containers in step config | Check docs for service container syntax |
    | `matrix:` | Multiple pipelines or parameterized steps | No direct matrix — may need separate pipeline definitions or `.fork()` |
    | `env:` / `secrets.*` | `env: {}` on pipeline or step | Secrets must be passed as environment variables |

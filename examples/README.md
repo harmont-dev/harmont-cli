@@ -20,7 +20,7 @@ Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Ever
 1. Install the Harmont CLI (`cli/` in this repo, or `cargo install harmont-cli` once published).
 2. `cd examples/<lang>` and run `hm run ci`. The CLI uses the project's `.hm/pipeline.py` and executes each step in a local Docker container (the default backend), sharing caches across runs. Use `--backend cloud` to submit the run to Harmont Cloud instead.
 
-Every pipeline uses `default_image="ubuntu:24.04"` and the apt-base / language-install steps are cached forever — only the action leaves (`test`, `lint`, etc.) re-run after a code change.
+Every pipeline runs on the default `ubuntu:24.04` base (set a per-step `image=` to override) and the apt-base / language-install steps are cached forever — only the action leaves (`test`, `lint`, etc.) re-run after a code change.
 
 ## What to copy
 
