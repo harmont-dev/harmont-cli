@@ -226,6 +226,22 @@ class TestRustToolchain:
         tc = hm.rust.toolchain(path=".")
         assert tc.doc(deny_warnings=False).env is None
 
+    def test_test_all_targets(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.test(all_targets=True, workspace=True)
+        assert "cargo test --workspace --all-targets --locked" in s.cmd
+
+    def test_doctest_target(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.doctest(target="wasm32-unknown-unknown")
+        assert s.cmd.endswith("cargo test --target wasm32-unknown-unknown --locked --doc")
+
+    def test_clippy_extra_lints_without_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.clippy(deny_warnings=False, extra_lints=("-W clippy::pedantic",))
+        assert s.cmd.rstrip().endswith("-- -W clippy::pedantic")
+        assert "-D warnings" not in s.cmd
+
 
 # --- RustProject (hm.rust.project) ---
 
