@@ -30,6 +30,7 @@ use crate::error::{ErrorCategory, HmError};
 /// Returns a doctrine-shaped error (carrying the right process exit code) when
 /// the backend rejects the build, authentication fails, the network is
 /// unreachable, the local daemon is down, or the pipeline fails to render.
+#[allow(clippy::too_many_lines)] // thin top-level driver: linear, no good split point
 pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // 1. Resolve the backend name: explicit --backend > legacy --cloud alias >
     //    config.backend (figment-layered default "docker").
@@ -82,9 +83,13 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
 
     // 5. Build the backend. For local runs this is where we connect to Docker.
+    // For cloud runs, keep a cloned client + org so a `pipeline_not_found` on
+    // the first submit can create the pipeline and retry. `None` for local.
+    let mut autocreate_client: Option<(harmont_cloud::HarmontClient, String)> = None;
     let backend: Box<dyn hm_exec::ExecutionBackend> =
         if let Some((api_url, token, org)) = cloud_creds {
             let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
+            autocreate_client = Some((client.clone(), org.clone()));
             // The watch link must point at the dashboard (app.) host, not the
             // API host — a link built from `api_url` lands on raw JSON.
             let app_url = hm_config::app_url(&api_url, std::env::var("HM_APP_URL").ok().as_deref());
@@ -143,8 +148,34 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         },
     };
 
+    // Cloud-only auto-create context. Borrow `req` here (before it's moved into
+    // `start`): the repository URL and default branch come from the worktree's
+    // git remote; the pipeline name is the in-repo source slug.
+    let autocreate = autocreate_client.map(|(client, org)| AutoCreate {
+        client,
+        org,
+        repo_name: req.source.repo_name.clone(),
+        repository: git_remote_url(&req.repo_root),
+        name: req.pipeline_slug.clone(),
+        default_branch: git_default_branch(&req.repo_root)
+            .unwrap_or_else(|| req.source.branch.clone()),
+    });
+
     // 8. Start, drive events, own Ctrl-C, await the outcome.
-    let handle = backend.start(req).await.map_err(|e| backend_anyhow(&e))?;
+    // Submit. If the pipeline doesn't exist yet, optionally create it and retry
+    // once. Clone the request up front so the retry has its own copy (the first
+    // `start` consumes it).
+    let req_retry = req.clone();
+    let handle = match backend.start(req).await {
+        Ok(handle) => handle,
+        Err(err) => {
+            if maybe_autocreate(&err, autocreate.as_ref()).await? {
+                backend.start(req_retry).await.map_err(|e| backend_anyhow(&e))?
+            } else {
+                return Err(backend_anyhow(&err));
+            }
+        }
+    };
     let (events, control) = handle.into_parts();
     let _ctrlc = crate::signal::install_ctrlc(control.cancel_token());
     let render = tokio::spawn(hm_render::drive_stream(renderer, events));
@@ -368,6 +399,71 @@ fn build_create_pipeline_request(
         repo_name: Some(repo_name.to_string()),
         repository: repository.to_string(),
     }
+}
+
+/// Everything the run driver needs to create a missing cloud pipeline and
+/// retry the build. Built only for cloud runs; `repo_name`/`repository` are
+/// `Option` because a remoteless worktree can't be auto-created (the cloud
+/// backend already rejects those earlier with a clear "need a git remote"
+/// message, so in practice both are `Some` whenever we reach the create path).
+struct AutoCreate {
+    client: harmont_cloud::HarmontClient,
+    org: String,
+    repo_name: Option<String>,
+    repository: Option<String>,
+    /// The in-repo source slug — becomes the new pipeline's `name`.
+    name: String,
+    default_branch: String,
+}
+
+/// On a `pipeline_not_found`, create the pipeline (confirming on a TTY, auto in
+/// CI) and report whether the caller should retry the submit.
+///
+/// Returns `Ok(true)` when a pipeline was created and the build should be
+/// resubmitted; `Ok(false)` when the error isn't a missing pipeline, there's
+/// no auto-create context, the repo can't be identified, or the user declined
+/// (the caller then surfaces the original error). Returns `Err` only when the
+/// create request itself failed (e.g. a slug collision) — worth surfacing over
+/// the original `pipeline_not_found`.
+async fn maybe_autocreate(err: &hm_exec::BackendError, ac: Option<&AutoCreate>) -> Result<bool> {
+    use std::io::IsTerminal;
+
+    if !is_missing_pipeline(err) {
+        return Ok(false);
+    }
+    let Some(ac) = ac else { return Ok(false) };
+    let (Some(repo_name), Some(repository)) = (&ac.repo_name, &ac.repository) else {
+        return Ok(false);
+    };
+
+    if std::io::stdin().is_terminal() {
+        let ok = dialoguer::Confirm::new()
+            .with_prompt(format!(
+                "No pipeline for {repo_name} in org {}. Create it?",
+                ac.org
+            ))
+            .default(true)
+            .interact()
+            .unwrap_or(false);
+        if !ok {
+            return Ok(false);
+        }
+    } else {
+        tracing::info!(
+            "no pipeline for {repo_name} yet — creating it in org {}",
+            ac.org
+        );
+    }
+
+    let body = build_create_pipeline_request(&ac.name, &ac.default_branch, repository, repo_name);
+    ac.client
+        .raw()
+        .create_pipeline(&ac.org, &body)
+        .await
+        .map_err(hm_plugin_cloud::settings::map_raw)
+        .with_context(|| format!("creating pipeline '{}' in org {}", ac.name, ac.org))?;
+    tracing::info!("created pipeline '{}' — submitting build", ac.name);
+    Ok(true)
 }
 
 /// Map a [`hm_exec::BackendError`] to the process exit-code category.
