@@ -150,9 +150,7 @@ describe("elixir install chain", () => {
 describe("elixir in pipeline", () => {
   it("produces valid IR", () => {
     const ex = elixir();
-    const ir = pipeline([ex.compile(), ex.test(), ex.format()], {
-      defaultImage: "ubuntu:24.04",
-    });
+    const ir = pipeline([ex.compile(), ex.test(), ex.format()]);
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(5);
     expect(ir.version).toBe("0");
   });

@@ -142,9 +142,7 @@ describe("rust.toolchain", () => {
 
   it("produces valid pipeline IR", () => {
     const r = rust.toolchain();
-    const ir = pipeline([r.build(), r.test(), r.clippy(), r.fmt()], {
-      defaultImage: "ubuntu:24.04",
-    });
+    const ir = pipeline([r.build(), r.test(), r.clippy(), r.fmt()]);
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
     expect(ir.version).toBe("0");
   });
@@ -237,9 +235,7 @@ describe("rust.project", () => {
   it("with base skips apt", () => {
     const base = sh("custom base");
     const proj = rust.project({ path: "cli", base });
-    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()], {
-      defaultImage: "ubuntu:24.04",
-    });
+    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()]);
     const c = cmds(ir);
     expect(
       c.filter((cmd: string) => cmd.includes("apt-get install")),
@@ -249,9 +245,7 @@ describe("rust.project", () => {
 
   it("produces valid pipeline IR", () => {
     const proj = rust.project({ path: "cli" });
-    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()], {
-      defaultImage: "ubuntu:24.04",
-    });
+    const ir = pipeline([proj.test(), proj.clippy(), proj.fmt()]);
     expect(ir.version).toBe("0");
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
   });

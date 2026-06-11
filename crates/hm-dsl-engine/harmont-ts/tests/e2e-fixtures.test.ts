@@ -70,11 +70,16 @@ describe("E2E pipeline fixtures", () => {
         webProject.run("test"),
         webProject.run("lint"),
       ],
-      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
+      { env: { CI: "true" } },
     );
 
     expect(ir.version).toBe("0");
-    expect(ir.default_image).toBe("ubuntu:24.04");
+    const monorepoChildIdxs = new Set(
+      ir.graph.edges.filter((e: any) => e[2] === "builds_in").map((e: any) => e[1]),
+    );
+    const monorepoRoots = ir.graph.nodes.filter((_: any, i: number) => !monorepoChildIdxs.has(i));
+    expect(monorepoRoots.length).toBeGreaterThan(0);
+    expect(monorepoRoots.every((n: any) => "image" in n.step)).toBe(true);
     expect(ir.graph.nodes.length).toBeGreaterThan(0);
     assertFixture("monorepo-ci", ir);
   });
@@ -84,7 +89,7 @@ describe("E2E pipeline fixtures", () => {
 
     const ir = pipeline(
       [project.build(), project.test(), project.clippy(), project.fmt(), project.doc()],
-      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
+      { env: { CI: "true" } },
     );
 
     expect(ir.version).toBe("0");
@@ -112,7 +117,7 @@ describe("E2E pipeline fixtures", () => {
         web.run("test"),
         web.run("lint"),
       ],
-      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
+      { env: { CI: "true" } },
     );
 
     expect(ir.version).toBe("0");
@@ -125,7 +130,7 @@ describe("E2E pipeline fixtures", () => {
 
     const ir = pipeline(
       [cProject.build(), cProject.test(), cProject.fmt(), pyWeb.test(), pyWeb.lint()],
-      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
+      { env: { CI: "true" } },
     );
 
     expect(ir.version).toBe("0");
@@ -141,7 +146,7 @@ describe("E2E pipeline fixtures", () => {
 
     const ir = pipeline(
       [project.test(), project.lint(), project.fmt()],
-      { env: { CI: "true" }, defaultImage: "ubuntu:24.04" },
+      { env: { CI: "true" } },
     );
 
     expect(ir.version).toBe("0");

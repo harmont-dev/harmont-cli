@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe("full pipeline build", () => {
-  it("creates install -> build -> test chain with cache, env, defaultImage", () => {
+  it("creates install -> build -> test chain with cache, env", () => {
     const install = scratch()
       .sh("npm ci", { label: "install", cache: forever() });
     const build = install
@@ -35,7 +35,6 @@ describe("full pipeline build", () => {
 
     const ir = pipeline([test], {
       env: { CI: "true" },
-      defaultImage: "node:22-alpine",
     });
 
     // version
@@ -58,9 +57,13 @@ describe("full pipeline build", () => {
     expect(buildNode.env).toEqual({ ...base, CI: "true", NODE_ENV: "production" });
     expect(testNode.env).toEqual({ ...base, CI: "true" });
 
-    // default_image applies to root node only (install), not children
-    expect(ir.default_image).toBe("node:22-alpine");
-    expect(installNode.step.image).toBe("node:22-alpine");
+    // ubuntu:24.04 is automatically stamped on root steps (no builds_in parent)
+    const childIdxs = new Set(
+      ir.graph.edges.filter((e) => e[2] === "builds_in").map((e) => e[1]),
+    );
+    const roots = ir.graph.nodes.filter((_n, i) => !childIdxs.has(i));
+    expect(roots).toHaveLength(1);
+    expect(roots[0].step.image).toBe("ubuntu:24.04");
     expect("image" in buildNode.step).toBe(false);
     expect("image" in testNode.step).toBe(false);
 
@@ -171,11 +174,15 @@ describe("JSON snake_case output", () => {
       label: "build",
       cache: onChange("src/", "lib/"),
     }));
-    const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([s]);
     const json = JSON.stringify(ir);
 
+    // Root imageless step gets ubuntu:24.04 stamped on it
+    expect(json).toContain('"image":"ubuntu:24.04"');
+    // Must NOT contain the removed top-level default_image field
+    expect(json).not.toContain('"default_image"');
+
     // Must contain snake_case keys
-    expect(json).toContain('"default_image"');
     expect(json).toContain('"timeout_seconds"');
     expect(json).toContain('"edge_property"');
     expect(json).toContain('"node_holes"');
