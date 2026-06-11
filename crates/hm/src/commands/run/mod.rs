@@ -123,6 +123,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
     // 7. Assemble the run request.
     let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
+    let repo_name = git_remote_repo_name(&repo_root);
     let req = hm_exec::RunRequest {
         plan,
         repo_root,
@@ -132,6 +133,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             branch,
             commit,
             message: args.message.clone(),
+            repo_name,
         },
         options: hm_exec::RunOptions {
             no_cache: false,
@@ -200,6 +202,43 @@ fn git_metadata(root: &std::path::Path, branch_override: Option<String>) -> (Str
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "0".repeat(40));
     (branch, commit)
+}
+
+/// Parse `owner/repo` from a git remote URL, mirroring the backend's
+/// `Harmont.Pipelines.RepoName`: drop scheme/host and a trailing `.git`, then
+/// take the last two non-empty path segments. `None` when fewer than two
+/// segments remain.
+fn parse_repo_name(url: &str) -> Option<String> {
+    let url = url.trim();
+    let path = if let Some((_, rest)) = url.split_once("://") {
+        // scheme://host/owner/repo  → strip host
+        rest.split_once('/').map_or(rest, |(_, p)| p)
+    } else if url.contains('@') && url.contains(':') {
+        // scp-style git@host:owner/repo → strip "git@host:"
+        let after_at = url.split_once('@').map_or(url, |(_, r)| r);
+        after_at.split_once(':').map_or(after_at, |(_, p)| p)
+    } else {
+        url.split_once('/').map_or(url, |(_, p)| p)
+    };
+    let path = path.trim_end_matches('/');
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    if segs.len() < 2 {
+        return None;
+    }
+    Some(segs[segs.len() - 2..].join("/"))
+}
+
+/// Best-effort `owner/repo` from the worktree's `origin` remote.
+fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["config", "--get", "remote.origin.url"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+    parse_repo_name(&String::from_utf8_lossy(&out.stdout))
 }
 
 /// Resolve repo root, detect the DSL, select the pipeline slug, and render
@@ -374,6 +413,32 @@ error[backend]: {other}
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_repo_name_handles_https_ssh_and_scp() {
+        assert_eq!(
+            parse_repo_name("https://github.com/harmont-dev/harmont-cli.git").as_deref(),
+            Some("harmont-dev/harmont-cli")
+        );
+        assert_eq!(
+            parse_repo_name("git@github.com:harmont-dev/harmont-cli.git").as_deref(),
+            Some("harmont-dev/harmont-cli")
+        );
+        assert_eq!(
+            parse_repo_name("ssh://git@github.com/harmont-dev/harmont-cli").as_deref(),
+            Some("harmont-dev/harmont-cli")
+        );
+        assert_eq!(
+            parse_repo_name("https://example.com/a/b/c/repo").as_deref(),
+            Some("c/repo")
+        );
+    }
+
+    #[test]
+    fn parse_repo_name_rejects_unparseable() {
+        assert_eq!(parse_repo_name(""), None);
+        assert_eq!(parse_repo_name("not-a-url"), None);
+    }
 
     #[test]
     fn parse_env_splits_pairs() {

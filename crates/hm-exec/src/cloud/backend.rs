@@ -2,7 +2,7 @@
 //! to Harmont Cloud, and watch it to completion. The server schedules and runs;
 //! this backend is an *observer* (see [`Capabilities::cloud`]).
 
-use harmont_cloud::{HarmontClient, HarmontError, builds::NewBuild};
+use harmont_cloud::{HarmontClient, HarmontError, builds::NewRepoBuild};
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -84,13 +84,23 @@ impl ExecutionBackend for CloudBackend {
         // the size so the upload isn't a silent gulf of evaluation.
         guard_archive_size(source_tgz.len(), &req.repo_root)?;
 
-        // Submit. Fail fast on auth/rejection BEFORE returning a handle so the
-        // CLI can surface the doctrine error without a half-started stream.
+        // Resolve the repo's `owner/repo`; cloud runs address the pipeline by
+        // (repo_name, source_slug) — the bare DSL slug is not the server's
+        // global slug. A worktree with no remote can't be matched to a pipeline.
+        let repo_name = req.source.repo_name.clone().ok_or_else(|| {
+            BackendError::Local(
+                "cloud runs need a git remote to identify the pipeline — add an \
+                 `origin` remote, or run from a cloned repo"
+                    .into(),
+            )
+        })?;
+
         let build = self
             .client
-            .submit_build(NewBuild {
+            .submit_repo_build(NewRepoBuild {
                 org: self.org.clone(),
-                pipeline: req.pipeline_slug.clone(),
+                repo_name,
+                source_slug: req.pipeline_slug.clone(),
                 branch: req.source.branch.clone(),
                 commit: req.source.commit.clone(),
                 message: req.source.message.clone(),
@@ -101,6 +111,10 @@ impl ExecutionBackend for CloudBackend {
             .await
             .map_err(map_harmont_err)?;
 
+        // The server resolved (and returns) the global slug; watch/cancel/log
+        // endpoints are addressed by it, NOT by the source slug we submitted.
+        let pipeline = build.pipeline_slug.clone();
+
         // Build the dashboard URL from the app host (NOT the API host) and the
         // SPA route shape `/:orgSlug/pipelines/:slug/builds/:number`. A link
         // built from `api_base` or without the `pipelines/` segment is
@@ -108,14 +122,14 @@ impl ExecutionBackend for CloudBackend {
         let watch_url = Some(dashboard_build_url(
             &self.app_base,
             &self.org,
-            &req.pipeline_slug,
+            &pipeline,
             build.number,
         ));
         let build_ref = BuildRef {
             run_id: uuid::Uuid::new_v4(),
             number: Some(build.number),
             org: Some(self.org.clone()),
-            pipeline: req.pipeline_slug.clone(),
+            pipeline: pipeline.clone(),
         };
 
         let (tx, rx) = mpsc::channel(1024);
@@ -151,7 +165,6 @@ impl ExecutionBackend for CloudBackend {
         let client = self.client.clone();
         let api_base = self.api_base.clone();
         let org = self.org.clone();
-        let pipeline = req.pipeline_slug.clone();
         let number = build.number;
         let token = cancel.clone();
         let started = chrono::Utc::now();

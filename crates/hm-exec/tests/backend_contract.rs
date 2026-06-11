@@ -130,6 +130,7 @@ fn fake_request() -> RunRequest {
             branch: "main".into(),
             commit: "0".repeat(40),
             message: None,
+            repo_name: None,
         },
         options: RunOptions {
             watch: true,

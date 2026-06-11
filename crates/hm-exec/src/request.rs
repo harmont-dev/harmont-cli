@@ -63,6 +63,10 @@ pub struct SourceMeta {
     pub branch: String,
     pub commit: String,
     pub message: Option<String>,
+    /// `owner/repo` from the worktree's git remote, when one exists. `None` for
+    /// a remoteless worktree; the cloud backend requires it to resolve the
+    /// pipeline and errors clearly when it is absent.
+    pub repo_name: Option<String>,
 }
 
 /// Per-run execution options threaded through from the CLI flags.
