@@ -443,3 +443,17 @@ class TestRustProject:
         proj = hm.rust.project(path=".")
         s = proj.feature_powerset(subcommand="clippy")
         assert "cargo hack clippy --feature-powerset --depth 2 --no-dev-deps" in s.cmd
+
+
+def test_no_shell_injection_via_packages():
+    tc = hm.rust.toolchain(path=".")
+    s = tc.build(packages=("a; touch /tmp/pwned",))
+    # The malicious value is single-quoted, so the shell sees one -p argument.
+    assert "-p 'a; touch /tmp/pwned'" in s.cmd
+    assert "; touch /tmp/pwned --locked" not in s.cmd
+
+
+def test_no_shell_injection_via_target():
+    tc = hm.rust.toolchain(path=".")
+    s = tc.build(target="x; rm -rf /")
+    assert "--target 'x; rm -rf /'" in s.cmd
