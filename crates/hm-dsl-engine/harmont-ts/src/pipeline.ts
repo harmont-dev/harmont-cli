@@ -3,15 +3,18 @@ import { parseDuration } from "./duration.js";
 import { resolveKeys } from "./keys.js";
 import type { Step } from "./step.js";
 
+// Across-the-board default image for imageless root steps. The SDK's
+// toolchains assume an apt-capable base (apt-get), so ubuntu:24.04 is the
+// universal default; child steps boot from their parent's snapshot.
+const DEFAULT_IMAGE = "ubuntu:24.04";
+
 export interface PipelineOptions {
   readonly env?: Readonly<Record<string, string>>;
-  readonly defaultImage?: string;
   readonly timeout?: string | number;
 }
 
 export interface PipelineIR {
   version: string;
-  default_image?: string;
   timeout_seconds?: number;
   graph: {
     nodes: GraphNode[];
@@ -41,9 +44,6 @@ export function pipeline(
   }
 
   const ir: PipelineIR = { version: "0", graph: lowerToGraph(leaves, opts) };
-  if (opts?.defaultImage != null) {
-    ir.default_image = opts.defaultImage;
-  }
   if (opts?.timeout != null) {
     ir.timeout_seconds = parseDuration(opts.timeout);
   }
@@ -116,11 +116,9 @@ function lowerToGraph(
     preWaitIndices.push(nodeIdx);
   }
 
-  if (opts?.defaultImage != null) {
-    for (let i = 0; i < nodes.length; i++) {
-      if (!hasBuildsInParent.has(i) && !("image" in nodes[i].step)) {
-        nodes[i].step.image = opts.defaultImage;
-      }
+  for (let i = 0; i < nodes.length; i++) {
+    if (!hasBuildsInParent.has(i) && !("image" in nodes[i].step)) {
+      nodes[i].step.image = DEFAULT_IMAGE;
     }
   }
 
