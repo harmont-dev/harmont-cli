@@ -527,39 +527,29 @@ fn explain(err: &hm_exec::BackendError) -> String {
     match err {
         E::Unauthorized => "\
 error[auth_required]: not authenticated
-  fix    run `hm cloud login` (or set HM_API_TOKEN)
-  docs   https://harmont.dev/docs/errors/auth_required"
+  fix    run `hm cloud login` (or set HM_API_TOKEN)"
             .to_string(),
         E::Rejected { code, message } => format!(
             "\
 error[{code}]: {message}
-  fix    fix the pipeline and re-run `hm run`
-  docs   https://harmont.dev/docs/errors/{code}"
+  fix    fix the pipeline and re-run `hm run`"
         ),
         E::NotFound(what) => format!(
             "\
 error[not_found]: {what}
-  fix    check the org, pipeline, and build number are correct
-  docs   https://harmont.dev/docs/errors/not_found"
+  fix    check the org, pipeline, and build number are correct"
         ),
         E::Transport(m) => format!(
             "\
 error[network]: {m}
-  fix    check your connection and the API URL (HM_API_URL)
-  docs   https://harmont.dev/docs/errors/network"
+  fix    check your connection and the API URL (HM_API_URL)"
         ),
         E::LogStream(m) => format!(
             "\
 error[log_stream]: live logs interrupted — {m}
-  fix    the build continues; re-attach with `hm cloud build show`
-  docs   https://harmont.dev/docs/errors/log_stream"
+  fix    the build continues; re-attach with `hm cloud build show`"
         ),
-        E::Local(m) => format!(
-            "\
-error[local]: {m}
-  fix    check that the Docker daemon is running (`docker version`)
-  docs   https://harmont.dev/docs/errors/local"
-        ),
+        E::Local(m) => format!("error[local]: {m}"),
         E::SourceTooLarge {
             observed_bytes,
             cap_bytes,
@@ -580,17 +570,12 @@ error[local]: {m}
                 "\
 error[source_too_large]: worktree archive is {observed} (cap {cap})
   biggest\n{biggest}
-  fix    add the offending paths to .gitignore (build output, caches, vendored deps), then re-run `hm run`
-  docs   https://harmont.dev/docs/errors/source_too_large",
+  fix    add the offending paths to .gitignore (build output, caches, vendored deps), then re-run `hm run`",
                 observed = mb(*observed_bytes),
                 cap = mb(*cap_bytes),
             )
         }
-        other => format!(
-            "\
-error[backend]: {other}
-  docs   https://harmont.dev/docs/errors/backend"
-        ),
+        other => format!("error[backend]: {other}"),
     }
 }
 
@@ -692,7 +677,7 @@ mod tests {
     }
 
     #[test]
-    fn explain_carries_stable_codes_and_docs() {
+    fn explain_carries_stable_codes() {
         use hm_exec::BackendError as E;
         assert!(explain(&E::Unauthorized).contains("error[auth_required]"));
         assert!(explain(&E::NotFound("x".into())).contains("error[not_found]"));
@@ -713,15 +698,18 @@ mod tests {
         // Points precisely (observed + cap), names the offender, states the fix.
         assert!(big.contains("7.0 MB") && big.contains("6.0 MB"));
         assert!(big.contains("node_modules") && big.contains(".gitignore"));
-        assert!(big.contains("docs   https://harmont.dev/docs/errors/source_too_large"));
+        // Doc URLs were removed (the pages 404); no error should link to them.
         for s in [
             explain(&E::Unauthorized),
             explain(&E::NotFound("x".into())),
             explain(&E::Transport("x".into())),
             explain(&E::Local("x".into())),
         ] {
-            assert!(s.contains("docs   https://harmont.dev/docs/errors/"));
+            assert!(!s.contains("docs   https://harmont.dev/docs/errors/"));
         }
+        // The Local arm no longer gives misleading Docker advice.
+        assert!(!explain(&E::Local("archiving worktree: boom".into())).contains("Docker"));
+        assert!(explain(&E::Local("archiving worktree: boom".into())).contains("error[local]"));
     }
 
     #[test]
