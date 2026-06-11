@@ -8,8 +8,9 @@ const pipelines: PipelineDefinition[] = [
   {
     slug: "ci",
     triggers: [push({ branch: "main" })],
-    // ci({ nextest: true }) → cargo nextest run + doctest + clippy + fmt.
-    pipeline: pipeline(project.ci({ nextest: true }), {
+    // ci() → test + clippy + fmt, sharing one warmup. Add { nextest: true }
+    // when cargo-nextest is available to also split out doctests.
+    pipeline: pipeline(project.ci(), {
       env: { CI: "true", RUST_BACKTRACE: "1" },
       defaultImage: "ubuntu:24.04",
     }),

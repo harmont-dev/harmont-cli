@@ -20,6 +20,6 @@ def project() -> RustProject:
     triggers=[hm.push(branch="main")],
 )
 def ci(project: hm.Target[RustProject]) -> tuple[hm.Step, ...]:
-    # ci(nextest=True) runs `cargo nextest run` and adds a doctest step
-    # (nextest can't run doctests), plus clippy + fmt.
-    return project.ci(nextest=True)
+    # ci() is the zero-config DAG: test + clippy + fmt, all sharing one warmup.
+    # Pass nextest=True if cargo-nextest is available to also split out doctests.
+    return project.ci()
