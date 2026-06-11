@@ -23,9 +23,9 @@ fn write_pipeline(dir: &Path) {
 import harmont as hm
 
 def build():
-    a = hm.scratch().run("sleep 3", label="sleep-a")
-    b = hm.scratch().run("sleep 3", label="sleep-b")
-    return hm.pipeline(a, b, default_image="alpine:3.20")
+    a = hm.scratch().sh("sleep 3", label="sleep-a", image="alpine:3.20")
+    b = hm.scratch().sh("sleep 3", label="sleep-b", image="alpine:3.20")
+    return hm.pipeline([a, b])
 "#,
     )
     .expect("pipeline.py");

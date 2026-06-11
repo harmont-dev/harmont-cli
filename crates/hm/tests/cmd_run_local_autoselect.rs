@@ -10,7 +10,7 @@ const PIPELINE_PY: &str = r#"
 import harmont as hm
 
 
-@hm.pipeline("only-one", default_image="alpine:3.20")
+@hm.pipeline("only-one")
 def only_one() -> hm.Step:
     return hm.sh("echo autoselected", label="hi", image="alpine:3.20")
 "#;
@@ -40,13 +40,13 @@ fn many_pipelines_still_requires_arg() {
         r#"
 import harmont as hm
 
-@hm.pipeline("a", default_image="alpine:3.20")
+@hm.pipeline("a")
 def a() -> hm.Step:
-    return hm.sh("echo a")
+    return hm.sh("echo a", image="alpine:3.20")
 
-@hm.pipeline("b", default_image="alpine:3.20")
+@hm.pipeline("b")
 def b() -> hm.Step:
-    return hm.sh("echo b")
+    return hm.sh("echo b", image="alpine:3.20")
 "#,
     )
     .unwrap();

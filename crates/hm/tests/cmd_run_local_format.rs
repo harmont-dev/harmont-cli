@@ -10,7 +10,7 @@ const PIPELINE_PY: &str = r#"
 import harmont as hm
 
 
-@hm.pipeline("formatted", default_image="alpine:3.20")
+@hm.pipeline("formatted")
 def formatted() -> hm.Step:
     return hm.sh("echo formatted-hello", label="hi", image="alpine:3.20")
 "#;

@@ -21,7 +21,7 @@ const PIPELINE_PY: &str = r#"
 import harmont as hm
 
 
-@hm.pipeline("orchestrated", default_image="alpine:3.20")
+@hm.pipeline("orchestrated")
 def orchestrated() -> hm.Step:
     return hm.sh("echo orchestrated hello", label="hi", image="alpine:3.20")
 "#;
@@ -50,7 +50,7 @@ const CHAIN_PIPELINE_PY: &str = r#"
 import harmont as hm
 
 
-@hm.pipeline("chain", default_image="alpine:3.20")
+@hm.pipeline("chain")
 def chain() -> hm.Step:
     a = hm.sh("echo step-a > /tmp/a && cat /tmp/a", label="a", image="alpine:3.20")
     return a.sh("cat /tmp/a && echo step-b", label="b")
