@@ -397,6 +397,11 @@ class TestRustProject:
         labels = [s.label for s in proj.ci(doc=True)]
         assert ":rust: doc" in labels
 
+    def test_doc_exclude(self):
+        proj = hm.rust.project(path=".")
+        s = proj.doc(exclude=("integration",))
+        assert "cargo doc --no-deps --workspace --exclude integration --locked" in s.cmd
+
     def test_ci_in_pipeline(self):
         proj = hm.rust.project(path="cli")
         p = hm.pipeline(list(proj.ci()), default_image="ubuntu:24.04")

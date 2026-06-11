@@ -275,6 +275,7 @@ class RustToolchain:
         document_private_items: bool = False,
         workspace: bool = False,
         packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
         all_features: bool = False,
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
@@ -291,6 +292,7 @@ class RustToolchain:
                 document_private_items=document_private_items,
                 workspace=workspace,
                 packages=packages,
+                exclude=exclude,
                 all_features=all_features,
                 no_default_features=no_default_features,
                 features=features,
@@ -487,6 +489,7 @@ class RustProject:
         document_private_items: bool = False,
         workspace: bool = True,
         packages: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
         all_features: bool = False,
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
@@ -503,6 +506,7 @@ class RustProject:
                 document_private_items=document_private_items,
                 workspace=workspace,
                 packages=packages,
+                exclude=exclude,
                 all_features=all_features,
                 no_default_features=no_default_features,
                 features=features,
@@ -515,7 +519,8 @@ class RustProject:
         )
 
     def ci(self, *, nextest: bool = False, doc: bool = False) -> tuple[Step, ...]:
-        """The zero-config Rust CI DAG: test + clippy + fmt, sharing one warmup.
+        """The zero-config Rust CI DAG. test and clippy chain off the shared
+        warmup; fmt runs off the toolchain install step, in parallel.
 
         With ``nextest=True`` the test step uses ``cargo nextest run`` and a
         companion ``doctest()`` step is appended (nextest cannot run doctests).
