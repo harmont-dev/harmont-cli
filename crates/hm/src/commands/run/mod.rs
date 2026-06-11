@@ -306,6 +306,24 @@ fn backend_anyhow(err: &hm_exec::BackendError) -> anyhow::Error {
     HmError::Backend(explain(err), exit_category(err)).into()
 }
 
+/// The server's structured error code for "no pipeline matches this
+/// `(repo_name, source_slug)`" — the signal that `hm run --cloud` is the
+/// repo's first cloud build and the pipeline must be created.
+const PIPELINE_NOT_FOUND_CODE: &str = "pipeline_not_found";
+
+/// Whether a backend error means "the pipeline doesn't exist yet". The cloud
+/// submit path surfaces this as a structured `Rejected { code }` (current SDK);
+/// we also accept an opaque `NotFound` body carrying the code, for robustness
+/// against older servers that took the un-structured 404 path.
+fn is_missing_pipeline(err: &hm_exec::BackendError) -> bool {
+    use hm_exec::BackendError as E;
+    match err {
+        E::Rejected { code, .. } => code == PIPELINE_NOT_FOUND_CODE,
+        E::NotFound(body) => body.contains(PIPELINE_NOT_FOUND_CODE),
+        _ => false,
+    }
+}
+
 /// Map a [`hm_exec::BackendError`] to the process exit-code category.
 ///
 /// Note: the old taxonomy distinguished a downed Docker daemon
@@ -413,6 +431,38 @@ error[backend]: {other}
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_pipeline_detected_from_structured_reject() {
+        let err = hm_exec::BackendError::Rejected {
+            code: "pipeline_not_found".into(),
+            message: "No pipeline with that slug exists in this organization.".into(),
+        };
+        assert!(is_missing_pipeline(&err));
+    }
+
+    #[test]
+    fn other_reject_is_not_missing_pipeline() {
+        let err = hm_exec::BackendError::Rejected {
+            code: "build_rejected".into(),
+            message: "pipeline_ir invalid".into(),
+        };
+        assert!(!is_missing_pipeline(&err));
+    }
+
+    #[test]
+    fn missing_pipeline_detected_from_opaque_not_found() {
+        let err = hm_exec::BackendError::NotFound(
+            r#"{"error":{"code":"pipeline_not_found"}}"#.into(),
+        );
+        assert!(is_missing_pipeline(&err));
+    }
+
+    #[test]
+    fn transport_error_is_not_missing_pipeline() {
+        let err = hm_exec::BackendError::Transport("connection refused".into());
+        assert!(!is_missing_pipeline(&err));
+    }
 
     #[test]
     fn parse_repo_name_handles_https_ssh_and_scp() {
