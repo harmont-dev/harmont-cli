@@ -32,8 +32,7 @@ pub(crate) fn stable_cache_tag(step: &CommandStep) -> Option<String> {
     }
     let key = cache.key.as_deref()?;
     let safe = sanitize_for_tag(&step.key);
-    let short = &key[..key.len().min(16)];
-    Some(format!("harmont-cache/{safe}:{short}"))
+    Some(format!("harmont-cache/{safe}:{key}"))
 }
 
 #[cfg(test)]
@@ -64,15 +63,14 @@ mod tests {
     }
 
     #[test]
-    fn stable_cache_tag_for_cacheable_step() {
+    fn stable_cache_tag_uses_full_key() {
         let s = step(Some(Cache {
             policy: "ttl".into(),
             key: Some("0123456789abcdef0000".into()),
         }));
-        let tag = stable_cache_tag(&s);
         assert_eq!(
-            tag,
-            Some("harmont-cache/build:0123456789abcdef".to_string())
+            stable_cache_tag(&s),
+            Some("harmont-cache/build:0123456789abcdef0000".to_string())
         );
     }
 
