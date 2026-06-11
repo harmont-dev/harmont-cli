@@ -69,6 +69,10 @@ pub fn app_url(api: &str, override_url: Option<&str>) -> String {
 pub struct CloudConfig {
     pub org: Option<String>,
     pub api_url: String,
+    /// Org-global pipeline slug to submit builds to directly (set by `hm run`
+    /// after registering a remoteless directory). When present, cloud runs
+    /// submit by this slug instead of resolving by git-repo identity.
+    pub pipeline: Option<String>,
 }
 
 impl Default for CloudConfig {
@@ -76,6 +80,7 @@ impl Default for CloudConfig {
         Self {
             org: None,
             api_url: DEFAULT_API_URL.to_owned(),
+            pipeline: None,
         }
     }
 }
@@ -270,6 +275,7 @@ mod tests {
         assert_eq!(cfg.backend, Backend::Docker);
         assert_eq!(cfg.cloud.api_url, DEFAULT_API_URL);
         assert!(cfg.cloud.org.is_none());
+        assert!(cfg.cloud.pipeline.is_none());
         assert_eq!(cfg.preferences.format, "human");
         assert!(!cfg.preferences.auto_watch);
     }
@@ -280,6 +286,7 @@ mod tests {
 [cloud]
 org = "acme"
 api_url = "https://custom.api"
+pipeline = "acme/web"
 
 [preferences]
 format = "json"
@@ -288,6 +295,7 @@ auto_watch = true
         let cfg: Config = toml::from_str(toml_str).unwrap();
         assert_eq!(cfg.cloud.org.as_deref(), Some("acme"));
         assert_eq!(cfg.cloud.api_url, "https://custom.api");
+        assert_eq!(cfg.cloud.pipeline.as_deref(), Some("acme/web"));
         assert_eq!(cfg.preferences.format, "json");
         assert!(cfg.preferences.auto_watch);
     }
@@ -388,6 +396,7 @@ org = "project-org"
         let cfg = Config {
             cloud: CloudConfig {
                 org: Some("saved-org".into()),
+                pipeline: Some("saved-org/web".into()),
                 ..CloudConfig::default()
             },
             ..Config::default()
@@ -396,6 +405,7 @@ org = "project-org"
 
         let loaded = Config::load_from_paths(Some(&path), None).unwrap();
         assert_eq!(loaded.cloud.org.as_deref(), Some("saved-org"));
+        assert_eq!(loaded.cloud.pipeline.as_deref(), Some("saved-org/web"));
         assert_eq!(loaded.cloud.api_url, DEFAULT_API_URL);
         assert_eq!(loaded.preferences.format, "human");
     }
