@@ -159,8 +159,14 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         } else if req.source.repo_name.is_none() {
             let default_branch =
                 git_default_branch(&req.repo_root).unwrap_or_else(|| req.source.branch.clone());
-            let slug =
-                register_remoteless_pipeline(client, org, &req.repo_root, &default_branch).await?;
+            let slug = register_remoteless_pipeline(
+                client,
+                org,
+                &req.pipeline_slug,
+                &req.repo_root,
+                &default_branch,
+            )
+            .await?;
             req.cloud_pipeline_slug = Some(slug);
         }
     }
@@ -447,57 +453,69 @@ fn persist_project_pipeline(dir: &std::path::Path, org: &str, slug: &str) -> Res
     Ok(())
 }
 
-/// Register the current directory as a Harmont pipeline when there's no git
-/// remote to identify one. Prompts for a name (default: the directory name) on
-/// a TTY; auto-uses the directory name when non-interactive. Reuses an existing
-/// pipeline of that name, else creates it (`repository` = the name, no
-/// `repo_name`). Persists the resolved slug to `.hm/config.toml`. Returns the
-/// org-global slug to submit by.
+/// Register the in-repo pipeline (`pipeline_name`, the `@hm.pipeline("…")` slug
+/// from the `.py`/`.ts`) with Harmont when there's no git remote to identify
+/// its repository. Reuses an existing pipeline of that name; otherwise prompts
+/// the user for the repository name (`owner/repo`, default: the directory name)
+/// and creates it. Persists the resolved slug to `.hm/config.toml` so later
+/// runs submit by slug without prompting. Returns the org-global slug.
 async fn register_remoteless_pipeline(
     client: &harmont_cloud::HarmontClient,
     org: &str,
+    pipeline_name: &str,
     dir: &std::path::Path,
     default_branch: &str,
 ) -> Result<String> {
     use std::io::IsTerminal;
 
-    let dirname = dir
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("pipeline")
-        .to_string();
-
-    let name = if std::io::stdin().is_terminal() {
-        // Propagate a genuine prompt I/O error rather than silently registering
-        // under the default name — creating a cloud pipeline is a side effect we
-        // shouldn't perform on an interrupted/failed read. (Hitting Enter accepts
-        // the default and returns `Ok`, so this only fires on a real failure.)
-        dialoguer::Input::<String>::new()
-            .with_prompt("No pipeline linked here — register this directory. Pipeline name")
-            .default(dirname)
-            .interact_text()
-            .context("reading the pipeline name")?
-    } else {
-        tracing::info!("no pipeline linked — registering '{dirname}' in org {org}");
-        dirname
-    };
-
-    // Reuse an existing pipeline of that name, else create one.
-    let slug = match client.raw().get_pipeline(org, &name).await {
+    // Reuse the pipeline if it already exists (resolved by its slug, which is
+    // derived from the in-repo name); otherwise create it, asking for the repo
+    // identity we can't read from a (missing) git remote.
+    let slug = match client.raw().get_pipeline(org, pipeline_name).await {
         Ok(p) => p.into_inner().slug,
         Err(e) if e.status().is_some_and(|s| s.as_u16() == 404) => {
-            let body = build_create_pipeline_request(&name, default_branch, &name, None);
+            let dirname = dir
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("repo")
+                .to_string();
+            let repo_name = if std::io::stdin().is_terminal() {
+                // Propagate a genuine prompt I/O error rather than silently
+                // creating a pipeline under the default name — a create is a
+                // side effect we shouldn't perform on an interrupted read.
+                // (Hitting Enter accepts the default and returns `Ok`, so this
+                // only fires on a real failure.)
+                dialoguer::Input::<String>::new()
+                    .with_prompt(format!(
+                        "No git remote — register pipeline '{pipeline_name}'. Repository name (owner/repo)"
+                    ))
+                    .default(dirname)
+                    .interact_text()
+                    .context("reading the repository name")?
+            } else {
+                tracing::info!(
+                    "no git remote — registering pipeline '{pipeline_name}' for repo '{dirname}' in org {org}"
+                );
+                dirname
+            };
+            let body = build_create_pipeline_request(
+                pipeline_name,
+                default_branch,
+                &repo_name,
+                Some(&repo_name),
+            );
             let created = client
                 .raw()
                 .create_pipeline(org, &body)
                 .await
                 .map_err(hm_plugin_cloud::settings::map_raw)
-                .with_context(|| format!("registering pipeline '{name}' in org {org}"))?;
+                .with_context(|| format!("registering pipeline '{pipeline_name}' in org {org}"))?;
             created.into_inner().slug
         }
         Err(e) => {
-            return Err(hm_plugin_cloud::settings::map_raw(e))
-                .with_context(|| format!("looking up pipeline '{name}' in org {org}"));
+            return Err(hm_plugin_cloud::settings::map_raw(e)).with_context(|| {
+                format!("looking up pipeline '{pipeline_name}' in org {org}")
+            });
         }
     };
 
