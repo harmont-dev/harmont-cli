@@ -359,9 +359,12 @@ class RustToolchain:
         the tokio/reqwest/tracing CI idiom: ``--feature-powerset --depth 2
         --no-dev-deps``.
         """
-        installed_hack = self._emit(
-            "cargo install cargo-hack --locked",
-            ":rust: install cargo-hack",
+        # Global install — no crate dir needed, so skip _wrap's `cd <path>`
+        # and source the cargo env directly. Keeps the CacheForever key
+        # identical across toolchains regardless of path.
+        installed_hack = self.installed.sh(
+            ". $HOME/.cargo/env && cargo install cargo-hack --locked",
+            label=":rust: install cargo-hack",
             cache=CacheForever(env_keys=()),
         )
         cmd = _hack_cmd(
