@@ -144,13 +144,40 @@ describe("resolvePipelineCacheKeys", () => {
 
     const stepKey = ir.graph.nodes[0].step.key as string;
     const cmd = "echo hi";
+    const image = "";
     const policyRes = "forever-" + sha256(cmd + NUL + "");
     const expected = sha256(
-      "myorg" + NUL + "myslug" + NUL + stepKey + NUL + "scratch" + NUL + policyRes,
+      "myorg" + NUL + "myslug" + NUL + stepKey + NUL + image + NUL + "scratch" + NUL + policyRes,
     );
 
     const cache = ir.graph.nodes[0].step.cache as Record<string, unknown>;
     expect(cache.key).toBe(expected);
+  });
+
+  it("key changes with different base image", () => {
+    const ir1 = pipeline([sh("cargo build", { label: "build", cache: forever(), image: "rust:1.79" })]);
+    const ir2 = pipeline([sh("cargo build", { label: "build", cache: forever(), image: "rust:1.80" })]);
+    const opts = makeOpts({ pipelineOrg: "o", pipelineSlug: "p" });
+
+    resolvePipelineCacheKeys(ir1.graph, opts);
+    resolvePipelineCacheKeys(ir2.graph, opts);
+
+    const k1 = (ir1.graph.nodes[0].step.cache as Record<string, unknown>).key;
+    const k2 = (ir2.graph.nodes[0].step.cache as Record<string, unknown>).key;
+    expect(k1).not.toBe(k2);
+  });
+
+  it("key is stable for the same base image", () => {
+    const ir1 = pipeline([sh("cargo build", { label: "build", cache: forever(), image: "rust:1.80" })]);
+    const ir2 = pipeline([sh("cargo build", { label: "build", cache: forever(), image: "rust:1.80" })]);
+    const opts = makeOpts({ pipelineOrg: "o", pipelineSlug: "p" });
+
+    resolvePipelineCacheKeys(ir1.graph, opts);
+    resolvePipelineCacheKeys(ir2.graph, opts);
+
+    const k1 = (ir1.graph.nodes[0].step.cache as Record<string, unknown>).key;
+    const k2 = (ir2.graph.nodes[0].step.cache as Record<string, unknown>).key;
+    expect(k1).toBe(k2);
   });
 
   it("child step uses parent resolved key", () => {

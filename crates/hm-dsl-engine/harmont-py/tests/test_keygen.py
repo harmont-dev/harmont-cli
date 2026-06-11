@@ -1,6 +1,9 @@
 """Cache-key resolver -- direct ports of the Scheme algorithm in
-harmont_macros.scm. Keys must be byte-identical to what harmont-eval
-produced pre-removal, so existing cached snapshots remain reachable."""
+harmont_macros.scm.
+
+NOTE: the key format changed in v0.1 — base image is now folded into the
+outer pre-image.  Old cached snapshots are intentionally unreachable after
+this change (a one-time cache invalidation)."""
 
 from __future__ import annotations
 
@@ -74,7 +77,7 @@ def test_forever_policy_key_matches_scheme_formula():
     inner = _sha256_hex("echo hi" + NUL + "")
     policy_res = "forever-" + inner
     expected = _sha256_hex(
-        "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
+        "default" + NUL + "default" + NUL + "a" + NUL + "" + NUL + "scratch" + NUL + policy_res
     )
     assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
@@ -103,7 +106,7 @@ def test_ttl_policy_key_includes_bucket():
     inner = _sha256_hex("x" + NUL + "")
     policy_res = "ttl-2-" + inner
     expected = _sha256_hex(
-        "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
+        "default" + NUL + "default" + NUL + "a" + NUL + "" + NUL + "scratch" + NUL + policy_res
     )
     assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
@@ -136,7 +139,7 @@ def test_on_change_reads_file_contents():
         inner = _sha256_hex(file_hash + NUL)
         policy_res = "sha-" + inner
         expected = _sha256_hex(
-            "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
+            "default" + NUL + "default" + NUL + "a" + NUL + "" + NUL + "scratch" + NUL + policy_res
         )
         assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
@@ -273,7 +276,7 @@ def test_env_keys_are_sorted_and_picked_up():
     inner = _sha256_hex("echo" + NUL + env_str)
     policy_res = "forever-" + inner
     expected = _sha256_hex(
-        "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
+        "default" + NUL + "default" + NUL + "a" + NUL + "" + NUL + "scratch" + NUL + policy_res
     )
     assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
@@ -312,7 +315,7 @@ def test_parent_key_chains_through_resolved_cache_keys():
     inner_b = _sha256_hex("y" + NUL + "")
     policy_res = "forever-" + inner_b
     expected_b = _sha256_hex(
-        "default" + NUL + "default" + NUL + "b" + NUL + parent_key + NUL + policy_res
+        "default" + NUL + "default" + NUL + "b" + NUL + "" + NUL + parent_key + NUL + policy_res
     )
     assert out["nodes"][1]["step"]["cache"]["key"] == expected_b
 
@@ -350,7 +353,7 @@ def test_compose_concatenates_subpolicies():
     inner = _sha256_hex(sub1 + sub2)
     policy_res = "compose-" + inner
     expected = _sha256_hex(
-        "default" + NUL + "default" + NUL + "a" + NUL + "scratch" + NUL + policy_res
+        "default" + NUL + "default" + NUL + "a" + NUL + "" + NUL + "scratch" + NUL + policy_res
     )
     assert out["nodes"][0]["step"]["cache"]["key"] == expected
 
@@ -382,3 +385,42 @@ def test_parent_without_cache_is_planerror():
             base_path=Path("/tmp"),  # noqa: S108
             env={},
         )
+
+
+def _make_graph_with_image(cmd: str, image: str | None, policy: str) -> dict:
+    """Minimal graph for image-keying tests."""
+    step: dict = {"key": "s", "cmd": cmd, "cache": {"policy": policy, "env_keys": []}}
+    if image is not None:
+        step["image"] = image
+    return _make_graph([{"step": step, "env": {}}])
+
+
+def _resolved_key(graph: dict) -> str:
+    return graph["nodes"][0]["step"]["cache"]["key"]
+
+
+def _rk(graph: dict) -> str:
+    """Resolve pipeline keys and return the resolved cache key."""
+    return _resolved_key(
+        resolve_pipeline_keys(
+            graph,
+            pipeline_org="o",
+            pipeline_slug="p",
+            now=0,
+            base_path=Path("."),
+            env={},
+        )
+    )
+
+
+def test_key_changes_with_base_image():
+    # same command + policy, different base image => different key
+    g1 = _make_graph_with_image(cmd="cargo build", image="rust:1.79", policy="forever")
+    g2 = _make_graph_with_image(cmd="cargo build", image="rust:1.80", policy="forever")
+    assert _rk(g1) != _rk(g2)
+
+
+def test_key_stable_for_same_image():
+    g1 = _make_graph_with_image(cmd="cargo build", image="rust:1.80", policy="forever")
+    g2 = _make_graph_with_image(cmd="cargo build", image="rust:1.80", policy="forever")
+    assert _rk(g1) == _rk(g2)

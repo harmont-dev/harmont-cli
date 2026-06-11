@@ -1,13 +1,19 @@
 """Cache-key resolver.
 
 Direct port of cidsl/lisp/src/harmont_macros.scm (resolve-cache-key
-and helpers). Output bytes MUST match the Scheme version so cached
-snapshots persisted before the Scheme removal remain reachable.
+and helpers).
+
+NOTE: the key format changed in v0.1 — the step's base ``image`` is now
+folded into the outer pre-image so that the same command on two different
+base images no longer collides on one cache entry.  Old cached snapshots
+are intentionally unreachable after this change (a one-time invalidation).
 
 Algorithm (pre-image of the outer sha256):
 
     pipeline_org NUL pipeline_slug NUL step_key NUL
-    parent_resolved_key NUL policy_resolution
+    image NUL parent_resolved_key NUL policy_resolution
+
+``image`` is the step's ``image`` field, or the empty string when absent.
 
 policy_resolution branches:
     none      -> "none"          (no key emitted)
@@ -62,6 +68,7 @@ def resolve_pipeline_keys(
         if not cache or cache["policy"] == "none":
             continue
         cmd = step.get("cmd", "")
+        image = step.get("image") or ""
         parent = parent_key_map.get(step["key"])
         parent_resolved = _lookup_parent(parent, resolved)
         policy_res = _resolve_policy(cache, cmd, now, base_path, env)
@@ -71,6 +78,8 @@ def resolve_pipeline_keys(
             + pipeline_slug
             + NUL
             + step["key"]
+            + NUL
+            + image
             + NUL
             + parent_resolved
             + NUL

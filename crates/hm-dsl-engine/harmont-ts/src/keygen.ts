@@ -45,6 +45,7 @@ export function resolvePipelineCacheKeys(
     if (!cache || cache.policy === "none") continue;
 
     const cmd = (step.cmd as string) ?? "";
+    const image = (step.image as string | null | undefined) || "";
     const stepKey = step.key as string;
     const parentStepKey = parentKeyMap.get(stepKey);
     const parentResolved = lookupParent(parentStepKey, resolved);
@@ -56,6 +57,8 @@ export function resolvePipelineCacheKeys(
         opts.pipelineSlug +
         NUL +
         stepKey +
+        NUL +
+        image +
         NUL +
         parentResolved +
         NUL +
