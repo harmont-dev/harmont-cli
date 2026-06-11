@@ -242,6 +242,37 @@ class TestRustToolchain:
         assert s.cmd.rstrip().endswith("-- -W clippy::pedantic")
         assert "-D warnings" not in s.cmd
 
+    def test_feature_powerset_default(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.feature_powerset()
+        assert "cargo hack check --feature-powerset --depth 2 --no-dev-deps" in s.cmd
+
+    def test_feature_powerset_installs_cargo_hack(self):
+        tc = hm.rust.toolchain(path="cli")
+        s = tc.feature_powerset()
+        p = hm.pipeline([s], default_image="ubuntu:24.04")
+        cmds = _cmds(p)
+        assert any("cargo install cargo-hack --locked" in c for c in cmds)
+
+    def test_feature_powerset_each_feature(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.feature_powerset(each_feature=True)
+        assert "--each-feature" in s.cmd
+        assert "--feature-powerset" not in s.cmd
+
+    def test_feature_powerset_skip_and_keep_going(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.feature_powerset(subcommand="test", skip=("__tls", "http3"), keep_going=True)
+        expected = (
+            "cargo hack test --feature-powerset --depth 2"
+            " --no-dev-deps --skip __tls,http3 --keep-going"
+        )
+        assert expected in s.cmd
+
+    def test_feature_powerset_label(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.feature_powerset().label == ":rust: feature-powerset"
+
 
 # --- RustProject (hm.rust.project) ---
 
@@ -407,3 +438,8 @@ class TestRustProject:
         p = hm.pipeline(list(proj.ci()), default_image="ubuntu:24.04")
         cmds = _cmds(p)
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
+
+    def test_feature_powerset_delegates(self):
+        proj = hm.rust.project(path=".")
+        s = proj.feature_powerset(subcommand="clippy")
+        assert "cargo hack clippy --feature-powerset --depth 2 --no-dev-deps" in s.cmd

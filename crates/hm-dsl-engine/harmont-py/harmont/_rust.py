@@ -9,6 +9,7 @@ Public surface lives on the module-level singleton ``rust``:
 from __future__ import annotations
 
 import re
+import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -92,6 +93,34 @@ def _doc_env(kw: dict[str, Any], *, deny_warnings: bool) -> None:
         merged = dict(user_env) if user_env else {}
         merged.setdefault("RUSTDOCFLAGS", "-D warnings")
         kw["env"] = merged
+
+
+def _hack_cmd(
+    *,
+    subcommand: str = "check",
+    depth: int = 2,
+    each_feature: bool = False,
+    no_dev_deps: bool = True,
+    skip: tuple[str, ...] = (),
+    include_features: tuple[str, ...] = (),
+    keep_going: bool = False,
+    flags: tuple[str, ...] = (),
+) -> str:
+    toks = ["cargo hack", subcommand]
+    if each_feature:
+        toks.append("--each-feature")
+    else:
+        toks += ["--feature-powerset", "--depth", str(depth)]
+    if no_dev_deps:
+        toks.append("--no-dev-deps")
+    if skip:
+        toks.append("--skip " + ",".join(shlex.quote(s) for s in skip))
+    if include_features:
+        toks.append("--include-features " + ",".join(shlex.quote(s) for s in include_features))
+    if keep_going:
+        toks.append("--keep-going")
+    toks += list(flags)
+    return " ".join(toks)
 
 
 @dataclass(frozen=True)
@@ -310,6 +339,44 @@ class RustToolchain:
             ":rust: warmup",
             **kw,
         )
+
+    def feature_powerset(
+        self,
+        *,
+        subcommand: str = "check",
+        depth: int = 2,
+        each_feature: bool = False,
+        no_dev_deps: bool = True,
+        skip: tuple[str, ...] = (),
+        include_features: tuple[str, ...] = (),
+        keep_going: bool = False,
+        flags: tuple[str, ...] = (),
+        **kw: Any,
+    ) -> Step:
+        """Run a cargo-hack feature sweep (powerset, or ``--each-feature``).
+
+        Installs ``cargo-hack`` (cached forever) then runs the sweep. Mirrors
+        the tokio/reqwest/tracing CI idiom: ``--feature-powerset --depth 2
+        --no-dev-deps``.
+        """
+        installed_hack = self._emit(
+            "cargo install cargo-hack --locked",
+            ":rust: install cargo-hack",
+            cache=CacheForever(env_keys=()),
+        )
+        cmd = _hack_cmd(
+            subcommand=subcommand,
+            depth=depth,
+            each_feature=each_feature,
+            no_dev_deps=no_dev_deps,
+            skip=skip,
+            include_features=include_features,
+            keep_going=keep_going,
+            flags=flags,
+        )
+        if kw.get("label") is None:
+            kw["label"] = ":rust: feature-powerset"
+        return installed_hack.sh(self._wrap(cmd), **kw)
 
 
 @dataclass(frozen=True)
@@ -539,6 +606,9 @@ class RustProject:
         if doc:
             steps.append(self.doc())
         return tuple(steps)
+
+    def feature_powerset(self, **kw: Any) -> Step:
+        return self.toolchain.feature_powerset(**kw)
 
 
 def _make_rust(
