@@ -24,13 +24,15 @@ fn init_rust_creates_pipeline_py() {
     assert!(pipeline.exists(), "expected {}", pipeline.display());
 
     let content = std::fs::read_to_string(&pipeline).unwrap();
+    assert!(content.contains("@hm.pipeline"), "expected pipeline decorator");
     assert!(
-        content.contains("hm.rust"),
-        "expected rust toolchain import"
+        content.contains("hm.rust.project("),
+        "expected rust.project() entrypoint, got:\n{content}"
     );
+    assert!(content.contains(".ci()"), "expected the one-call .ci() DAG, got:\n{content}");
     assert!(
-        content.contains("@hm.pipeline"),
-        "expected pipeline decorator"
+        !content.contains("rust.toolchain("),
+        "template should not use the legacy toolchain() API, got:\n{content}"
     );
 }
 
