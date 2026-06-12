@@ -127,6 +127,12 @@ function denyDocEnv(step: ActionOptions, deny: boolean): ActionOptions {
   return { ...step, env: { RUSTDOCFLAGS: "-D warnings", ...(step.env ?? {}) } };
 }
 
+function withTargetAdd(cmd: string, target: string | undefined, addTarget: boolean): string {
+  return target !== undefined && addTarget
+    ? `rustup target add ${shQuote(target)} && ${cmd}`
+    : cmd;
+}
+
 // --- classes ---
 
 export class RustToolchain {
@@ -149,35 +155,38 @@ export class RustToolchain {
     );
   }
 
-  build(opts?: CargoActionOptions): Step {
-    const { cargo, step } = splitCargo(opts);
-    return this._cargo(buildCmd(cargo), ":rust: build", step);
-  }
-
-  test(opts?: CargoActionOptions & { nextest?: boolean }): Step {
-    const { nextest, ...rest } = opts ?? {};
+  build(opts?: CargoActionOptions & { addTarget?: boolean }): Step {
+    const { addTarget, ...rest } = opts ?? {};
     const { cargo, step } = splitCargo(rest);
-    return this._cargo(testCmd(cargo, nextest ?? false), ":rust: test", step);
+    const cmd = withTargetAdd(buildCmd(cargo), cargo.target, addTarget ?? true);
+    return this._cargo(cmd, ":rust: build", step);
   }
 
-  doctest(opts?: CargoActionOptions): Step {
-    const { cargo, step } = splitCargo(opts);
-    return this._cargo(doctestCmd(cargo), ":rust: doctest", step);
+  test(opts?: CargoActionOptions & { nextest?: boolean; addTarget?: boolean }): Step {
+    const { nextest, addTarget, ...rest } = opts ?? {};
+    const { cargo, step } = splitCargo(rest);
+    const cmd = withTargetAdd(testCmd(cargo, nextest ?? false), cargo.target, addTarget ?? true);
+    return this._cargo(cmd, ":rust: test", step);
+  }
+
+  doctest(opts?: CargoActionOptions & { addTarget?: boolean }): Step {
+    const { addTarget, ...rest } = opts ?? {};
+    const { cargo, step } = splitCargo(rest);
+    const cmd = withTargetAdd(doctestCmd(cargo), cargo.target, addTarget ?? true);
+    return this._cargo(cmd, ":rust: doctest", step);
   }
 
   clippy(
     opts?: CargoActionOptions & {
       denyWarnings?: boolean;
       extraLints?: readonly string[];
+      addTarget?: boolean;
     },
   ): Step {
-    const { denyWarnings, extraLints, ...rest } = opts ?? {};
+    const { denyWarnings, extraLints, addTarget, ...rest } = opts ?? {};
     const { cargo, step } = splitCargo({ allTargets: true, ...rest });
-    return this._cargo(
-      clippyCmd(cargo, denyWarnings ?? true, extraLints ?? []),
-      ":rust: clippy",
-      step,
-    );
+    const cmd = withTargetAdd(clippyCmd(cargo, denyWarnings ?? true, extraLints ?? []), cargo.target, addTarget ?? true);
+    return this._cargo(cmd, ":rust: clippy", step);
   }
 
   fmt(
@@ -200,15 +209,13 @@ export class RustToolchain {
       noDeps?: boolean;
       documentPrivateItems?: boolean;
       denyWarnings?: boolean;
+      addTarget?: boolean;
     },
   ): Step {
-    const { noDeps, documentPrivateItems, denyWarnings, ...rest } = opts ?? {};
+    const { noDeps, documentPrivateItems, denyWarnings, addTarget, ...rest } = opts ?? {};
     const { cargo, step } = splitCargo(rest);
-    return this._cargo(
-      docCmd(cargo, noDeps ?? true, documentPrivateItems ?? false),
-      ":rust: doc",
-      denyDocEnv(step, denyWarnings ?? true),
-    );
+    const cmd = withTargetAdd(docCmd(cargo, noDeps ?? true, documentPrivateItems ?? false), cargo.target, addTarget ?? true);
+    return this._cargo(cmd, ":rust: doc", denyDocEnv(step, denyWarnings ?? true));
   }
 
   warmup(opts?: ActionOptions): Step {
@@ -260,35 +267,38 @@ export class RustProject {
     );
   }
 
-  build(opts?: CargoActionOptions): Step {
-    const { cargo, step } = splitCargo({ workspace: true, ...opts });
-    return this._emit(buildCmd(cargo), ":rust: build", step);
-  }
-
-  test(opts?: CargoActionOptions & { nextest?: boolean }): Step {
-    const { nextest, ...rest } = opts ?? {};
+  build(opts?: CargoActionOptions & { addTarget?: boolean }): Step {
+    const { addTarget, ...rest } = opts ?? {};
     const { cargo, step } = splitCargo({ workspace: true, ...rest });
-    return this._emit(testCmd(cargo, nextest ?? false), ":rust: test", step);
+    const cmd = withTargetAdd(buildCmd(cargo), cargo.target, addTarget ?? true);
+    return this._emit(cmd, ":rust: build", step);
   }
 
-  doctest(opts?: CargoActionOptions): Step {
-    const { cargo, step } = splitCargo({ workspace: true, ...opts });
-    return this._emit(doctestCmd(cargo), ":rust: doctest", step);
+  test(opts?: CargoActionOptions & { nextest?: boolean; addTarget?: boolean }): Step {
+    const { nextest, addTarget, ...rest } = opts ?? {};
+    const { cargo, step } = splitCargo({ workspace: true, ...rest });
+    const cmd = withTargetAdd(testCmd(cargo, nextest ?? false), cargo.target, addTarget ?? true);
+    return this._emit(cmd, ":rust: test", step);
+  }
+
+  doctest(opts?: CargoActionOptions & { addTarget?: boolean }): Step {
+    const { addTarget, ...rest } = opts ?? {};
+    const { cargo, step } = splitCargo({ workspace: true, ...rest });
+    const cmd = withTargetAdd(doctestCmd(cargo), cargo.target, addTarget ?? true);
+    return this._emit(cmd, ":rust: doctest", step);
   }
 
   clippy(
     opts?: CargoActionOptions & {
       denyWarnings?: boolean;
       extraLints?: readonly string[];
+      addTarget?: boolean;
     },
   ): Step {
-    const { denyWarnings, extraLints, ...rest } = opts ?? {};
+    const { denyWarnings, extraLints, addTarget, ...rest } = opts ?? {};
     const { cargo, step } = splitCargo({ workspace: true, allTargets: true, ...rest });
-    return this._emit(
-      clippyCmd(cargo, denyWarnings ?? true, extraLints ?? []),
-      ":rust: clippy",
-      step,
-    );
+    const cmd = withTargetAdd(clippyCmd(cargo, denyWarnings ?? true, extraLints ?? []), cargo.target, addTarget ?? true);
+    return this._emit(cmd, ":rust: clippy", step);
   }
 
   fmt(
@@ -307,15 +317,13 @@ export class RustProject {
       noDeps?: boolean;
       documentPrivateItems?: boolean;
       denyWarnings?: boolean;
+      addTarget?: boolean;
     },
   ): Step {
-    const { noDeps, documentPrivateItems, denyWarnings, ...rest } = opts ?? {};
+    const { noDeps, documentPrivateItems, denyWarnings, addTarget, ...rest } = opts ?? {};
     const { cargo, step } = splitCargo({ workspace: true, ...rest });
-    return this._emit(
-      docCmd(cargo, noDeps ?? true, documentPrivateItems ?? false),
-      ":rust: doc",
-      denyDocEnv(step, denyWarnings ?? true),
-    );
+    const cmd = withTargetAdd(docCmd(cargo, noDeps ?? true, documentPrivateItems ?? false), cargo.target, addTarget ?? true);
+    return this._emit(cmd, ":rust: doc", denyDocEnv(step, denyWarnings ?? true));
   }
 
   featurePowerset(opts?: FeaturePowersetOptions): Step {

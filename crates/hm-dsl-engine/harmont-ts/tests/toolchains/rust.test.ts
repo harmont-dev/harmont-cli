@@ -176,6 +176,34 @@ describe("rust.toolchain", () => {
     expect(s._cmd).toContain("cargo hack check --feature-powerset --depth 2 --no-dev-deps");
     expect(s._parent!._cmd).toContain("cargo install cargo-hack --locked");
   });
+
+  it("build target auto-installs the rustup target", () => {
+    const s = rust.toolchain().build({ target: "wasm32-unknown-unknown" });
+    expect(s._cmd).toContain("rustup target add wasm32-unknown-unknown && cargo build");
+    expect(s._cmd).toContain("--target wasm32-unknown-unknown");
+  });
+
+  it("addTarget:false opts out of the rustup install", () => {
+    const s = rust.toolchain().build({ target: "wasm32-unknown-unknown", addTarget: false });
+    expect(s._cmd).not.toContain("rustup target add");
+    expect(s._cmd).toContain("--target wasm32-unknown-unknown");
+  });
+
+  it("clippy target auto-installs", () => {
+    expect(rust.toolchain().clippy({ target: "wasm32-unknown-unknown" })._cmd).toContain(
+      "rustup target add wasm32-unknown-unknown && cargo clippy",
+    );
+  });
+
+  it("test nextest+target auto-installs", () => {
+    expect(rust.toolchain().test({ target: "wasm32-unknown-unknown", nextest: true })._cmd).toContain(
+      "rustup target add wasm32-unknown-unknown && cargo nextest run",
+    );
+  });
+
+  it("no target means no rustup add", () => {
+    expect(rust.toolchain().build()._cmd).not.toContain("rustup target add");
+  });
 });
 
 describe("rust.project", () => {
@@ -300,6 +328,12 @@ describe("rust.project", () => {
     expect(p.build()._cmd).toContain("cargo build --workspace --locked");
     expect(p.doctest()._cmd!.endsWith("cargo test --workspace --locked --doc")).toBe(true);
     expect(p.doc()._cmd).toContain("cargo doc --no-deps --workspace --locked");
+  });
+
+  it("project build target auto-installs", () => {
+    expect(rust.project({ path: "." }).build({ target: "wasm32-unknown-unknown" })._cmd).toContain(
+      "rustup target add wasm32-unknown-unknown && cargo build --workspace --target wasm32-unknown-unknown --locked",
+    );
   });
 
   it("ci returns standard DAG", () => {

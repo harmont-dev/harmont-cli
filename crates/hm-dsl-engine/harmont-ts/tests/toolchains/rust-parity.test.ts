@@ -19,7 +19,10 @@ describe("rust parity golden strings", () => {
     );
     expect(
       tail(p.build({ packages: ["core"], target: "wasm32-unknown-unknown" })._cmd!),
-    ).toBe("cargo build -p core --target wasm32-unknown-unknown --locked");
+    ).toBe(
+      "rustup target add wasm32-unknown-unknown && " +
+        "cargo build -p core --target wasm32-unknown-unknown --locked",
+    );
     expect(
       tail(p.featurePowerset({ subcommand: "check", skip: ["a b", "c"] })._cmd!),
     ).toBe("cargo hack check --feature-powerset --depth 2 --no-dev-deps --skip 'a b',c");
