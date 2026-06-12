@@ -234,6 +234,12 @@ class TestRustToolchain:
         tc = hm.rust.toolchain(path=".")
         s = tc.doctest(target="wasm32-unknown-unknown")
         assert s.cmd.endswith("cargo test --target wasm32-unknown-unknown --locked --doc")
+        assert "rustup target add wasm32-unknown-unknown && cargo test" in s.cmd
+
+    def test_test_nextest_target_auto_installs(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.test(nextest=True, target="wasm32-unknown-unknown")
+        assert "rustup target add wasm32-unknown-unknown && cargo nextest run" in s.cmd
 
     def test_clippy_extra_lints_without_deny(self):
         tc = hm.rust.toolchain(path=".")
