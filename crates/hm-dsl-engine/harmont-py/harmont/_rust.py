@@ -95,6 +95,18 @@ def _doc_env(kw: dict[str, Any], *, deny_warnings: bool) -> None:
         kw["env"] = merged
 
 
+def _with_target_add(cargo: str, *, target: str | None, add_target: bool) -> str:
+    """Prepend ``rustup target add <target>`` when cross-compiling.
+
+    The rustup target must be installed before cargo can build for it. Steps
+    fork from the warmup snapshot (host target only), so the install lives in
+    the compiling leaf. Idempotent; ``add_target=False`` skips it (e.g. when the
+    runner image already has the target)."""
+    if target is not None and add_target:
+        return f"rustup target add {shlex.quote(target)} && {cargo}"
+    return cargo
+
+
 def _hack_cmd(
     *,
     subcommand: str = "check",
@@ -157,6 +169,7 @@ class RustToolchain:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         all_targets: bool = False,
         release: bool = False,
         profile: str | None = None,
@@ -164,21 +177,22 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _build_cmd(
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            all_targets=all_targets,
+            release=release,
+            profile=profile,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _build_cmd(
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                all_targets=all_targets,
-                release=release,
-                profile=profile,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: build",
             **kw,
         )
@@ -194,6 +208,7 @@ class RustToolchain:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         all_targets: bool = False,
         release: bool = False,
         profile: str | None = None,
@@ -201,22 +216,23 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _test_cmd(
+            nextest=nextest,
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            all_targets=all_targets,
+            release=release,
+            profile=profile,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _test_cmd(
-                nextest=nextest,
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                all_targets=all_targets,
-                release=release,
-                profile=profile,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: test",
             **kw,
         )
@@ -231,22 +247,24 @@ class RustToolchain:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         locked: bool = True,
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _doctest_cmd(
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _doctest_cmd(
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: doctest",
             **kw,
         )
@@ -261,6 +279,7 @@ class RustToolchain:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         all_targets: bool = True,
         locked: bool = True,
         deny_warnings: bool = True,
@@ -268,21 +287,22 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _clippy_cmd(
+            deny_warnings=deny_warnings,
+            extra_lints=extra_lints,
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            all_targets=all_targets,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _clippy_cmd(
-                deny_warnings=deny_warnings,
-                extra_lints=extra_lints,
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                all_targets=all_targets,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: clippy",
             **kw,
         )
@@ -309,26 +329,28 @@ class RustToolchain:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         locked: bool = True,
         deny_warnings: bool = True,
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
         _doc_env(kw, deny_warnings=deny_warnings)
+        cmd = _doc_cmd(
+            no_deps=no_deps,
+            document_private_items=document_private_items,
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _doc_cmd(
-                no_deps=no_deps,
-                document_private_items=document_private_items,
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: doc",
             **kw,
         )
@@ -410,6 +432,7 @@ class RustProject:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         all_targets: bool = False,
         release: bool = False,
         profile: str | None = None,
@@ -417,21 +440,22 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _build_cmd(
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            all_targets=all_targets,
+            release=release,
+            profile=profile,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _build_cmd(
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                all_targets=all_targets,
-                release=release,
-                profile=profile,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: build",
             **kw,
         )
@@ -447,6 +471,7 @@ class RustProject:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         all_targets: bool = False,
         release: bool = False,
         profile: str | None = None,
@@ -454,22 +479,23 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _test_cmd(
+            nextest=nextest,
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            all_targets=all_targets,
+            release=release,
+            profile=profile,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _test_cmd(
-                nextest=nextest,
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                all_targets=all_targets,
-                release=release,
-                profile=profile,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: test",
             **kw,
         )
@@ -484,22 +510,24 @@ class RustProject:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         locked: bool = True,
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _doctest_cmd(
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _doctest_cmd(
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: doctest",
             **kw,
         )
@@ -514,6 +542,7 @@ class RustProject:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         all_targets: bool = True,
         locked: bool = True,
         deny_warnings: bool = True,
@@ -521,21 +550,22 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        cmd = _clippy_cmd(
+            deny_warnings=deny_warnings,
+            extra_lints=extra_lints,
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            all_targets=all_targets,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _clippy_cmd(
-                deny_warnings=deny_warnings,
-                extra_lints=extra_lints,
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                all_targets=all_targets,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: clippy",
             **kw,
         )
@@ -564,26 +594,28 @@ class RustProject:
         no_default_features: bool = False,
         features: tuple[str, ...] = (),
         target: str | None = None,
+        add_target: bool = True,
         locked: bool = True,
         deny_warnings: bool = True,
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
         _doc_env(kw, deny_warnings=deny_warnings)
+        cmd = _doc_cmd(
+            no_deps=no_deps,
+            document_private_items=document_private_items,
+            workspace=workspace,
+            packages=packages,
+            exclude=exclude,
+            all_features=all_features,
+            no_default_features=no_default_features,
+            features=features,
+            target=target,
+            locked=locked,
+            flags=flags,
+        )
         return self._emit(
-            _doc_cmd(
-                no_deps=no_deps,
-                document_private_items=document_private_items,
-                workspace=workspace,
-                packages=packages,
-                exclude=exclude,
-                all_features=all_features,
-                no_default_features=no_default_features,
-                features=features,
-                target=target,
-                locked=locked,
-                flags=flags,
-            ),
+            _with_target_add(cmd, target=target, add_target=add_target),
             ":rust: doc",
             **kw,
         )

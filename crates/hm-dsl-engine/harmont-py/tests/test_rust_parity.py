@@ -24,6 +24,7 @@ def test_golden_commands():
         "cargo doc --no-deps --document-private-items --workspace --locked"
     )
     assert _tail(p.build(packages=("core",), target="wasm32-unknown-unknown").cmd) == (
+        "rustup target add wasm32-unknown-unknown && "
         "cargo build -p core --target wasm32-unknown-unknown --locked"
     )
     assert (

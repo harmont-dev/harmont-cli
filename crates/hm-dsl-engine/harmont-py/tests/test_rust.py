@@ -272,6 +272,44 @@ class TestRustToolchain:
         tc = hm.rust.toolchain(path=".")
         assert tc.feature_powerset().label == ":rust: feature-powerset"
 
+    def test_build_target_auto_installs(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.build(target="wasm32-unknown-unknown")
+        assert s.cmd.startswith(
+            ". $HOME/.cargo/env && cd . && rustup target add wasm32-unknown-unknown && cargo build"
+        )
+        assert "--target wasm32-unknown-unknown" in s.cmd
+
+    def test_build_target_add_opt_out(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.build(target="wasm32-unknown-unknown", add_target=False)
+        assert "rustup target add" not in s.cmd
+        assert "--target wasm32-unknown-unknown" in s.cmd
+
+    def test_clippy_target_auto_installs(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.clippy(target="wasm32-unknown-unknown")
+        assert "rustup target add wasm32-unknown-unknown && cargo clippy" in s.cmd
+
+    def test_test_target_auto_installs(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.test(target="wasm32-unknown-unknown")
+        assert "rustup target add wasm32-unknown-unknown && cargo test" in s.cmd
+
+    def test_doc_target_auto_installs(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.doc(target="wasm32-unknown-unknown")
+        assert "rustup target add wasm32-unknown-unknown && cargo doc" in s.cmd
+
+    def test_no_target_no_rustup_add(self):
+        tc = hm.rust.toolchain(path=".")
+        assert "rustup target add" not in tc.build().cmd
+
+    def test_target_value_quoted_in_rustup_add(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.build(target="x; rm -rf /")
+        assert "rustup target add 'x; rm -rf /' &&" in s.cmd
+
 
 # --- RustProject (hm.rust.project) ---
 
@@ -442,6 +480,14 @@ class TestRustProject:
         proj = hm.rust.project(path=".")
         s = proj.feature_powerset(subcommand="clippy")
         assert "cargo hack clippy --feature-powerset --depth 2 --no-dev-deps" in s.cmd
+
+    def test_project_build_target_auto_installs(self):
+        proj = hm.rust.project(path=".")
+        s = proj.build(target="wasm32-unknown-unknown")
+        assert (
+            "rustup target add wasm32-unknown-unknown && "
+            "cargo build --workspace --target wasm32-unknown-unknown --locked"
+        ) in s.cmd
 
 
 def test_no_shell_injection_via_packages():
