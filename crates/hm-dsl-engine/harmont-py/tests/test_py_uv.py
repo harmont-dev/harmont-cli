@@ -26,7 +26,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 class TestUvObjectForm:
     def test_full_chain(self):
         proj = hm.py.uv(path="svc")
-        p = hm.pipeline([proj.test()], default_image="ubuntu:24.04")
+        p = hm.pipeline([proj.test()])
         cmds = _cmds(p)
         assert any("apt-get install" in c for c in cmds)
         assert any("astral.sh/uv/install.sh" in c for c in cmds)
@@ -37,7 +37,6 @@ class TestUvObjectForm:
         proj = hm.py.uv(path="svc")
         p = hm.pipeline(
             [proj.test(), proj.lint(), proj.fmt(), proj.typecheck()],
-            default_image="ubuntu:24.04",
         )
         cmds = _cmds(p)
         assert len([c for c in cmds if "astral.sh/uv/install.sh" in c]) == 1
@@ -142,7 +141,7 @@ class TestUvChainSetup:
     def test_base_skips_apt(self):
         base = hm.scratch().sh("custom base", label="base")
         proj = hm.py.uv(path="svc", base=base)
-        p = hm.pipeline([proj.test()], default_image="ubuntu:24.04")
+        p = hm.pipeline([proj.test()])
         cmds = _cmds(p)
         assert not any("apt-get install" in c for c in cmds)
         assert any("custom base" in c for c in cmds)

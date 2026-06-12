@@ -10,7 +10,7 @@ const FAILING_PIPELINE_PY: &str = r#"
 import harmont as hm
 
 
-@hm.pipeline("failing", default_image="alpine:3.20")
+@hm.pipeline("failing")
 def failing() -> hm.Step:
     return hm.sh("exit 7", label="oops", image="alpine:3.20")
 "#;

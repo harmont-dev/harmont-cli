@@ -27,19 +27,24 @@ from .cache import (
 if TYPE_CHECKING:
     from ._step import Step
 
+# Across-the-board default image for imageless root steps. The SDK's
+# toolchains assume an apt-capable base (apt-get), so ubuntu:24.04 is the
+# universal default; child steps boot from their parent's snapshot and
+# stay imageless.
+DEFAULT_IMAGE = "ubuntu:24.04"
+
 
 def pipeline(
     leaves: list[Step] | tuple[Step, ...],
     *,
     env: dict[str, str] | None = None,
-    default_image: str | None = None,
     timeout: str | int | None = None,
 ) -> dict[str, Any]:
     """Top-level factory. Returns a JSON-shaped dict (version "0").
 
-    ``default_image`` is the local-mode fallback Docker image: it
-    applies to every command step that lacks both a ``builds_in``
-    parent edge and a per-step ``image`` override.
+    Every imageless root command step (one with no ``builds_in`` parent
+    and no per-step ``image``) is stamped with ``DEFAULT_IMAGE``
+    (``ubuntu:24.04``). Set a per-step ``image=`` on a step to override.
 
     ``timeout`` is a whole-build wall-clock budget (``"30m"``, ``"1h"``,
     or an int number of seconds). When it elapses the build is killed and
@@ -52,15 +57,9 @@ def pipeline(
         )
         raise ValueError(msg)
     out: dict[str, Any] = {"version": "0"}
-    if default_image is not None:
-        out["default_image"] = default_image
     if timeout is not None:
         out["timeout_seconds"] = parse_duration(timeout)
-    out["graph"] = _lower_to_graph(
-        list(leaves),
-        env=env,
-        default_image=default_image,
-    )
+    out["graph"] = _lower_to_graph(list(leaves), env=env)
     return out
 
 
@@ -68,7 +67,6 @@ def _lower_to_graph(
     leaves: list[Step],
     *,
     env: dict[str, str] | None = None,
-    default_image: str | None = None,
 ) -> dict[str, Any]:
     """Walk back via `parent`, topo-sort, emit petgraph-serde graph dict.
 
@@ -86,7 +84,7 @@ def _lower_to_graph(
     for i, s in enumerate(command_steps):
         idx_by_id[id(s)] = i
 
-    # Track which node indices have a builds_in parent (for default_image).
+    # Track which node indices have a builds_in parent (child steps stay image-less).
     has_builds_in_parent: set[int] = set()
 
     nodes: list[dict[str, Any]] = []
@@ -156,11 +154,13 @@ def _lower_to_graph(
 
         pre_wait_indices.append(node_idx)
 
-    # Apply default_image to root nodes (those without a builds_in parent).
-    if default_image is not None:
-        for i, node in enumerate(nodes):
-            if i not in has_builds_in_parent and "image" not in node["step"]:
-                node["step"]["image"] = default_image
+    # Stamp the default image on every root command step that lacks an
+    # explicit one. Root steps boot from an image tag (not a parent
+    # snapshot); child steps inherit the parent's committed snapshot and
+    # must stay image-less.
+    for i, node in enumerate(nodes):
+        if i not in has_builds_in_parent and "image" not in node["step"]:
+            node["step"]["image"] = DEFAULT_IMAGE
 
     return {
         "nodes": nodes,

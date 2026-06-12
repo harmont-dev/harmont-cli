@@ -28,7 +28,6 @@ def test_register_appends():
         triggers=(),
         allow_manual=True,
         env=None,
-        default_image=None,
         fn=lambda: None,
     )
     register(reg)
@@ -44,7 +43,6 @@ def test_register_duplicate_slug_raises():
             triggers=(),
             allow_manual=True,
             env=None,
-            default_image=None,
             fn=fn,
         )
     )
@@ -56,7 +54,6 @@ def test_register_duplicate_slug_raises():
                 triggers=(),
                 allow_manual=True,
                 env=None,
-                default_image=None,
                 fn=fn,
             )
         )
@@ -73,7 +70,6 @@ def test_clear_resets():
             triggers=(),
             allow_manual=True,
             env=None,
-            default_image=None,
             fn=fn,
         )
     )

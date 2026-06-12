@@ -22,7 +22,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_python_object_form_full_chain():
     py = hm.python(path="svc")
-    p = hm.pipeline([py.test()], default_image="ubuntu:24.04")
+    p = hm.pipeline([py.test()])
     cmds = _cmds(p)
     assert any("apt-get install" in c for c in cmds)
     assert any("astral.sh/uv/install.sh" in c for c in cmds)
@@ -32,7 +32,7 @@ def test_python_object_form_full_chain():
 
 def test_python_actions_share_install_step():
     py = hm.python(path="svc")
-    p = hm.pipeline([py.test(), py.lint(), py.fmt(), py.typecheck()], default_image="ubuntu:24.04")
+    p = hm.pipeline([py.test(), py.lint(), py.fmt(), py.typecheck()])
     cmds = _cmds(p)
     assert len([c for c in cmds if "astral.sh/uv/install.sh" in c]) == 1
     assert len([c for c in cmds if "apt-get install" in c]) == 1
@@ -120,7 +120,7 @@ def test_python_image_emitted_on_apt_step():
 def test_python_with_base_skips_apt():
     base = hm.scratch().sh("custom base", label="base")
     py = hm.python(path="svc", base=base)
-    p = hm.pipeline([py.test()], default_image="ubuntu:24.04")
+    p = hm.pipeline([py.test()])
     cmds = _cmds(p)
     assert not any("apt-get install" in c for c in cmds)
     assert any("custom base" in c for c in cmds)

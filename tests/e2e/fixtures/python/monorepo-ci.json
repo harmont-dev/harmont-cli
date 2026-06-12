@@ -1,5 +1,4 @@
 {
-  "default_image": "ubuntu:24.04",
   "graph": {
     "edge_property": "directed",
     "edges": [

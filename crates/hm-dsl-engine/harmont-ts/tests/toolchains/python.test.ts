@@ -98,7 +98,7 @@ describe("python install chain", () => {
 describe("python in pipeline", () => {
   it("produces valid IR", () => {
     const p = python();
-    const ir = pipeline([p.test(), p.lint()], { defaultImage: "ubuntu:24.04" });
+    const ir = pipeline([p.test(), p.lint()]);
     expect(ir.graph.nodes.length).toBeGreaterThanOrEqual(4);
     expect(ir.version).toBe("0");
   });

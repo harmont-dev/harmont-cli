@@ -25,16 +25,17 @@ fn write_pipeline(dir: &Path, marker_contents: &str) {
 import harmont as hm
 
 def build():
-    base = hm.scratch().run(
+    base = hm.scratch().sh(
         "echo base-ran",
         label="base",
         cache=hm.forever(),
+        image="alpine:3.20",
     )
-    child = base.fork(label="child").run(
+    child = base.fork(label="child").sh(
         "cat /workspace/marker.txt",
         label="child",
     )
-    return hm.pipeline(child, default_image="alpine:3.20")
+    return hm.pipeline([child])
 "#,
     )
     .expect("pipeline.py");

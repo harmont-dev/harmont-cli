@@ -44,7 +44,15 @@ describe.skipIf(examples.length === 0)("examples render to v0 IR", () => {
       expect(ci.pipeline.version).toBe("0");
       expect(ci.pipeline.graph.nodes.length).toBeGreaterThan(0);
       expect(ci.pipeline.graph.edge_property).toBe("directed");
-      expect(ci.pipeline.default_image).toBeTruthy();
+
+      // Every root step (no builds_in parent) must have an image stamped on it
+      const nodes = ci.pipeline.graph.nodes;
+      const childIdxs = new Set(
+        ci.pipeline.graph.edges.filter((e: any) => e[2] === "builds_in").map((e: any) => e[1]),
+      );
+      const roots = nodes.filter((_: any, i: number) => !childIdxs.has(i));
+      expect(roots.length).toBeGreaterThan(0);
+      expect(roots.every((n: any) => "image" in n.step)).toBe(true);
 
       // Verify all nodes have required fields
       for (const node of ci.pipeline.graph.nodes) {

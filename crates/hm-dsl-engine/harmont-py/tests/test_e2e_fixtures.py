@@ -65,7 +65,6 @@ def _build_monorepo_ci() -> dict:
             web_project.run("lint"),
         ],
         env={"CI": "true"},
-        default_image="ubuntu:24.04",
     )
 
 
@@ -75,7 +74,6 @@ def _build_rust_release() -> dict:
     return hm.pipeline(
         [project.build(), project.test(), project.clippy(), project.fmt(), project.doc()],
         env={"CI": "true"},
-        default_image="ubuntu:24.04",
     )
 
 
@@ -103,7 +101,6 @@ def _build_zig_node_polyglot() -> dict:
             web.run("lint"),
         ],
         env={"CI": "true"},
-        default_image="ubuntu:24.04",
     )
 
 
@@ -120,7 +117,6 @@ def _build_kitchen_sink() -> dict:
             py_web.lint(),
         ],
         env={"CI": "true"},
-        default_image="ubuntu:24.04",
     )
 
 
@@ -136,7 +132,6 @@ def _build_cmake_advanced() -> dict:
     return hm.pipeline(
         [project.test(), project.lint(), project.fmt()],
         env={"CI": "true"},
-        default_image="ubuntu:24.04",
     )
 
 
@@ -154,8 +149,13 @@ def test_e2e_fixture(name: str) -> None:
     ir = SCENARIOS[name]()
 
     assert ir["version"] == "0"
-    assert ir["default_image"] == "ubuntu:24.04"
     assert len(ir["graph"]["nodes"]) > 0
+    # Root steps (no builds_in parent) should carry the ubuntu:24.04 default image.
+    nodes = ir["graph"]["nodes"]
+    edges = ir["graph"]["edges"]
+    child_idxs = {e[1] for e in edges if e[2] == "builds_in"}
+    roots = [n for i, n in enumerate(nodes) if i not in child_idxs]
+    assert all(n["step"].get("image") == "ubuntu:24.04" for n in roots)
     assert ir["graph"]["edge_property"] == "directed"
 
     for node in ir["graph"]["nodes"]:

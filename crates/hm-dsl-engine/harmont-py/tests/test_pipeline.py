@@ -42,12 +42,23 @@ def test_pipeline_rejects_legacy_variadic_step_form():
     assert "hm.pipeline([a, b])" in str(exc.value)
 
 
-def test_pipeline_default_image_lowers_to_dict():
-    p = pipeline(
-        [scratch().sh("echo", label="a", image="ubuntu:24.04")],
-        default_image="alpine:3.20",
-    )
-    assert p["default_image"] == "alpine:3.20"
-    step = p["graph"]["nodes"][0]["step"]
-    assert step["image"] == "ubuntu:24.04"
-    assert step["label"] == "a"
+def test_imageless_root_gets_ubuntu_default():
+    p = pipeline([scratch().sh("echo hi", label="a")])
+    nodes = p["graph"]["nodes"]
+    assert nodes[0]["step"]["image"] == "ubuntu:24.04"
+    # No top-level default_image key is emitted anymore.
+    assert "default_image" not in p
+
+
+def test_explicit_root_image_is_preserved():
+    p = pipeline([scratch().sh("echo hi", label="a", image="alpine:3.20")])
+    assert p["graph"]["nodes"][0]["step"]["image"] == "alpine:3.20"
+
+
+def test_child_step_stays_imageless():
+    root = scratch().sh("echo p", label="p")
+    child = root.sh("echo c", label="c")
+    p = pipeline([child])
+    nodes = {n["step"]["key"]: n["step"] for n in p["graph"]["nodes"]}
+    # parent (root) gets the default; child boots from parent snapshot.
+    assert "image" not in nodes["c"]

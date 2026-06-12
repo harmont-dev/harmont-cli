@@ -9,7 +9,6 @@ const pipelines: PipelineDefinition[] = [
     triggers: [push({ branch: "main" })],
     pipeline: pipeline([project.build(), project.test(), project.fmt()], {
       env: { CI: "true" },
-      defaultImage: "ubuntu:24.04",
     }),
   },
 ];

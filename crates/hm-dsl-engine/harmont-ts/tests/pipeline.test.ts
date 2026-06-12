@@ -7,12 +7,6 @@ function stepKeys(ir: any): string[] {
   return ir.graph.nodes.map((n: any) => n.step.key);
 }
 
-function buildsInEdges(ir: any): [number, number][] {
-  return ir.graph.edges
-    .filter((e: any) => e[2] === "builds_in")
-    .map((e: any) => [e[0], e[1]]);
-}
-
 function dependsOnEdges(ir: any): [number, number][] {
   return ir.graph.edges
     .filter((e: any) => e[2] === "depends_on")
@@ -48,13 +42,6 @@ describe("pipeline", () => {
     expect(() => pipeline([])).toThrow("at least one leaf");
   });
 
-  it("sets default_image on IR when provided", () => {
-    const p = pipeline([sh("echo", { label: "a", image: "ubuntu:24.04" })], {
-      defaultImage: "alpine:3.20",
-    });
-    expect(p.default_image).toBe("alpine:3.20");
-    expect(p.graph.nodes[0].step.image).toBe("ubuntu:24.04");
-  });
 });
 
 describe("lowering: single chain", () => {
@@ -185,25 +172,32 @@ describe("lowering: dedup", () => {
   });
 });
 
-describe("lowering: default_image", () => {
-  it("applies default_image to root nodes without explicit image", () => {
-    const s = scratch().sh("echo");
-    const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
+describe("lowering: default image", () => {
+  it("stamps ubuntu:24.04 on an imageless root", () => {
+    const s = scratch().sh("echo hi", { label: "a" });
+    const ir = pipeline([s]);
     expect(ir.graph.nodes[0].step.image).toBe("ubuntu:24.04");
   });
 
-  it("does not override explicit image", () => {
-    const s = scratch().sh("echo", { image: "alpine:3.20" });
-    const ir = pipeline([s], { defaultImage: "ubuntu:24.04" });
+  it("preserves an explicit root image", () => {
+    const s = scratch({ image: "alpine:3.20" }).sh("echo hi", { label: "a" });
+    const ir = pipeline([s]);
     expect(ir.graph.nodes[0].step.image).toBe("alpine:3.20");
   });
 
-  it("does not apply to child nodes with builds_in parent", () => {
-    const parent = scratch().sh("a", { label: "a" });
-    const child = parent.sh("b", { label: "b" });
-    const ir = pipeline([child], { defaultImage: "ubuntu:24.04" });
-    expect(ir.graph.nodes[0].step.image).toBe("ubuntu:24.04");
-    expect("image" in ir.graph.nodes[1].step).toBe(false);
+  it("leaves child steps imageless", () => {
+    const root = scratch().sh("echo p", { label: "p" });
+    const child = root.sh("echo c", { label: "c" });
+    const ir = pipeline([child]);
+    const byKey = Object.fromEntries(
+      ir.graph.nodes.map((n) => [n.step.key as string, n.step]),
+    );
+    expect("image" in byKey["c"]).toBe(false);
+  });
+
+  it("emits no top-level default_image key", () => {
+    const ir = pipeline([scratch().sh("echo hi", { label: "a" })]);
+    expect("default_image" in ir).toBe(false);
   });
 });
 

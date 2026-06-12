@@ -7,7 +7,6 @@ import harmont as hm
 @hm.pipeline(
     "ci",
     env={"CI": "true", "MIX_ENV": "test"},
-    default_image="ubuntu:24.04",
     triggers=[hm.push(branch="main")],
 )
 def ci() -> tuple[hm.Step, ...]:

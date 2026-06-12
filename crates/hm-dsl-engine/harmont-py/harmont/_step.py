@@ -37,8 +37,9 @@ class Step:
     timeout_seconds: int | None = None
     image: str | None = None
     """Local-mode Docker base image override for this step. Ignored when
-    the step has a ``builds_in`` parent (the parent's snapshot wins);
-    falls back to the pipeline's ``default_image`` when unset."""
+    the step has a ``builds_in`` parent (the parent's snapshot wins).
+    When unset, root steps fall back to ``ubuntu:24.04``; child steps
+    inherit the parent's snapshot."""
 
     runner: str | None = None
     """Step-executor plugin runner name. ``None`` = default (Docker)."""

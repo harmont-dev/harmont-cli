@@ -79,7 +79,7 @@ def ci() -> hm.Step:
         "echo independent work",
         label="other",
     )
-    return hm.pipeline(fetch, work, default_image="ubuntu:24.04")
+    return hm.pipeline(fetch, work)
 ```
 
 For larger pipelines, compose with `@hm.target` and typed fixture params:

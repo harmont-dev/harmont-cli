@@ -8,7 +8,7 @@ The whole public surface:
     Step.fork(label=None)    -> Step
     wait(*, continue_on_failure=False) -> Step
 
-    pipeline(leaves, *, env=None, default_image=None) -> dict (v0 IR)
+    pipeline(leaves, *, env=None) -> dict (v0 IR)
     pipeline_to_json(p, **kw) -> str
 
     @pipeline(slug, ..., triggers=[...], allow_manual=True)  -> decorator
@@ -68,12 +68,12 @@ def pipeline(*args: Any, **kwargs: Any) -> Any:
 
     Factory form — first positional is a list/tuple of ``Step``s:
 
-        pipeline([step1, step2, ...], env=None, default_image=None) -> dict
+        pipeline([step1, step2, ...], env=None) -> dict
 
     Decorator form — no positionals or a string slug:
 
         @pipeline(slug=None, *, name=None, triggers=(), allow_manual=True,
-                  env=None, default_image=None)
+                  env=None)
         def my_pipeline() -> Step: ...
 
     The discriminant is the type of the first positional argument:

@@ -9,7 +9,7 @@ const FORK_PIPELINE_PY: &str = r#"
 import harmont as hm
 
 
-@hm.pipeline("two", default_image="alpine:3.20")
+@hm.pipeline("two")
 def two():
     root = hm.scratch().fork()
     a = root.sh("exit 1", label="fail-step", image="alpine:3.20")
@@ -30,11 +30,11 @@ const CHAIN_PIPELINE_PY: &str = r#"
 import harmont as hm
 
 
-@hm.pipeline("chain", default_image="alpine:3.20")
+@hm.pipeline("chain")
 def chain():
     a = hm.sh("exit 1", label="step-a", image="alpine:3.20")
-    b = a.sh("echo b", label="step-b", image="alpine:3.20")
-    c = b.sh("echo c", label="step-c", image="alpine:3.20")
+    b = a.sh("echo b", label="step-b")
+    c = b.sh("echo c", label="step-c")
     return c
 "#;
 

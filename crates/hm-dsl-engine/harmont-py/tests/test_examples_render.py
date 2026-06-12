@@ -64,7 +64,12 @@ def test_example_renders_to_v0_ir(
     assert definition.get("graph", {}).get("nodes"), (
         f"{example_dir.name}: ci pipeline has no nodes"
     )
-    assert definition.get("default_image"), (
-        f"{example_dir.name}: ci pipeline missing default_image — local "
-        "executor falls back to alpine and apt-get-based examples die"
+    nodes = definition.get("graph", {}).get("nodes", [])
+    edges = definition.get("graph", {}).get("edges", [])
+    child_idxs = {e[1] for e in edges if e[2] == "builds_in"}
+    roots = [n for i, n in enumerate(nodes) if i not in child_idxs]
+    assert roots, f"{example_dir.name}: ci pipeline has no root steps"
+    assert all("image" in n["step"] for n in roots), (
+        f"{example_dir.name}: a root step is missing an image — the lowering "
+        f"should stamp the ubuntu:24.04 default on every imageless root"
     )

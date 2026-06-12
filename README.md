@@ -114,7 +114,6 @@ def project() -> PythonToolchain:
 
 @hm.pipeline(
     "ci",
-    default_image="ubuntu:24.04",
     triggers=[hm.push(branch="main")],
 )
 def ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:
@@ -148,7 +147,6 @@ const pipelines: PipelineDefinition[] = [
         project.fmt(),
         project.typecheck(),
       ],
-      { defaultImage: "ubuntu:24.04" },
     ),
   },
 ];
@@ -192,7 +190,7 @@ maps it over for you:
 - `actions/setup-*` → replaced by a typed toolchain
 - `actions/cache` → not needed (Harmont caches Docker layers automatically)
 - `jobs.*.needs` → the DAG `hm` derives from your code
-- `runs-on` → `default_image`
+- `runs-on` → per-step `image=` (the default base is `ubuntu:24.04`)
 
 The result is a pipeline you can run **locally** before it ever hits CI.
 

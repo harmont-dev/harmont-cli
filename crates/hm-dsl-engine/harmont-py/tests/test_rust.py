@@ -26,7 +26,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 class TestRustToolchain:
     def test_full_chain(self):
         tc = hm.rust.toolchain(path="cli")
-        p = hm.pipeline([tc.build()], default_image="ubuntu:24.04")
+        p = hm.pipeline([tc.build()])
         cmds = _cmds(p)
         assert any("apt-get install" in c for c in cmds)
         assert any("sh.rustup.rs" in c for c in cmds)
@@ -36,7 +36,6 @@ class TestRustToolchain:
         tc = hm.rust.toolchain(path="cli")
         p = hm.pipeline(
             [tc.build(), tc.test(), tc.clippy(), tc.fmt(), tc.doc()],
-            default_image="ubuntu:24.04",
         )
         cmds = _cmds(p)
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
@@ -118,7 +117,7 @@ class TestRustToolchain:
     def test_with_base_skips_apt(self):
         base = hm.scratch().sh("custom base", label="base")
         tc = hm.rust.toolchain(path="cli", base=base)
-        p = hm.pipeline([tc.build()], default_image="ubuntu:24.04")
+        p = hm.pipeline([tc.build()])
         cmds = _cmds(p)
         assert not any("apt-get install" in c for c in cmds)
         assert any("custom base" in c for c in cmds)
@@ -151,7 +150,7 @@ class TestRustToolchain:
             ". $HOME/.cargo/env && cd cli && cargo test --workspace --locked",
             label=":rust: test",
         )
-        p = hm.pipeline([t, tc.fmt()], default_image="ubuntu:24.04")
+        p = hm.pipeline([t, tc.fmt()])
         cmds = _cmds(p)
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
@@ -250,7 +249,7 @@ class TestRustToolchain:
     def test_feature_powerset_installs_cargo_hack(self):
         tc = hm.rust.toolchain(path="cli")
         s = tc.feature_powerset()
-        p = hm.pipeline([s], default_image="ubuntu:24.04")
+        p = hm.pipeline([s])
         cmds = _cmds(p)
         assert any("cargo install cargo-hack --locked" in c for c in cmds)
 
@@ -350,7 +349,7 @@ class TestRustProject:
     def test_with_base_skips_apt(self):
         base = hm.scratch().sh("custom base", label="base")
         proj = hm.rust.project(path="cli", base=base)
-        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()], default_image="ubuntu:24.04")
+        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()])
         cmds = _cmds(p)
         assert not any("apt-get install" in c for c in cmds)
         assert any("custom base" in c for c in cmds)
@@ -364,7 +363,7 @@ class TestRustProject:
 
     def test_pipeline_ir(self):
         proj = hm.rust.project(path="cli")
-        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()], default_image="ubuntu:24.04")
+        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()])
         cmds = _cmds(p)
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
@@ -435,7 +434,7 @@ class TestRustProject:
 
     def test_ci_in_pipeline(self):
         proj = hm.rust.project(path="cli")
-        p = hm.pipeline(list(proj.ci()), default_image="ubuntu:24.04")
+        p = hm.pipeline(list(proj.ci()))
         cmds = _cmds(p)
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
 

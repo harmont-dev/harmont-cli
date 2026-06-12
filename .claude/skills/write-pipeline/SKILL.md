@@ -58,7 +58,7 @@ Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py` (Pyth
    - Prefer toolchains over raw `sh()` calls when a toolchain exists for the language.
    - Use `.fork()` for steps that can run in parallel.
    - Set triggers (`push`, `pull_request`) appropriate to the project.
-   - Use `default_image: "ubuntu:24.04"` unless the project needs something specific.
+   - Steps run on `ubuntu:24.04` by default; set a per-step `image="..."` only when a specific step needs a different base.
    - Set `env: {"CI": "true"}` on the pipeline.
 
 5. **Validate the pipeline renders correctly:**

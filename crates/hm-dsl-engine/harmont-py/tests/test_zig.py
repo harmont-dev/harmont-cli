@@ -20,7 +20,7 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 
 def test_zig_object_form_full_chain():
     z = hm.zig(path="svc")
-    p = hm.pipeline([z.build()], default_image="ubuntu:24.04")
+    p = hm.pipeline([z.build()])
     cmds = _cmds(p)
     assert any("ziglang.org" in c for c in cmds)
     assert any("cd svc && zig build" in c for c in cmds)
@@ -28,7 +28,7 @@ def test_zig_object_form_full_chain():
 
 def test_zig_actions_share_install():
     z = hm.zig(path="svc")
-    p = hm.pipeline([z.build(), z.test(), z.fmt()], default_image="ubuntu:24.04")
+    p = hm.pipeline([z.build(), z.test(), z.fmt()])
     cmds = _cmds(p)
     assert len([c for c in cmds if "ziglang.org" in c]) == 1
     assert any("zig build test" in c for c in cmds)
@@ -80,5 +80,5 @@ def test_zig_new_version_uses_new_url_format():
 def test_zig_with_base_skips_apt():
     base = hm.scratch().sh("custom base", label="base")
     z = hm.zig(path="svc", base=base)
-    p = hm.pipeline([z.build()], default_image="ubuntu:24.04")
+    p = hm.pipeline([z.build()])
     assert not any("apt-get install" in c for c in _cmds(p))

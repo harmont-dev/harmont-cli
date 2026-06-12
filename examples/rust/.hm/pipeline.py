@@ -16,7 +16,6 @@ def project() -> RustProject:
 @hm.pipeline(
     "ci",
     env={"CI": "true", "RUST_BACKTRACE": "1"},
-    default_image="ubuntu:24.04",
     triggers=[hm.push(branch="main")],
 )
 def ci(project: hm.Target[RustProject]) -> tuple[hm.Step, ...]:
