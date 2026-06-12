@@ -177,6 +177,8 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Compile the crate/workspace (``cargo build``). ``target=`` cross-compiles
+        and auto-runs ``rustup target add`` first (``add_target=False`` to skip)."""
         cmd = _build_cmd(
             workspace=workspace,
             packages=packages,
@@ -216,6 +218,9 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Run tests — ``cargo test``, or ``cargo nextest run`` when ``nextest=True``
+        (nextest skips doctests; use ``doctest()``). ``target=`` auto-installs the
+        rustup target."""
         cmd = _test_cmd(
             nextest=nextest,
             workspace=workspace,
@@ -252,6 +257,8 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Run documentation tests (``cargo test --doc``). Pair with
+        ``test(nextest=True)``, which does not run them."""
         cmd = _doctest_cmd(
             workspace=workspace,
             packages=packages,
@@ -287,6 +294,9 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Lint with Clippy (``cargo clippy``). ``deny_warnings=True`` (default)
+        appends ``-- -D warnings``; ``extra_lints=(...)`` adds more. ``target=``
+        auto-installs the rustup target. Defaults ``all_targets=True``."""
         cmd = _clippy_cmd(
             deny_warnings=deny_warnings,
             extra_lints=extra_lints,
@@ -315,6 +325,8 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Check formatting (``cargo fmt --all --check``). Set ``all=False`` or
+        ``check=False`` to narrow."""
         return self._emit(_fmt_cmd(all=all, check=check, flags=flags), ":rust: fmt", **kw)
 
     def doc(
@@ -335,6 +347,9 @@ class RustToolchain:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Build API docs (``cargo doc``). ``deny_warnings=True`` (default) sets
+        ``RUSTDOCFLAGS=-D warnings``; ``document_private_items=True`` includes
+        private items. ``target=`` auto-installs the rustup target."""
         _doc_env(kw, deny_warnings=deny_warnings)
         cmd = _doc_cmd(
             no_deps=no_deps,
@@ -356,6 +371,8 @@ class RustToolchain:
         )
 
     def warmup(self, **kw: Any) -> Step:
+        """Pre-build dependencies (``cargo build --workspace --tests --locked``) so
+        later steps reuse the compile. Used internally by ``hm.rust.project()``."""
         return self._emit(
             "cargo build --workspace --tests --locked",
             ":rust: warmup",
@@ -440,6 +457,8 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Compile the workspace (``cargo build --workspace``), reusing the shared
+        warmup. ``target=`` cross-compiles and auto-installs the rustup target."""
         cmd = _build_cmd(
             workspace=workspace,
             packages=packages,
@@ -479,6 +498,9 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Run workspace tests (``cargo test`` / ``cargo nextest run``), reusing the
+        shared warmup. See ``doctest()`` for doctests under nextest; ``target=``
+        auto-installs the rustup target."""
         cmd = _test_cmd(
             nextest=nextest,
             workspace=workspace,
@@ -515,6 +537,7 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Run workspace doctests (``cargo test --doc``), reusing the shared warmup."""
         cmd = _doctest_cmd(
             workspace=workspace,
             packages=packages,
@@ -550,6 +573,8 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Lint the workspace with Clippy (``-- -D warnings`` by default), reusing
+        the shared warmup. ``target=`` auto-installs the rustup target."""
         cmd = _clippy_cmd(
             deny_warnings=deny_warnings,
             extra_lints=extra_lints,
@@ -578,6 +603,8 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Check formatting (``cargo fmt --all --check``). Chains off the toolchain
+        install so it runs in parallel with the warmup."""
         # fmt has no warmup dependency; chain off the install step (like the
         # toolchain) so it can run without waiting on the build warmup.
         return self.toolchain.fmt(all=all, check=check, flags=flags, **kw)
@@ -600,6 +627,9 @@ class RustProject:
         flags: tuple[str, ...] = (),
         **kw: Any,
     ) -> Step:
+        """Build workspace docs (``cargo doc``) with ``RUSTDOCFLAGS=-D warnings`` by
+        default, reusing the shared warmup. ``target=`` auto-installs the rustup
+        target."""
         _doc_env(kw, deny_warnings=deny_warnings)
         cmd = _doc_cmd(
             no_deps=no_deps,
@@ -643,6 +673,8 @@ class RustProject:
         return tuple(steps)
 
     def feature_powerset(self, **kw: Any) -> Step:
+        """Run a cargo-hack feature sweep — delegates to
+        ``RustToolchain.feature_powerset``."""
         return self.toolchain.feature_powerset(**kw)
 
 
