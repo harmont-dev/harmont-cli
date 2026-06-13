@@ -41,6 +41,53 @@ def ci() -> hm.Step:
 }
 
 #[tokio::test]
+async fn python_load_error_is_denoised() {
+    // A pipeline file that raises at import time should produce an error that
+    // points at the user's file and the exception — not the importlib /
+    // harness bootstrap frames the user can't act on.
+    if which::which("python3").is_err() {
+        eprintln!("skipping: python3 not on PATH");
+        return;
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir_all(&harmont).unwrap();
+    std::fs::write(
+        harmont.join("ci.py"),
+        r#"import harmont as hm
+
+raise RuntimeError("boom from user code")
+"#,
+    )
+    .unwrap();
+
+    let engine = hm_dsl_engine::engine_for(hm_dsl_engine::DslLanguage::Python).unwrap();
+    let err = engine
+        .render_pipeline_json(dir.path(), "ci")
+        .await
+        .expect_err("loading a raising pipeline file must fail");
+    let msg = format!("{err:#}");
+
+    // Points precisely: which file, and the actual exception.
+    assert!(msg.contains("ci.py"), "should name the pipeline file: {msg}");
+    assert!(
+        msg.contains("RuntimeError: boom from user code"),
+        "should surface the exception: {msg}"
+    );
+    // Points at the offending line in the user's file.
+    assert!(
+        msg.contains("ci.py:3"),
+        "should point at the failing line: {msg}"
+    );
+    // De-noised: the harness/importlib bootstrap frames are gone.
+    assert!(
+        !msg.contains("_bootstrap") && !msg.contains("exec_module"),
+        "should drop importlib/harness frames: {msg}"
+    );
+}
+
+#[tokio::test]
 async fn python_registry_json_carries_triggers_and_allow_manual() {
     if which::which("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");

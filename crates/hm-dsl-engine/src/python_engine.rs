@@ -8,47 +8,66 @@ use tracing::debug;
 use crate::bundled_sources;
 use crate::{DslEngine, PipelineMeta};
 
+// Shared bootstrap: import the `harmont` package and exec every `.hm/*.py`
+// pipeline file, then hand control to the caller via `_load_pipelines()`.
+//
+// User pipeline files run arbitrary Python, so they can raise at import time
+// (the `default_image` removal, a typo, a bad import). When they do, we
+// de-noise the traceback: keep the frames inside the user's own .hm file plus
+// the final exception, and drop the harness `<string>` frame and the
+// `<frozen importlib._bootstrap>` machinery the user can't act on. Errors point
+// precisely (file + line + exception) per the project's error-message doctrine.
+const LOAD_PREAMBLE: &str = "\
+import sys, json, pathlib, importlib.util, traceback
+
+
+def _report_load_error(path, exc):
+    tb = traceback.TracebackException.from_exception(exc)
+    target = pathlib.Path(path).resolve()
+    user_frames = [
+        f for f in tb.stack
+        if f.filename == str(path) or pathlib.Path(f.filename).resolve() == target
+    ]
+    print(f'error: failed to load pipeline file {str(path)!r}', file=sys.stderr)
+    exc_line = ''.join(traceback.format_exception_only(type(exc), exc)).strip()
+    print(f'  {exc_line}', file=sys.stderr)
+    for f in user_frames:
+        print(f'  at {f.filename}:{f.lineno} in {f.name}', file=sys.stderr)
+        if f.line:
+            print(f'      {f.line}', file=sys.stderr)
+
+
+def _load_pipelines():
+    try:
+        import harmont as hm
+    except ImportError as e:
+        print(f'error: {e}', file=sys.stderr)
+        sys.exit(1)
+    for p in sorted(pathlib.Path('.hm').glob('*.py')):
+        spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception as e:  # noqa: BLE001 — report any user-code failure
+            _report_load_error(p, e)
+            sys.exit(1)
+    return hm
+";
+
 const LIST_PIPELINES_SCRIPT: &str = "\
-import sys, json, pathlib, importlib.util
-try:
-    import harmont as hm
-except ImportError as e:
-    print(f'error: {e}', file=sys.stderr)
-    sys.exit(1)
-for p in sorted(pathlib.Path('.hm').glob('*.py')):
-    spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+hm = _load_pipelines()
 envelope = json.loads(hm.dump_registry_json())
 print(json.dumps([{'slug': p['slug'], 'name': p['name']} for p in envelope['pipelines']]))
 ";
 
 const REGISTRY_JSON_SCRIPT: &str = "\
-import sys, pathlib, importlib.util
-try:
-    import harmont as hm
-except ImportError as e:
-    print(f'error: {e}', file=sys.stderr)
-    sys.exit(1)
-for p in sorted(pathlib.Path('.hm').glob('*.py')):
-    spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+hm = _load_pipelines()
 sys.stdout.write(hm.dump_registry_json())
 ";
 
 const RENDER_PIPELINE_SCRIPT: &str = "\
-import sys, json, pathlib, importlib.util
-try:
-    import harmont as hm
-except ImportError as e:
-    print(f'error: {e}', file=sys.stderr)
-    sys.exit(1)
+hm = _load_pipelines()
 slug = sys.argv[1]
-for p in sorted(pathlib.Path('.hm').glob('*.py')):
-    spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
 envelope = json.loads(hm.dump_registry_json())
 match = next((p for p in envelope['pipelines'] if p['slug'] == slug), None)
 if match is None:
@@ -85,9 +104,10 @@ impl SubprocessPythonEngine {
         let harmont_pkg = tmp.path().join("harmont");
         bundled_sources::extract_to(&bundled_sources::HARMONT_PY, &harmont_pkg)?;
 
+        let full_script = format!("{LOAD_PREAMBLE}{script}");
         let mut cmd = tokio::process::Command::new(&self.python_bin);
         cmd.arg("-c")
-            .arg(script)
+            .arg(&full_script)
             .args(extra_args)
             .current_dir(project_dir)
             .env("PYTHONPATH", tmp.path())
