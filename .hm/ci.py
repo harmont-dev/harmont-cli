@@ -66,7 +66,6 @@ def ts_project(shared_base: hm.Target[hm.Step]) -> tuple[hm.Step, ...]:
 @hm.pipeline(
     "ci",
     env={"CI": "true"},
-    default_image="ubuntu:24.04",
     triggers=[
         hm.push(branch="main"),
         hm.pr(branches="main"),
