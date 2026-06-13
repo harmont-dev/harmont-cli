@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-06-13
+
+### Added
+
+- **DSL:** Rust toolchain auto-installs the required `rustup` target when `target=` is set, so cross-compilation works without a manual `rustup target add` step ([#146][pr146])
+
+### Changed
+
+- **CLI:** `hm init` Rust template updated to use the current `rust.project().ci()` API ([#146][pr146])
+
 ## [0.0.8] - 2026-06-11
 
 ### Changed
@@ -114,3 +124,4 @@
 [c1bf727e]: https://github.com/harmont-dev/harmont-cli/commit/1bf727e
 [pr143]: https://github.com/harmont-dev/harmont-cli/pull/143
 [pr144]: https://github.com/harmont-dev/harmont-cli/pull/144
+[pr146]: https://github.com/harmont-dev/harmont-cli/pull/146
