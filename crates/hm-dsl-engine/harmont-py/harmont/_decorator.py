@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
@@ -35,6 +36,7 @@ def pipeline(
     allow_manual: bool = True,
     env: dict[str, str] | None = None,
     timeout: str | int | None = None,
+    default_image: str | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[[], Any]]:
     """Register a function as a CI pipeline (decorator form).
 
@@ -58,6 +60,11 @@ def pipeline(
         timeout: Whole-build wall-clock budget ("30m", "1h", or int
             seconds). The build is killed and fails as timed out once it
             elapses.
+        default_image: Deprecated. Root steps now default to
+            ``ubuntu:24.04`` automatically; set a per-step ``image=`` (or
+            pass ``image=`` to ``hm.apt_base``) instead. When given, it is
+            still applied to root steps for back-compat and a
+            ``DeprecationWarning`` is emitted.
 
     Returns:
         A decorator that registers the wrapped function and returns it
@@ -66,6 +73,15 @@ def pipeline(
     Raises:
         ValueError: If ``slug`` does not match the allowed pattern.
     """
+
+    if default_image is not None:
+        warnings.warn(
+            "`default_image` is deprecated and will be removed in a future "
+            "release. Root steps now default to `ubuntu:24.04`; set a "
+            "per-step `image=` (or pass `image=` to `hm.apt_base`) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def decorator(fn: Callable[..., Any]) -> Callable[[], Any]:
         validate_target_signature(fn)
@@ -85,6 +101,7 @@ def pipeline(
                 env=env,
                 fn=wrapper,
                 timeout=timeout,
+                default_image=default_image,
             )
         )
         return wrapper

@@ -104,3 +104,41 @@ def test_duplicate_slug_raises():
         @hm.pipeline("ci")
         def b() -> hm.Step:
             return hm.scratch().sh("echo")
+
+
+def test_default_image_deprecation_warns():
+    """`default_image` is accepted for back-compat but warns (deprecated)."""
+    with pytest.warns(DeprecationWarning, match="default_image"):
+
+        @hm.pipeline("ci", default_image="custom:1")
+        def ci() -> hm.Step:
+            return hm.scratch().sh("echo")
+
+    assert REGISTRATIONS[0].default_image == "custom:1"
+
+
+def test_no_default_image_does_not_warn(recwarn):
+    """The common (migrated) path emits no deprecation noise."""
+
+    @hm.pipeline("ci")
+    def ci() -> hm.Step:
+        return hm.scratch().sh("echo")
+
+    assert not [w for w in recwarn if issubclass(w.category, DeprecationWarning)]
+    assert REGISTRATIONS[0].default_image is None
+
+
+def test_default_image_applies_to_root_step():
+    """A deprecated default_image still stamps root steps in the rendered IR."""
+    import json
+
+    with pytest.warns(DeprecationWarning):
+
+        @hm.pipeline("ci", default_image="custom:1")
+        def ci() -> hm.Step:
+            return hm.scratch().sh("echo hi", label="root")
+
+    envelope = json.loads(hm.dump_registry_json())
+    nodes = envelope["pipelines"][0]["definition"]["graph"]["nodes"]
+    root = next(n for n in nodes if n["step"].get("label") == "root")
+    assert root["step"]["image"] == "custom:1"

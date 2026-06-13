@@ -39,6 +39,7 @@ def pipeline(
     *,
     env: dict[str, str] | None = None,
     timeout: str | int | None = None,
+    default_image: str | None = None,
 ) -> dict[str, Any]:
     """Top-level factory. Returns a JSON-shaped dict (version "0").
 
@@ -49,6 +50,11 @@ def pipeline(
     ``timeout`` is a whole-build wall-clock budget (``"30m"``, ``"1h"``,
     or an int number of seconds). When it elapses the build is killed and
     fails as *timed out*, regardless of how far the step graph got.
+
+    ``default_image`` is deprecated: when given it overrides the root
+    stamp (in place of ``DEFAULT_IMAGE``) for back-compat. Prefer a
+    per-step ``image=``. The decorator (``@hm.pipeline``) emits the
+    deprecation warning; the factory applies it silently.
     """
     if not leaves:
         msg = (
@@ -59,7 +65,7 @@ def pipeline(
     out: dict[str, Any] = {"version": "0"}
     if timeout is not None:
         out["timeout_seconds"] = parse_duration(timeout)
-    out["graph"] = _lower_to_graph(list(leaves), env=env)
+    out["graph"] = _lower_to_graph(list(leaves), env=env, default_image=default_image)
     return out
 
 
@@ -67,6 +73,7 @@ def _lower_to_graph(
     leaves: list[Step],
     *,
     env: dict[str, str] | None = None,
+    default_image: str | None = None,
 ) -> dict[str, Any]:
     """Walk back via `parent`, topo-sort, emit petgraph-serde graph dict.
 
@@ -158,9 +165,10 @@ def _lower_to_graph(
     # explicit one. Root steps boot from an image tag (not a parent
     # snapshot); child steps inherit the parent's committed snapshot and
     # must stay image-less.
+    root_image = default_image if default_image is not None else DEFAULT_IMAGE
     for i, node in enumerate(nodes):
         if i not in has_builds_in_parent and "image" not in node["step"]:
-            node["step"]["image"] = DEFAULT_IMAGE
+            node["step"]["image"] = root_image
 
     return {
         "nodes": nodes,

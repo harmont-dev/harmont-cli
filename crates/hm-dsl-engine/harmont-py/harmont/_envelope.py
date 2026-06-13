@@ -40,7 +40,7 @@ def _render_one(
     except TypeError as e:
         msg = f"pipeline {reg.slug!r}: invalid return value\n  → {e}"
         raise TypeError(msg) from e
-    ir = _assemble(leaves, env=reg.env, timeout=reg.timeout)
+    ir = _assemble(leaves, env=reg.env, timeout=reg.timeout, default_image=reg.default_image)
     resolve_pipeline_keys(
         ir.get("graph", {}),
         pipeline_org=pipeline_org,
