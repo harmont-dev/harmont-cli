@@ -1,0 +1,6 @@
+version = 2
+project_slug = "harmont-cli"
+dolt_db_name = "harmont_cli_a708"
+frozen_git_toplevel = "/Users/marko/Desktop/harmont-cli-2"
+project_hash = "a708"
+dolt_mode = "user-scoped"
