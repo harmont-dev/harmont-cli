@@ -45,5 +45,34 @@ fn cloud_help_lists_real_subcommands_without_waitlist_text() {
         .stdout(contains("login"))
         .stdout(contains("whoami"))
         .stdout(contains("build"))
+        .stdout(contains("secret"))
         .stdout(predicates::str::contains("not yet available").not());
+}
+
+/// `hm cloud secret --help` must advertise the three verbs.
+#[test]
+fn cloud_secret_help_lists_verbs() {
+    Command::cargo_bin("hm")
+        .unwrap()
+        .args(["cloud", "secret", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("set"))
+        .stdout(contains("list"))
+        .stdout(contains("rm"));
+}
+
+/// An unauthenticated `hm cloud secret list` must fail fast with the
+/// login hint (proves the verb is wired through the shared auth path).
+#[test]
+fn cloud_secret_list_unauthed_fails_with_login_hint() {
+    let tmp = tempfile::tempdir().unwrap();
+    Command::cargo_bin("hm")
+        .unwrap()
+        .args(["cloud", "secret", "list"])
+        .env("HOME", tmp.path())
+        .env_remove("HM_API_TOKEN")
+        .assert()
+        .failure()
+        .stderr(contains("not logged in"));
 }

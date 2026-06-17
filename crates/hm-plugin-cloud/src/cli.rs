@@ -68,8 +68,44 @@ pub enum CloudCommand {
     /// Manage credits, top-ups, and usage.
     #[command(subcommand)]
     Billing(BillingCommand),
+    /// Manage org- and pipeline-scoped CI secrets.
+    #[command(subcommand)]
+    Secret(SecretCommand),
     /// Submit the local pipeline to the cloud and watch its build.
     Run(verbs::run::RunArgs),
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum SecretCommand {
+    /// Set (create or overwrite) a secret. The value is write-only — the
+    /// API never returns it, so neither does this CLI.
+    Set {
+        /// Secret name (e.g. `DEPLOY_TOKEN`).
+        name: String,
+        /// The secret value. Pass `-` to read the value from stdin.
+        /// Omit when using `--from-file`.
+        value: Option<String>,
+        /// Read the value from a file (a single trailing newline is trimmed).
+        #[arg(long, value_name = "PATH")]
+        from_file: Option<std::path::PathBuf>,
+        /// Scope to a pipeline instead of the whole organization.
+        #[arg(long, value_name = "SLUG")]
+        pipeline: Option<String>,
+    },
+    /// List secret names (and timestamps). Never prints values.
+    List {
+        /// Scope to a pipeline instead of the whole organization.
+        #[arg(long, value_name = "SLUG")]
+        pipeline: Option<String>,
+    },
+    /// Remove a secret.
+    Rm {
+        /// Secret name to remove.
+        name: String,
+        /// Scope to a pipeline instead of the whole organization.
+        #[arg(long, value_name = "SLUG")]
+        pipeline: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -213,6 +249,7 @@ pub async fn dispatch_command(command: CloudCommand, env: BTreeMap<String, Strin
         CloudCommand::Build(cmd) => verbs::build::run(&env, cmd).await,
         CloudCommand::Job(cmd) => verbs::job::run(&env, cmd).await,
         CloudCommand::Billing(cmd) => verbs::billing::run(&env, cmd).await,
+        CloudCommand::Secret(cmd) => verbs::secret::run(&env, cmd).await,
         CloudCommand::Run(args) => verbs::run::run(&env, args).await,
     };
     match result {

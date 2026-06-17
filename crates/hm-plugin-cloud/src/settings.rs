@@ -57,6 +57,31 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
     ))
 }
 
+/// Resolve `(api base, bearer token, org slug)` for verbs that make raw
+/// HTTP calls instead of going through the generated SDK client (e.g. the
+/// secret verbs, whose endpoints the generated client doesn't carry yet).
+///
+/// Shares the exact config/credential/org resolution — and the
+/// not-logged-in and org-missing error strings — with [`client`] and
+/// [`ResolvedCtx::org`], so those messages live in one place.
+///
+/// # Errors
+///
+/// Returns an error if config can't be loaded, no token is available, or no
+/// organization is configured.
+pub fn raw_org_ctx() -> Result<(String, String, String)> {
+    let cfg = hm_config::Config::load(None).context("loading config")?;
+    let api = cfg.cloud.api_url.clone();
+    let token = hm_config::creds::cloud_token(&api)
+        .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
+    let org = ResolvedCtx {
+        api: api.clone(),
+        org: cfg.cloud.org,
+    }
+    .org()?;
+    Ok((api, token, org))
+}
+
 /// An anonymous client (for the login flow) + the resolved API base.
 ///
 /// # Errors

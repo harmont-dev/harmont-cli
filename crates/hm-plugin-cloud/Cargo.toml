@@ -14,6 +14,7 @@ path = "src/lib.rs"
 [dependencies]
 harmont-cloud      = { workspace = true }
 harmont-cloud-raw  = { workspace = true }
+serde              = { workspace = true }
 hm-exec            = { workspace = true }
 hm-render          = { workspace = true }
 hm-config          = { workspace = true }
@@ -24,10 +25,15 @@ uuid               = { workspace = true }
 clap               = { version = "4", features = ["derive"] }
 anyhow             = "1"
 base64             = "0.22"
+percent-encoding   = "2.3"
 tokio              = { version = "1", features = ["net", "rt", "time", "sync", "macros"] }
 webbrowser         = "1"
 dialoguer          = "0.11"
 tracing            = { workspace = true }
+reqwest            = { version = "0.13", default-features = false, features = ["rustls", "http2", "json"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true
