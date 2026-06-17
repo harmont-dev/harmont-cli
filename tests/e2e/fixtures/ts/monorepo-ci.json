@@ -81,6 +81,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "duration_seconds": 86400,
@@ -90,7 +91,8 @@
           "cmd": "apt-get update && apt-get install -y curl ca-certificates git",
           "image": "ubuntu:24.04",
           "key": "334b29e96b76",
-          "label": ":go: apt-base"
+          "label": ":go: apt-base",
+          "secrets": {}
         }
       },
       {
@@ -99,6 +101,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "env_keys": [],
@@ -106,7 +109,8 @@
           },
           "cmd": "curl -fsSL https://go.dev/dl/go1.23.2.linux-amd64.tar.gz -o /tmp/go.tgz && rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/go.tgz && ln -sf /usr/local/go/bin/go /usr/local/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt && go version",
           "key": "e0b494124562",
-          "label": ":go: install"
+          "label": ":go: install",
+          "secrets": {}
         }
       },
       {
@@ -115,10 +119,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd services/api && go build ./...",
           "key": "6f9493b7219f",
-          "label": ":go: build"
+          "label": ":go: build",
+          "secrets": {}
         }
       },
       {
@@ -127,10 +133,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd services/api && go test ./...",
           "key": "1ad6d86b2c0a",
-          "label": ":go: test"
+          "label": ":go: test",
+          "secrets": {}
         }
       },
       {
@@ -139,10 +147,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd services/api && go vet ./...",
           "key": "vet",
-          "label": ":go: vet"
+          "label": ":go: vet",
+          "secrets": {}
         }
       },
       {
@@ -151,6 +161,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "duration_seconds": 86400,
@@ -160,7 +171,8 @@
           "cmd": "apt-get update && apt-get install -y curl ca-certificates python3 python3-venv",
           "image": "ubuntu:24.04",
           "key": "c8d9fda86ff3",
-          "label": ":python: apt-base"
+          "label": ":python: apt-base",
+          "secrets": {}
         }
       },
       {
@@ -169,6 +181,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "env_keys": [],
@@ -176,7 +189,8 @@
           },
           "cmd": "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -sf /root/.local/bin/uv /usr/local/bin/uv && uv --version",
           "key": "uv-install",
-          "label": ":python: uv-install"
+          "label": ":python: uv-install",
+          "secrets": {}
         }
       },
       {
@@ -185,6 +199,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "paths": [
@@ -195,7 +210,8 @@
           },
           "cmd": "cd services/ml && uv sync --all-extras",
           "key": "uv-sync",
-          "label": ":python: uv-sync"
+          "label": ":python: uv-sync",
+          "secrets": {}
         }
       },
       {
@@ -204,10 +220,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd services/ml && uv run pytest",
           "key": "847020e744bc",
-          "label": ":python: test"
+          "label": ":python: test",
+          "secrets": {}
         }
       },
       {
@@ -216,10 +234,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd services/ml && uv run ruff check .",
           "key": "6c48498afb84",
-          "label": ":python: lint"
+          "label": ":python: lint",
+          "secrets": {}
         }
       },
       {
@@ -228,10 +248,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd services/ml && uv run ty check .",
           "key": "typecheck",
-          "label": ":python: typecheck"
+          "label": ":python: typecheck",
+          "secrets": {}
         }
       },
       {
@@ -240,6 +262,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "duration_seconds": 86400,
@@ -249,7 +272,8 @@
           "cmd": "apt-get update && apt-get install -y curl ca-certificates",
           "image": "ubuntu:24.04",
           "key": "3c2cfedcad46",
-          "label": ":node: apt-base"
+          "label": ":node: apt-base",
+          "secrets": {}
         }
       },
       {
@@ -258,6 +282,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "env_keys": [],
@@ -265,7 +290,8 @@
           },
           "cmd": "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs",
           "key": "ed974519b390",
-          "label": ":node: install"
+          "label": ":node: install",
+          "secrets": {}
         }
       },
       {
@@ -274,6 +300,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "paths": [
@@ -283,7 +310,8 @@
           },
           "cmd": "cd web && npm ci",
           "key": "deps",
-          "label": ":node: deps"
+          "label": ":node: deps",
+          "secrets": {}
         }
       },
       {
@@ -292,10 +320,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd web && npm run build",
           "key": "a94a0f84e711",
-          "label": ":node: build"
+          "label": ":node: build",
+          "secrets": {}
         }
       },
       {
@@ -304,10 +334,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd web && npm run test",
           "key": "d2438adde70d",
-          "label": ":node: test"
+          "label": ":node: test",
+          "secrets": {}
         }
       },
       {
@@ -316,10 +348,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd web && npm run lint",
           "key": "74c52c9e5ef6",
-          "label": ":node: lint"
+          "label": ":node: lint",
+          "secrets": {}
         }
       }
     ]

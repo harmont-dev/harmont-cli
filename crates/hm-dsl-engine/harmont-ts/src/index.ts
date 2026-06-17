@@ -29,3 +29,4 @@ export {
   resolvePipelineCacheKeys,
   type CacheKeyOptions,
 } from "./keygen.js";
+export { secrets, isSecretRef, type SecretRef } from "./secret.js";

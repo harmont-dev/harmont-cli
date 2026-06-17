@@ -1,10 +1,11 @@
 import type { CachePolicy } from "./cache.js";
 import { parseDuration } from "./duration.js";
+import type { SecretRef } from "./secret.js";
 
 export interface StepOptions {
   readonly label?: string;
   readonly cache?: CachePolicy;
-  readonly env?: Readonly<Record<string, string>>;
+  readonly env?: Readonly<Record<string, string | SecretRef>>;
   readonly image?: string;
   readonly runner?: string;
   readonly runnerArgs?: Readonly<Record<string, unknown>>;
@@ -22,7 +23,7 @@ export class Step {
   readonly _continueOnFailure: boolean;
   readonly _label: string | undefined;
   readonly _cache: CachePolicy | undefined;
-  readonly _env: Readonly<Record<string, string>> | undefined;
+  readonly _env: Readonly<Record<string, string | SecretRef>> | undefined;
   readonly _timeoutSeconds: number | undefined;
   readonly _image: string | undefined;
   readonly _runner: string | undefined;
@@ -37,7 +38,7 @@ export class Step {
     continueOnFailure?: boolean;
     label?: string;
     cache?: CachePolicy;
-    env?: Record<string, string>;
+    env?: Record<string, string | SecretRef>;
     timeoutSeconds?: number;
     image?: string;
     runner?: string;
@@ -102,7 +103,7 @@ export class Step {
       continueOnFailure: this._continueOnFailure,
       label: this._label,
       cache: this._cache,
-      env: this._env as Record<string, string> | undefined,
+      env: this._env as Record<string, string | SecretRef> | undefined,
       timeoutSeconds: seconds,
       image: this._image,
       runner: this._runner,

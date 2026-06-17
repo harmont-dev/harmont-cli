@@ -1,6 +1,7 @@
 import type { CachePolicy } from "./cache.js";
 import { parseDuration } from "./duration.js";
 import { resolveKeys } from "./keys.js";
+import { isSecretRef, type SecretRef } from "./secret.js";
 import type { Step } from "./step.js";
 
 // Across-the-board default image for imageless root steps. The SDK's
@@ -9,7 +10,7 @@ import type { Step } from "./step.js";
 const DEFAULT_IMAGE = "ubuntu:24.04";
 
 export interface PipelineOptions {
-  readonly env?: Readonly<Record<string, string>>;
+  readonly env?: Readonly<Record<string, string | SecretRef>>;
   readonly timeout?: string | number;
 }
 
@@ -27,6 +28,7 @@ export interface PipelineIR {
 interface GraphNode {
   step: Record<string, unknown>;
   env: Record<string, string>;
+  secrets: Record<string, string>;
 }
 
 export function pipeline(
@@ -93,14 +95,30 @@ function lowerToGraph(
     if (s._runner != null) stepDict.runner = s._runner;
     if (s._runnerArgs != null) stepDict.runner_args = s._runnerArgs;
 
-    const mergedEnv: Record<string, string> = {
+    const mergedEnv: Record<string, string | SecretRef> = {
       DEBIAN_FRONTEND: "noninteractive",
       TERM: "dumb",
     };
     if (opts?.env) Object.assign(mergedEnv, opts.env);
     if (s._env) Object.assign(mergedEnv, s._env);
 
-    nodes.push({ step: stepDict, env: mergedEnv });
+    // Split the merged env: literal strings stay as env; SecretRefs become an
+    // env-var-name -> secret-name map resolved at run time. The node-level
+    // `secrets` map is authoritative; the step-level copy mirrors it so
+    // consumers that read either see the same map.
+    const literalEnv: Record<string, string> = {};
+    const secretRefs: Record<string, string> = {};
+    for (const [varName, val] of Object.entries(mergedEnv)) {
+      if (isSecretRef(val)) {
+        secretRefs[varName] = val.name;
+      } else {
+        literalEnv[varName] = val;
+      }
+    }
+
+    stepDict.secrets = secretRefs;
+
+    nodes.push({ step: stepDict, env: literalEnv, secrets: secretRefs });
 
     const parentKey = resolvedParentKey(s, keys);
     if (parentKey !== null) {
