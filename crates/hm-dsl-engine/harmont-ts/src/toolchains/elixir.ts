@@ -42,6 +42,15 @@ export class ElixirProject {
     return this._installed;
   }
 
+  /** Append a post-install command and return an advanced project; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Action methods on the
+   *  returned object fork from this step.
+   *  @example hm.elixir({ path: "elixir" }).setup("mix proto.gen").compile() */
+  setup(cmd: string, opts?: StepOptions): ElixirProject {
+    return new ElixirProject(this.path, this._installed.sh(cmd, opts));
+  }
+
   private _sh(parent: Step, cmd: string, opts?: ActionOptions): Step {
     const { env: userEnv, ...rest } = opts ?? {};
     return parent.sh(cmd, { env: { ...ELIXIR_ENV, ...userEnv }, ...rest });

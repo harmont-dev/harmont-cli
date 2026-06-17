@@ -84,18 +84,29 @@ export class JsProject {
   private readonly _installed: Step;
   private readonly _runPrefix: string;
   private readonly _tag: string;
+  private readonly _pm: PackageManager;
 
   constructor(path: string, installed: Step, pm: PackageManager, tag: string) {
     this.path = path;
     this._installed = installed;
     this._runPrefix = RUN_PREFIX[pm];
     this._tag = tag;
+    this._pm = pm;
   }
 
   /** The dependency-install step (`npm ci`, `bun install`, `deno install`, …).
    *  Every action attaches to it so installation is shared across CI jobs. */
   install(): Step {
     return this._installed;
+  }
+
+  /** Append a post-install command and return an advanced project; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Action methods on the
+   *  returned object fork from this step.
+   *  @example hm.js.project({ path: "web" }).setup("npm run codegen").run("build") */
+  setup(cmd: string, opts?: StepOptions): JsProject {
+    return new JsProject(this.path, this._installed.sh(cmd, opts), this._pm, this._tag);
   }
 
   /** Run a package.json script / deno.json task by name.
