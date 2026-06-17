@@ -29,6 +29,7 @@ tar = "0.4"
 flate2 = "1"
 ignore = "0.4"
 tempfile = "3"
+dotenvy = "0.15"
 daggy = { workspace = true }
 
 [dev-dependencies]

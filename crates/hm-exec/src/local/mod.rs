@@ -10,6 +10,7 @@ mod cache;
 mod events;
 pub mod runner;
 mod scheduler;
+mod secret_resolver;
 mod source;
 
 pub use backend::LocalBackend;
