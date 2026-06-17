@@ -29,7 +29,12 @@ APT_TTL = timedelta(days=1)
 
 
 class _HasInstalled(Protocol):
-    installed: Step
+    # Read-only member (property form) so frozen-dataclass toolchains, whose
+    # `installed` field is read-only, satisfy the protocol. A bare
+    # `installed: Step` annotation declares a *writable* member, which frozen
+    # instances do not match.
+    @property
+    def installed(self) -> Step: ...
 
 
 _ProjectT = TypeVar("_ProjectT", bound="_HasInstalled")
