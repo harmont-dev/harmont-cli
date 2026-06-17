@@ -13,6 +13,13 @@ import harmont as hm
 # Each factory returns an object exposing `.installed` and `.setup()`.
 TOOLCHAINS = [
     ("elixir", lambda: hm.elixir(path=".")),
+    ("python", lambda: hm.python(path=".")),
+    ("go", lambda: hm.go(path=".")),
+    ("js", lambda: hm.js.project(path=".")),
+    ("zig_project", lambda: hm.zig(path=".")),
+    ("zig_toolchain", lambda: hm.zig()),
+    ("rust_toolchain", lambda: hm.rust.toolchain()),  # RustEntry is NOT callable
+    ("cmake_toolchain", lambda: hm.cmake()),
 ]
 
 

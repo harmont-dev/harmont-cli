@@ -21,10 +21,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._detect import detect
 from ._toolchain import (
+    advance_install,
     bun_install_cmd,
     deno_install_cmd,
     make_install_chain,
@@ -34,6 +35,7 @@ from .cache import CacheForever, CacheOnChange
 
 if TYPE_CHECKING:
     from ._step import Step
+    from .cache import CachePolicy
 
 Runtime = Literal["node", "bun", "deno"]
 PackageManager = Literal["npm", "pnpm", "yarn-classic", "yarn-berry", "bun", "deno"]
@@ -123,6 +125,27 @@ class JsProject:
     installed: Step
     run_prefix: str
     tag: str
+
+    def setup(
+        self,
+        cmd: str,
+        *,
+        cwd: str | None = None,
+        label: str | None = None,
+        cache: CachePolicy | None = None,
+        env: dict[str, str] | None = None,
+    ) -> Self:
+        """Append a post-install command and return an advanced project; chainable.
+
+        Use for prep steps the toolchain's actions must depend on but that the SDK
+        does not model natively — code generation, fixtures, extra tooling. The
+        returned object's action methods fork from this step.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.js.project(path=".").setup("npm run codegen")
+        """
+        return advance_install(self, cmd, cwd=cwd, label=label, cache=cache, env=env)
 
     def install(self) -> Step:
         """Return the dependency-install step (the unambiguous default leaf)."""

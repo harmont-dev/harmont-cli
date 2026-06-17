@@ -19,13 +19,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, Self, overload
 
-from ._toolchain import make_install_chain
+from ._toolchain import advance_install, make_install_chain
 from .cache import CacheForever
 
 if TYPE_CHECKING:
     from ._step import Step
+    from .cache import CachePolicy
 
 APT_PACKAGES = ("curl", "ca-certificates", "xz-utils")
 
@@ -66,6 +67,27 @@ class ZigProject:
     path: str
     installed: Step
 
+    def setup(
+        self,
+        cmd: str,
+        *,
+        cwd: str | None = None,
+        label: str | None = None,
+        cache: CachePolicy | None = None,
+        env: dict[str, str] | None = None,
+    ) -> Self:
+        """Append a post-install command and return an advanced project; chainable.
+
+        Use for prep steps the toolchain's actions must depend on but that the SDK
+        does not model natively — code generation, fixtures, extra tooling. The
+        returned object's action methods fork from this step.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.zig(path=".").setup("zig build gen")
+        """
+        return advance_install(self, cmd, cwd=cwd, label=label, cache=cache, env=env)
+
     def _emit(self, cmd: str, default_label: str, **kw: Any) -> Step:
         if kw.get("label") is None:
             kw["label"] = default_label
@@ -105,6 +127,28 @@ class ZigToolchain:
 
     version: str
     installed: Step
+
+    def setup(
+        self,
+        cmd: str,
+        *,
+        cwd: str | None = None,
+        label: str | None = None,
+        cache: CachePolicy | None = None,
+        env: dict[str, str] | None = None,
+    ) -> Self:
+        """Append a post-install command and return an advanced toolchain; chainable.
+
+        Use for prep steps the toolchain's actions must depend on but that the SDK
+        does not model natively — code generation, fixtures, extra tooling. Every
+        ``ZigProject`` spawned from the returned toolchain forks from this step.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.zig().setup("zig build gen")
+            >>> hm.pipeline([tc.project("lib-a").test()])
+        """
+        return advance_install(self, cmd, cwd=cwd, label=label, cache=cache, env=env)
 
     def project(self, path: str = ".") -> ZigProject:
         """Create a ``ZigProject`` rooted at ``path`` from this toolchain.

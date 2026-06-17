@@ -11,10 +11,10 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from ._cargo import CargoOpts, cargo_flags
-from ._toolchain import make_install_chain
+from ._toolchain import advance_install, make_install_chain
 from .cache import CacheForever, CacheOnChange
 
 if TYPE_CHECKING:
@@ -150,6 +150,28 @@ class RustToolchain:
 
     path: str
     installed: Step
+
+    def setup(
+        self,
+        cmd: str,
+        *,
+        cwd: str | None = None,
+        label: str | None = None,
+        cache: CachePolicy | None = None,
+        env: dict[str, str] | None = None,
+    ) -> Self:
+        """Append a post-install command and return an advanced toolchain; chainable.
+
+        Use for prep steps the toolchain's actions must depend on but that the SDK
+        does not model natively — code generation, fixtures, extra tooling. The
+        returned object's action methods (and projects spawned from it) fork from
+        this step, so prep runs before the cargo warmup precompile.
+
+        Examples:
+            >>> import harmont as hm
+            >>> tc = hm.rust.toolchain().setup("cargo install sqlx-cli")
+        """
+        return advance_install(self, cmd, cwd=cwd, label=label, cache=cache, env=env)
 
     def _wrap(self, cargo: str) -> str:
         return f". $HOME/.cargo/env && cd {self.path} && {cargo}"
