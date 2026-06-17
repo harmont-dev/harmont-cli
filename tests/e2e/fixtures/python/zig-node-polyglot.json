@@ -61,6 +61,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "duration_seconds": 86400,
@@ -70,7 +71,8 @@
           "cmd": "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates xz-utils",
           "image": "ubuntu:24.04",
           "key": "base",
-          "label": ":apt: base"
+          "label": ":apt: base",
+          "secrets": {}
         }
       },
       {
@@ -79,6 +81,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "env_keys": [],
@@ -86,7 +89,8 @@
           },
           "cmd": "curl -fsSL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz -o /tmp/zig.tar.xz && rm -rf /usr/local/zig && mkdir -p /usr/local/zig && tar -xJf /tmp/zig.tar.xz -C /usr/local/zig --strip-components=1 && ln -sf /usr/local/zig/zig /usr/local/bin/zig && zig version",
           "key": "3083a531d11a",
-          "label": ":zig: install"
+          "label": ":zig: install",
+          "secrets": {}
         }
       },
       {
@@ -95,10 +99,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd zig-a && zig build",
           "key": "zig-a-build",
-          "label": ":zig: zig-a build"
+          "label": ":zig: zig-a build",
+          "secrets": {}
         }
       },
       {
@@ -107,10 +113,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd zig-a && zig build test",
           "key": "zig-a-test",
-          "label": ":zig: zig-a test"
+          "label": ":zig: zig-a test",
+          "secrets": {}
         }
       },
       {
@@ -119,10 +127,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd zig-b && zig build",
           "key": "zig-b-build",
-          "label": ":zig: zig-b build"
+          "label": ":zig: zig-b build",
+          "secrets": {}
         }
       },
       {
@@ -131,10 +141,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd zig-b && zig build test",
           "key": "zig-b-test",
-          "label": ":zig: zig-b test"
+          "label": ":zig: zig-b test",
+          "secrets": {}
         }
       },
       {
@@ -143,6 +155,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "env_keys": [],
@@ -150,7 +163,8 @@
           },
           "cmd": "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs",
           "key": "a8f0d9d99460",
-          "label": ":node: install"
+          "label": ":node: install",
+          "secrets": {}
         }
       },
       {
@@ -159,6 +173,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "paths": [
@@ -168,7 +183,8 @@
           },
           "cmd": "cd web && npm ci",
           "key": "deps",
-          "label": ":node: deps"
+          "label": ":node: deps",
+          "secrets": {}
         }
       },
       {
@@ -177,10 +193,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd web && npm run build",
           "key": "build",
-          "label": ":node: build"
+          "label": ":node: build",
+          "secrets": {}
         }
       },
       {
@@ -189,10 +207,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd web && npm run test",
           "key": "test",
-          "label": ":node: test"
+          "label": ":node: test",
+          "secrets": {}
         }
       },
       {
@@ -201,10 +221,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": "cd web && npm run lint",
           "key": "lint",
-          "label": ":node: lint"
+          "label": ":node: lint",
+          "secrets": {}
         }
       }
     ]

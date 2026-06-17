@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from ._secret import SecretRef
     from .triggers import Trigger
 
 
@@ -21,7 +22,7 @@ class PipelineRegistration:
     name: str
     triggers: tuple[Trigger, ...]
     allow_manual: bool
-    env: dict[str, str] | None
+    env: dict[str, str | SecretRef] | None
     fn: Callable[[], object]
     timeout: str | int | None = None
 

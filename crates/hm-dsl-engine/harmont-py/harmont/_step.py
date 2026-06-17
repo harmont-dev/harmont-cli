@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from ._secret import SecretRef
     from .cache import CachePolicy
 
 
@@ -33,7 +36,7 @@ class Step:
     continue_on_failure: bool = False
     label: str | None = None
     cache: CachePolicy | None = None
-    env: dict[str, str] | None = None
+    env: dict[str, str | SecretRef] | None = None
     timeout_seconds: int | None = None
     image: str | None = None
     """Local-mode Docker base image override for this step. Ignored when
@@ -60,7 +63,7 @@ class Step:
         cwd: str | None = None,
         label: str | None = None,
         cache: CachePolicy | None = None,
-        env: dict[str, str] | None = None,
+        env: Mapping[str, str | SecretRef] | None = None,
         image: str | None = None,
         runner: str | None = None,
         runner_args: dict[str, Any] | None = None,
@@ -115,7 +118,7 @@ class Step:
             parent=self,
             label=label,
             cache=cache,
-            env=env,
+            env=dict(env) if env is not None else None,
             image=effective_image,
             runner=runner,
             runner_args=runner_args,

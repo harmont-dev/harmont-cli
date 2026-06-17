@@ -41,6 +41,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "duration_seconds": 86400,
@@ -50,7 +51,8 @@
           "cmd": "apt-get update && apt-get install -y curl ca-certificates build-essential pkg-config libssl-dev",
           "image": "ubuntu:24.04",
           "key": "apt-base",
-          "label": ":rust: apt-base"
+          "label": ":rust: apt-base",
+          "secrets": {}
         }
       },
       {
@@ -59,6 +61,7 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cache": {
             "env_keys": [],
@@ -66,7 +69,8 @@
           },
           "cmd": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --component clippy,rustfmt && . $HOME/.cargo/env && rustc --version && cargo --version",
           "key": "rustup",
-          "label": ":rust: rustup"
+          "label": ":rust: rustup",
+          "secrets": {}
         }
       },
       {
@@ -75,10 +79,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo build --locked",
           "key": "build",
-          "label": ":rust: build"
+          "label": ":rust: build",
+          "secrets": {}
         }
       },
       {
@@ -87,10 +93,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo test --locked",
           "key": "test",
-          "label": ":rust: test"
+          "label": ":rust: test",
+          "secrets": {}
         }
       },
       {
@@ -99,10 +107,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo clippy --all-targets --locked -- -D warnings",
           "key": "clippy",
-          "label": ":rust: clippy"
+          "label": ":rust: clippy",
+          "secrets": {}
         }
       },
       {
@@ -111,10 +121,12 @@
           "DEBIAN_FRONTEND": "noninteractive",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo fmt --all --check",
           "key": "fmt",
-          "label": ":rust: fmt"
+          "label": ":rust: fmt",
+          "secrets": {}
         }
       },
       {
@@ -124,10 +136,12 @@
           "RUSTDOCFLAGS": "-D warnings",
           "TERM": "dumb"
         },
+        "secrets": {},
         "step": {
           "cmd": ". $HOME/.cargo/env && cd . && cargo doc --no-deps --locked",
           "key": "doc",
-          "label": ":rust: doc"
+          "label": ":rust: doc",
+          "secrets": {}
         }
       }
     ]
