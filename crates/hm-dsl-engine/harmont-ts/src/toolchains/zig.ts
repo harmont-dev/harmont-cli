@@ -37,6 +37,15 @@ export class ZigToolchain {
     return this._installed;
   }
 
+  /** Append a post-install command and return an advanced toolchain; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Action methods on the
+   *  returned object fork from this step.
+   *  @example hm.zig().setup("zig build gen").project(".") */
+  setup(cmd: string, opts?: StepOptions): ZigToolchain {
+    return new ZigToolchain(this._installed.sh(cmd, opts));
+  }
+
   project(path: string = "."): ZigProject {
     return new ZigProject(path, this._installed);
   }
@@ -53,6 +62,15 @@ export class ZigProject {
 
   install(): Step {
     return this._installed;
+  }
+
+  /** Append a post-install command and return an advanced project; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Action methods on the
+   *  returned object fork from this step.
+   *  @example hm.zig({ path: "." }).setup("zig build gen").build() */
+  setup(cmd: string, opts?: StepOptions): ZigProject {
+    return new ZigProject(this.path, this._installed.sh(cmd, opts));
   }
 
   build(opts?: ActionOptions): Step {

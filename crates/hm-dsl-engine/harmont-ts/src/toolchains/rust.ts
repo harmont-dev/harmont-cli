@@ -148,6 +148,16 @@ export class RustToolchain {
     return this._installed;
   }
 
+  /** Append a post-install command and return an advanced toolchain; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Action methods on the
+   *  returned object fork from this step. (On warmup-based projects, splice prep
+   *  here, pre-warmup: hm.rust.toolchain().setup("…").project({ path: "." }).)
+   *  @example hm.rust.toolchain().setup("cargo install sqlx-cli").build() */
+  setup(cmd: string, opts?: StepOptions): RustToolchain {
+    return new RustToolchain(this.path, this._installed.sh(cmd, opts));
+  }
+
   _cargo(cmd: string, label: string, opts?: ActionOptions): Step {
     return this._installed.sh(
       `. $HOME/.cargo/env && cd ${this.path} && ${cmd}`,

@@ -37,6 +37,15 @@ export class PythonToolchain {
     return this._installed;
   }
 
+  /** Append a post-install command and return an advanced toolchain; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Action methods on the
+   *  returned object fork from this step.
+   *  @example hm.python({ path: "." }).setup("uv run python gen.py").test() */
+  setup(cmd: string, opts?: StepOptions): PythonToolchain {
+    return new PythonToolchain(this.path, this._installed.sh(cmd, opts));
+  }
+
   test(opts?: ActionOptions): Step {
     return this._installed.sh(`cd ${this.path} && uv run pytest`, {
       label: ":python: test",

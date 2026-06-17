@@ -27,6 +27,15 @@ export class GoToolchain {
     return this._installed;
   }
 
+  /** Append a post-install command and return an advanced toolchain; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Action methods on the
+   *  returned object fork from this step.
+   *  @example hm.go({ path: "." }).setup("go generate ./...").build() */
+  setup(cmd: string, opts?: StepOptions): GoToolchain {
+    return new GoToolchain(this.path, this._installed.sh(cmd, opts));
+  }
+
   build(opts?: ActionOptions): Step {
     return this._installed.sh(`cd ${this.path} && go build ./...`, {
       label: ":go: build",

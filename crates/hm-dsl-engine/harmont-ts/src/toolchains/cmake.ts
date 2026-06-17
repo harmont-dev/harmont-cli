@@ -170,6 +170,16 @@ export class CMakeToolchain {
     return this._installed;
   }
 
+  /** Append a post-install command and return an advanced toolchain; chainable.
+   *  For prep steps the toolchain's actions must depend on but the SDK does not
+   *  model natively (codegen, fixtures, extra tooling). Project actions forked
+   *  off this toolchain see its results. (On built-based projects, splice prep
+   *  here, pre-configure: hm.cmake().setup("…").project({ path: "." }).)
+   *  @example hm.cmake().setup("conan install .").project({ path: "." }) */
+  setup(cmd: string, opts?: StepOptions): CMakeToolchain {
+    return new CMakeToolchain(this._installed.sh(cmd, opts), this.compiler, this.ccache, this.generator);
+  }
+
   project(opts?: CMakeProjectOptions): CMakeProject {
     const path = opts?.path ?? ".";
     const preset = opts?.preset;
