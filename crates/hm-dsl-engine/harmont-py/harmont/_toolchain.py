@@ -13,8 +13,9 @@ that lets toolchains stack or share a content-producing parent
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 from ._step import scratch
 from .cache import CacheTTL
@@ -25,6 +26,33 @@ if TYPE_CHECKING:
 
 
 APT_TTL = timedelta(days=1)
+
+
+class _HasInstalled(Protocol):
+    installed: Step
+
+
+_ProjectT = TypeVar("_ProjectT", bound="_HasInstalled")
+
+
+def advance_install(
+    project: _ProjectT,
+    cmd: str,
+    *,
+    cwd: str | None = None,
+    label: str | None = None,
+    cache: CachePolicy | None = None,
+    env: dict[str, str] | None = None,
+) -> _ProjectT:
+    """Return a copy of a toolchain object with one command appended to its
+    install chain. Every action method emitted from the returned object forks
+    from the new step. Shared implementation behind each toolchain's ``setup()``.
+    """
+    new_installed = project.installed.sh(cmd, cwd=cwd, label=label, cache=cache, env=env)
+    # All callers are frozen dataclasses carrying an `installed: Step` field, but
+    # the Protocol bound cannot express "is a dataclass", so the replace below
+    # cannot satisfy its DataclassInstance upper bound — hence the narrow ignore.
+    return dataclasses.replace(project, installed=new_installed)  # ty: ignore[invalid-argument-type]
 
 
 def apt_install_cmd(packages: tuple[str, ...]) -> str:

@@ -11,10 +11,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
-from ._toolchain import make_install_chain
-from .cache import CacheForever, CacheOnChange
+from ._toolchain import advance_install, make_install_chain
+from .cache import CacheForever, CacheOnChange, CachePolicy
 
 if TYPE_CHECKING:
     from ._step import Step
@@ -72,6 +72,29 @@ class ElixirProject:
     path: str
     installed: Step
     _plt_step: Step | None = dataclass_field(default=None, init=False, repr=False)
+
+    def setup(
+        self,
+        cmd: str,
+        *,
+        cwd: str | None = None,
+        label: str | None = None,
+        cache: CachePolicy | None = None,
+        env: dict[str, str] | None = None,
+    ) -> Self:
+        """Append a post-install command and return an advanced project; chainable.
+
+        Use for prep steps the toolchain's actions must depend on but that the SDK
+        does not model natively — code generation, fixtures, extra tooling. The
+        returned object's action methods (``compile``/``test``/…) fork from this
+        step, so they all see its results.
+
+        Examples:
+            >>> import harmont as hm
+            >>> proj = hm.elixir(path="elixir").setup("mix proto.gen")
+            >>> hm.pipeline([proj.compile(), proj.test()])
+        """
+        return advance_install(self, cmd, cwd=cwd, label=label, cache=cache, env=env)
 
     def _emit(self, cmd: str, default_label: str, **kw: Any) -> Step:
         if kw.get("label") is None:
