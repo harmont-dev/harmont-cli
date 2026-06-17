@@ -47,6 +47,16 @@ expression: schema
         "type": "string"
       }
     },
+    "secrets": {
+      "description": "Per-step secret references, merged on top of pipeline secrets. Maps env-var-name -> secret-name. Values are resolved at run time, never here.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "timeout_seconds": {
       "description": "Maximum wall-clock seconds before the step is killed.\n\n`NonZeroU32`: a `0`-second budget is rejected at the wire boundary.",
       "default": null,

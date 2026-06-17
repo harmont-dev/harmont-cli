@@ -23,13 +23,45 @@ fn transition_round_trips() {
             cache: None,
             runner: None,
             runner_args: None,
+            secrets: None,
         },
         env: BTreeMap::from([("FOO".into(), "bar".into())]),
+        secrets: BTreeMap::new(),
     };
     let json = serde_json::to_string(&nw).unwrap();
     let back: Transition = serde_json::from_str(&json).unwrap();
     assert_eq!(back.step.key, "a");
     assert_eq!(back.env.get("FOO").unwrap(), "bar");
+}
+
+#[test]
+fn command_step_round_trips_secrets() {
+    let json = r#"{
+      "key": "deploy",
+      "cmd": "./deploy.sh",
+      "env": { "CI": "true" },
+      "secrets": { "TOKEN": "DEPLOY_TOKEN" }
+    }"#;
+    let step: hm_pipeline_ir::CommandStep = serde_json::from_str(json).unwrap();
+    let secrets = step.secrets.expect("secrets present");
+    assert_eq!(secrets.get("TOKEN").map(String::as_str), Some("DEPLOY_TOKEN"));
+
+    // Absent secrets stays None and is omitted on re-serialize.
+    let bare: hm_pipeline_ir::CommandStep =
+        serde_json::from_str(r#"{"key":"k","cmd":"c"}"#).unwrap();
+    assert!(bare.secrets.is_none());
+    assert!(!serde_json::to_string(&bare).unwrap().contains("secrets"));
+}
+
+#[test]
+fn transition_round_trips_secrets() {
+    let json = r#"{
+      "step": { "key": "deploy", "cmd": "./deploy.sh" },
+      "env": {},
+      "secrets": { "TOKEN": "DEPLOY_TOKEN" }
+    }"#;
+    let t: hm_pipeline_ir::Transition = serde_json::from_str(json).unwrap();
+    assert_eq!(t.secrets.get("TOKEN").map(String::as_str), Some("DEPLOY_TOKEN"));
 }
 
 #[test]
