@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
 import tempfile
+from pathlib import Path
+
+import pytest
 
 import harmont as hm
 from harmont.cache import CacheOnChange
 from harmont.keygen import resolve_pipeline_keys
-from pathlib import Path
-
 
 
 def _cmds(p: dict) -> list[str]:
@@ -332,25 +332,27 @@ class TestRustProject:
         assert proj.clippy().cmd is not None
         assert proj.fmt().cmd is not None
 
-
     def test_empty_path_throws_error_is_caught(self):
         proj = hm.rust.project(path="")
         graph = {
-            "nodes":  [
-                    {
-                        "step": {
-                            "key": "a",
-                            "cmd": "cargo build",
-                            "cache": {"policy": "on_change", "paths": [p for p in list(proj.warmup.cache.paths)]},
+            "nodes": [
+                {
+                    "step": {
+                        "key": "a",
+                        "cmd": "cargo build",
+                        "cache": {
+                            "policy": "on_change",
+                            "paths": list(proj.warmup.cache.paths),
                         },
-                        "env": {},
                     },
-                ],
+                    "env": {},
+                },
+            ],
             "node_holes": [],
             "edge_property": "directed",
             "edges": [],
         }
-     
+
         with tempfile.TemporaryDirectory() as d:
             res = resolve_pipeline_keys(
                 graph,
@@ -358,9 +360,9 @@ class TestRustProject:
                 pipeline_slug="default",
                 now=0,
                 base_path=Path(d),
-                env={}
+                env={},
             )
-            assert res['nodes'][0]['step']['cache']['key'] is not None
+            assert res["nodes"][0]["step"]["cache"]["key"] is not None
 
     def test_warmup_implicit_cache_on_change(self):
         proj = hm.rust.project(path="cli")
