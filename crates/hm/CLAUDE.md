@@ -54,14 +54,9 @@ organization state lives in `~/.config/hm/config.toml` (`[cloud] org`).
 ## DSL engine
 
 The `hm-dsl-engine` crate evaluates pipeline definitions by shelling out
-to system-installed runtimes:
-
-- **Python pipelines:** `python3 -c "..."` subprocess with bundled `harmont`
+to a python installed runtime. `python3 -c "..."` subprocess with bundled `harmont`
   package extracted to temp dir via `PYTHONPATH`. Requires `croniter` and
   `python-dateutil` pip-installed.
-- **TypeScript pipelines:** `bun run` or `node --experimental-strip-types`
-  subprocess with bundled harmont-ts ESM bundles in a temp `node_modules/`.
-  Prefers Bun, falls back to Node 22+.
 
-DSL source code (harmont-py, harmont-ts bundles) is compiled into the binary
-at build time. Build requires esbuild (`npm ci` in `crates/hm-dsl-engine/harmont-ts/`).
+DSL source code (harmont-py bundles) is compiled into the binary
+at build time.

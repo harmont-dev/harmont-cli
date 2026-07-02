@@ -7,22 +7,18 @@ The `cli/` directory is a Cargo workspace.
 - `crates/hm-util/` — shared OS and filesystem utilities.
 - `crates/hm-plugin-protocol/` — wire types (serde structs only).
 - `crates/hm-plugin-sdk/` — authoring SDK for plugin writers.
-Run `cargo build` from the workspace root. Build requires esbuild
-(`npm ci` in `crates/hm-dsl-engine/harmont-ts/`).
+Run `cargo build` from the workspace root.
 
 For cross-cutting doctrine see [PRINCIPLES.md](../PRINCIPLES.md).
 
-## DSLs
+## DSL
 
-Both DSLs live inside `crates/hm-dsl-engine/` so they ship with the crate:
-
-- `crates/hm-dsl-engine/harmont-py/` — the `harmont` Python package (pipeline DSL).
-- `crates/hm-dsl-engine/harmont-ts/` — the `harmont` TypeScript package (pipeline DSL).
+The `harmont` Python package (pipeline DSL) lives inside `crates/hm-dsl-engine/harmont-py/` so it ships with the crate.
 
 ## Keep the SDK, `hm init` templates, and docs in sync
 
 The toolchain helpers in `crates/hm-dsl-engine/` (e.g.
-`harmont-py/harmont/_rust.py`, `harmont-ts/src/toolchains/rust.ts`) are the
+`harmont-py/harmont/_rust.py`) are the
 **public authoring SDK**. They have two downstream surfaces that drift silently
 unless you update them in the same change. **A toolchain change is not done until
 all three agree:**

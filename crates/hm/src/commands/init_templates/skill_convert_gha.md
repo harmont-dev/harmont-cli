@@ -59,7 +59,7 @@ Convert existing GitHub Actions workflows (`.github/workflows/*.yml` / `*.yaml`)
    | `matrix:` | Multiple pipelines or parameterized steps | No direct matrix — may need separate pipeline definitions or `.fork()` |
    | `env:` / `secrets.*` | `env: {}` on pipeline or step | Secrets must be passed as environment variables |
    | `actions/upload-artifact` / `actions/download-artifact` | Step outputs and DAG dependencies | Harmont passes outputs between steps via the DAG |
-   | `if:` conditionals | Pipeline-level logic (Python/TS) | Use the DSL's native control flow |
+   | `if:` conditionals | Pipeline-level logic (Python) | Use the DSL's native control flow |
 
 3. **Be honest about differences.** After presenting the mapping, explain:
    - **What's simpler:** Caching is implicit — no `actions/cache` boilerplate. No `actions/checkout` needed. Toolchains replace `actions/setup-*` with cleaner configuration.

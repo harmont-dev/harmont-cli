@@ -5,6 +5,8 @@
     clippy::needless_raw_string_hashes
 )]
 
+use hm_dsl_engine::DslEngine;
+
 #[tokio::test]
 async fn python_roundtrip() {
     // Skip if python3 not available or harmont deps missing
@@ -27,10 +29,9 @@ def ci() -> hm.Step:
     )
     .unwrap();
 
-    let lang = hm_dsl_engine::detect::detect_language(dir.path()).unwrap();
-    assert_eq!(lang, hm_dsl_engine::DslLanguage::Python);
+    hm_dsl_engine::detect::check_python(dir.path()).unwrap();
 
-    let engine = hm_dsl_engine::engine_for(lang).unwrap();
+    let engine = hm_dsl_engine::python_engine().unwrap();
     let metas = engine.list_pipelines(dir.path()).await.unwrap();
     assert_eq!(metas.len(), 1);
     assert_eq!(metas[0].slug, "ci");
@@ -61,7 +62,7 @@ def ci() -> hm.Step:
     )
     .unwrap();
 
-    let engine = hm_dsl_engine::engine_for(hm_dsl_engine::DslLanguage::Python).unwrap();
+    let engine = hm_dsl_engine::python_engine().unwrap();
     let json = engine.registry_json(dir.path()).await.unwrap();
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
 

@@ -5,14 +5,6 @@ use include_dir::{Dir, include_dir};
 /// The `harmont` Python package source tree (`harmont-py/harmont/`).
 pub(crate) static HARMONT_PY: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/harmont-py/harmont");
 
-/// Pre-compiled ESM bundle of harmont-ts (main entry).
-pub(crate) const HARMONT_TS_INDEX: &str =
-    include_str!(concat!(env!("OUT_DIR"), "/harmont-index.mjs"));
-
-/// Pre-compiled ESM bundle of harmont-ts toolchains subpath.
-pub(crate) const HARMONT_TS_TOOLCHAINS: &str =
-    include_str!(concat!(env!("OUT_DIR"), "/harmont-toolchains.mjs"));
-
 /// Extract an embedded directory tree to disk.
 pub(crate) fn extract_to(dir: &Dir<'_>, target: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(target)
@@ -41,24 +33,6 @@ mod tests {
     #[test]
     fn harmont_py_contains_py_typed() {
         assert!(HARMONT_PY.get_file("py.typed").is_some());
-    }
-
-    #[test]
-    fn ts_index_bundle_is_not_empty() {
-        assert!(
-            HARMONT_TS_INDEX.len() > 100,
-            "bundle should be non-trivial, got {} bytes",
-            HARMONT_TS_INDEX.len()
-        );
-    }
-
-    #[test]
-    fn ts_toolchains_bundle_is_not_empty() {
-        assert!(
-            HARMONT_TS_TOOLCHAINS.len() > 100,
-            "bundle should be non-trivial, got {} bytes",
-            HARMONT_TS_TOOLCHAINS.len()
-        );
     }
 
     #[test]

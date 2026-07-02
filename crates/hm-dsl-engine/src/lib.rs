@@ -4,16 +4,11 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 pub mod detect;
-pub mod python_engine;
-pub mod ts_engine;
+mod python_engine;
+
+pub use python_engine::{SubprocessPythonEngine, engine as python_engine};
 
 mod bundled_sources;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DslLanguage {
-    Python,
-    TypeScript,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PipelineMeta {
@@ -30,23 +25,4 @@ pub trait DslEngine: Send + Sync {
     /// triggers, definition}, ...]}`. Returned verbatim from the DSL runtime so
     /// the backend's pipeline discovery can consume it directly.
     async fn registry_json(&self, project_dir: &Path) -> anyhow::Result<String>;
-}
-
-/// Return an appropriate [`DslEngine`] for the given language.
-///
-/// # Errors
-///
-/// Returns an error if the required system runtime (`python3`, `node`/`bun`)
-/// is not found on PATH.
-pub fn engine_for(lang: DslLanguage) -> anyhow::Result<Box<dyn DslEngine>> {
-    match lang {
-        DslLanguage::Python => {
-            let engine = python_engine::SubprocessPythonEngine::new()?;
-            Ok(Box::new(engine))
-        }
-        DslLanguage::TypeScript => {
-            let engine = ts_engine::SubprocessTsEngine::new()?;
-            Ok(Box::new(engine))
-        }
-    }
 }

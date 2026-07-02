@@ -54,10 +54,6 @@ jobs:
         with:
           shared-key: examples-hm
 
-      - name: Install esbuild (for harmont-ts bundle)
-        working-directory: crates/hm-dsl-engine/harmont-ts
-        run: npm ci
-
       - name: Build hm
         run: cargo build -p harmont-cli
 
