@@ -362,6 +362,7 @@ moving.
 - **Discord** — [discord.gg/hm-dev](https://discord.gg/hm-dev)
 - **Slack** — [join the workspace](https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A)
 - **Issues** — [github.com/harmont-dev/harmont-cli/issues](https://github.com/harmont-dev/harmont-cli/issues)
+- **Contributing** — see [CONTRIBUTING.md](CONTRIBUTING.md) to get started; issues labeled `good first issue` are a great entry point.
 
 File bugs, request toolchains, or tell us what made you bounce — all of it helps.
 
