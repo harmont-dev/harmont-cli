@@ -105,9 +105,10 @@ uv run ty check harmont
 
 Two things that surprise people:
 
-- **Clippy is strict.** The workspace denies `unwrap()`, `expect()`,
+- **Clippy is strict.** The workspace flags `unwrap()`, `expect()`,
   `panic!`, `todo!`, `dbg!`, and direct `print!`/`eprintln!` in library
-  code, and warns on the full pedantic and nursery sets. Write error
+  code, plus the full pedantic and nursery sets — and CI runs clippy with
+  `-D warnings`, so every one of them fails the build. Write error
   handling with `?` and real error types.
 - **pytest treats warnings as errors.** A deprecation warning from a
   dependency is a test failure; don't suppress it without a comment.
