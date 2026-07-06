@@ -16,8 +16,7 @@ use futures_util::StreamExt;
 use harmont_cloud::{
     HarmontClient, HarmontError,
     logs::{LogEvent, StreamKind},
-    models::{build_is_terminal, job_is_terminal},
-    types::JobState,
+    models::{HarmontJob, OpenJobState, build_is_terminal, job_is_terminal},
 };
 use hm_plugin_protocol::events::{BuildEvent, PlanSummary, StdStream};
 use uuid::Uuid;
@@ -57,24 +56,39 @@ fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> u64 
     }
 }
 
+/// Parse an optional RFC 3339 timestamp string (the form the v1 API serializes
+/// `started_at` / `finished_at` as) into a UTC datetime, dropping unparseable
+/// or absent values to `None`.
+fn parse_rfc3339(ts: Option<&str>) -> Option<DateTime<Utc>> {
+    ts.and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc))
+}
+
 /// Whether a job has reached a state where its logs exist (running or already
 /// terminal), and so a log stream should be started for it.
 ///
-/// Matching the typed [`JobState`] enum (rather than `to_string()`/`as_str()`
-/// against string literals) makes the set of states exhaustive: when the cloud
-/// adds a new `JobState` variant the compiler forces this decision to be
-/// revisited, and a misspelled state can no longer silently drop a job's logs.
-const fn job_logs_available(state: JobState) -> bool {
+/// Matching the typed [`OpenJobState`] enum (rather than `to_string()`/`as_str()`
+/// against string literals) keeps the known states exhaustive: when the cloud
+/// adds a new state the compiler forces this decision to be revisited, and a
+/// misspelled state can no longer silently drop a job's logs. An `Unknown`
+/// state (a value introduced after this SDK was built) is treated as
+/// logs-available — starting a stream for a job that has none yet is harmless,
+/// whereas skipping one that does have logs would silently lose output.
+const fn job_logs_available(state: &OpenJobState) -> bool {
     match state {
-        JobState::Running
-        | JobState::Passed
-        | JobState::Failed
-        | JobState::TimedOut
-        | JobState::Canceling
-        | JobState::Canceled
-        | JobState::TimingOut => true,
+        OpenJobState::Running
+        | OpenJobState::Passed
+        | OpenJobState::Failed
+        | OpenJobState::TimedOut
+        | OpenJobState::Canceling
+        | OpenJobState::Canceled
+        | OpenJobState::TimingOut
+        | OpenJobState::Unknown => true,
         // No logs yet (not started) or never produced (skipped).
-        JobState::Pending | JobState::Scheduled | JobState::Assigned | JobState::Skipped => false,
+        OpenJobState::Pending
+        | OpenJobState::Scheduled
+        | OpenJobState::Assigned
+        | OpenJobState::Skipped => false,
     }
 }
 
@@ -153,16 +167,20 @@ pub async fn watch_build(
         // state where logs exist (running or already terminal).
         let jobs = client.list_jobs(org, pipeline, number).await?;
         for job in &jobs {
-            if job_logs_available(job.state) && streaming.insert(job.id) {
+            // The v1 API exposes a job's primary key as the string `id` (a UUID
+            // in canonical form); parse it into the `Uuid` that `BuildEvent`
+            // and the local step maps key on.
+            let job_id = Uuid::parse_str(&job.id)?;
+            if job_logs_available(&job.state) && streaming.insert(job_id) {
                 let name = job.name.clone().unwrap_or_else(|| "job".to_string());
-                let idx = *chain_idx.entry(job.id).or_insert_with(|| {
+                let idx = *chain_idx.entry(job_id).or_insert_with(|| {
                     let i = next_idx;
                     next_idx += 1;
                     i
                 });
                 if tx
                     .send(BuildEvent::StepQueued {
-                        step_id: job.id,
+                        step_id: job_id,
                         key: name.clone(),
                         chain_idx: idx,
                         parent_key: None,
@@ -175,7 +193,7 @@ pub async fn watch_build(
                 }
                 if tx
                     .send(BuildEvent::StepStart {
-                        step_id: job.id,
+                        step_id: job_id,
                         runner: "cloud".to_string(),
                         image: None,
                     })
@@ -197,7 +215,7 @@ pub async fn watch_build(
                 guard.0.push(tokio::spawn(stream_one(
                     client.clone(),
                     log_base.to_string(),
-                    job.id,
+                    job_id,
                     log_token.token.clone(),
                     tx.clone(),
                 )));
@@ -210,7 +228,7 @@ pub async fn watch_build(
         }
 
         let build = client.get_build(org, pipeline, number).await?;
-        if build_is_terminal(&build.state.to_string()) {
+        if build_is_terminal(&build.state) {
             break build.state.to_string();
         }
         // TODO: no overall deadline; a build stuck non-terminal loops forever
@@ -228,11 +246,11 @@ pub async fn watch_build(
     // straight to terminal in the same poll the build did).
     if let Ok(jobs) = client.list_jobs(org, pipeline, number).await {
         for job in &jobs {
-            if job_is_terminal(&job.state.to_string())
-                && ended.insert(job.id)
-                && tx.send(step_end(job)).await.is_err()
-            {
-                return Ok(1);
+            if job_is_terminal(&job.state) {
+                let job_id = Uuid::parse_str(&job.id)?;
+                if ended.insert(job_id) && tx.send(step_end(job, job_id)).await.is_err() {
+                    return Ok(1);
+                }
             }
         }
     }
@@ -249,8 +267,9 @@ pub async fn watch_build(
     Ok(code)
 }
 
-/// Build a `StepEnd` event from a (terminal) job's recorded fields.
-fn step_end(job: &harmont_cloud::models::Job) -> BuildEvent {
+/// Build a `StepEnd` event from a (terminal) job's recorded fields. `step_id`
+/// is the job's `id` already parsed into a `Uuid` by the caller.
+fn step_end(job: &HarmontJob, step_id: Uuid) -> BuildEvent {
     let state = job.state.to_string();
     let passed = matches!(state.as_str(), "passed" | "skipped");
     let exit_code = job
@@ -258,9 +277,12 @@ fn step_end(job: &harmont_cloud::models::Job) -> BuildEvent {
         // Saturate exit codes outside [i32::MIN, i32::MAX] rather than panic.
         .map_or_else(|| i32::from(!passed), |c| i32::try_from(c).unwrap_or(1));
     BuildEvent::StepEnd {
-        step_id: job.id,
+        step_id,
         exit_code,
-        duration_ms: duration_ms(job.started_at, job.finished_at),
+        duration_ms: duration_ms(
+            parse_rfc3339(job.started_at.as_deref()),
+            parse_rfc3339(job.finished_at.as_deref()),
+        ),
         snapshot: None,
     }
 }
@@ -411,32 +433,35 @@ async fn emit(
 
 #[cfg(test)]
 mod tests {
-    use super::{JobState, exit_code_for_state, job_logs_available};
+    use super::{OpenJobState, exit_code_for_state, job_logs_available};
 
     #[test]
     fn logs_available_for_running_and_terminal_states() {
         for state in [
-            JobState::Running,
-            JobState::Passed,
-            JobState::Failed,
-            JobState::TimedOut,
-            JobState::Canceling,
-            JobState::Canceled,
-            JobState::TimingOut,
+            OpenJobState::Running,
+            OpenJobState::Passed,
+            OpenJobState::Failed,
+            OpenJobState::TimedOut,
+            OpenJobState::Canceling,
+            OpenJobState::Canceled,
+            OpenJobState::TimingOut,
+            // A future state we don't recognize is streamed rather than
+            // silently dropped.
+            OpenJobState::Unknown,
         ] {
-            assert!(job_logs_available(state), "expected logs for {state}");
+            assert!(job_logs_available(&state), "expected logs for {state}");
         }
     }
 
     #[test]
     fn no_logs_before_start_or_when_skipped() {
         for state in [
-            JobState::Pending,
-            JobState::Scheduled,
-            JobState::Assigned,
-            JobState::Skipped,
+            OpenJobState::Pending,
+            OpenJobState::Scheduled,
+            OpenJobState::Assigned,
+            OpenJobState::Skipped,
         ] {
-            assert!(!job_logs_available(state), "expected no logs for {state}");
+            assert!(!job_logs_available(&state), "expected no logs for {state}");
         }
     }
 

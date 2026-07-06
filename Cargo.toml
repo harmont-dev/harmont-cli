@@ -40,8 +40,8 @@ hm-config          = { path = "crates/hm-config",          version = "0.0.0-dev"
 hm-dsl-engine      = { path = "crates/hm-dsl-engine",     version = "0.0.0-dev" }
 hm-render          = { path = "crates/hm-render",          version = "0.0.0-dev" }
 hm-vm              = { path = "crates/hm-vm",              version = "0.0.0-dev" }
-harmont-cloud = "0.1"
-harmont-cloud-raw = "0.1"
+harmont-cloud = "0.2"
+harmont-cloud-raw = "0.2"
 anyhow      = "1"
 async-trait = "0.1"
 dirs        = "6"
