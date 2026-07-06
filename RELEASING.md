@@ -4,6 +4,11 @@ This repo is the **public mirror** of the monorepo's `cli/` workspace and
 top-level `examples/` directory. The monorepo is the source of truth; do not
 land changes here directly.
 
+> **Transition note:** development is moving to this repository as the source
+> of truth. External contributions follow [CONTRIBUTING.md](CONTRIBUTING.md);
+> maintainers handle any remaining monorepo synchronization until the cutover
+> completes.
+
 ## How the mirror is synced
 
 On every push to `main` in the monorepo that touches `cli/**` or `examples/**`,
