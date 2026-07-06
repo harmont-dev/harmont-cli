@@ -1,4 +1,4 @@
-<!-- Every PR needs a greenlit issue — see CONTRIBUTING.md. -->
+<!-- Every PR needs a maintainer-approved issue — see CONTRIBUTING.md. -->
 Closes #
 
 ## Summary
