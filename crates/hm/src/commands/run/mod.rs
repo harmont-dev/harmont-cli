@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 
-use hm_dsl_engine::detect;
+use hm_dsl_engine::{DslEngine, detect};
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
@@ -345,10 +345,9 @@ async fn render_pipeline(
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
-    let lang =
-        detect::detect_language(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
+    detect::check_python(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
     let engine =
-        hm_dsl_engine::engine_for(lang).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
+        hm_dsl_engine::python_engine().map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
 
     let slug = if let Some(s) = &args.pipeline {
         s.clone()

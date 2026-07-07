@@ -1,6 +1,7 @@
 """`.setup()` splices a prep step into a toolchain's install chain so that
 action leaves fork from it. One parametrized test over every install-bearing
 toolchain object."""
+
 from __future__ import annotations
 
 import json

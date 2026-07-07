@@ -18,7 +18,7 @@ pub(crate) async fn run(_env: &BTreeMap<String, String>) -> Result<()> {
         "{} <{}> (id {})",
         me.name.clone().unwrap_or_else(|| me.email.clone()),
         me.email,
-        me.uuid,
+        me.id,
     );
     Ok(())
 }

@@ -743,7 +743,9 @@ def _make_rust_project(
         components=components,
         base=base,
     )
-
+    # set empty file path to "." to prevent root-relative from happening
+    if not path:
+        path = "."
     lock_path = f"{path}/Cargo.lock" if path != "." else "Cargo.lock"
     toml_glob = f"{path}/**/Cargo.toml" if path != "." else "**/Cargo.toml"
     rs_glob = f"{path}/**/*.rs" if path != "." else "**/*.rs"
