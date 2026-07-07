@@ -65,9 +65,9 @@ Prerequisites:
   pipeline step in a container, and the integration tests do too. On Linux,
   the layer-caching snapshotter also needs FUSE's `user_allow_other` enabled
   in `/etc/fuse.conf`.
-- **Python 3.11+** and [uv](https://docs.astral.sh/uv/) — for the `harmont`
+- **Python 3.12** and [uv](https://docs.astral.sh/uv/) — for the `harmont`
   pipeline DSL that lives in `crates/hm-dsl-engine/harmont-py/`. Linting is
-  pinned to **ruff 0.15** in CI.
+  pinned to **ruff 0.15** in CI. See [Python setup](#python-setup) below.
 
 Build everything from the workspace root:
 
@@ -81,6 +81,26 @@ directory has fourteen runnable projects to try it on:
 ```sh
 cargo run -p harmont-cli -- run ci --backend docker --dir examples/rust
 ```
+
+### Python setup
+
+The `hm` CLI shells out to `python3` to evaluate `.hm/*.py` pipeline files.
+If your system `python3` is older than 3.12, pipeline runs will fail. The
+repo pins Python 3.12 in `.python-version`; the one-time setup is:
+
+```sh
+uv venv                    # creates .venv/ with Python 3.12 (downloads it if needed)
+source .venv/bin/activate   # puts the right python3 on PATH
+```
+
+After activating, `python3 --version` should report 3.12.x. You can add
+`source /path/to/harmont-cli/.venv/bin/activate` to your shell profile or
+use [direnv](https://direnv.net/) to activate automatically.
+
+> **Why not the venv inside `harmont-py/`?** That venv is for developing the
+> Python SDK itself (running pytest, ruff, ty). The top-level venv exists
+> solely to put the right `python3` on your PATH — no packages need to be
+> installed in it.
 
 ## Running the checks
 
