@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use hm_dsl_engine::{detect, engine_for};
+use hm_dsl_engine::{DslEngine, detect, python_engine};
 
 #[derive(Debug, Clone, Parser)]
 pub struct PipelinesArgs {
@@ -18,13 +18,10 @@ const EMPTY_ENVELOPE: &str = r#"{"schema_version":"1","pipelines":[]}"#;
 
 /// Print the discovery envelope JSON (all pipelines) to stdout.
 ///
-/// A repo with no `.hm/` directory (or one with no `.py`/`.ts` files)
+/// A repo with no `.hm/` directory (or one with no `.py` files)
 /// declares no pipelines and yields the empty envelope rather than an error —
 /// the backend fans discovery out across every repo in an installation, most of
-/// which carry no pipelines. Both Python and TypeScript pipelines emit the same
-/// discovery envelope; a repo declaring both languages resolves to Python via
-/// [`detect::detect_language_python_first`] (the fully-supported backend path),
-/// matching `hm render`.
+/// which carry no pipelines.
 ///
 /// # Errors
 ///
@@ -41,9 +38,8 @@ pub async fn run(args: PipelinesArgs) -> Result<()> {
         return Ok(());
     }
 
-    let lang =
-        detect::detect_language_python_first(&repo_root).context("detecting pipeline language")?;
-    let engine = engine_for(lang).context("initializing DSL engine")?;
+    detect::check_python(&repo_root).context("detecting pipeline language")?;
+    let engine = python_engine().context("initializing DSL engine")?;
     let json = engine
         .registry_json(&repo_root)
         .await

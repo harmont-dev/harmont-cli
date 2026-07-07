@@ -345,7 +345,7 @@ class TestAutoDetection:
 
 
 # ---------------------------------------------------------------------------
-# Corepack version pin (parity with the TypeScript DSL)
+# Corepack version pin
 # ---------------------------------------------------------------------------
 
 

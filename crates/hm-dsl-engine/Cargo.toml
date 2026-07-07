@@ -4,7 +4,7 @@ version = "0.0.0-dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "DSL engine: evaluate Python/TypeScript pipeline definitions via system runtimes."
+description = "DSL engine: evaluate Python pipeline definitions via system runtimes."
 keywords = ["ci", "harmont", "dsl"]
 categories = ["command-line-utilities"]
 

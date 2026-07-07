@@ -31,13 +31,13 @@ impl TemplateKind {
             },
             Self::Nextjs => Template {
                 label: "Next.js",
-                filename: "pipeline.ts",
-                content: include_str!("init_templates/nextjs.ts"),
+                filename: "pipeline.py",
+                content: include_str!("init_templates/nextjs.py"),
             },
             Self::Js => Template {
                 label: "JavaScript / TypeScript",
-                filename: "pipeline.ts",
-                content: include_str!("init_templates/js.ts"),
+                filename: "pipeline.py",
+                content: include_str!("init_templates/js.py"),
             },
             Self::Rust => Template {
                 label: "Rust",
@@ -46,8 +46,8 @@ impl TemplateKind {
             },
             Self::Zig => Template {
                 label: "Zig",
-                filename: "pipeline.ts",
-                content: include_str!("init_templates/zig.ts"),
+                filename: "pipeline.py",
+                content: include_str!("init_templates/zig.py"),
             },
             Self::Python => Template {
                 label: "Python",

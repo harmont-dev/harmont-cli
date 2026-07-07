@@ -3,7 +3,7 @@ name: write-pipeline
 description: Write or modify Harmont CI pipelines. Use when creating new pipelines, adding/removing steps, switching toolchains, customizing caching/triggers, or when the user asks to set up CI with Harmont. Fetches live documentation from docs.harmont.dev for up-to-date API reference.
 ---
 
-Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py` (Python) or `.hm/pipeline.ts` (TypeScript). Pipelines are real programs that import the `harmont` SDK and declaratively define build steps, triggers, and caching.
+Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py`. Pipelines are real Python programs that import the `harmont` SDK and declaratively define build steps, triggers, and caching.
 
 ## When to use
 
@@ -46,11 +46,7 @@ Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py` (Pyth
 
 1. **Identify the project's language and build system.** Look at the project root for `Cargo.toml` (Rust), `package.json` (JS/TS), `pyproject.toml` or `setup.py` (Python), `go.mod` (Go), `CMakeLists.txt` (C/C++), `mix.exs` (Elixir), `build.zig` (Zig).
 
-2. **Check for an existing pipeline.** Look for `.hm/pipeline.py` or `.hm/pipeline.ts`. If none exists, pick the DSL that matches the project's ecosystem before asking the user to confirm:
-   - **TypeScript DSL** if the project already has `package.json`, `tsconfig.json`, or is primarily TypeScript/JavaScript (the team is already comfortable with the TS toolchain).
-   - **Python DSL** for everything else — Rust, Go, C/C++, Elixir, Zig, Python, or mixed-language projects (Python is the simpler, more universal choice).
-   - Present your recommendation and rationale, then let the user override if they prefer the other DSL.
-   Then either run `hm init --template <kind>` to scaffold or write the pipeline file directly.
+2. **Check for an existing pipeline.** Look for `.hm/pipeline.py`. If none exists, run `hm init --template <kind>` to scaffold or write the pipeline file directly.
 
 3. **Fetch the relevant documentation** (see "Before you start" above). Always fetch the patterns guide first. Then fetch the toolchain reference for the detected language.
 
@@ -101,7 +97,7 @@ Write, modify, or extend Harmont CI pipelines defined in `.hm/pipeline.py` (Pyth
 
 - **Always fetch documentation before writing pipelines.** The SDK evolves; do not rely on memorized API surfaces. The `.md` suffix on any docs.harmont.dev URL returns raw Markdown suitable for reading.
 - **Prefer toolchains over raw shell.** The patterns guide explains why. Only use `hm.sh()` / `sh()` for custom commands that no toolchain covers.
-- Pipelines live in `.hm/pipeline.py` or `.hm/pipeline.ts` — never both in the same project.
+- Pipelines live in `.hm/pipeline.py`.
 - `hm run` is the ONLY correct way to validate a pipeline locally. Do NOT try to run pipeline steps manually.
-- The Python DSL uses decorators (`@hm.pipeline`). The TypeScript DSL uses an exported `PipelineDefinition[]` array with `export default`.
+- The DSL uses decorators (`@hm.pipeline`, `@hm.target`).
 - Do NOT file GitHub issues without the user's explicit permission.

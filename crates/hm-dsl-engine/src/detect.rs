@@ -2,56 +2,23 @@ use std::path::Path;
 
 use anyhow::{Context, bail};
 
-use crate::DslLanguage;
-
-/// Detect the DSL language used in a project by scanning `.hm/` for file
-/// extensions. Prefers **TypeScript** when both are present (the `hm run`
-/// default).
+/// Scan `.hm/` and report if python extensions are present. A missing `.hm/`
+/// directory yields all-`false`; an unreadable one is an error.
 ///
 /// # Errors
 ///
 /// - The `.hm/` directory does not exist.
 /// - No `.py` or `.ts` files are found inside `.hm/`.
-pub fn detect_language(repo_root: &Path) -> anyhow::Result<DslLanguage> {
+pub fn check_python(repo_root: &Path) -> anyhow::Result<()> {
     let harmont_dir = repo_root.join(".hm");
     if !harmont_dir.is_dir() {
         bail!("no .hm/ directory found in {}", repo_root.display());
     }
-    let langs = scan_extensions(repo_root)?;
-    if langs.has_ts {
-        // When both languages are present, prefer TypeScript.
-        Ok(DslLanguage::TypeScript)
-    } else if langs.has_py {
-        Ok(DslLanguage::Python)
+    let has_py = scan_for_py_files(&harmont_dir)?;
+    if has_py {
+        Ok(())
     } else {
-        bail!("no .py or .ts files found in {}", harmont_dir.display())
-    }
-}
-
-/// Like [`detect_language`] but prefers **Python** when both are present.
-///
-/// Used by the machine-facing `hm pipelines` / `hm render` commands that the
-/// backend shells out to: the Python path is the fully-supported one (the
-/// discovery envelope is Python-only today), so a repo carrying both a `.py`
-/// and a redundant `.ts` resolves to Python rather than the unsupported TS
-/// registry. `hm run` keeps the TypeScript-preferring [`detect_language`].
-///
-/// # Errors
-///
-/// - The `.hm/` directory does not exist.
-/// - No `.py` or `.ts` files are found inside `.hm/`.
-pub fn detect_language_python_first(repo_root: &Path) -> anyhow::Result<DslLanguage> {
-    let harmont_dir = repo_root.join(".hm");
-    if !harmont_dir.is_dir() {
-        bail!("no .hm/ directory found in {}", repo_root.display());
-    }
-    let langs = scan_extensions(repo_root)?;
-    if langs.has_py {
-        Ok(DslLanguage::Python)
-    } else if langs.has_ts {
-        Ok(DslLanguage::TypeScript)
-    } else {
-        bail!("no .py or .ts files found in {}", harmont_dir.display())
+        bail!("no .py files found in {}", harmont_dir.display())
     }
 }
 
@@ -60,44 +27,26 @@ pub fn detect_language_python_first(repo_root: &Path) -> anyhow::Result<DslLangu
 /// The backend fans pipeline discovery out across every repo in an
 /// installation, most of which declare no pipelines at all. Those repos should
 /// yield an empty registry, not an error — callers use this to short-circuit to
-/// an empty envelope instead of calling [`detect_language_python_first`].
+/// an empty envelope instead of calling [`check_python`].
 #[must_use]
 pub fn has_pipeline_files(repo_root: &Path) -> bool {
-    matches!(scan_extensions(repo_root), Ok(langs) if langs.has_py || langs.has_ts)
+    matches!(check_python(repo_root), Ok(()))
 }
 
-/// Which DSL extensions a `.hm/` scan turned up. Named fields make a py/ts
-/// swap at a call site impossible to express, unlike a bare `(bool, bool)`.
-struct DetectedLangs {
-    has_py: bool,
-    has_ts: bool,
-}
-
-/// Scan `.hm/` and report which DSL extensions are present. A missing `.hm/`
-/// directory yields all-`false`; an unreadable one is an error.
-fn scan_extensions(repo_root: &Path) -> anyhow::Result<DetectedLangs> {
-    let harmont_dir = repo_root.join(".hm");
-    if !harmont_dir.is_dir() {
-        return Ok(DetectedLangs {
-            has_py: false,
-            has_ts: false,
-        });
-    }
-
-    let entries = std::fs::read_dir(&harmont_dir)
-        .with_context(|| format!("failed to read {}", harmont_dir.display()))?;
+fn scan_for_py_files(folder: &Path) -> anyhow::Result<bool> {
+    let entries = std::fs::read_dir(folder)
+        .with_context(|| format!("failed to read {}", folder.display()))?;
 
     let mut has_py = false;
-    let mut has_ts = false;
+    // we don't short-circuit to ensure our folder was read successfully
     for entry in entries {
         let entry = entry?;
-        match entry.path().extension().and_then(|e| e.to_str()) {
-            Some("py") => has_py = true,
-            Some("ts") => has_ts = true,
-            _ => {}
+        if entry.path().extension().is_some_and(|e| e == "py") {
+            has_py = true;
         }
     }
-    Ok(DetectedLangs { has_py, has_ts })
+
+    Ok(has_py)
 }
 
 #[cfg(test)]
@@ -122,29 +71,14 @@ mod tests {
     #[test]
     fn python_file_detected() {
         let tmp = setup(&["ci.py"]);
-        let lang = detect_language(tmp.path()).unwrap();
-        assert_eq!(lang, DslLanguage::Python);
-    }
-
-    #[test]
-    fn typescript_file_detected() {
-        let tmp = setup(&["ci.ts"]);
-        let lang = detect_language(tmp.path()).unwrap();
-        assert_eq!(lang, DslLanguage::TypeScript);
-    }
-
-    #[test]
-    fn mixed_languages_prefers_typescript() {
-        let tmp = setup(&["ci.py", "deploy.ts"]);
-        let lang = detect_language(tmp.path()).unwrap();
-        assert_eq!(lang, DslLanguage::TypeScript);
+        check_python(tmp.path()).unwrap();
     }
 
     #[test]
     fn no_harmont_dir_is_error() {
         let tmp = TempDir::new().unwrap();
         // Do NOT create .hm/
-        let err = detect_language(tmp.path()).unwrap_err();
+        let err = check_python(tmp.path()).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("no .hm/ directory"), "unexpected error: {msg}");
     }
@@ -153,36 +87,29 @@ mod tests {
     fn empty_harmont_dir_is_error() {
         let tmp = TempDir::new().unwrap();
         fs::create_dir(tmp.path().join(".hm")).unwrap();
-        let err = detect_language(tmp.path()).unwrap_err();
+        let err = check_python(tmp.path()).unwrap_err();
         let msg = err.to_string();
-        assert!(
-            msg.contains("no .py or .ts files"),
-            "unexpected error: {msg}"
-        );
+        assert!(msg.contains("no .py files"), "unexpected error: {msg}");
     }
 
     #[test]
-    fn python_first_prefers_python_when_mixed() {
+    fn other_file_extensions_dont_affect_the_check() {
         let tmp = setup(&["ci.py", "deploy.ts"]);
-        assert_eq!(
-            detect_language_python_first(tmp.path()).unwrap(),
-            DslLanguage::Python
-        );
+        assert_eq!(check_python(tmp.path()).unwrap(), ());
     }
 
     #[test]
-    fn python_first_falls_back_to_typescript_when_only_ts() {
+    fn python_fails_when_only_ts() {
         let tmp = setup(&["ci.ts"]);
-        assert_eq!(
-            detect_language_python_first(tmp.path()).unwrap(),
-            DslLanguage::TypeScript
-        );
+        let err = check_python(tmp.path()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("no .py files"), "unexpected error: {msg}");
     }
 
     #[test]
     fn python_first_no_harmont_dir_is_error() {
         let tmp = TempDir::new().unwrap();
-        let err = detect_language_python_first(tmp.path()).unwrap_err();
+        let err = check_python(tmp.path()).unwrap_err();
         assert!(
             err.to_string().contains("no .hm/ directory"),
             "unexpected error: {err}"
@@ -190,9 +117,9 @@ mod tests {
     }
 
     #[test]
-    fn has_pipeline_files_true_for_py_and_ts() {
+    fn has_pipeline_files_true_for_py() {
         assert!(has_pipeline_files(setup(&["ci.py"]).path()));
-        assert!(has_pipeline_files(setup(&["ci.ts"]).path()));
+        assert!(!has_pipeline_files(setup(&["ci.ts"]).path()));
         assert!(has_pipeline_files(setup(&["ci.py", "deploy.ts"]).path()));
     }
 

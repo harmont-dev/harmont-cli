@@ -13,12 +13,12 @@
 </p>
 
 <p>
-  <b>CI/CD as real code. Write your pipelines in Python or TypeScript, then run the exact same pipeline locally in Docker or on managed runners in <a href="https://app.harmont.dev">Harmont Cloud</a> — with layer caching and DAG parallelism built in.</b>
+  <b>CI/CD as real code. Write your pipelines in Python, then run the exact same pipeline locally in Docker or on managed runners in <a href="https://app.harmont.dev">Harmont Cloud</a> — with layer caching and DAG parallelism built in.</b>
 </p>
 
 ## What is Harmont?
 
-Harmont lets you define CI/CD pipelines in **TypeScript or Python** and run them
+Harmont lets you define CI/CD pipelines in **Python** and run them
 two ways from a single definition: instantly on your own machine in Docker, or on
 managed runners in [Harmont Cloud](https://app.harmont.dev). It's the same
 pipeline either way — the run you debug locally is byte-for-byte the run that
@@ -76,7 +76,7 @@ cargo install harmont-cli
 hm init
 ```
 
-`hm init` scaffolds a working `.hm/pipeline.{py,ts}` from a template and offers
+`hm init` scaffolds a working `.hm/pipeline.{py}` from a template and offers
 to install Claude Code skills that write and maintain your pipeline. Run it and
 pick your stack from the menu, or name a template up front with `-t`:
 
@@ -99,10 +99,7 @@ same pipeline, on managed runners. See [Cloud](#cloud) below.
 
 ### Or write it by hand
 
-A pipeline is just code. Save this as `.hm/pipeline.py` (or `.hm/pipeline.ts`):
-
-<details open>
-<summary><b>Python</b></summary>
+A pipeline is just code. Save this as `.hm/pipeline.py`:
 
 ```python
 import harmont as hm
@@ -124,37 +121,6 @@ def ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:
         project.typecheck(),
     )
 ```
-
-</details>
-
-<details>
-<summary><b>TypeScript</b></summary>
-
-```typescript
-import { pipeline, push, type PipelineDefinition } from "@harmont/hm";
-import { python } from "@harmont/hm/toolchains";
-
-const project = python({ path: "." });
-
-const pipelines: PipelineDefinition[] = [
-  {
-    slug: "ci",
-    triggers: [push({ branch: "main" })],
-    pipeline: pipeline(
-      [
-        project.test(),
-        project.lint(),
-        project.fmt(),
-        project.typecheck(),
-      ],
-    ),
-  },
-];
-
-export default pipelines;
-```
-
-</details>
 
 ```sh
 hm run ci
@@ -372,7 +338,7 @@ input reference, sub-actions, and caching details.
 ## Examples
 
 The [`examples/`](./examples) directory has a complete, runnable pipeline for
-each stack — every one shipped in **both** Python and TypeScript:
+each stack:
 
 | | | |
 |---|---|---|

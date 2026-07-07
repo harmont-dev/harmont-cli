@@ -135,3 +135,14 @@ impl DslEngine for SubprocessPythonEngine {
             .context("dumping pipeline registry via python3")
     }
 }
+
+/// Instanciates a python engine.
+/// Shorthand for [`SubprocessPythonEngine`].
+///
+/// # Errors
+///
+/// Returns an error if `python3` is not found on `PATH`.
+#[inline]
+pub fn engine() -> Result<SubprocessPythonEngine> {
+    SubprocessPythonEngine::new()
+}
