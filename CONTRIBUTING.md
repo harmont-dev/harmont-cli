@@ -75,13 +75,6 @@ Build everything from the workspace root:
 cargo build
 ```
 
-Run your freshly built CLI against a real project — the `examples/`
-directory has fourteen runnable projects to try it on:
-
-```sh
-cargo run -p harmont-cli -- run ci --backend docker --dir examples/rust
-```
-
 ### Python setup
 
 The `hm` CLI shells out to `python3` to evaluate `.hm/*.py` pipeline files.
@@ -101,6 +94,13 @@ use [direnv](https://direnv.net/) to activate automatically.
 > Python SDK itself (running pytest, ruff, ty). The top-level venv exists
 > solely to put the right `python3` on your PATH — no packages need to be
 > installed in it.
+
+With the venv active, run your freshly built CLI against a real project —
+the `examples/` directory has fourteen runnable projects to try it on:
+
+```sh
+cargo run -p harmont-cli -- run ci --backend docker --dir examples/rust
+```
 
 ## Running the checks
 
