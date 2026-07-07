@@ -17,48 +17,9 @@ use std::io::Read;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
 use crate::cli::SecretCommand;
-
-/// Characters to percent-encode in a single URL path segment.
-///
-/// RFC 3986 leaves the *unreserved* set (`A-Z a-z 0-9 - . _ ~`) safe in a
-/// path segment; everything else is escaped. We start from [`CONTROLS`] and
-/// add every printable ASCII byte that is reserved, a delimiter, or
-/// otherwise unsafe in a path — notably `/` and space, which must survive
-/// as `%2F`/`%20` so a name like `a/b c` can't escape its scope. Secret
-/// names are conventionally `[A-Za-z0-9_]`, but we don't assume that.
-const SEGMENT: &AsciiSet = &CONTROLS
-    .add(b' ')
-    .add(b'!')
-    .add(b'"')
-    .add(b'#')
-    .add(b'$')
-    .add(b'%')
-    .add(b'&')
-    .add(b'\'')
-    .add(b'(')
-    .add(b')')
-    .add(b'*')
-    .add(b'+')
-    .add(b',')
-    .add(b'/')
-    .add(b':')
-    .add(b';')
-    .add(b'<')
-    .add(b'=')
-    .add(b'>')
-    .add(b'?')
-    .add(b'@')
-    .add(b'[')
-    .add(b'\\')
-    .add(b']')
-    .add(b'^')
-    .add(b'`')
-    .add(b'{')
-    .add(b'|')
-    .add(b'}');
 
 /// Where the secret value comes from on `set`.
 ///
@@ -85,7 +46,7 @@ fn secrets_path(org: &str, pipeline: Option<&str>) -> String {
 
 /// Append a URL-path-escaped secret name to a collection path.
 fn secret_item_path(collection: &str, name: &str) -> String {
-    format!("{collection}/{}", utf8_percent_encode(name, SEGMENT))
+    format!("{collection}/{}", utf8_percent_encode(name, NON_ALPHANUMERIC))
 }
 
 /// Resolve the secret value from exactly one of: positional `VALUE`,
@@ -463,12 +424,11 @@ mod tests {
     }
 
     #[test]
-    fn unreserved_name_is_not_encoded() {
+    fn special_chars_are_encoded() {
         let coll = secrets_path("acme", None);
-        // RFC 3986 unreserved chars (incl. `-` `_` `.` `~`) must pass through.
         assert_eq!(
             secret_item_path(&coll, "DEPLOY-TOKEN_v2.0~rc"),
-            "/api/v0/organizations/acme/secrets/DEPLOY-TOKEN_v2.0~rc"
+            "/api/v0/organizations/acme/secrets/DEPLOY%2DTOKEN%5Fv2%2E0%7Erc"
         );
     }
 
