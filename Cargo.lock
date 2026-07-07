@@ -1137,9 +1137,9 @@ dependencies = [
 
 [[package]]
 name = "harmont-cloud"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a55df2e5c3f98237b9949e4a75b7def80210a6a3ff798ac55566d81137e0c44"
+checksum = "5d7dc914e40dc611e16fd53b968a2d98a542ee73597a823a7ee5e689bd3b3343"
 dependencies = [
  "base64",
  "bytes",
@@ -1158,9 +1158,9 @@ dependencies = [
 
 [[package]]
 name = "harmont-cloud-raw"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "365765cdef9c7aa758bb409ae312f599d63e6984dd69f21af946181e09433ab3"
+checksum = "24b79f84275fece58fad7fd1a96bfe5cea12484edd61e3819383d13086d9da46"
 dependencies = [
  "bytes",
  "chrono",
