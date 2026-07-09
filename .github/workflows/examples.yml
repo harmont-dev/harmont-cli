@@ -84,6 +84,7 @@ jobs:
           - python-uv
           - react
           - rust
+          - scala
           - typescript
           - zig-js
           - zig

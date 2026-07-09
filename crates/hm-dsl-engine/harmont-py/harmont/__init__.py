@@ -44,6 +44,7 @@ from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
 from ._toolchain import apt_base
 from ._typing import BaseImage, Target
+from ._scala import scala
 from ._zig import zig
 from .cache import (
     CacheCompose,
@@ -329,6 +330,7 @@ __all__ = [
     "py",
     "python",
     "rust",
+    "scala",
     "scratch",
     "sh",
     "target",
