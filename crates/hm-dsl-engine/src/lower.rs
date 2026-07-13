@@ -10,11 +10,12 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use hm_pipeline_ir::PipelineGraph;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
+use crate::keygen::{self, LowerOptions};
 use crate::step_chain::{RawCachePolicy, RawStepChain};
 
 /// Across-the-board default image for imageless root steps. The SDK's
@@ -22,7 +23,11 @@ use crate::step_chain::{RawCachePolicy, RawStepChain};
 /// default; child steps boot from their parent's snapshot and stay imageless.
 const DEFAULT_IMAGE: &str = "ubuntu:24.04";
 
-/// Lower a raw step chain into the canonical [`PipelineGraph`].
+/// Lower a raw step chain into the canonical [`PipelineGraph`] without
+/// resolving cache keys.
+///
+/// Equivalent to [`lower_with_options`] with `None` — cached steps emit a bare
+/// `{"policy": ...}` with no `key`. Use [`lower_with_options`] to resolve keys.
 ///
 /// # Errors
 ///
@@ -30,6 +35,23 @@ const DEFAULT_IMAGE: &str = "ubuntu:24.04";
 /// [`PipelineGraph`] — e.g. a step declares a zero-second timeout, which the
 /// IR rejects at the wire boundary.
 pub fn lower(chain: &RawStepChain) -> Result<PipelineGraph> {
+    lower_with_options(chain, None)
+}
+
+/// Lower a raw step chain into the canonical [`PipelineGraph`], optionally
+/// resolving cache keys.
+///
+/// When `opts` is `Some`, every non-`none` cache policy gets a deterministic
+/// `key` resolved byte-for-byte identically to the Python resolver (see
+/// [`crate::keygen`]). When `None`, cache-key resolution is skipped.
+///
+/// # Errors
+///
+/// Returns an error if the emitted graph fails to deserialize into a
+/// [`PipelineGraph`], if a cached step's `builds_in` parent is itself
+/// uncached, or if cache-key resolution fails (e.g. a missing `on_change`
+/// path).
+pub fn lower_with_options(chain: &RawStepChain, opts: Option<&LowerOptions>) -> Result<PipelineGraph> {
     let ordered = topo_collect(chain);
     let command_steps: Vec<usize> = ordered
         .iter()
@@ -53,6 +75,10 @@ pub fn lower(chain: &RawStepChain) -> Result<PipelineGraph> {
     let mut pre_wait_indices: Vec<usize> = Vec::new();
     let mut pending_depends_on: Vec<usize> = Vec::new();
 
+    // Resolved cache key per step key, populated as nodes are emitted so a
+    // child can read its `builds_in` parent's key. Only used when `opts` set.
+    let mut resolved_cache: HashMap<String, String> = HashMap::new();
+
     for &raw in &ordered {
         let step = &chain.steps[raw];
         if step.is_wait {
@@ -74,7 +100,8 @@ pub fn lower(chain: &RawStepChain) -> Result<PipelineGraph> {
             step_dict.insert("label".into(), Value::String(label.clone()));
         }
         if let Some(cache) = &step.cache {
-            step_dict.insert("cache".into(), cache_to_value(cache));
+            let key = resolve_cache_key(chain, raw, cache, cmd, &keys, opts, &mut resolved_cache)?;
+            step_dict.insert("cache".into(), cache_to_value(cache, key));
         }
         if let Some(timeout) = step.timeout_seconds {
             step_dict.insert("timeout_seconds".into(), Value::from(timeout));
@@ -186,9 +213,10 @@ fn resolved_parent_idx(chain: &RawStepChain, raw: usize) -> Option<usize> {
     None
 }
 
-/// Render a raw cache policy to its IR `Cache` shape. Only the policy name
-/// survives here; cache-key resolution is a separate pass.
-fn cache_to_value(cache: &RawCachePolicy) -> Value {
+/// Render a raw cache policy to its IR `Cache` shape. The rich policy data
+/// (env keys, durations, paths, sub-policies) is dropped; only the policy name
+/// and the pre-resolved `key` survive.
+fn cache_to_value(cache: &RawCachePolicy, key: Option<String>) -> Value {
     let policy = match cache {
         RawCachePolicy::None => "none",
         RawCachePolicy::Forever { .. } => "forever",
@@ -196,7 +224,51 @@ fn cache_to_value(cache: &RawCachePolicy) -> Value {
         RawCachePolicy::OnChange { .. } => "on_change",
         RawCachePolicy::Compose { .. } => "compose",
     };
-    json!({ "policy": policy })
+    let mut map = Map::new();
+    map.insert("policy".into(), Value::String(policy.into()));
+    if let Some(key) = key {
+        map.insert("key".into(), Value::String(key));
+    }
+    Value::Object(map)
+}
+
+/// Resolve a step's cache key during lowering, recording it for descendants.
+///
+/// Returns `None` when key resolution is disabled (`opts` is `None`) or the
+/// policy is `none`. The `builds_in` parent's resolved key is looked up from
+/// `resolved` — a cached step whose parent is itself uncached is an error,
+/// matching the Python resolver's `_lookup_parent`.
+fn resolve_cache_key(
+    chain: &RawStepChain,
+    raw: usize,
+    cache: &RawCachePolicy,
+    cmd: &str,
+    keys: &HashMap<usize, String>,
+    opts: Option<&LowerOptions>,
+    resolved: &mut HashMap<String, String>,
+) -> Result<Option<String>> {
+    let Some(opts) = opts else { return Ok(None) };
+    if matches!(cache, RawCachePolicy::None) {
+        return Ok(None);
+    }
+
+    let step_key = &keys[&raw];
+    let parent_resolved = match resolved_parent_idx(chain, raw) {
+        None => "scratch".to_owned(),
+        Some(parent_raw) => {
+            let parent_key = &keys[&parent_raw];
+            resolved.get(parent_key).cloned().ok_or_else(|| {
+                anyhow!(
+                    "step {step_key:?} references builds_in {parent_key:?} which has no \
+                     cached key (parent must be defined upstream and cached)"
+                )
+            })?
+        }
+    };
+
+    let key = keygen::compute_cache_key(step_key, cmd, cache, &parent_resolved, opts)?;
+    resolved.insert(step_key.clone(), key.clone());
+    Ok(Some(key))
 }
 
 /// Resolve each command step's cross-reference key, keyed by raw index.
