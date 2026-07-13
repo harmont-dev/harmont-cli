@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 pub mod detect;
 pub mod lower;
+pub mod raw_envelope;
 pub mod step_chain;
 mod python_engine;
 
