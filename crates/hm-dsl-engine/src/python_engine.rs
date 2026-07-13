@@ -1,11 +1,13 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Stdio;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use tracing::debug;
 
 use crate::bundled_sources;
+use crate::raw_envelope::{FinalEnvelope, RawEnvelope, process_raw_envelope_with_options};
 use crate::{DslEngine, PipelineMeta};
 
 const LIST_PIPELINES_SCRIPT: &str = "\
@@ -35,27 +37,6 @@ for p in sorted(pathlib.Path('.hm').glob('*.py')):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 sys.stdout.write(hm.dump_registry_json())
-";
-
-const RENDER_PIPELINE_SCRIPT: &str = "\
-import sys, json, pathlib, importlib.util
-try:
-    import harmont as hm
-except ImportError as e:
-    print(f'error: {e}', file=sys.stderr)
-    sys.exit(1)
-slug = sys.argv[1]
-for p in sorted(pathlib.Path('.hm').glob('*.py')):
-    spec = importlib.util.spec_from_file_location(f'_harmont_{p.stem}', p)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-envelope = json.loads(hm.dump_registry_json())
-match = next((p for p in envelope['pipelines'] if p['slug'] == slug), None)
-if match is None:
-    avail = ', '.join(p['slug'] for p in envelope['pipelines']) or '(none)'
-    print(f'error: pipeline {slug!r} not found\\n  -> available: {avail}', file=sys.stderr)
-    sys.exit(2)
-print(json.dumps(match['definition']))
 ";
 
 #[derive(Debug)]
@@ -108,6 +89,33 @@ impl SubprocessPythonEngine {
 
         String::from_utf8(output.stdout).context("python3 stdout is not valid UTF-8")
     }
+
+    /// Run the Python discovery script, deserialize the raw step-chain
+    /// envelope, and lower every pipeline into the v0 IR in Rust.
+    ///
+    /// Cache keys are resolved here (not in Python) using the same inputs the
+    /// legacy Python resolver used: `pipeline_org` from `HM_PIPELINE_ORG`
+    /// (falling back to `"default"`), the current unix time, `project_dir` as
+    /// the `on_change` base path, and the process environment.
+    async fn run_and_process_envelope(&self, project_dir: &Path) -> Result<FinalEnvelope> {
+        let raw_json = self
+            .run_script(project_dir, REGISTRY_JSON_SCRIPT, &[])
+            .await?;
+        let raw: RawEnvelope =
+            serde_json::from_str(&raw_json).context("parsing raw envelope from Python")?;
+
+        let env: BTreeMap<String, String> = std::env::vars().collect();
+        let org = env
+            .get("HM_PIPELINE_ORG")
+            .cloned()
+            .unwrap_or_else(|| "default".to_owned());
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .context("system clock is before the unix epoch")?
+            .as_secs();
+
+        process_raw_envelope_with_options(raw, &org, now, project_dir, &env)
+    }
 }
 
 #[async_trait]
@@ -124,15 +132,28 @@ impl DslEngine for SubprocessPythonEngine {
     }
 
     async fn render_pipeline_json(&self, project_dir: &Path, slug: &str) -> Result<String> {
-        self.run_script(project_dir, RENDER_PIPELINE_SCRIPT, &[slug])
-            .await
-            .context("rendering pipeline via python3")
+        let envelope = self.run_and_process_envelope(project_dir).await?;
+        let entry = envelope
+            .pipelines
+            .iter()
+            .find(|p| p.slug == slug)
+            .ok_or_else(|| {
+                let avail: String = envelope
+                    .pipelines
+                    .iter()
+                    .map(|p| p.slug.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let avail = if avail.is_empty() { "(none)" } else { &avail };
+                anyhow!("pipeline {slug:?} not found\n  -> available: {avail}")
+            })?;
+        serde_json::to_string(&entry.definition)
+            .with_context(|| format!("serializing definition for pipeline {slug:?}"))
     }
 
     async fn registry_json(&self, project_dir: &Path) -> Result<String> {
-        self.run_script(project_dir, REGISTRY_JSON_SCRIPT, &[])
-            .await
-            .context("dumping pipeline registry via python3")
+        let envelope = self.run_and_process_envelope(project_dir).await?;
+        serde_json::to_string(&envelope).context("serializing lowered discovery envelope")
     }
 }
 

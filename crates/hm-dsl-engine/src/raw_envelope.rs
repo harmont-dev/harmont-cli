@@ -6,9 +6,13 @@
 //! carries the canonical v0 [`hm_pipeline_ir::PipelineGraph`], ready for the
 //! backend's pipeline discovery to consume.
 
+use std::collections::BTreeMap;
+use std::path::Path;
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::keygen::LowerOptions;
 use crate::lower;
 use crate::step_chain::RawStepChain;
 
@@ -59,7 +63,7 @@ pub fn process_raw_envelope(raw: RawEnvelope) -> Result<FinalEnvelope> {
     let pipelines = raw
         .pipelines
         .into_iter()
-        .map(process_entry)
+        .map(|entry| process_entry(entry, None))
         .collect::<Result<Vec<_>>>()?;
     Ok(FinalEnvelope {
         schema_version: raw.schema_version,
@@ -67,8 +71,46 @@ pub fn process_raw_envelope(raw: RawEnvelope) -> Result<FinalEnvelope> {
     })
 }
 
-fn process_entry(entry: RawPipelineEntry) -> Result<FinalPipelineEntry> {
-    let graph = lower::lower(&entry.step_chain)
+/// Lower every pipeline's step chain with cache-key resolution enabled.
+///
+/// Each pipeline is lowered with its own [`LowerOptions`], carrying the
+/// pipeline's slug so resolved cache keys are namespaced per pipeline —
+/// byte-for-byte matching the Python resolver (`pipeline_slug = reg.slug`).
+///
+/// # Errors
+///
+/// Returns an error if any pipeline's step chain fails to lower, if
+/// cache-key resolution fails (e.g. a missing `on_change` path), or if the
+/// resulting graph cannot be serialized.
+pub fn process_raw_envelope_with_options(
+    raw: RawEnvelope,
+    pipeline_org: &str,
+    now: u64,
+    base_path: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<FinalEnvelope> {
+    let pipelines = raw
+        .pipelines
+        .into_iter()
+        .map(|entry| {
+            let opts = LowerOptions {
+                pipeline_org: pipeline_org.to_owned(),
+                pipeline_slug: entry.slug.clone(),
+                now,
+                base_path: base_path.to_path_buf(),
+                env: env.clone(),
+            };
+            process_entry(entry, Some(&opts))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(FinalEnvelope {
+        schema_version: raw.schema_version,
+        pipelines,
+    })
+}
+
+fn process_entry(entry: RawPipelineEntry, opts: Option<&LowerOptions>) -> Result<FinalPipelineEntry> {
+    let graph = lower::lower_with_options(&entry.step_chain, opts)
         .with_context(|| format!("failed to lower pipeline '{}'", entry.slug))?;
     let definition = serde_json::to_value(&graph)
         .with_context(|| format!("failed to serialize definition for pipeline '{}'", entry.slug))?;

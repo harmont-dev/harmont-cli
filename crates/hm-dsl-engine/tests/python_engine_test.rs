@@ -74,3 +74,41 @@ def ci() -> hm.Step:
     assert_eq!(p["triggers"][0]["branches"][0], "main");
     assert_eq!(p["definition"]["version"], "0");
 }
+
+/// A cached step's `cache.key` is resolved by the Rust lowering pass after the
+/// Python subprocess emits the raw step chain — proving cache-key resolution
+/// moved off the Python side.
+#[tokio::test]
+async fn python_render_resolves_cache_keys_in_rust() {
+    if which::which("python3").is_err() {
+        eprintln!("skipping: python3 not on PATH");
+        return;
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir_all(&harmont).unwrap();
+    std::fs::write(
+        harmont.join("ci.py"),
+        r#"import harmont as hm
+
+@hm.pipeline('ci')
+def ci() -> hm.Step:
+    return hm.scratch().sh('curl example.com | tar xz', label='fetch', cache=hm.forever())
+"#,
+    )
+    .unwrap();
+
+    let engine = hm_dsl_engine::python_engine().unwrap();
+    let json_str = engine.render_pipeline_json(dir.path(), "ci").await.unwrap();
+    let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+
+    let cache = &v["graph"]["nodes"][0]["step"]["cache"];
+    assert_eq!(cache["policy"], "forever");
+    let key = cache["key"].as_str().expect("cache.key must be resolved");
+    assert_eq!(key.len(), 64, "outer key is a sha256 hex digest: {key}");
+    assert!(
+        key.chars().all(|c| c.is_ascii_hexdigit()),
+        "cache key is not hex: {key}"
+    );
+}
