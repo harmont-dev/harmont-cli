@@ -2,24 +2,28 @@
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 import harmont as hm
+from harmont._serialize import serialize_step_chain
 from harmont.cache import CacheOnChange
-from harmont.keygen import resolve_pipeline_keys
+
+if TYPE_CHECKING:
+    from harmont._step import Step
 
 
-def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+def _cmds(leaves: list[Step]) -> list[str]:
+    chain = serialize_step_chain(list(leaves))
+    return [s["cmd"] for s in chain["steps"] if s.get("cmd") is not None]
 
 
-def _step_by_substring(p: dict, needle: str) -> dict:
-    for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
-            return n["step"]
+def _step_by_substring(leaves: list[Step], needle: str) -> dict:
+    chain = serialize_step_chain(list(leaves))
+    for s in chain["steps"]:
+        if needle in (s.get("cmd") or ""):
+            return s
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
 
@@ -30,18 +34,14 @@ def _step_by_substring(p: dict, needle: str) -> dict:
 class TestRustToolchain:
     def test_full_chain(self):
         tc = hm.rust.toolchain(path="cli")
-        p = hm.pipeline([tc.build()])
-        cmds = _cmds(p)
+        cmds = _cmds([tc.build()])
         assert any("apt-get install" in c for c in cmds)
         assert any("sh.rustup.rs" in c for c in cmds)
         assert any("cd cli && cargo build" in c for c in cmds)
 
     def test_actions_share_install_step(self):
         tc = hm.rust.toolchain(path="cli")
-        p = hm.pipeline(
-            [tc.build(), tc.test(), tc.clippy(), tc.fmt(), tc.doc()],
-        )
-        cmds = _cmds(p)
+        cmds = _cmds([tc.build(), tc.test(), tc.clippy(), tc.fmt(), tc.doc()])
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
         assert len([c for c in cmds if "apt-get install" in c]) == 1
 
@@ -57,27 +57,23 @@ class TestRustToolchain:
 
     def test_rustup_cache_forever(self):
         tc = hm.rust.toolchain(path="cli")
-        p = hm.pipeline([tc.build()])
-        rustup = _step_by_substring(p, "sh.rustup.rs")
+        rustup = _step_by_substring([tc.build()], "sh.rustup.rs")
         assert rustup["cache"]["policy"] == "forever"
 
     def test_default_components(self):
         tc = hm.rust.toolchain(path=".")
-        p = hm.pipeline([tc.build()])
-        rustup = _step_by_substring(p, "sh.rustup.rs")
+        rustup = _step_by_substring([tc.build()], "sh.rustup.rs")
         assert "--component clippy,rustfmt" in rustup["cmd"]
 
     def test_components_override(self):
         tc = hm.rust.toolchain(path=".", components=("clippy",))
-        p = hm.pipeline([tc.build()])
-        rustup = _step_by_substring(p, "sh.rustup.rs")
+        rustup = _step_by_substring([tc.build()], "sh.rustup.rs")
         assert "--component clippy" in rustup["cmd"]
         assert "rustfmt" not in rustup["cmd"]
 
     def test_version_in_rustup_cmd(self):
         tc = hm.rust.toolchain(path=".", version="1.81.0")
-        p = hm.pipeline([tc.build()])
-        rustup = _step_by_substring(p, "sh.rustup.rs")
+        rustup = _step_by_substring([tc.build()], "sh.rustup.rs")
         assert "--default-toolchain 1.81.0" in rustup["cmd"]
 
     def test_invalid_version_rejected(self):
@@ -90,8 +86,7 @@ class TestRustToolchain:
             "cd cli && cargo build --release --features foo",
             label=":rust: custom",
         )
-        p = hm.pipeline([custom])
-        cmds = _cmds(p)
+        cmds = _cmds([custom])
         assert any("--features foo" in c for c in cmds)
 
     def test_action_labels(self):
@@ -114,15 +109,13 @@ class TestRustToolchain:
 
     def test_image_emitted_on_apt_step(self):
         tc = hm.rust.toolchain(path=".", image="alpine:3.20")
-        p = hm.pipeline([tc.build()])
-        apt = _step_by_substring(p, "apt-get install")
+        apt = _step_by_substring([tc.build()], "apt-get install")
         assert apt.get("image") == "alpine:3.20"
 
     def test_with_base_skips_apt(self):
         base = hm.scratch().sh("custom base", label="base")
         tc = hm.rust.toolchain(path="cli", base=base)
-        p = hm.pipeline([tc.build()])
-        cmds = _cmds(p)
+        cmds = _cmds([tc.build()])
         assert not any("apt-get install" in c for c in cmds)
         assert any("custom base" in c for c in cmds)
         assert any("sh.rustup.rs" in c for c in cmds)
@@ -154,8 +147,7 @@ class TestRustToolchain:
             ". $HOME/.cargo/env && cd cli && cargo test --workspace --locked",
             label=":rust: test",
         )
-        p = hm.pipeline([t, tc.fmt()])
-        cmds = _cmds(p)
+        cmds = _cmds([t, tc.fmt()])
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
         assert any("cargo fmt" in c for c in cmds)
@@ -259,8 +251,7 @@ class TestRustToolchain:
     def test_feature_powerset_installs_cargo_hack(self):
         tc = hm.rust.toolchain(path="cli")
         s = tc.feature_powerset()
-        p = hm.pipeline([s])
-        cmds = _cmds(p)
+        cmds = _cmds([s])
         assert any("cargo install cargo-hack --locked" in c for c in cmds)
 
     def test_feature_powerset_each_feature(self):
@@ -332,38 +323,6 @@ class TestRustProject:
         assert proj.clippy().cmd is not None
         assert proj.fmt().cmd is not None
 
-    def test_empty_path_throws_error_is_caught(self):
-        proj = hm.rust.project(path="")
-        graph = {
-            "nodes": [
-                {
-                    "step": {
-                        "key": "a",
-                        "cmd": "cargo build",
-                        "cache": {
-                            "policy": "on_change",
-                            "paths": list(proj.warmup.cache.paths),
-                        },
-                    },
-                    "env": {},
-                },
-            ],
-            "node_holes": [],
-            "edge_property": "directed",
-            "edges": [],
-        }
-
-        with tempfile.TemporaryDirectory() as d:
-            res = resolve_pipeline_keys(
-                graph,
-                pipeline_org="default",
-                pipeline_slug="default",
-                now=0,
-                base_path=Path(d),
-                env={},
-            )
-            assert res["nodes"][0]["step"]["cache"]["key"] is not None
-
     def test_warmup_implicit_cache_on_change(self):
         proj = hm.rust.project(path="cli")
         assert proj.warmup.cache == CacheOnChange(
@@ -429,8 +388,7 @@ class TestRustProject:
     def test_with_base_skips_apt(self):
         base = hm.scratch().sh("custom base", label="base")
         proj = hm.rust.project(path="cli", base=base)
-        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()])
-        cmds = _cmds(p)
+        cmds = _cmds([proj.test(), proj.clippy(), proj.fmt()])
         assert not any("apt-get install" in c for c in cmds)
         assert any("custom base" in c for c in cmds)
 
@@ -443,8 +401,7 @@ class TestRustProject:
 
     def test_pipeline_ir(self):
         proj = hm.rust.project(path="cli")
-        p = hm.pipeline([proj.test(), proj.clippy(), proj.fmt()])
-        cmds = _cmds(p)
+        cmds = _cmds([proj.test(), proj.clippy(), proj.fmt()])
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
         assert any("cargo clippy" in c for c in cmds)
@@ -454,8 +411,7 @@ class TestRustProject:
 
     def test_version_forwarded(self):
         proj = hm.rust.project(path=".", version="1.81.0")
-        p = hm.pipeline([proj.test()])
-        rustup = _step_by_substring(p, "sh.rustup.rs")
+        rustup = _step_by_substring([proj.test()], "sh.rustup.rs")
         assert "--default-toolchain 1.81.0" in rustup["cmd"]
 
     def test_test_packages(self):
@@ -514,8 +470,7 @@ class TestRustProject:
 
     def test_ci_in_pipeline(self):
         proj = hm.rust.project(path="cli")
-        p = hm.pipeline(list(proj.ci()))
-        cmds = _cmds(p)
+        cmds = _cmds(list(proj.ci()))
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
 
     def test_feature_powerset_delegates(self):

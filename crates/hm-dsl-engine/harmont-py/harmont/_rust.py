@@ -798,7 +798,8 @@ class RustEntry:
         Examples:
             >>> import harmont as hm
             >>> tc = hm.rust.toolchain(version="1.81.0")
-            >>> hm.pipeline([tc.test(), tc.clippy()])
+            >>> tc.test()
+            >>> tc.clippy()
         """
         return _make_rust(
             path=path,

@@ -3,76 +3,45 @@
 See docs/superpowers/specs/2026-05-10-har-9-imperfect-dsl-design.md
 § "The envelope" for the wire format.
 
-Each registered pipeline carries its resolved v0 IR as a nested
-``definition`` object. Consumers (api, cli) read that directly — no
-intermediate Scheme stage exists since HAR-16.
+Each registered pipeline carries its raw step chain as a nested
+``step_chain`` object. Rust (`crates/hm-dsl-engine/src/step_chain.rs`)
+lowers that into the v0 IR — env layering, key resolution, and the
+default-image stamp all live on the Rust side.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import time
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from ._pipeline import pipeline as _assemble
 from ._registry import REGISTRATIONS, PipelineRegistration
+from ._serialize import serialize_step_chain
 from ._target import clear_target_memo
 from ._unwrap import as_leaves
-from .keygen import resolve_pipeline_keys
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
 
 
-def _render_one(
-    reg: PipelineRegistration,
-    *,
-    pipeline_org: str,
-    now: int,
-    base_path: Path,
-    env: Mapping[str, str],
-) -> dict[str, Any]:
+def _render_one(reg: PipelineRegistration) -> dict[str, Any]:
     raw = reg.fn()
     try:
         leaves = as_leaves(raw)
     except TypeError as e:
         msg = f"pipeline {reg.slug!r}: invalid return value\n  → {e}"
         raise TypeError(msg) from e
-    ir = _assemble(leaves, env=reg.env, timeout=reg.timeout)
-    resolve_pipeline_keys(
-        ir.get("graph", {}),
-        pipeline_org=pipeline_org,
-        pipeline_slug=reg.slug,
-        now=now,
-        base_path=base_path,
-        env=env,
-    )
+    step_chain = serialize_step_chain(leaves, env=reg.env, timeout=reg.timeout)
     return {
         "slug": reg.slug,
         "name": reg.name,
         "allow_manual": reg.allow_manual,
         "triggers": [t.to_dict() for t in reg.triggers],
-        "definition": ir,
+        "step_chain": step_chain,
     }
 
 
-def dump_registry_json(
-    *,
-    pipeline_org: str | None = None,
-    now: int | None = None,
-    base_path: Path | None = None,
-    env: Mapping[str, str] | None = None,
-) -> str:
+def dump_registry_json() -> str:
     """Emit the schema_version=1 envelope JSON.
 
-    Defaults mirror ``pipeline_to_json``:
-      ``pipeline_org`` <- ``env["HM_PIPELINE_ORG"]`` or ``"default"``
-      ``now``          <- ``int(time.time())``
-      ``base_path``    <- ``Path.cwd()`` (resolves ``on_change`` cache paths)
-      ``env``          <- ``os.environ``
-    Per-pipeline slug is read from each registration.
+    Each pipeline's raw step chain is serialized; Rust performs the
+    lowering (env layering, cache-key resolution, default-image stamp).
 
     The target memoization cache is cleared at the start of each render
     so per-pipeline target invocations dedup within a single render but
@@ -80,16 +49,9 @@ def dump_registry_json(
     so pipeline fixture-style params can resolve their dependencies.
     """
     clear_target_memo()
-    env_map: Mapping[str, str] = env if env is not None else os.environ
-    org = pipeline_org if pipeline_org is not None else env_map.get("HM_PIPELINE_ORG", "default")
-    render_now = now if now is not None else int(time.time())
-    bp = base_path if base_path is not None else Path.cwd()
     return json.dumps(
         {
             "schema_version": "1",
-            "pipelines": [
-                _render_one(reg, pipeline_org=org, now=render_now, base_path=bp, env=env_map)
-                for reg in REGISTRATIONS
-            ],
+            "pipelines": [_render_one(reg) for reg in REGISTRATIONS],
         }
     )

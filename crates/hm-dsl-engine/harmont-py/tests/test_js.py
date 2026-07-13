@@ -8,6 +8,7 @@ import pytest
 
 import harmont as hm
 from harmont._js import JsProject, js, ts
+from harmont._serialize import serialize_step_chain
 
 # ---------------------------------------------------------------------------
 # Factory defaults
@@ -273,9 +274,9 @@ def test_default_label(runtime: str, expected: str) -> None:
 )
 def test_pipeline_ir(opts: dict) -> None:
     p = js.project(**opts)
-    ir = hm.pipeline([p.run("test"), p.run("lint")])
-    assert ir["version"] == "0"
-    assert len(ir["graph"]["nodes"]) >= 4
+    chain = serialize_step_chain([p.run("test"), p.run("lint")])
+    cmds = [s["cmd"] for s in chain["steps"] if s.get("cmd") is not None]
+    assert len(cmds) >= 4
 
 
 # ---------------------------------------------------------------------------

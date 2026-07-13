@@ -66,30 +66,31 @@ def test_pipeline_with_shared_toolchain_emits_one_install() -> None:
         return (lib_a.build(), lib_b.build())
 
     envelope = json.loads(hm.dump_registry_json())
-    definition = envelope["pipelines"][0]["definition"]
-    nodes = definition["graph"]["nodes"]
-    edges = definition["graph"]["edges"]
+    step_chain = envelope["pipelines"][0]["step_chain"]
+    steps = step_chain["steps"]
 
-    zig_installs = [n for n in nodes if n["step"].get("label") == ":zig: install"]
+    zig_installs = [
+        i for i, s in enumerate(steps) if s.get("label") == ":zig: install"
+    ]
     assert len(zig_installs) == 1, (
-        f"expected exactly one :zig: install node, got {[n['step']['key'] for n in zig_installs]}"
+        f"expected exactly one :zig: install step, got {len(zig_installs)}"
     )
+    install_idx = zig_installs[0]
 
-    install_key = zig_installs[0]["step"]["key"]
-    lib_a_build = next(n for n in nodes if "lib-a" in (n["step"].get("label") or ""))
-    lib_b_build = next(n for n in nodes if "lib-b" in (n["step"].get("label") or ""))
+    lib_a_idx = next(i for i, s in enumerate(steps) if "lib-a" in (s.get("label") or ""))
+    lib_b_idx = next(i for i, s in enumerate(steps) if "lib-b" in (s.get("label") or ""))
 
-    # Verify builds_in edges connect install to both builds.
-    key_by_idx = {i: n["step"]["key"] for i, n in enumerate(nodes)}
-    idx_by_key = {v: k for k, v in key_by_idx.items()}
+    # Both builds descend from the single shared install via parent_idx.
+    def _ancestors(idx: int) -> list[int]:
+        chain: list[int] = []
+        cur: int | None = idx
+        while cur is not None:
+            chain.append(cur)
+            cur = steps[cur].get("parent_idx")
+        return chain
 
-    install_idx = idx_by_key[install_key]
-    lib_a_idx = idx_by_key[lib_a_build["step"]["key"]]
-    lib_b_idx = idx_by_key[lib_b_build["step"]["key"]]
-
-    builds_in_edges = [(s, d) for s, d, k in edges if k == "builds_in"]
-    assert (install_idx, lib_a_idx) in builds_in_edges
-    assert (install_idx, lib_b_idx) in builds_in_edges
+    assert install_idx in _ancestors(lib_a_idx)
+    assert install_idx in _ancestors(lib_b_idx)
 
     reg.clear_registry()
     targets.clear_target_cache()

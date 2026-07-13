@@ -40,7 +40,7 @@ EXAMPLE_IDS = [p.name for p in _example_dirs()]
 
 
 @pytest.mark.parametrize("example_dir", _example_dirs(), ids=EXAMPLE_IDS)
-def test_example_renders_to_v0_ir(
+def test_example_renders_to_step_chain(
     example_dir: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import harmont as hm
@@ -59,17 +59,12 @@ def test_example_renders_to_v0_ir(
         f"{example_dir.name}: no 'ci' pipeline registered; "
         f"got slugs {[p['slug'] for p in envelope['pipelines']]}"
     )
-    definition = ci_pipeline["definition"]
-    assert definition["version"] == "0"
-    assert definition.get("graph", {}).get("nodes"), (
-        f"{example_dir.name}: ci pipeline has no nodes"
-    )
-    nodes = definition.get("graph", {}).get("nodes", [])
-    edges = definition.get("graph", {}).get("edges", [])
-    child_idxs = {e[1] for e in edges if e[2] == "builds_in"}
-    roots = [n for i, n in enumerate(nodes) if i not in child_idxs]
-    assert roots, f"{example_dir.name}: ci pipeline has no root steps"
-    assert all("image" in n["step"] for n in roots), (
-        f"{example_dir.name}: a root step is missing an image — the lowering "
-        f"should stamp the ubuntu:24.04 default on every imageless root"
+    # The envelope now carries the raw step chain; lowering to the v0 IR
+    # (env layering, key resolution, default-image stamp) happens Rust-side.
+    step_chain = ci_pipeline["step_chain"]
+    steps = step_chain["steps"]
+    assert steps, f"{example_dir.name}: ci pipeline has no steps"
+    assert step_chain["leaf_indices"], f"{example_dir.name}: ci pipeline has no leaves"
+    assert any(s.get("cmd") for s in steps), (
+        f"{example_dir.name}: ci pipeline has no command steps"
     )

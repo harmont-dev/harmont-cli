@@ -4,6 +4,10 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 pub mod detect;
+pub mod keygen;
+pub mod lower;
+pub mod raw_envelope;
+pub mod step_chain;
 mod python_engine;
 
 pub use python_engine::{SubprocessPythonEngine, engine as python_engine};

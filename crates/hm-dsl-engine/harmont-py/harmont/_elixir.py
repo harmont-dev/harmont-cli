@@ -92,7 +92,8 @@ class ElixirProject:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.elixir(path="elixir").setup("mix proto.gen")
-            >>> hm.pipeline([proj.compile(), proj.test()])
+            >>> proj.compile()
+            >>> proj.test()
         """
         return advance_install(self, cmd, cwd=cwd, label=label, cache=cache, env=env)
 
@@ -266,7 +267,8 @@ class ElixirEntry:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.elixir(elixir_version="1.18.3")
-            >>> hm.pipeline([proj.compile(), proj.test()])
+            >>> proj.compile()
+            >>> proj.test()
         """
         return _make_elixir(
             path=path,

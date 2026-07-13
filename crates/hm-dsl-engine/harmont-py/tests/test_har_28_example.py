@@ -24,8 +24,8 @@ def _reset(tmp_path, monkeypatch):
     clear_target_names()
 
 
-def _graph_nodes(definition):
-    return definition["graph"]["nodes"]
+def _steps(step_chain):
+    return step_chain["steps"]
 
 
 def test_har_28_example_renders():
@@ -56,16 +56,16 @@ def test_har_28_example_renders():
 
     out = json.loads(hm.dump_registry_json())
     p = out["pipelines"][0]
-    nodes = _graph_nodes(p["definition"])
+    steps = _steps(p["step_chain"])
 
-    cmds = [n["step"].get("cmd") for n in nodes]
+    cmds = [s.get("cmd") for s in steps]
     assert any("pytest -v" in (c or "") for c in cmds)
     assert any("go build" in (c or "") for c in cmds)
     assert any("npm" in (c or "") for c in cmds)
 
     # apt-base used by the venv chain appears exactly once (memoized).
-    apt_update_nodes = [n for n in nodes if n["step"].get("cmd") == "apt-get update"]
-    assert len(apt_update_nodes) == 1
+    apt_update_steps = [s for s in steps if s.get("cmd") == "apt-get update"]
+    assert len(apt_update_steps) == 1
 
 
 def test_har_28_cwd_kwarg_renders_to_cd_prefix():
@@ -74,6 +74,6 @@ def test_har_28_cwd_kwarg_renders_to_cd_prefix():
         return hm.sh("pytest -v", cwd="cidsl/py")
 
     out = json.loads(hm.dump_registry_json())
-    nodes = _graph_nodes(out["pipelines"][0]["definition"])
-    cmds = [n["step"]["cmd"] for n in nodes]
+    steps = _steps(out["pipelines"][0]["step_chain"])
+    cmds = [s.get("cmd") for s in steps]
     assert "cd cidsl/py && pytest -v" in cmds

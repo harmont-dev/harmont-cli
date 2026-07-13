@@ -146,7 +146,7 @@ class ZigToolchain:
         Examples:
             >>> import harmont as hm
             >>> tc = hm.zig().setup("zig build gen")
-            >>> hm.pipeline([tc.project("lib-a").test()])
+            >>> tc.project("lib-a").test()
         """
         return advance_install(self, cmd, cwd=cwd, label=label, cache=cache, env=env)
 
@@ -165,7 +165,8 @@ class ZigToolchain:
             >>> tc = hm.zig(version="0.14.1")
             >>> lib = tc.project("lib-a")
             >>> app = tc.project("app")
-            >>> hm.pipeline([lib.test(), app.test()])
+            >>> lib.test()
+            >>> app.test()
         """
         return ZigProject(path=path, installed=self.installed)
 
@@ -250,7 +251,8 @@ class ZigEntry:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.zig(path=".", version="0.14.1")
-            >>> hm.pipeline([proj.build(), proj.test()])
+            >>> proj.build()
+            >>> proj.test()
         """
         toolchain = _make_toolchain(version=version, image=image, base=base)
         if path is None:

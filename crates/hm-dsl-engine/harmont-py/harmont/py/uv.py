@@ -187,8 +187,8 @@ class UvEntry:
         Examples:
             >>> import harmont.py as hmpy
             >>> proj = hmpy.uv(path="services/api")
-            >>> import harmont as hm
-            >>> hm.pipeline([proj.test(), proj.lint()])
+            >>> proj.test()
+            >>> proj.lint()
         """
         return _make_uv(path=path, version=version, image=image, base=base)
 

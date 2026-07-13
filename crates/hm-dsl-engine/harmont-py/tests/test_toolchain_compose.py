@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import harmont as hm
+from harmont._serialize import serialize_step_chain
 
 
-def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+def _cmds(leaves: list) -> list[str]:
+    chain = serialize_step_chain(list(leaves))
+    return [s["cmd"] for s in chain["steps"] if s.get("cmd") is not None]
 
 
 def test_stack_npm_on_spec_step():
     """spec -> node install -> npm ci -> codegen. Used by dogfood."""
     spec = hm.scratch().sh("make openapi", label=":lock: spec")
     node = hm.js.project(path="app/codegen", base=spec)
-    p = hm.pipeline([node.install()])
-    cmds = _cmds(p)
+    cmds = _cmds([node.install()])
     assert any("make openapi" in c for c in cmds)
     assert any("deb.nodesource.com" in c for c in cmds)
     assert any("npm ci" in c for c in cmds)
@@ -37,7 +38,7 @@ def test_deterministic_emission():
 
     def build() -> dict:
         rust = hm.rust.toolchain(path="cli")
-        return hm.pipeline([rust.build(), rust.test()])
+        return serialize_step_chain([rust.build(), rust.test()])
 
     assert build() == build()
 
@@ -47,17 +48,17 @@ def test_mixed_pipeline_compiles():
     rust = hm.rust.toolchain(path="cli")
     node = hm.js.project(path="app/codegen")
     go = hm.go(path="services/api")
-    p = hm.pipeline(
+    chain = serialize_step_chain(
         [rust.test(), rust.clippy(), node.install(), go.build(), go.test()],
     )
-    assert p["version"] == "0"
-    assert len(p["graph"]["nodes"]) > 0
+    assert len(chain["steps"]) > 0
 
 
-def _step_by_substring(p: dict, needle: str) -> dict:
-    for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
-            return n["step"]
+def _step_by_substring(leaves: list, needle: str) -> dict:
+    chain = serialize_step_chain(list(leaves))
+    for s in chain["steps"]:
+        if needle in (s.get("cmd") or ""):
+            return s
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
 
@@ -77,10 +78,7 @@ def test_apt_base_shared_across_toolchains():
     )
     rust = hm.rust.toolchain(path=".", base=base)
     py = hm.py.uv(path="dsls/harmont-py", base=base)
-    p = hm.pipeline(
-        [rust.build(), py.test()],
-    )
-    cmds = _cmds(p)
+    cmds = _cmds([rust.build(), py.test()])
     assert len([c for c in cmds if "apt-get install" in c]) == 1
     assert any("sh.rustup.rs" in c for c in cmds)
     assert any("uv" in c for c in cmds)
@@ -94,8 +92,7 @@ def test_apt_base_default_label():
 def test_apt_base_custom_image():
     base = hm.apt_base(packages=("curl",), image="debian:bookworm")
     rust = hm.rust.toolchain(path=".", base=base)
-    p = hm.pipeline([rust.build()])
-    apt_step = _step_by_substring(p, "apt-get install")
+    apt_step = _step_by_substring([rust.build()], "apt-get install")
     assert apt_step.get("image") == "debian:bookworm"
 
 

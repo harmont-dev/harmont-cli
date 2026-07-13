@@ -8,9 +8,6 @@ The whole public surface:
     Step.fork(label=None)    -> Step
     wait(*, continue_on_failure=False) -> Step
 
-    pipeline(leaves, *, env=None) -> dict (v0 IR)
-    pipeline_to_json(p, **kw) -> str
-
     @pipeline(slug, ..., triggers=[...], allow_manual=True)  -> decorator
     push(branch=..., tag=...)         -> PushTrigger
     pull_request(branches=..., types=...) -> PullRequestTrigger
@@ -18,10 +15,9 @@ The whole public surface:
 
 Cache helpers: `ttl`, `on_change`, `forever`, `compose`.
 
-``hm.pipeline`` is polymorphic. When called with a list of ``Step``
-objects it builds a v0 IR dict (the factory). When called with no
-positionals or a string slug it returns a decorator that registers a
-function as a CI pipeline (HAR-9).
+``hm.pipeline`` is a decorator that registers a function as a CI pipeline
+(HAR-9). Lowering to the v0 IR happens on the Rust side after the envelope
+is emitted by ``dump_registry_json``.
 """
 
 from __future__ import annotations
@@ -36,8 +32,6 @@ from ._elixir import elixir
 from ._envelope import dump_registry_json
 from ._go import go
 from ._js import JsProject, js, ts
-from ._pipeline import pipeline as _pipeline_factory
-from ._pipeline import pipeline_to_json
 from ._python import python
 from ._rust import RustProject, rust
 from ._step import Step, scratch, wait
@@ -62,46 +56,33 @@ if TYPE_CHECKING:
 
 
 def pipeline(*args: Any, **kwargs: Any) -> Any:
-    """Build a v0 IR dict or register a pipeline function.
-
-    This function is polymorphic based on the type of its positional arguments.
-
-    Factory form — first positional is a list/tuple of ``Step``s:
-
-        pipeline([step1, step2, ...], env=None) -> dict
-
-    Decorator form — no positionals or a string slug:
+    """Register a function as a CI pipeline (decorator form).
 
         @pipeline(slug=None, *, name=None, triggers=(), allow_manual=True,
-                  env=None)
+                  env=None, timeout=None)
         def my_pipeline() -> Step: ...
 
-    The discriminant is the type of the first positional argument:
-    a list or tuple routes to the factory path; anything else
-    (including no positionals) routes to the decorator path.
+    The decorated function returns the terminal ``Step`` (or a tuple/list of
+    leaves) of each branch. Lowering to the v0 IR happens on the Rust side
+    after ``dump_registry_json`` emits the envelope.
 
     Returns:
-        A v0 IR ``dict`` in factory form, or a decorator in decorator form.
+        A decorator that registers the wrapped function and returns it.
 
     Raises:
-        TypeError: When called with the legacy variadic ``Step`` form
-            (``pipeline(step)`` / ``pipeline(a, b)``). The factory now takes
-            a single list of leaves.
+        TypeError: When called with ``Step`` objects or a list of leaves —
+            the pre-CLI-45 factory form (``pipeline([step, ...])``) is gone;
+            annotate a function with ``@pipeline`` and return the leaves.
     """
-    if args and isinstance(args[0], (list, tuple)):
-        return _pipeline_factory(args[0], **kwargs)
-    # Legacy form: leaves passed as positional Step args (pre-CLI-9
-    # `pipeline(step)` / `pipeline(a, b)`). Without this guard the call would
-    # fall through to the decorator and fail far downstream with a cryptic
-    # AttributeError. Fail fast with the migration hint instead.
-    if args and all(isinstance(a, Step) for a in args):
+    if args and (
+        isinstance(args[0], (list, tuple)) or all(isinstance(a, Step) for a in args)
+    ):
         msg = (
-            "hm.pipeline() takes a single list of leaves, not variadic Step "
-            "arguments\n"
-            f"  observed: {len(args)} positional Step "
-            f"argument{'s' if len(args) != 1 else ''}\n"
-            "  → wrap the leaves in a list, e.g. "
-            "hm.pipeline([step]) or hm.pipeline([a, b])"
+            "hm.pipeline is a decorator, not a factory\n"
+            "  → annotate a function and return the leaves, e.g.\n"
+            "        @hm.pipeline('ci')\n"
+            "        def ci():\n"
+            "            return [step_a, step_b]"
         )
         raise TypeError(msg)
     return _decorator.pipeline(*args, **kwargs)
@@ -322,7 +303,6 @@ __all__ = [
     "js",
     "on_change",
     "pipeline",
-    "pipeline_to_json",
     "pr",
     "pull_request",
     "push",

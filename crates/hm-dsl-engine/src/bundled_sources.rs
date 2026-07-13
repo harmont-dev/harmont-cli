@@ -24,10 +24,10 @@ mod tests {
     }
 
     #[test]
-    fn harmont_py_contains_pipeline() {
-        // The pipeline module is private (underscore-prefixed); the public
-        // surface is re-exported from `__init__.py`.
-        assert!(HARMONT_PY.get_file("_pipeline.py").is_some());
+    fn harmont_py_contains_serialize() {
+        // The step-chain serializer is private (underscore-prefixed); the
+        // public surface is re-exported from `__init__.py`.
+        assert!(HARMONT_PY.get_file("_serialize.py").is_some());
     }
 
     #[test]
@@ -41,6 +41,6 @@ mod tests {
         let target = tmp.path().join("harmont");
         extract_to(&HARMONT_PY, &target).expect("extract");
         assert!(target.join("__init__.py").exists());
-        assert!(target.join("_pipeline.py").exists());
+        assert!(target.join("_serialize.py").exists());
     }
 }

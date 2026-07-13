@@ -4,11 +4,10 @@ toolchain object."""
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 import harmont as hm
+from harmont._serialize import serialize_step_chain
 
 # (label, factory) for every toolchain object that owns an `installed` chain.
 # Each factory returns an object exposing `.installed` and `.setup()`.
@@ -24,13 +23,10 @@ TOOLCHAINS = [
 ]
 
 
-def _render_keys_and_edges(leaf: hm.Step) -> tuple[dict, list]:
-    """Render a one-leaf pipeline and return (nodes-by-index-key, edges)."""
-    doc = json.loads(hm.pipeline_to_json(hm.pipeline([leaf])))
-    graph = doc["graph"]
-    keys = [n["step"]["key"] for n in graph["nodes"]]
-    cmds = [n["step"].get("cmd") for n in graph["nodes"]]
-    return {"keys": keys, "cmds": cmds}, graph["edges"]
+def _cmds(leaf: hm.Step) -> list[str | None]:
+    """Serialize a one-leaf chain and return its per-step commands."""
+    chain = serialize_step_chain([leaf])
+    return [s.get("cmd") for s in chain["steps"]]
 
 
 @pytest.mark.parametrize(
@@ -48,12 +44,12 @@ def test_setup_advances_install_chain(label: str, factory) -> None:
     assert type(advanced) is type(proj)
 
     # The setup command renders, as an ancestor of the install cursor.
-    info, _edges = _render_keys_and_edges(advanced.installed)
-    assert any(c and "__SETUP_MARKER__" in c for c in info["cmds"]), info
+    cmds = _cmds(advanced.installed)
+    assert any(c and "__SETUP_MARKER__" in c for c in cmds), cmds
 
 
 def test_setup_is_chainable() -> None:
     proj = hm.elixir(path=".").setup("echo __ONE__").setup("echo __TWO__")
-    info, _edges = _render_keys_and_edges(proj.installed)
-    assert any(c and "__ONE__" in c for c in info["cmds"])
-    assert any(c and "__TWO__" in c for c in info["cmds"])
+    cmds = _cmds(proj.installed)
+    assert any(c and "__ONE__" in c for c in cmds)
+    assert any(c and "__TWO__" in c for c in cmds)
