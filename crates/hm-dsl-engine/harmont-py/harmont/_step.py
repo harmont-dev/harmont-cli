@@ -170,6 +170,6 @@ def wait(*, continue_on_failure: bool = False) -> Step:
 
     Examples:
         >>> import harmont as hm
-        >>> p = hm.pipeline([hm.sh("make build"), hm.wait(), hm.sh("make deploy")])
+        >>> barrier = hm.wait()
     """
     return Step(is_wait=True, continue_on_failure=continue_on_failure)

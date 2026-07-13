@@ -302,7 +302,8 @@ class _JsEntry:
         Examples:
             >>> import harmont as hm
             >>> proj = hm.js.project(path="web", runtime="bun")
-            >>> hm.pipeline([proj.run("test"), proj.run("lint")])
+            >>> proj.run("test")
+            >>> proj.run("lint")
         """
         return _make_js(path=path, pm=pm, runtime=runtime, version=version, image=image, base=base)
 
