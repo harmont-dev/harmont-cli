@@ -17,7 +17,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ._duration import parse_duration
-from ._pipeline import _cache_to_dict, _topo_collect
+from .cache import (
+    CacheCompose,
+    CacheForever,
+    CacheNone,
+    CacheOnChange,
+    CachePolicy,
+    CacheTTL,
+)
 
 if TYPE_CHECKING:
     from ._step import Step
@@ -90,3 +97,58 @@ def _serialize_step(step: Step, idx_by_id: dict[int, int]) -> dict[str, Any]:
     if step.key_override is not None:
         d["key_override"] = step.key_override
     return d
+
+
+def _topo_collect(leaves: list[Step]) -> list[Step]:
+    """Collect every Step reachable from `leaves` via `parent`, return them
+    in parent-before-child order. Tiebreak by leaf order, then DFS-pre on
+    each leaf chain (deterministic). Wait steps are inserted in their
+    leaf-tuple position."""
+    seen: set[int] = set()
+    ordered: list[Step] = []
+
+    for leaf in leaves:
+        if leaf.is_wait:
+            ordered.append(leaf)
+            continue
+        chain: list[Step] = []
+        node: Step | None = leaf
+        while node is not None:
+            if id(node) in seen:
+                break
+            chain.append(node)
+            node = node.parent
+        # chain is leaf -> root order; reverse for parent-first.
+        for s in reversed(chain):
+            if id(s) in seen:
+                continue
+            seen.add(id(s))
+            ordered.append(s)
+    return ordered
+
+
+def _cache_to_dict(policy: CachePolicy) -> dict[str, Any]:
+    """Render a CachePolicy to its JSON-shape dict.
+
+    Cache key resolution happens on the Rust side after the pipeline
+    structure is built.
+    """
+    if isinstance(policy, CacheNone):
+        return {"policy": "none"}
+    if isinstance(policy, CacheForever):
+        return {"policy": "forever", "env_keys": list(policy.env_keys)}
+    if isinstance(policy, CacheTTL):
+        return {
+            "policy": "ttl",
+            "duration_seconds": int(policy.duration.total_seconds()),
+            "env_keys": list(policy.env_keys),
+        }
+    if isinstance(policy, CacheOnChange):
+        return {"policy": "on_change", "paths": list(policy.paths)}
+    if isinstance(policy, CacheCompose):
+        return {
+            "policy": "compose",
+            "sub_policies": [_cache_to_dict(p) for p in policy.policies],
+        }
+    msg = f"unknown CachePolicy: {type(policy).__name__}"
+    raise TypeError(msg)
