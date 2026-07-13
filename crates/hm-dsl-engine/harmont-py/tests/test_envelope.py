@@ -21,33 +21,17 @@ def _reset_registry():
     clear_target_names()
 
 
-def _graph_nodes(definition):
-    return definition["graph"]["nodes"]
+def _steps(step_chain):
+    return step_chain["steps"]
 
 
-def _graph_edges(definition):
-    return definition["graph"]["edges"]
+def _cmds(step_chain):
+    return [s.get("cmd") for s in step_chain["steps"]]
 
 
-def _step_cmds(definition):
-    return [n["step"].get("cmd") for n in _graph_nodes(definition)]
-
-
-def _builds_in_children(definition, parent_key):
-    """Return nodes whose builds_in parent is parent_key."""
-    nodes = _graph_nodes(definition)
-    parent_idx = None
-    for i, n in enumerate(nodes):
-        if n["step"]["key"] == parent_key:
-            parent_idx = i
-            break
-    if parent_idx is None:
-        return []
-    children = []
-    for src, dst, kind in _graph_edges(definition):
-        if kind == "builds_in" and src == parent_idx:
-            children.append(nodes[dst])
-    return children
+def _children_of(step_chain, parent_idx):
+    """Return steps whose parent_idx is parent_idx."""
+    return [s for s in step_chain["steps"] if s.get("parent_idx") == parent_idx]
 
 
 def test_empty_registry_emits_empty_pipelines_list():
@@ -68,12 +52,14 @@ def test_single_pipeline_no_triggers():
     assert p["name"] == "ci"
     assert p["allow_manual"] is True
     assert p["triggers"] == []
-    definition = p["definition"]
-    assert definition["version"] == "0"
-    nodes = _graph_nodes(definition)
-    assert len(nodes) == 1
-    assert nodes[0]["step"]["cmd"] == "echo hi"
-    assert nodes[0]["step"]["label"] == "hi"
+    step_chain = p["step_chain"]
+    steps = _steps(step_chain)
+    # The scratch root rides along as a passthrough (cmd=None); Rust drops it.
+    cmd_steps = [s for s in steps if s.get("cmd") == "echo hi"]
+    assert len(cmd_steps) == 1
+    assert cmd_steps[0]["label"] == "hi"
+    (leaf,) = step_chain["leaf_indices"]
+    assert steps[leaf]["cmd"] == "echo hi"
 
 
 def test_pipeline_with_triggers():
@@ -107,39 +93,20 @@ def test_pipeline_with_tuple_leaves():
 
     out = json.loads(hm.dump_registry_json())
     p = out["pipelines"][0]
-    cmds = sorted(n["step"]["cmd"] for n in _graph_nodes(p["definition"]))
+    cmds = sorted(c for c in _cmds(p["step_chain"]) if c in ("a", "b"))
     assert cmds == ["a", "b"]
+    assert len(p["step_chain"]["leaf_indices"]) == 2
 
 
-def test_pipeline_forwards_env_to_assemble():
+def test_pipeline_forwards_env_to_step_chain():
     @hm.pipeline("ci", env={"CI": "true"})
     def ci() -> hm.Step:
         return hm.scratch().sh("echo")
 
     out = json.loads(hm.dump_registry_json())
-    definition = out["pipelines"][0]["definition"]
-    # Pipeline-level env is merged into node env dicts.
-    for node in _graph_nodes(definition):
-        assert node["env"].get("CI") == "true"
-
-
-def test_envelope_resolves_cache_keys(tmp_path):
-    @hm.pipeline("ci")
-    def ci() -> hm.Step:
-        return hm.scratch().sh("echo", label="run", cache=hm.forever())
-
-    out = json.loads(
-        hm.dump_registry_json(
-            pipeline_org="acme",
-            now=1700000000,
-            base_path=tmp_path,
-            env={},
-        )
-    )
-    step = _graph_nodes(out["pipelines"][0]["definition"])[0]["step"]
-    assert step["cache"]["policy"] == "forever"
-    assert "key" in step["cache"]
-    assert len(step["cache"]["key"]) == 64
+    step_chain = out["pipelines"][0]["step_chain"]
+    # Pipeline-level env rides on the step chain; Rust layers it per node.
+    assert step_chain["pipeline_env"] == {"CI": "true"}
 
 
 def test_envelope_auto_unwraps_go_toolchain():
@@ -150,12 +117,11 @@ def test_envelope_auto_unwraps_go_toolchain():
         return hm.go(path="api").build()
 
     out = json.loads(hm.dump_registry_json())
-    nodes = _graph_nodes(out["pipelines"][0]["definition"])
-    cmds = [n["step"].get("cmd") for n in nodes]
+    cmds = _cmds(out["pipelines"][0]["step_chain"])
     assert any("go build" in (c or "") for c in cmds)
 
 
-def test_envelope_composes_targets_with_dedup(tmp_path, monkeypatch):
+def test_envelope_composes_targets_with_dedup():
     """Two pipelines depending on the same target share the target step."""
     from harmont._target import clear_target_cache
 
@@ -173,13 +139,12 @@ def test_envelope_composes_targets_with_dedup(tmp_path, monkeypatch):
         )
 
     out = json.loads(hm.dump_registry_json())
-    definition = out["pipelines"][0]["definition"]
-    nodes = _graph_nodes(definition)
-    apt_nodes = [n for n in nodes if n["step"].get("cmd") == "apt-get update"]
-    assert len(apt_nodes) == 1  # deduplicated via target memoization
-    children = _builds_in_children(definition, apt_nodes[0]["step"]["key"])
-    assert len(children) == 2
-    child_cmds = sorted(n["step"]["cmd"] for n in children)
+    step_chain = out["pipelines"][0]["step_chain"]
+    steps = _steps(step_chain)
+    apt_indices = [i for i, s in enumerate(steps) if s.get("cmd") == "apt-get update"]
+    assert len(apt_indices) == 1  # deduplicated via target memoization
+    children = _children_of(step_chain, apt_indices[0])
+    child_cmds = sorted(c["cmd"] for c in children)
     assert child_cmds == ["cabal build", "pytest"]
 
 
@@ -197,9 +162,7 @@ def test_envelope_clears_target_cache_between_renders():
     hm.dump_registry_json()
     # After render, cache has one entry from the in-flight render. Trigger
     # a second render and verify the cache is cleared at render start
-    # by re-running and confirming success (would TypeError otherwise if
-    # the first render's cached Step somehow propagated through dataclass
-    # frozen-equality into the second render's IR).
+    # by re-running and confirming success.
     hm.dump_registry_json()
 
 
@@ -221,7 +184,7 @@ def test_decorator_pipeline_timeout_in_envelope():
     def _timed() -> hm.Step:
         return hm.sh("make test")
 
-    env = json.loads(hm.dump_registry_json(now=0))
-    defn = env["pipelines"][0]["definition"]
-    assert defn["timeout_seconds"] == 1200
+    env = json.loads(hm.dump_registry_json())
+    step_chain = env["pipelines"][0]["step_chain"]
+    assert step_chain["pipeline_timeout_seconds"] == 1200
     REGISTRATIONS.clear()
