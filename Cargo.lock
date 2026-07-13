@@ -1241,6 +1241,7 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "async-trait",
+ "daggy",
  "derive_more",
  "hm-pipeline-ir",
  "include_dir",
