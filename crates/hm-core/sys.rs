@@ -82,9 +82,7 @@ impl Sys {
     /// Returns [`LoadingError`] when the config directory cannot be resolved or
     /// created, or credentials fail to load.
     pub fn load() -> Result<Self, LoadingError> {
-        let hm_dir = hm_util::dirs::hm_config_dir()
-            .and_then(AbsPathBuf::new)
-            .ok_or(LoadingError::ConfigDirUnavailable)?;
+        let hm_dir = hm_util::dirs::hm_config_dir().ok_or(LoadingError::ConfigDirUnavailable)?;
 
         if !hm_dir.exists() {
             std::fs::create_dir_all(hm_dir.as_abs_path().as_path()).map_err(|source| {

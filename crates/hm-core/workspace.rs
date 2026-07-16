@@ -68,15 +68,17 @@ impl Workspace {
     /// Returns [`LoadError`] if the cwd cannot be determined, no project root
     /// is found while walking up, or the resolved root fails [`Self::load`].
     pub fn resolve(dir: Option<&Path>) -> Result<Self, LoadError> {
-        let root = match dir {
-            Some(d) if d.is_absolute() => d.to_path_buf(),
-            Some(d) => std::env::current_dir()
-                .map_err(LoadError::CurrentDir)?
-                .join(d),
-            None => {
-                let start = std::env::current_dir().map_err(LoadError::CurrentDir)?;
-                hm_util::dirs::find_project_root(&start).ok_or(LoadError::NotFound)?
+        let root = if let Some(d) = dir {
+            if let Some(abs) = AbsPath::new(d) {
+                abs.to_abs_path_buf()
+            } else {
+                AbsPathBuf::current_dir()
+                    .map_err(LoadError::CurrentDir)?
+                    .join(d)
             }
+        } else {
+            let start = AbsPathBuf::current_dir().map_err(LoadError::CurrentDir)?;
+            hm_util::dirs::find_project_root(start.as_abs_path()).ok_or(LoadError::NotFound)?
         };
         Self::load(&root)
     }

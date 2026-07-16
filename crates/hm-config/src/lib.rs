@@ -6,6 +6,8 @@
 
 use std::path::{Path, PathBuf};
 
+use hm_util::path::AbsPathBuf;
+
 use figment::{
     Figment,
     providers::{Env, Format, Serialized, Toml},
@@ -130,7 +132,7 @@ impl Config {
     ///
     /// Returns `None` if the platform config directory cannot be determined.
     #[must_use]
-    pub fn user_config_path() -> Option<PathBuf> {
+    pub fn user_config_path() -> Option<AbsPathBuf> {
         hm_util::dirs::hm_config_dir().map(|d| d.join("config.toml"))
     }
 

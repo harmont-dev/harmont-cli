@@ -26,9 +26,10 @@ use secrecy::{ExposeSecret, SecretString};
 /// layer alone: it saves back to the user file, and merging the project layer in
 /// first would persist project-scoped values into `~/.config/hm/config.toml`.
 fn config() -> Result<hm_config::Config> {
-    let project = std::env::current_dir()
-        .ok()
-        .and_then(|cwd| hm_util::dirs::find_project_root(&cwd))
+    let cwd = hm_util::path::AbsPathBuf::current_dir().ok();
+    let project = cwd
+        .as_ref()
+        .and_then(|cwd| hm_util::dirs::find_project_root(cwd.as_abs_path()))
         .map(|root| hm_config::Config::project_config_path(&root));
     hm_config::Config::load(project.as_deref()).context("loading config")
 }

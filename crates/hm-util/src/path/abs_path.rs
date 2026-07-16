@@ -16,6 +16,7 @@ pub struct AbsPath<'a>(&'a Path);
 
 impl<'a> AbsPath<'a> {
     /// Wrap `path` if it is absolute, otherwise return `None`.
+    #[must_use]
     pub fn new<P: AsRef<Path> + ?Sized>(path: &'a P) -> Option<Self> {
         let p = path.as_ref();
         if p.is_absolute() {
@@ -36,8 +37,8 @@ impl<'a> AbsPath<'a> {
 
     /// Return the parent directory, if any, as an [`AbsPath`].
     #[must_use]
-    pub fn parent(&self) -> Option<AbsPath<'a>> {
-        self.0.parent().map(|p| Self(p))
+    pub fn parent(&self) -> Option<Self> {
+        self.0.parent().map(Self)
     }
 
     /// The final component of this path, if any.
@@ -47,7 +48,6 @@ impl<'a> AbsPath<'a> {
     }
 
     /// An iterator over the components of this path.
-    #[must_use]
     pub fn components(&self) -> Components<'_> {
         self.0.components()
     }
@@ -72,7 +72,7 @@ impl<'a> AbsPath<'a> {
 
     /// Yield the underlying [`Path`].
     #[must_use]
-    pub fn as_path(&self) -> &Path {
+    pub const fn as_path(&self) -> &Path {
         self.0
     }
 
@@ -104,12 +104,34 @@ pub struct AbsPathBuf(PathBuf);
 
 impl AbsPathBuf {
     /// Wrap `path` if it is absolute, otherwise return `None`.
+    #[must_use]
     pub fn new(path: PathBuf) -> Option<Self> {
         if path.is_absolute() {
             Some(Self(path))
         } else {
             None
         }
+    }
+
+    /// The process working directory.
+    ///
+    /// [`std::env::current_dir`] is documented to return an absolute path, so
+    /// the invariant holds by construction. This exists so callers that need a
+    /// cwd-rooted [`AbsPath`] don't each have to re-prove that.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying [`std::env::current_dir`] error, or
+    /// [`std::io::ErrorKind::InvalidData`] in the should-not-happen case where
+    /// the platform hands back a relative path.
+    pub fn current_dir() -> std::io::Result<Self> {
+        let cwd = std::env::current_dir()?;
+        Self::new(cwd).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "current directory is not an absolute path",
+            )
+        })
     }
 
     /// Join a path component onto this absolute path.
@@ -120,8 +142,8 @@ impl AbsPathBuf {
     /// This inherent method shadows [`Path::join`] from the [`Deref`] target so
     /// the absolute invariant is preserved without re-wrapping.
     #[must_use]
-    pub fn join<P: AsRef<Path>>(&self, tail: P) -> AbsPathBuf {
-        AbsPathBuf(self.0.join(tail))
+    pub fn join<P: AsRef<Path>>(&self, tail: P) -> Self {
+        Self(self.0.join(tail))
     }
 
     /// Borrow as an [`AbsPath`].
