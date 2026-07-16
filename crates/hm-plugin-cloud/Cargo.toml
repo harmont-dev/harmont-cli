@@ -19,6 +19,7 @@ hm-exec            = { workspace = true }
 hm-render          = { workspace = true }
 hm-config          = { workspace = true }
 hm-core            = { workspace = true }
+hm-util            = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 serde_json         = { workspace = true }
 chrono             = { workspace = true }

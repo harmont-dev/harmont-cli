@@ -15,6 +15,24 @@ use anyhow::{Context, Result};
 use harmont_cloud::HarmontClient;
 use secrecy::{ExposeSecret, SecretString};
 
+/// The layered config for the current directory.
+///
+/// Includes the project `.hm/config.toml` layer whenever the cwd is inside a
+/// harmont project — [`ResolvedCtx::org`]'s own error text tells users to set
+/// `[cloud] org` there, so it has to be read. Outside a project there simply is
+/// no project layer, and the cloud verbs still work from anywhere.
+///
+/// **Read-only callers only.** `hm cloud org switch` deliberately loads the user
+/// layer alone: it saves back to the user file, and merging the project layer in
+/// first would persist project-scoped values into `~/.config/hm/config.toml`.
+fn config() -> Result<hm_config::Config> {
+    let project = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| hm_util::dirs::find_project_root(&cwd))
+        .map(|root| hm_config::Config::project_config_path(&root));
+    hm_config::Config::load(project.as_deref()).context("loading config")
+}
+
 /// Resolve the bearer token, or the shared "not logged in" error.
 ///
 /// Every authenticated path routes through here so the not-logged-in text
@@ -56,7 +74,7 @@ impl ResolvedCtx {
 ///
 /// Returns an error if config can't be loaded or no token is available.
 pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?; // user + env layering
+    let cfg = config()?; // user + project + env layering
     let api = cfg.cloud.api_url.clone();
     let client = HarmontClient::with_base_url(token()?.expose_secret(), &api);
     Ok((
@@ -81,7 +99,7 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
 /// Returns an error if config can't be loaded, no token is available, or no
 /// organization is configured.
 pub fn raw_org_ctx() -> Result<(String, SecretString, String)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?;
+    let cfg = config()?;
     let api = cfg.cloud.api_url.clone();
     let token = token()?;
     let org = ResolvedCtx {
@@ -98,7 +116,7 @@ pub fn raw_org_ctx() -> Result<(String, SecretString, String)> {
 ///
 /// Returns an error if config can't be loaded.
 pub fn anon_client() -> Result<(HarmontClient, String)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?;
+    let cfg = config()?;
     let api = cfg.cloud.api_url.clone();
     Ok((HarmontClient::anonymous(&api), api))
 }

@@ -1335,6 +1335,7 @@ dependencies = [
  "hm-exec",
  "hm-plugin-protocol",
  "hm-render",
+ "hm-util",
  "percent-encoding",
  "reqwest",
  "secrecy",
