@@ -107,7 +107,7 @@ pub async fn dispatch(command: Command, cli: &Cli) -> Result<i32> {
     match command {
         Command::Init(args) => crate::commands::init::handle(args).await.map(|()| 0),
         Command::Run(args) => {
-            let ctx = RunContext::from_cli(cli)?;
+            let ctx = RunContext::from_cli(cli, args.dir.as_deref())?;
             crate::commands::run::handle(args, ctx).await
         }
         Command::Pipelines(args) => crate::cli::pipelines::run(args).await.map(|()| 0),

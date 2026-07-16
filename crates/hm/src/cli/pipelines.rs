@@ -28,10 +28,19 @@ const EMPTY_ENVELOPE: &str = r#"{"schema_version":"1","pipelines":[]}"#;
 /// Returns an error if the engine can't start or the DSL runtime fails to
 /// evaluate the pipelines.
 pub async fn run(args: PipelinesArgs) -> Result<()> {
-    let repo_root = match args.dir {
-        Some(d) => d,
-        None => std::env::current_dir().context("cannot determine current directory")?,
+    use hm_core::WorkspaceLoadError as WsErr;
+    let workspace = match hm_core::Workspace::resolve(args.dir.as_deref()) {
+        Ok(w) => w,
+        // "Not a harmont project" is not an error here — it means this repo
+        // declares no pipelines. A malformed `.hm/config.toml` still fails
+        // loudly rather than masquerading as an empty repo.
+        Err(WsErr::NotFound | WsErr::InvalidPath(_) | WsErr::InvalidWorkspace(_)) => {
+            print!("{EMPTY_ENVELOPE}");
+            return Ok(());
+        }
+        Err(e) => return Err(e.into()),
     };
+    let repo_root = workspace.path().as_path().to_path_buf();
 
     if !detect::has_pipeline_files(&repo_root) {
         print!("{EMPTY_ENVELOPE}");

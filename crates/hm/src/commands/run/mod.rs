@@ -344,12 +344,12 @@ fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
 /// the DSL detection / pipeline-render step fails.
 async fn render_pipeline(
     args: &RunArgs,
-    _ctx: &RunContext,
+    ctx: &RunContext,
 ) -> Result<(std::path::PathBuf, String, String)> {
-    let repo_root = match args.dir.clone() {
-        Some(p) => p,
-        None => std::env::current_dir().context("cannot determine current directory")?,
-    };
+    // The root the run executes against is the workspace's, not a second
+    // resolution from `--dir`/cwd — otherwise config could come from one tree
+    // and code from another. `RunContext` already resolved `--dir`.
+    let repo_root = ctx.workspace.path().as_path().to_path_buf();
 
     detect::check_python(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
     let engine =

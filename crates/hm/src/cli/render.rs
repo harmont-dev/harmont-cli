@@ -26,10 +26,8 @@ pub struct RenderArgs {
 /// or the slug is unknown / fails to render (the available slugs are written to
 /// stderr by the DSL runtime).
 pub async fn run(args: RenderArgs) -> Result<()> {
-    let repo_root = match args.dir {
-        Some(d) => d,
-        None => std::env::current_dir().context("cannot determine current directory")?,
-    };
+    let workspace = hm_core::Workspace::resolve(args.dir.as_deref())?;
+    let repo_root = workspace.path().as_path().to_path_buf();
 
     detect::check_python(&repo_root).context("detecting pipeline language")?;
     let engine = python_engine().context("initializing DSL engine")?;

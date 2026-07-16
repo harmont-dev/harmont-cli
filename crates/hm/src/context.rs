@@ -1,27 +1,9 @@
 use std::io::IsTerminal;
+use std::path::Path;
 
 use crate::cli::Cli;
-use hm_core::Workspace;
+use hm_core::{Workspace, WorkspaceLoadError};
 use hm_render::OutputMode;
-use thiserror::Error;
-
-/// Failure building a [`RunContext`].
-#[derive(Debug, Error)]
-pub enum Error {
-    /// Process current directory could not be resolved.
-    #[error("cannot determine current directory")]
-    CurrentDir(#[source] std::io::Error),
-
-    /// No directory containing `.hm/` was found above the process cwd.
-    #[error(
-        "no harmont workspace found\n  → run from a directory that contains `.hm/`, or initialize one with `hm init`"
-    )]
-    NotFound,
-
-    /// A discovered project root failed [`Workspace::load`].
-    #[error(transparent)]
-    Workspace(#[from] hm_core::WorkspaceLoadError),
-}
 
 /// Runtime context for commands that operate on a harmont project workspace.
 ///
@@ -40,23 +22,20 @@ pub struct RunContext {
 }
 
 impl RunContext {
-    /// Build a [`RunContext`] from parsed CLI args.
+    /// Build a [`RunContext`] from parsed CLI args and the verb's `--dir`.
     ///
-    /// Discovers the project root by walking up from the current directory
-    /// ([`hm_util::dirs::find_project_root`]), then loads a [`Workspace`] for
-    /// that exact path. Walk-up is intentionally separate from
-    /// [`Workspace::load`].
+    /// Root resolution is [`Workspace::resolve`]'s, shared with every other
+    /// `--dir` verb. Passing `dir` through matters: the workspace this loads is
+    /// the one the run executes against, so resolving it from the cwd while the
+    /// run used `--dir` would let config come from one tree and code from
+    /// another.
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] if the current directory cannot be determined, no
-    /// project root is found, or workspace load fails.
-    pub fn from_cli(cli: &Cli) -> Result<Self, Error> {
-        let start_dir = std::env::current_dir().map_err(Error::CurrentDir)?;
-        // Walk-up is separate from Workspace::load (which only validates the
-        // exact path).
-        let root = hm_util::dirs::find_project_root(&start_dir).ok_or(Error::NotFound)?;
-        let workspace = Workspace::load(&root)?;
+    /// Returns [`WorkspaceLoadError`] if the current directory cannot be
+    /// determined, no project root is found, or workspace load fails.
+    pub fn from_cli(cli: &Cli, dir: Option<&Path>) -> Result<Self, WorkspaceLoadError> {
+        let workspace = Workspace::resolve(dir)?;
 
         let output = OutputMode::Human {
             // Single source of truth for the color/TTY rule (still honors --no-color).
