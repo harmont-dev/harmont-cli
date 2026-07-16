@@ -13,8 +13,9 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use harmont_cloud::{HarmontClient, HarmontError};
+use secrecy::SecretString;
 
 use crate::settings;
 
@@ -28,7 +29,10 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, paste: bool) -> Result<(
         login_loopback(&client, &app).await?
     };
 
-    hm_config::creds::set_cloud_token(&api, &token);
+    hm_core::Sys::load()
+        .context("loading credentials")?
+        .creds_mut()
+        .set(SecretString::from(token.clone()));
 
     // Confirm by reading back the authenticated user.
     let authed = HarmontClient::with_base_url(token, &api);

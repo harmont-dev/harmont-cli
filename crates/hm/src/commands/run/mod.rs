@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
+use secrecy::ExposeSecret as _;
 
 use hm_dsl_engine::{DslEngine, detect};
 
@@ -54,7 +55,11 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     //    instead of a daemon-connection error.
     let cloud_creds = if backend_name == "cloud" {
         let api_url = ctx.config.cloud.api_url.clone();
-        let token = hm_config::creds::cloud_token(&api_url).context(
+        let token = hm_core::Sys::load()
+            .context("loading credentials")?
+            .creds()
+            .token()
+            .context(
             "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HM_API_TOKEN",
         )?;
         let org = args
@@ -88,7 +93,8 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let mut autocreate_client: Option<(harmont_cloud::HarmontClient, String)> = None;
     let backend: Box<dyn hm_exec::ExecutionBackend> =
         if let Some((api_url, token, org)) = cloud_creds {
-            let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
+            let client =
+                harmont_cloud::HarmontClient::with_base_url(token.expose_secret(), &api_url);
             autocreate_client = Some((client.clone(), org.clone()));
             // The watch link must point at the dashboard (app.) host, not the
             // API host — a link built from `api_url` lands on raw JSON.

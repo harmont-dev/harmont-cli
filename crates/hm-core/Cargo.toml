@@ -1,0 +1,26 @@
+[package]
+name = "hm-core"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core system types (workspace, credentials, process identity) for the hm CLI."
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+hm-config = { workspace = true }
+hm-util = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+toml = "0.8"
+secrecy = "0.10.3"
+nix = { version = "0.30", default-features = false, features = ["user"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true }
+
+[lints]
+workspace = true

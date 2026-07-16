@@ -1,0 +1,141 @@
+//! Global utility for managing the workspace.
+
+use std::io;
+use std::path::{Path, PathBuf};
+
+use hm_config::Config;
+use hm_util::path::{AbsPath, AbsPathBuf};
+use thiserror::Error;
+
+/// Failure resolving or loading a directory as a [`Workspace`].
+#[derive(Debug, Error)]
+pub enum LoadError {
+    #[error("{} does not appear to be a valid path", .0.display())]
+    InvalidPath(PathBuf),
+    #[error("{} is not a harmont workspace. harmont workspaces must have a `.hm/` directory", .0.display())]
+    InvalidWorkspace(PathBuf),
+
+    /// The process working directory could not be read while resolving a root.
+    #[error("cannot determine current directory")]
+    CurrentDir(#[source] io::Error),
+
+    /// Walked to the filesystem root without finding a `.hm/` directory.
+    #[error(
+        "no harmont workspace found\n  → run from a directory that contains `.hm/`, or initialize one with `hm init`"
+    )]
+    NotFound,
+
+    #[error(transparent)]
+    Config(#[from] hm_config::LoadError),
+}
+
+/// Utility for accessing well-known paths inside a workspace.
+///
+/// Two constructors:
+///
+/// - [`Workspace::resolve`] — the one CLI verbs want. Honors a `--dir`-style
+///   override, else walks up from the cwd.
+/// - [`Workspace::load`] — validates one **specific** project root (the
+///   directory that contains `.hm/`), with no discovery.
+#[derive(Debug)]
+pub struct Workspace {
+    /// Absolute path to the `.hm` directory.
+    hm_dir: AbsPathBuf,
+
+    /// The loaded configuration for this workspace.
+    ///
+    /// Note that this will also pull in the user config as required. In other words, this will
+    /// include the `~/.config/hm/config.toml` configuration as well as the overlayed workspace
+    /// `.hm/config.toml`.
+    config: Config,
+}
+
+impl Workspace {
+    /// Resolve the workspace a command should operate on.
+    ///
+    /// The single root-resolution rule for every verb that takes a `--dir`:
+    ///
+    /// - **`dir` given** — that directory is the project root, verbatim. No
+    ///   walk-up: the backend runs discovery against cloned repo roots, and
+    ///   walking up out of a clone could bind to an unrelated `.hm/` above it.
+    ///   A relative path is resolved against the cwd, since a workspace root
+    ///   must be absolute.
+    /// - **`dir` absent** — walk up from the cwd, so a verb works from any
+    ///   subdirectory of the project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LoadError`] if the cwd cannot be determined, no project root
+    /// is found while walking up, or the resolved root fails [`Self::load`].
+    pub fn resolve(dir: Option<&Path>) -> Result<Self, LoadError> {
+        let root = match dir {
+            Some(d) if d.is_absolute() => d.to_path_buf(),
+            Some(d) => std::env::current_dir()
+                .map_err(LoadError::CurrentDir)?
+                .join(d),
+            None => {
+                let start = std::env::current_dir().map_err(LoadError::CurrentDir)?;
+                hm_util::dirs::find_project_root(&start).ok_or(LoadError::NotFound)?
+            }
+        };
+        Self::load(&root)
+    }
+
+    /// Attempt to load the given directory as a workspace, if it appears to be one.
+    ///
+    /// We label a workspace any directory which has a `.hm` directory within it.
+    /// This does **not** walk parent directories; pass the project root itself.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LoadError`] when the path is missing/not absolute, has no
+    /// `.hm/` directory, or the layered config cannot be loaded.
+    pub fn load(workspace_path: &Path) -> Result<Self, LoadError> {
+        if !workspace_path.exists() {
+            return Err(LoadError::InvalidPath(workspace_path.to_path_buf()));
+        }
+
+        let hm_dir = workspace_path.join(".hm");
+        if !hm_dir.is_dir() {
+            return Err(LoadError::InvalidWorkspace(workspace_path.to_path_buf()));
+        }
+
+        let hm_dir = AbsPathBuf::new(hm_dir)
+            .ok_or_else(|| LoadError::InvalidPath(workspace_path.to_path_buf()))?;
+        let config = Config::load(Some(&hm_dir.join("config.toml")))?;
+        Ok(Self { hm_dir, config })
+    }
+
+    /// Absolute path to the workspace root (parent of `.hm/`).
+    #[must_use]
+    pub fn path(&self) -> AbsPath<'_> {
+        self.hm_dir
+            .as_abs_path()
+            .parent()
+            .expect("`.hm` always has a parent")
+    }
+
+    /// Path to the `.hm` directory.
+    #[must_use]
+    pub fn hm_dir(&self) -> AbsPath<'_> {
+        self.hm_dir.as_abs_path()
+    }
+
+    /// Layered configuration for this workspace (user + project + env).
+    #[must_use]
+    pub const fn config(&self) -> &Config {
+        &self.config
+    }
+
+    /// Returns the path to the `.env` file at the top level of this workspace.
+    #[must_use]
+    pub fn env_file_path(&self) -> AbsPathBuf {
+        self.path().join(".env")
+    }
+
+    /// Path to the `.hm/secrets` secrets file.
+    #[must_use]
+    pub fn secrets_path(&self) -> AbsPathBuf {
+        self.hm_dir().join("secrets")
+    }
+}
