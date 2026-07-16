@@ -18,7 +18,7 @@ use crate::error::{ErrorCategory, HmError};
 /// Backend resolution (flag wins over config):
 /// - `--backend <name>` → that backend (`cloud`, `docker`, …)
 /// - `--cloud`          → `cloud` (deprecated alias)
-/// - neither            → `ctx.config.backend` (figment-layered, default `docker`)
+/// - neither            → `ctx.workspace.config().backend` (figment-layered, default `docker`)
 ///
 /// This is a THIN driver over the `hm-exec` backends: it builds an
 /// [`hm_exec::ExecutionBackend`], renders the pipeline to v0 IR once, starts
@@ -45,7 +45,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
                 None
             }
         })
-        .unwrap_or_else(|| ctx.config.backend.to_string());
+        .unwrap_or_else(|| ctx.workspace.config().backend.to_string());
 
     // 2. Cloud needs auth + org resolution up front — fail fast on a missing
     //    token before any render work. We resolve the credentials here but
@@ -54,7 +54,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     //    missing/ambiguous pipeline argument fails with a helpful message
     //    instead of a daemon-connection error.
     let cloud_creds = if backend_name == "cloud" {
-        let api_url = ctx.config.cloud.api_url.clone();
+        let api_url = ctx.workspace.config().cloud.api_url.clone();
         let token = hm_core::Sys::load()
             .context("loading credentials")?
             .creds()
@@ -65,7 +65,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         let org = args
             .org
             .clone()
-            .or_else(|| ctx.config.cloud.org.clone())
+            .or_else(|| ctx.workspace.config().cloud.org.clone())
             .context("no organization — pass --org or set `[cloud] org = \"…\"` in .hm/config.toml or ~/.config/hm/config.toml")?;
         Some((api_url, token, org))
     } else if backend_name != "docker" {
@@ -160,7 +160,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // interactively now and its slug persisted. A worktree WITH a remote falls
     // through to the repo-identity submit + get-or-create fallback below.
     if let Some((client, org)) = autocreate_client.as_ref() {
-        if let Some(slug) = ctx.config.cloud.pipeline.clone() {
+        if let Some(slug) = ctx.workspace.config().cloud.pipeline.clone() {
             req.cloud_pipeline_slug = Some(slug);
         } else if req.source.repo_name.is_none() {
             let default_branch =
@@ -344,12 +344,12 @@ fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
 /// the DSL detection / pipeline-render step fails.
 async fn render_pipeline(
     args: &RunArgs,
-    _ctx: &RunContext,
+    ctx: &RunContext,
 ) -> Result<(std::path::PathBuf, String, String)> {
-    let repo_root = match args.dir.clone() {
-        Some(p) => p,
-        None => std::env::current_dir().context("cannot determine current directory")?,
-    };
+    // The root the run executes against is the workspace's, not a second
+    // resolution from `--dir`/cwd — otherwise config could come from one tree
+    // and code from another. `RunContext` already resolved `--dir`.
+    let repo_root = ctx.workspace.path().as_path().to_path_buf();
 
     detect::check_python(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
     let engine =
