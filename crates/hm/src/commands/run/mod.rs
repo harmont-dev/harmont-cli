@@ -105,9 +105,12 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = std::sync::Arc::new(
                 hm_vm::docker::DockerBackend::connect().map_err(|e| anyhow::anyhow!("{e:#}"))?,
             );
+            let cache_dir = hm_core::Sys::cache_dir()
+                .context("cannot resolve the Harmont cache directory")?;
             Box::new(hm_exec::LocalBackend::new(
                 resolve_parallelism(&args),
                 vm_backend,
+                cache_dir,
             ))
         };
 

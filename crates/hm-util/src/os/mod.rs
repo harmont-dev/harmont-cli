@@ -1,2 +1,2 @@
-pub(crate) mod dirs;
+pub mod dirs;
 pub mod fs;

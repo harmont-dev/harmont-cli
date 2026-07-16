@@ -73,6 +73,41 @@ impl Sys {
         self.hm_dir.as_abs_path()
     }
 
+    /// `~/.config/hm/` — this user's config root.
+    ///
+    /// This and its siblings are the `hm`-namespacing policy: the platform only
+    /// tells us where *configuration* goes ([`hm_util::os::dirs`]); that we put
+    /// ours in an `hm/` subdirectory is our decision, and a user-scoped one, so
+    /// it lives here.
+    ///
+    /// Resolution only — no I/O, no [`Self::load`] required. Callers that just
+    /// need a path (layering config, clearing the cache) should not have to
+    /// create directories and read credentials to get one.
+    ///
+    /// `None` means the platform has no config directory.
+    #[must_use]
+    pub fn config_dir() -> Option<AbsPathBuf> {
+        hm_util::os::dirs::config_dir().map(|c| c.join("hm"))
+    }
+
+    /// `~/.config/hm/config.toml` — this user's config file.
+    #[must_use]
+    pub fn config_path() -> Option<AbsPathBuf> {
+        Self::config_dir().map(|d| d.join("config.toml"))
+    }
+
+    /// `~/.cache/hm/` — this user's cache root (regenerable).
+    #[must_use]
+    pub fn cache_dir() -> Option<AbsPathBuf> {
+        hm_util::os::dirs::cache_dir().map(|c| c.join("hm"))
+    }
+
+    /// `~/.cache/hm/workspaces/` — COW workspace cache root.
+    #[must_use]
+    pub fn workspace_cache_dir() -> Option<AbsPathBuf> {
+        Self::cache_dir().map(|c| c.join("workspaces"))
+    }
+
     /// Load process-level system state (credentials, …).
     ///
     /// Ensures `~/.config/hm` exists, then loads `credentials.toml` from it.
@@ -82,7 +117,7 @@ impl Sys {
     /// Returns [`LoadingError`] when the config directory cannot be resolved or
     /// created, or credentials fail to load.
     pub fn load() -> Result<Self, LoadingError> {
-        let hm_dir = hm_util::dirs::hm_config_dir().ok_or(LoadingError::ConfigDirUnavailable)?;
+        let hm_dir = Self::config_dir().ok_or(LoadingError::ConfigDirUnavailable)?;
 
         if !hm_dir.exists() {
             std::fs::create_dir_all(hm_dir.as_abs_path().as_path()).map_err(|source| {
@@ -107,5 +142,42 @@ impl Sys {
     /// Mutable access to credentials (for `set` / `remove`).
     pub const fn creds_mut(&mut self) -> &mut Creds {
         &mut self.creds
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_dir_is_hm_under_platform_config() {
+        let p = Sys::config_dir().unwrap();
+        assert!(p.ends_with("hm"), "expected path ending in 'hm', got {p}");
+        let parent = p.as_abs_path().parent().unwrap();
+        assert!(
+            parent.as_path().ends_with(".config") || parent.as_path().ends_with("AppData/Roaming"),
+            "unexpected parent: {parent}"
+        );
+    }
+
+    #[test]
+    fn config_path_is_config_toml_in_config_dir() {
+        let path = Sys::config_path().unwrap();
+        let dir = Sys::config_dir().unwrap();
+        assert_eq!(path.as_abs_path().parent().unwrap(), dir.as_abs_path());
+        assert!(path.ends_with("config.toml"), "got {path}");
+    }
+
+    #[test]
+    fn cache_dir_is_hm_under_platform_cache() {
+        let p = Sys::cache_dir().unwrap();
+        assert!(p.ends_with("hm"), "expected path ending in 'hm', got {p}");
+    }
+
+    #[test]
+    fn workspace_cache_dir_is_under_cache_dir() {
+        let p = Sys::workspace_cache_dir().unwrap();
+        assert!(p.ends_with("hm/workspaces"), "got {p}");
     }
 }

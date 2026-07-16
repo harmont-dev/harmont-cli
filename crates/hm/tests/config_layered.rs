@@ -105,7 +105,7 @@ fn load_resolves_project_root() {
     .unwrap();
 
     let start = hm_util::path::AbsPath::new(project_dir.path()).unwrap();
-    let found = hm_util::dirs::find_project_root(start);
+    let found = hm_core::Workspace::find_root(start);
     assert_eq!(
         found,
         hm_util::path::AbsPathBuf::new(project_dir.path().to_path_buf())

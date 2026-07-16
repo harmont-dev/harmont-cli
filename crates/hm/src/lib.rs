@@ -3,10 +3,11 @@
     reason = "transitive dependency version conflicts in rand/windows-sys/thiserror chains; not fixable without upstream updates"
 )]
 // The `dirs` crate must NOT be added as a direct dependency of this
-// crate. All directory resolution goes through `hm_util::dirs`, which
-// owns the `dirs` dependency and provides both platform primitives and
-// Harmont-specific discovery. Adding `dirs` here would bypass that
-// single source of truth.
+// crate. Directory resolution is split by scope and both halves are
+// single sources of truth: `hm_util::os::dirs` owns the `dirs`
+// dependency and exposes the raw platform roots, and `hm_core::Sys`
+// owns where *this user's* hm state lives under them
+// (`~/.config/hm`, `~/.cache/hm`). Adding `dirs` here would bypass both.
 
 #[allow(
     clippy::print_stdout,

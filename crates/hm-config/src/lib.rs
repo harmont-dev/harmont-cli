@@ -6,8 +6,6 @@
 
 use std::path::{Path, PathBuf};
 
-use hm_util::path::AbsPathBuf;
-
 use figment::{
     Figment,
     providers::{Env, Format, Serialized, Toml},
@@ -30,10 +28,6 @@ pub enum LoadError {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SaveError {
-    /// Platform config directory (`~/.config/hm` or equivalent) could not be resolved.
-    #[error("could not determine config directory")]
-    ConfigDirUnavailable,
-
     /// TOML serialization of a [`Config`] failed.
     #[error("serializing config")]
     Serialize(#[from] toml::ser::Error),
@@ -128,36 +122,13 @@ pub struct Config {
 }
 
 impl Config {
-    /// XDG-aware user config path (`~/.config/hm/config.toml`).
-    ///
-    /// Returns `None` if the platform config directory cannot be determined.
-    #[must_use]
-    pub fn user_config_path() -> Option<AbsPathBuf> {
-        hm_util::dirs::hm_config_dir().map(|d| d.join("config.toml"))
-    }
-
     /// Project-level config path: `<root>/.hm/config.toml`.
     #[must_use]
     pub fn project_config_path(project_root: &Path) -> PathBuf {
         project_root.join(".hm").join("config.toml")
     }
 
-    /// Load configuration with full layering: defaults -> user file -> project file -> env.
-    ///
-    /// `project_config_path` is the path to the project-level config file
-    /// (typically `.hm/config.toml`), not the project root. Pass `None` to
-    /// skip the project layer (user + env only). When the user config path
-    /// cannot be resolved, the user layer is skipped as well.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`LoadError`] if figment extraction fails (malformed TOML, type
-    /// mismatches).
-    pub fn load(project_config_path: Option<&Path>) -> Result<Self, LoadError> {
-        Self::load_from_paths(Self::user_config_path().as_deref(), project_config_path)
-    }
-
-    /// Testable core: build a `Config` from explicit file paths.
+    /// Build a `Config` from explicit file paths.
     ///
     /// Layering, lowest to highest precedence: defaults -> user file ->
     /// project file -> env.
@@ -209,17 +180,6 @@ impl Config {
             path: path.to_path_buf(),
             source,
         })
-    }
-
-    /// Save to user-level config path (`~/.config/hm/config.toml`).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SaveError::ConfigDirUnavailable`] if the path cannot be
-    /// determined, or any other [`SaveError`] if the write fails.
-    pub fn save_user(&self) -> Result<(), SaveError> {
-        let path = Self::user_config_path().ok_or(SaveError::ConfigDirUnavailable)?;
-        self.save_to(&path)
     }
 }
 

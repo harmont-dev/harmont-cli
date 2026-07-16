@@ -29,9 +29,10 @@ fn config() -> Result<hm_config::Config> {
     let cwd = hm_util::path::AbsPathBuf::current_dir().ok();
     let project = cwd
         .as_ref()
-        .and_then(|cwd| hm_util::dirs::find_project_root(cwd.as_abs_path()))
+        .and_then(|cwd| hm_core::Workspace::find_root(cwd.as_abs_path()))
         .map(|root| hm_config::Config::project_config_path(&root));
-    hm_config::Config::load(project.as_deref()).context("loading config")
+    hm_config::Config::load_from_paths(hm_core::Sys::config_path().as_deref(), project.as_deref())
+        .context("loading config")
 }
 
 /// Resolve the bearer token, or the shared "not logged in" error.

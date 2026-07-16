@@ -7,6 +7,8 @@ use hm_config::Config;
 use hm_util::path::{AbsPath, AbsPathBuf};
 use thiserror::Error;
 
+use crate::sys::Sys;
+
 /// Failure resolving or loading a directory as a [`Workspace`].
 #[derive(Debug, Error)]
 pub enum LoadError {
@@ -78,9 +80,32 @@ impl Workspace {
             }
         } else {
             let start = AbsPathBuf::current_dir().map_err(LoadError::CurrentDir)?;
-            hm_util::dirs::find_project_root(start.as_abs_path()).ok_or(LoadError::NotFound)?
+            Self::find_root(start.as_abs_path()).ok_or(LoadError::NotFound)?
         };
         Self::load(&root)
+    }
+
+    /// Walk up from `start` looking for a directory containing `.hm/`, and
+    /// return that directory (the project root), or `None` if the filesystem
+    /// root is reached without finding one.
+    ///
+    /// This is the discovery half of [`Self::resolve`], exposed for callers that
+    /// want to know *whether* they are inside a project without paying to load
+    /// one — e.g. deciding whether a project config layer exists.
+    ///
+    /// Takes an [`AbsPath`] because the walk only terminates meaningfully from
+    /// an absolute start: a relative `start` would walk to the empty path rather
+    /// than `/`, and would yield a root that means something different once the
+    /// cwd changes. Absolute in, absolute out.
+    #[must_use]
+    pub fn find_root(start: AbsPath<'_>) -> Option<AbsPathBuf> {
+        let mut current = start;
+        loop {
+            if current.join(".hm").is_dir() {
+                return Some(current.to_abs_path_buf());
+            }
+            current = current.parent()?;
+        }
     }
 
     /// Attempt to load the given directory as a workspace, if it appears to be one.
@@ -104,7 +129,10 @@ impl Workspace {
 
         let hm_dir = AbsPathBuf::new(hm_dir)
             .ok_or_else(|| LoadError::InvalidPath(workspace_path.to_path_buf()))?;
-        let config = Config::load(Some(&hm_dir.join("config.toml")))?;
+        let config = Config::load_from_paths(
+            Sys::config_path().as_deref(),
+            Some(&hm_dir.join("config.toml")),
+        )?;
         Ok(Self { hm_dir, config })
     }
 
@@ -139,5 +167,40 @@ impl Workspace {
     #[must_use]
     pub fn secrets_path(&self) -> AbsPathBuf {
         self.hm_dir().join("secrets")
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn abs(p: &Path) -> AbsPath<'_> {
+        AbsPath::new(p).unwrap()
+    }
+
+    #[test]
+    fn find_root_at_start_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join(".hm")).unwrap();
+        let found = Workspace::find_root(abs(tmp.path()));
+        assert_eq!(found, AbsPathBuf::new(tmp.path().to_path_buf()));
+    }
+
+    #[test]
+    fn find_root_walks_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join(".hm")).unwrap();
+        let nested = tmp.path().join("src").join("deep");
+        std::fs::create_dir_all(&nested).unwrap();
+        let found = Workspace::find_root(abs(&nested));
+        assert_eq!(found, AbsPathBuf::new(tmp.path().to_path_buf()));
+    }
+
+    #[test]
+    fn find_root_returns_none_when_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let found = Workspace::find_root(abs(tmp.path()));
+        assert_eq!(found, None);
     }
 }

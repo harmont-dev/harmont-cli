@@ -4,7 +4,7 @@ use hm_vm::VmBackend as _;
 /// # Errors
 /// Returns an error if workspace cache removal fails.
 pub async fn handle_clean() -> Result<i32> {
-    let ws_cleaned = if let Some(ws_cache) = hm_util::dirs::hm_workspace_cache_dir()
+    let ws_cleaned = if let Some(ws_cache) = hm_core::Sys::workspace_cache_dir()
         && ws_cache.exists()
     {
         let size = dir_size(&ws_cache);
@@ -19,7 +19,7 @@ pub async fn handle_clean() -> Result<i32> {
         false
     };
 
-    let db_cleaned = if let Some(cache_dir) = hm_util::dirs::hm_cache_dir() {
+    let db_cleaned = if let Some(cache_dir) = hm_core::Sys::cache_dir() {
         let db_path = cache_dir.join("registry.db");
         if db_path.exists() {
             // Remove the backing Docker images BEFORE deleting registry.db.
