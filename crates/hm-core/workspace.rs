@@ -33,10 +33,12 @@ pub enum LoadError {
 
 /// Utility for accessing well-known paths inside a workspace.
 ///
-/// Two constructors:
+/// Three constructors, one discovery rule:
 ///
 /// - [`Workspace::resolve`] — the one CLI verbs want. Honors a `--dir`-style
-///   override, else walks up from the cwd.
+///   override, else walks up from the cwd; no workspace is an error.
+/// - [`Workspace::find`] — same rule, but no workspace is `Ok(None)`, for
+///   callers that also work outside a project (the `hm cloud` verbs).
 /// - [`Workspace::load`] — validates one **specific** project root (the
 ///   directory that contains `.hm/`), with no discovery.
 #[derive(Debug)]
@@ -53,7 +55,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    /// Resolve the workspace a command should operate on.
+    /// Find the workspace a command should operate on, if there is one.
     ///
     /// The single root-resolution rule for every verb that takes a `--dir`:
     ///
@@ -65,11 +67,18 @@ impl Workspace {
     /// - **`dir` absent** — walk up from the cwd, so a verb works from any
     ///   subdirectory of the project.
     ///
+    /// `Ok(None)` means only "the walk-up reached `/` without finding `.hm/`" —
+    /// for callers that legitimately run outside a project, like the `hm cloud`
+    /// verbs. An explicit `dir` that is not a workspace is a user error, not an
+    /// absence, so it still fails with [`LoadError::InvalidWorkspace`].
+    ///
+    /// Verbs that require a workspace want [`Self::resolve`] instead.
+    ///
     /// # Errors
     ///
-    /// Returns [`LoadError`] if the cwd cannot be determined, no project root
-    /// is found while walking up, or the resolved root fails [`Self::load`].
-    pub fn resolve(dir: Option<&Path>) -> Result<Self, LoadError> {
+    /// Returns [`LoadError`] if the cwd cannot be determined, or the resolved
+    /// root fails [`Self::load`].
+    pub fn find(dir: Option<&Path>) -> Result<Option<Self>, LoadError> {
         let root = if let Some(d) = dir {
             if let Some(abs) = AbsPath::new(d) {
                 abs.to_abs_path_buf()
@@ -80,25 +89,42 @@ impl Workspace {
             }
         } else {
             let start = AbsPathBuf::current_dir().map_err(LoadError::CurrentDir)?;
-            Self::find_root(start.as_abs_path()).ok_or(LoadError::NotFound)?
+            match Self::find_root(start.as_abs_path()) {
+                Some(root) => root,
+                None => return Ok(None),
+            }
         };
-        Self::load(&root)
+        Self::load(&root).map(Some)
+    }
+
+    /// Resolve the workspace a command should operate on, requiring one.
+    ///
+    /// [`Self::find`]'s rule, with the absence policy every CLI verb wants: no
+    /// workspace is [`LoadError::NotFound`], whose message tells the user how to
+    /// get one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::find`], plus [`LoadError::NotFound`] when the walk-up finds no
+    /// `.hm/` directory.
+    pub fn resolve(dir: Option<&Path>) -> Result<Self, LoadError> {
+        Self::find(dir)?.ok_or(LoadError::NotFound)
     }
 
     /// Walk up from `start` looking for a directory containing `.hm/`, and
     /// return that directory (the project root), or `None` if the filesystem
     /// root is reached without finding one.
     ///
-    /// This is the discovery half of [`Self::resolve`], exposed for callers that
-    /// want to know *whether* they are inside a project without paying to load
-    /// one — e.g. deciding whether a project config layer exists.
+    /// Private: this is [`Self::find`]'s discovery half, and callers that want
+    /// to know whether they are in a project should ask for the workspace
+    /// itself. Handing out a bare root invites re-deriving the paths and config
+    /// layering that [`Self::load`] already owns.
     ///
     /// Takes an [`AbsPath`] because the walk only terminates meaningfully from
     /// an absolute start: a relative `start` would walk to the empty path rather
     /// than `/`, and would yield a root that means something different once the
     /// cwd changes. Absolute in, absolute out.
-    #[must_use]
-    pub fn find_root(start: AbsPath<'_>) -> Option<AbsPathBuf> {
+    fn find_root(start: AbsPath<'_>) -> Option<AbsPathBuf> {
         let mut current = start;
         loop {
             if current.join(".hm").is_dir() {

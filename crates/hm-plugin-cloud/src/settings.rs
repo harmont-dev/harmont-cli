@@ -17,22 +17,21 @@ use secrecy::{ExposeSecret, SecretString};
 
 /// The layered config for the current directory.
 ///
-/// Includes the project `.hm/config.toml` layer whenever the cwd is inside a
-/// harmont project — [`ResolvedCtx::org`]'s own error text tells users to set
-/// `[cloud] org` there, so it has to be read. Outside a project there is simply
-/// no project layer, and the cloud verbs still work from anywhere.
+/// Inside a harmont project this is the workspace's config, project layer
+/// included — [`ResolvedCtx::org`]'s own error text tells users to set
+/// `[cloud] org` in `.hm/config.toml`, so it has to be read. Outside a project
+/// there is simply no project layer, and the cloud verbs still work from
+/// anywhere.
 ///
-/// **Read-only callers only.** `hm cloud org switch` deliberately loads the user
-/// layer alone: it saves back to the user file, and merging the project layer in
-/// first would persist project-scoped values into `~/.config/hm/config.toml`.
+/// **Read-only callers only.** `hm cloud org switch` deliberately uses
+/// [`hm_core::Sys::config`] instead: it saves back to the user file, and merging
+/// the project layer in first would persist project-scoped values into
+/// `~/.config/hm/config.toml`.
 fn config() -> Result<hm_config::Config> {
-    let cwd = hm_util::path::AbsPathBuf::current_dir().ok();
-    let project = cwd
-        .as_ref()
-        .and_then(|cwd| hm_core::Workspace::find_root(cwd.as_abs_path()))
-        .map(|root| hm_config::Config::project_config_path(&root));
-    hm_config::Config::load_from_paths(hm_core::Sys::config_path().as_deref(), project.as_deref())
-        .context("loading config")
+    match hm_core::Workspace::find(None).context("loading config")? {
+        Some(ws) => Ok(ws.config().clone()),
+        None => hm_core::Sys::config().context("loading config"),
+    }
 }
 
 /// Resolve the bearer token, or the shared "not logged in" error.

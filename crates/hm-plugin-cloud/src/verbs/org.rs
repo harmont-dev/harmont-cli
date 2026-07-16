@@ -27,12 +27,13 @@ async fn switch(client: &harmont_cloud::HarmontClient, slug: &str) -> Result<()>
         .iter()
         .find(|o| o.slug == slug)
         .ok_or_else(|| anyhow::anyhow!("no organization with slug '{slug}'"))?;
-    // Load-mutate-save on the *user* config, so this deliberately passes no
-    // project layer: merging `.hm/config.toml` in first would persist
-    // project-scoped values into ~/.config/hm/config.toml.
-    let user_path = hm_core::Sys::config_path().context("could not determine config directory")?;
-    let mut cfg = hm_config::Config::load_from_paths(Some(&user_path), None)?;
+    // Load-mutate-save on the *user* config, so this deliberately uses
+    // `Sys::config` rather than `settings::config`: merging the project
+    // `.hm/config.toml` layer in first would persist project-scoped values into
+    // ~/.config/hm/config.toml.
+    let mut cfg = hm_core::Sys::config()?;
     cfg.cloud.org = Some(found.slug.clone());
+    let user_path = hm_core::Sys::config_path().context("could not determine config directory")?;
     cfg.save_to(&user_path).context("saving config")?;
     tracing::info!("active organization: {} ({})", found.name, found.slug);
     Ok(())

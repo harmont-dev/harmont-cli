@@ -104,13 +104,26 @@ fn load_resolves_project_root() {
     )
     .unwrap();
 
-    let start = hm_util::path::AbsPath::new(project_dir.path()).unwrap();
-    let found = hm_core::Workspace::find_root(start);
-    assert_eq!(
-        found,
-        hm_util::path::AbsPathBuf::new(project_dir.path().to_path_buf())
-    );
-
     let config_path = harmont_cli::config::Config::project_config_path(project_dir.path());
     assert_eq!(config_path, harmont_dir.join("config.toml"));
+
+    // Discovery and layering together: the workspace found at this root must
+    // actually read the project layer, not just point at it.
+    let ws = hm_core::Workspace::find(Some(project_dir.path()))
+        .unwrap()
+        .expect("project_dir is a workspace");
+    assert_eq!(ws.path().as_path(), project_dir.path());
+    assert_eq!(ws.config().cloud.org.as_deref(), Some("proj-root"));
+}
+
+/// An explicit `--dir` that is not a workspace is a user error, not an absence:
+/// only the cwd walk-up reaching `/` yields `Ok(None)`.
+#[test]
+fn find_rejects_an_explicit_dir_that_is_not_a_workspace() {
+    let empty = tempdir().unwrap();
+    let found = hm_core::Workspace::find(Some(empty.path()));
+    assert!(matches!(
+        found,
+        Err(hm_core::WorkspaceLoadError::InvalidWorkspace(_))
+    ));
 }

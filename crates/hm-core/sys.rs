@@ -12,6 +12,7 @@ pub mod env;
 use std::io;
 use std::path::PathBuf;
 
+use hm_config::Config;
 use hm_util::path::{AbsPath, AbsPathBuf};
 use thiserror::Error;
 
@@ -94,6 +95,25 @@ impl Sys {
     #[must_use]
     pub fn config_path() -> Option<AbsPathBuf> {
         Self::config_dir().map(|d| d.join("config.toml"))
+    }
+
+    /// This user's configuration: `~/.config/hm/config.toml` + `HM_*` env, with
+    /// no project layer.
+    ///
+    /// The user-scope counterpart to [`crate::Workspace::config`], which layers
+    /// a project's `.hm/config.toml` on top of this. Use this one when there is
+    /// no workspace, or when a project layer would be wrong — `hm cloud org
+    /// switch` writes back to the user file, so merging the project layer in
+    /// first would persist project-scoped values into `~/.config/hm/config.toml`.
+    ///
+    /// When the config directory cannot be resolved the file layer is skipped;
+    /// defaults and env still apply.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`hm_config::LoadError`] if the config file is malformed.
+    pub fn config() -> Result<Config, hm_config::LoadError> {
+        Config::load_from_paths(Self::config_path().as_deref(), None)
     }
 
     /// `~/.cache/hm/` — this user's cache root (regenerable).
