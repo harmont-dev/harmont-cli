@@ -36,7 +36,7 @@ pub struct CloudBackend {
     api_base: String,
     /// Dashboard (SPA) base used to build the human-clickable watch URL. This
     /// is the `app.` host, NOT `api.` — a link built from `api_base` lands on
-    /// raw JSON. Resolved via [`hm_config::app_url`] at the call site.
+    /// raw JSON. Resolved via `hm_config::app_url` at the call site.
     app_base: String,
     org: String,
 }

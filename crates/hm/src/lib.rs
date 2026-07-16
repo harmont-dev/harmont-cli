@@ -20,9 +20,6 @@ pub mod commands;
 /// keep resolving. The layered config + credential store now live in
 /// `hm-config` so `hm-plugin-cloud` can share them.
 pub use hm_config as config;
-/// Re-export the credential store under the historical
-/// `harmont_cli::creds_store` path.
-pub use hm_config::creds as creds_store;
 pub mod context;
 pub mod error;
 pub(crate) mod signal;

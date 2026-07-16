@@ -8,9 +8,9 @@
 //! The published `harmont-cloud` SDK does not (yet) expose secret
 //! operations, so these verbs make the authenticated HTTP calls directly,
 //! reusing the same config/credential resolution the SDK-backed verbs use
-//! (`hm_config` for the API base + active org, `hm_config::creds` for the
-//! bearer token). No new auth stack — just a thin reqwest call for the
-//! endpoints the generated client doesn't carry.
+//! (`hm_config` for the API base + active org, `hm_core::Sys` for the bearer
+//! token). No new auth stack — just a thin reqwest call for the endpoints the
+//! generated client doesn't carry.
 
 use std::collections::BTreeMap;
 use std::io::Read;
@@ -18,6 +18,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+use secrecy::{ExposeSecret, SecretString};
 
 use crate::cli::SecretCommand;
 
@@ -131,10 +132,11 @@ pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: SecretCommand) -> 
 }
 
 /// Build an authenticated reqwest client carrying the bearer token.
-fn http_client(token: &str) -> Result<reqwest::Client> {
+fn http_client(token: &SecretString) -> Result<reqwest::Client> {
     let mut headers = reqwest::header::HeaderMap::new();
-    let mut auth = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
-        .context("API token contains characters invalid for an Authorization header")?;
+    let mut auth =
+        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token.expose_secret()))
+            .context("API token contains characters invalid for an Authorization header")?;
     auth.set_sensitive(true);
     headers.insert(reqwest::header::AUTHORIZATION, auth);
     reqwest::Client::builder()
@@ -197,7 +199,7 @@ fn from_status(status: reqwest::StatusCode, body: &str) -> anyhow::Error {
 
 async fn set(
     api: &str,
-    token: &str,
+    token: &SecretString,
     org: &str,
     pipeline: Option<&str>,
     name: &str,
@@ -228,7 +230,7 @@ async fn set(
     Ok(())
 }
 
-async fn list(api: &str, token: &str, org: &str, pipeline: Option<&str>) -> Result<()> {
+async fn list(api: &str, token: &SecretString, org: &str, pipeline: Option<&str>) -> Result<()> {
     #[derive(serde::Deserialize)]
     struct Secret {
         name: String,
@@ -259,7 +261,13 @@ async fn list(api: &str, token: &str, org: &str, pipeline: Option<&str>) -> Resu
     Ok(())
 }
 
-async fn rm(api: &str, token: &str, org: &str, pipeline: Option<&str>, name: &str) -> Result<()> {
+async fn rm(
+    api: &str,
+    token: &SecretString,
+    org: &str,
+    pipeline: Option<&str>,
+    name: &str,
+) -> Result<()> {
     let collection = secrets_path(org, pipeline);
     let url = format!("{api}{}", secret_item_path(&collection, name));
     let client = http_client(token)?;

@@ -3,3 +3,4 @@ pub mod watch; // pub: hm-plugin-cloud's `build watch`/`job log` verbs reuse it
 
 mod backend;
 pub use backend::CloudBackend;
+mod secrets;

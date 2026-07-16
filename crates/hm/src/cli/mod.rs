@@ -97,13 +97,19 @@ pub struct CacheRestoreArgs {
 
 /// Dispatch a parsed CLI command to the appropriate handler. Returns an exit code.
 ///
+/// [`RunContext`] is loaded only for [`Command::Run`] — other verbs do not
+/// require a project workspace (e.g. `hm cloud login`, `hm version`).
+///
 /// # Errors
 ///
 /// Returns an error if the dispatched handler fails.
-pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
+pub async fn dispatch(command: Command, cli: &Cli) -> Result<i32> {
     match command {
         Command::Init(args) => crate::commands::init::handle(args).await.map(|()| 0),
-        Command::Run(args) => crate::commands::run::handle(args, ctx).await,
+        Command::Run(args) => {
+            let ctx = RunContext::from_cli(cli)?;
+            crate::commands::run::handle(args, ctx).await
+        }
         Command::Pipelines(args) => crate::cli::pipelines::run(args).await.map(|()| 0),
         Command::Render(args) => crate::cli::render::run(args).await.map(|()| 0),
         Command::Cache(cmd) => match cmd {

@@ -11,7 +11,6 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use harmont_cli::cli::{self, Cli};
-use harmont_cli::context::RunContext;
 use harmont_cli::error::{self, HmError};
 
 #[tokio::main]
@@ -90,8 +89,7 @@ async fn main() {
 
 async fn run(args: Cli) -> Result<i32, anyhow::Error> {
     let command = args.command.clone();
-    let ctx = RunContext::from_cli(&args)?;
-    cli::dispatch(command, ctx).await
+    cli::dispatch(command, &args).await
 }
 
 fn build_chrome_layer<S>(
