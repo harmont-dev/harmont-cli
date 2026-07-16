@@ -17,10 +17,26 @@ use std::io::Read;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use secrecy::{ExposeSecret, SecretString};
 
 use crate::cli::SecretCommand;
+
+/// Characters to percent-encode in a single URL path segment.
+///
+/// RFC 3986 leaves the *unreserved* set (`A-Z a-z 0-9 - . _ ~`) safe in a path
+/// segment; everything else is escaped. `NON_ALPHANUMERIC` escapes all four of
+/// `-._~` too, so they are removed here — secret names are conventionally
+/// `[A-Za-z0-9_]`, and encoding `_` as `%5F` requests a different resource than
+/// the one the user named.
+///
+/// What must NOT be removed: `/` and space, which have to survive as `%2F` /
+/// `%20` so a name like `a/b c` cannot escape its scope.
+const SEGMENT: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
 
 /// Where the secret value comes from on `set`.
 ///
@@ -47,7 +63,7 @@ fn secrets_path(org: &str, pipeline: Option<&str>) -> String {
 
 /// Append a URL-path-escaped secret name to a collection path.
 fn secret_item_path(collection: &str, name: &str) -> String {
-    format!("{collection}/{}", utf8_percent_encode(name, NON_ALPHANUMERIC))
+    format!("{collection}/{}", utf8_percent_encode(name, SEGMENT))
 }
 
 /// Resolve the secret value from exactly one of: positional `VALUE`,
@@ -319,6 +335,29 @@ mod tests {
     }
 
     #[test]
+    fn unreserved_name_is_not_encoded() {
+        // RFC 3986 unreserved chars (incl. `-` `_` `.` `~`) must pass through.
+        // Escaping any of them requests a different resource than the user
+        // named. Pinned per-character: encoding these has regressed once
+        // already, via a blanket `NON_ALPHANUMERIC`.
+        let coll = secrets_path("acme", None);
+        for name in [
+            "DEPLOY-TOKEN_v2.0~rc",
+            "DEPLOY_TOKEN",
+            "a-b",
+            "a.b",
+            "a~b",
+            "A-Za-z0-9-._~",
+        ] {
+            assert_eq!(
+                secret_item_path(&coll, name),
+                format!("/api/v0/organizations/acme/secrets/{name}"),
+                "unreserved char was escaped in {name:?}"
+            );
+        }
+    }
+
+    #[test]
     fn item_path_escapes_funny_names() {
         let coll = secrets_path("acme", Some("ci"));
         assert_eq!(
@@ -432,11 +471,13 @@ mod tests {
     }
 
     #[test]
-    fn special_chars_are_encoded() {
+    fn reserved_chars_are_encoded() {
+        // The other half of the contract: anything outside the unreserved set
+        // must escape, so a name cannot break out of its path segment.
         let coll = secrets_path("acme", None);
         assert_eq!(
-            secret_item_path(&coll, "DEPLOY-TOKEN_v2.0~rc"),
-            "/api/v0/organizations/acme/secrets/DEPLOY%2DTOKEN%5Fv2%2E0%7Erc"
+            secret_item_path(&coll, "a/b c?d#e%f"),
+            "/api/v0/organizations/acme/secrets/a%2Fb%20c%3Fd%23e%25f"
         );
     }
 
