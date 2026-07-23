@@ -7,6 +7,7 @@ use harmont_cloud::{
     builds::{NewBuild, NewRepoBuild},
 };
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
+use human_units::FormatSize;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -258,13 +259,6 @@ fn dashboard_build_url(app_base: &str, org: &str, slug: &str, number: i64) -> St
     format!("{app_base}/{org}/pipelines/{slug}/builds/{number}")
 }
 
-/// Render a byte count as a human "N.N MB" (mebibytes, one decimal).
-fn human_mb(bytes: u64) -> String {
-    #[allow(clippy::cast_precision_loss)] // display-only; precision is irrelevant
-    let mb = bytes as f64 / (1024.0 * 1024.0);
-    format!("{mb:.1} MB")
-}
-
 /// Guard the source-archive upload: announce its size, warn when large, and
 /// reject (fail fast) when over the cap.
 ///
@@ -277,7 +271,7 @@ fn guard_archive_size(archive_len: usize, repo_root: &Path) -> Result<()> {
 
     // Always close the gulf of evaluation: a multi-second silent upload is a
     // wide gulf. Name the size up front.
-    tracing::info!("uploading source archive ({})", human_mb(bytes));
+    tracing::info!("uploading source archive ({})", bytes.format_size());
 
     if bytes <= ARCHIVE_WARN_BYTES {
         return Ok(());
@@ -297,12 +291,12 @@ fn guard_archive_size(archive_len: usize, repo_root: &Path) -> Result<()> {
     // Over the warn threshold but under the cap: nudge toward a .gitignore fix.
     let hint = offenders
         .iter()
-        .map(|(name, sz)| format!("{name} ({})", human_mb(*sz)))
+        .map(|(name, sz)| format!("{name} ({})", sz.format_size()))
         .collect::<Vec<_>>()
         .join(", ");
     tracing::warn!(
         "source archive is {} (largest: {}). Add big build artifacts to .gitignore to speed up uploads.",
-        human_mb(bytes),
+        bytes.format_size(),
         if hint.is_empty() {
             "—".to_string()
         } else {
@@ -348,11 +342,5 @@ mod tests {
             }
             other => panic!("expected SourceTooLarge, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn human_mb_formats_one_decimal() {
-        assert_eq!(human_mb(6 * 1024 * 1024), "6.0 MB");
-        assert_eq!(human_mb(1536 * 1024), "1.5 MB");
     }
 }

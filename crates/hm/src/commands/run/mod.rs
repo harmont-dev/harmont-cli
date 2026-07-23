@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 
 use hm_dsl_engine::{DslEngine, detect};
+use human_units::FormatSize as _;
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
@@ -677,14 +678,12 @@ error[log_stream]: live logs interrupted — {m}
             cap_bytes,
             largest_paths,
         } => {
-            #[allow(clippy::cast_precision_loss)] // display-only
-            let mb = |b: u64| format!("{:.1} MB", b as f64 / (1024.0 * 1024.0));
             let biggest = if largest_paths.is_empty() {
                 "  (no large top-level paths identified)".to_string()
             } else {
                 largest_paths
                     .iter()
-                    .map(|(name, sz)| format!("           {name} — {}", mb(*sz)))
+                    .map(|(name, sz)| format!("           {name} — {}", sz.format_size()))
                     .collect::<Vec<_>>()
                     .join("\n")
             };
@@ -693,8 +692,8 @@ error[log_stream]: live logs interrupted — {m}
 error[source_too_large]: worktree archive is {observed} (cap {cap})
   biggest\n{biggest}
   fix    add the offending paths to .gitignore (build output, caches, vendored deps), then re-run `hm run`",
-                observed = mb(*observed_bytes),
-                cap = mb(*cap_bytes),
+                observed = observed_bytes.format_size(),
+                cap = cap_bytes.format_size(),
             )
         }
         other => format!("error[backend]: {other}"),
@@ -817,7 +816,7 @@ mod tests {
         });
         assert!(big.contains("error[source_too_large]"));
         // Points precisely (observed + cap), names the offender, states the fix.
-        assert!(big.contains("7.0 MB") && big.contains("6.0 MB"));
+        assert!(big.contains("7 MiB") && big.contains("6 MiB"));
         assert!(big.contains("node_modules") && big.contains(".gitignore"));
         // Doc URLs were removed (the pages 404); no error should link to them.
         for s in [

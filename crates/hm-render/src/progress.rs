@@ -10,7 +10,9 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
+use std::time::Duration;
 
+use hm_common::format::CompactDuration as _;
 use hm_plugin_protocol::BuildEvent;
 use indicatif::ProgressStyle;
 use owo_colors::{OwoColorize, Style};
@@ -65,20 +67,6 @@ fn failed_style(color: bool) -> ProgressStyle {
     };
     let tpl = format!("{{span_child_prefix}}{cross} {{wide_msg}}");
     ProgressStyle::with_template(&tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
-}
-
-fn format_duration(ms: u64) -> String {
-    if ms < 1000 {
-        format!("{ms}ms")
-    } else if ms < 60_000 {
-        let secs = ms / 1000;
-        let tenths = (ms % 1000) / 100;
-        format!("{secs}.{tenths}s")
-    } else {
-        let mins = ms / 60_000;
-        let secs = (ms % 60_000) / 1000;
-        format!("{mins}m{secs}s")
-    }
 }
 
 /// Progress-bar renderer.
@@ -166,7 +154,7 @@ impl<W: Write> ProgressRenderer<W> {
                 Some(StepOutcome::Succeeded { duration_ms }) => (
                     styled("✓", Style::new().green(), self.color),
                     styled(
-                        &format_duration(*duration_ms),
+                        &Duration::from_millis(*duration_ms).compact().to_string(),
                         Style::new().dimmed(),
                         self.color,
                     ),
@@ -177,7 +165,10 @@ impl<W: Write> ProgressRenderer<W> {
                 }) => (
                     styled("✗", Style::new().red(), self.color),
                     styled(
-                        &format!("{}  exit {exit_code}", format_duration(*duration_ms)),
+                        &format!(
+                            "{}  exit {exit_code}",
+                            Duration::from_millis(*duration_ms).compact()
+                        ),
                         Style::new().red(),
                         self.color,
                     ),
@@ -185,7 +176,10 @@ impl<W: Write> ProgressRenderer<W> {
                 Some(StepOutcome::Cancelled { duration_ms }) => (
                     styled("-", Style::new().dimmed(), self.color),
                     styled(
-                        &format!("{}  cancelled", format_duration(*duration_ms)),
+                        &format!(
+                            "{}  cancelled",
+                            Duration::from_millis(*duration_ms).compact()
+                        ),
                         Style::new().dimmed(),
                         self.color,
                     ),
@@ -310,7 +304,7 @@ where
                     }
                 } else if let Some(span) = self.step_spans.get(step_id) {
                     let name = self.step_names.get(step_id).map_or("?", String::as_str);
-                    let dur = format_duration(*duration_ms);
+                    let dur = Duration::from_millis(*duration_ms).compact();
                     span.pb_set_style(&completed_style(self.color));
                     span.pb_set_message(&format!("{name}  ({dur})"));
                 }
@@ -355,7 +349,7 @@ where
 
                 if *exit_code != 0 {
                     self.print_failure_report();
-                    let dur = format_duration(*duration_ms);
+                    let dur = Duration::from_millis(*duration_ms).compact();
                     let msg = format!("✗ Build failed in {dur}");
                     let _ = writeln!(
                         self.out,
@@ -363,7 +357,7 @@ where
                         styled(&msg, Style::new().red().bold(), self.color)
                     );
                 } else {
-                    let dur = format_duration(*duration_ms);
+                    let dur = Duration::from_millis(*duration_ms).compact();
                     let msg = format!("✓ Build succeeded in {dur}");
                     let _ = writeln!(
                         self.out,

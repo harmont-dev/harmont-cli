@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/hm",
+    "crates/hm-common",
     "crates/hm-config",
     "crates/hm-plugin-protocol",
     "crates/hm-pipeline-ir",
@@ -14,6 +15,7 @@ members = [
 ]
 default-members = [
     "crates/hm",
+    "crates/hm-common",
     "crates/hm-config",
     "crates/hm-plugin-protocol",
     "crates/hm-pipeline-ir",
@@ -40,6 +42,7 @@ hm-config          = { path = "crates/hm-config",          version = "0.0.0-dev"
 hm-dsl-engine      = { path = "crates/hm-dsl-engine",     version = "0.0.0-dev" }
 hm-render          = { path = "crates/hm-render",          version = "0.0.0-dev" }
 hm-vm              = { path = "crates/hm-vm",              version = "0.0.0-dev" }
+hm-common          = { path = "crates/hm-common",          version = "0.0.0-dev" }
 harmont-cloud = "0.2"
 harmont-cloud-raw = "0.2"
 anyhow      = "1"
@@ -54,6 +57,7 @@ semver      = { version = "1", features = ["serde"] }
 uuid        = { version = "1", features = ["serde", "v4"] }
 chrono      = { version = "0.4", features = ["serde"] }
 thiserror   = "2"
+human-units = "0.5.4"
 derive_more = { version = "1", default-features = false, features = ["full"] }
 smart-default = "0.7"
 tokio       = { version = "1", features = ["full"] }
