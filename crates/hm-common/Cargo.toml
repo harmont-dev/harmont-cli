@@ -11,6 +11,11 @@ categories = ["command-line-utilities"]
 [lib]
 path = "src/lib.rs"
 
+[features]
+# Process-global application runtime (AppRuntime). Opt-in — only the binary
+# that owns process startup should enable it.
+app-runtime = []
+
 [dependencies]
 anyhow      = { workspace = true }
 async-trait = { workspace = true }
