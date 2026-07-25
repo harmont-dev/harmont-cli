@@ -361,9 +361,9 @@ checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
 
 [[package]]
 name = "bytes"
-version = "1.11.1"
+version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
+checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cc"
@@ -716,6 +716,12 @@ name = "doc-comment"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "780955b8b195a21ab8e4ac6b60dd1dbdcec1dc6c51c0617964b08c81785e12c9"
+
+[[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "dunce"
@@ -1125,6 +1131,7 @@ dependencies = [
  "hex",
  "hm-common",
  "hm-config",
+ "hm-core",
  "hm-dsl-engine",
  "hm-exec",
  "hm-pipeline-ir",
@@ -1141,6 +1148,7 @@ dependencies = [
  "rand 0.8.6",
  "reqwest",
  "schemars 0.8.22",
+ "secrecy",
  "semver",
  "serde",
  "serde_json",
@@ -1273,12 +1281,28 @@ dependencies = [
 name = "hm-config"
 version = "0.0.0-dev"
 dependencies = [
- "anyhow",
  "derive_more",
  "figment",
  "hm-util",
  "serde",
+ "smart-default",
  "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml",
+]
+
+[[package]]
+name = "hm-core"
+version = "0.0.0-dev"
+dependencies = [
+ "hm-config",
+ "hm-util",
+ "nix",
+ "secrecy",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.18",
  "tokio",
  "toml",
 ]
@@ -1306,18 +1330,22 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
  "chrono",
  "daggy",
+ "dotenvy",
  "flate2",
  "futures",
  "futures-util",
  "harmont-cloud",
+ "hm-core",
  "hm-pipeline-ir",
  "hm-plugin-protocol",
  "hm-util",
  "hm-vm",
  "human-units",
  "ignore",
+ "secrecy",
  "serde",
  "serde_json",
  "tar",
@@ -1353,10 +1381,16 @@ dependencies = [
  "harmont-cloud",
  "harmont-cloud-raw",
  "hm-config",
+ "hm-core",
  "hm-exec",
  "hm-plugin-protocol",
  "hm-render",
+ "percent-encoding",
+ "reqwest",
+ "secrecy",
+ "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "uuid",
@@ -1399,6 +1433,7 @@ name = "hm-util"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "derive_more",
  "dirs",
  "tempfile",
  "tokio",
@@ -2054,6 +2089,18 @@ name = "ndk-context"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27b02d87554356db9e9a873add8782d4ea6e3e58ea071a9adb9a2e8ddb884a8b"
+
+[[package]]
+name = "nix"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
 
 [[package]]
 name = "nom"
@@ -2920,6 +2967,15 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "secrecy"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
+dependencies = [
+ "zeroize",
+]
 
 [[package]]
 name = "security-framework"

@@ -42,6 +42,7 @@ use uuid::Uuid;
 use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
 
 use crate::local::runner::{RunnerRegistry, StepContext};
+use crate::local::secret_resolver::{MissingSecret, SecretResolver, resolve_step_env};
 use crate::local::source::build_archive_bytes;
 use crate::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};
 
@@ -134,6 +135,11 @@ pub(crate) async fn run(
         .map_err(|e| crate::BackendError::Local(format!("{e:#}")))?;
     let archive_id = archives.register(archive_bytes);
 
+    // Build the secret resolver once for the whole run, from the project's
+    // `.env` overlaid by the live process env. Shared across every concurrent
+    // step task; each step resolves its own `secrets` references against it.
+    let secret_resolver = Arc::new(SecretResolver::from_project_dir(&repo_root));
+
     let run_ctx = StepContext {
         event_bus: bus.clone(),
         archives: archives.clone(),
@@ -186,6 +192,7 @@ pub(crate) async fn run(
         let bus = bus.clone();
         let cancel = cancel.clone();
         let run_ctx = run_ctx.clone();
+        let secret_resolver = secret_resolver.clone();
 
         let fut: StepFuture = async move {
             // Await all predecessors.
@@ -244,6 +251,7 @@ pub(crate) async fn run(
                 bus,
                 cancel,
                 keep_going,
+                secret_resolver,
             )
             .await
             {
@@ -386,7 +394,9 @@ async fn execute_step(
     bus: Arc<EventBus>,
     cancel: CancellationToken,
     keep_going: bool,
+    secret_resolver: Arc<SecretResolver>,
 ) -> anyhow::Result<StepOutcome> {
+    let secret_refs = transition.secrets;
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
@@ -400,7 +410,6 @@ async fn execute_step(
             format!("{truncated}…")
         }
     });
-    let env_map = transition.env;
     let step_id = Uuid::new_v4();
 
     bus.emit(BuildEvent::StepQueued {
@@ -410,6 +419,53 @@ async fn execute_step(
         parent_key: parent_key.clone(),
         display_name: display_name.clone(),
     });
+
+    // Resolve secret references into the step's env before it reaches the
+    // container. A reference that can't be resolved is fatal: we fail the
+    // step (and, unless --keep-going, cancel siblings) with an actionable
+    // message rather than silently injecting an empty value.
+    let env_map = match resolve_step_env(transition.env, &secret_refs, &secret_resolver) {
+        Ok(env) => env,
+        Err(MissingSecret {
+            env_var,
+            secret_name,
+        }) => {
+            let message = format!(
+                "secret \"{secret_name}\" (referenced by env var \"{env_var}\") was not found.\n\
+                 Set it in a `.env` file in your project directory or export it in your shell, then re-run.\n  \
+                 e.g.  echo '{secret_name}=...' >> .env"
+            );
+            bus.emit(BuildEvent::StepEnd {
+                step_id,
+                exit_code: 1,
+                duration_ms: 0,
+                snapshot: None,
+            });
+            bus.emit(BuildEvent::ChainFailed {
+                chain_idx: chain_id,
+                failed_step_id: step_id,
+                failed_step_key: step_key.clone(),
+                exit_code: 1,
+                message,
+                ts: chrono::Utc::now(),
+            });
+            if !keep_going {
+                cancel.cancel();
+            }
+            return Ok(StepOutcome {
+                exit_code: 1,
+                snapshot: None,
+                summary: Some(StepResultSummary {
+                    step_id,
+                    key: step_key.clone(),
+                    status: StepStatus::Failed,
+                    exit_code: Some(1),
+                    duration_ms: 0,
+                }),
+                failed_or_skipped: true,
+            });
+        }
+    };
 
     // Compute the cache lookup for the runner. The runner (VmRunner)
     // handles cache hit/miss internally via ImageRegistry.

@@ -36,6 +36,7 @@ fn executor_input_round_trip() {
             cache: None,
             runner: Some("docker".into()),
             runner_args: None,
+            secrets: None,
         },
         workspace_archive_id: ArchiveId(Uuid::nil()),
         env: Default::default(),

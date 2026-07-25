@@ -10,7 +10,9 @@ mod cache;
 mod events;
 pub mod runner;
 mod scheduler;
+mod secret_resolver;
 mod source;
+mod secrets;
 
 pub use backend::LocalBackend;
 pub(crate) use runner::RunnerRegistry; // intra-crate: local/backend.rs via crate::local::

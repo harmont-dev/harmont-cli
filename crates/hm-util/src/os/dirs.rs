@@ -8,24 +8,24 @@
 //! primitives consistent and our paths predictable; it is deliberate, not an
 //! oversight. Revisit only if honoring the XDG env vars becomes a real need.
 
-use std::path::PathBuf;
+use crate::path::AbsPathBuf;
 
-pub(crate) fn home_dir() -> Option<PathBuf> {
-    dirs::home_dir()
+pub(crate) fn home_dir() -> Option<AbsPathBuf> {
+    dirs::home_dir().and_then(AbsPathBuf::new)
 }
 
-pub(crate) fn config_dir() -> Option<PathBuf> {
+pub(crate) fn config_dir() -> Option<AbsPathBuf> {
     if cfg!(windows) {
-        dirs::config_dir()
+        dirs::config_dir().and_then(AbsPathBuf::new)
     } else {
-        home_dir().map(|h| h.join(".config"))
+        Some(home_dir()?.join(".config"))
     }
 }
 
-pub(crate) fn cache_dir() -> Option<PathBuf> {
+pub(crate) fn cache_dir() -> Option<AbsPathBuf> {
     if cfg!(windows) {
-        dirs::cache_dir()
+        dirs::cache_dir().and_then(AbsPathBuf::new)
     } else {
-        home_dir().map(|h| h.join(".cache"))
+        Some(home_dir()?.join(".cache"))
     }
 }

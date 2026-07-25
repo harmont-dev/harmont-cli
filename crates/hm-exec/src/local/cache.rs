@@ -53,6 +53,7 @@ mod tests {
             cache,
             runner: None,
             runner_args: None,
+            secrets: None,
         }
     }
 

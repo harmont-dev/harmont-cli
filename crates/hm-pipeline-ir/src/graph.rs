@@ -28,6 +28,10 @@ pub struct CommandStep {
     /// Per-step environment variables merged on top of the pipeline env.
     #[serde(default)]
     pub env: Option<BTreeMap<String, String>>,
+    /// Per-step secret references, merged on top of pipeline secrets.
+    /// Maps env-var-name -> secret-name. Values are resolved at run time, never here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secrets: Option<BTreeMap<String, String>>,
     /// Maximum wall-clock seconds before the step is killed.
     ///
     /// `NonZeroU32`: a `0`-second budget is rejected at the wire boundary.
@@ -63,6 +67,9 @@ pub struct Cache {
 pub struct Transition {
     pub step: CommandStep,
     pub env: BTreeMap<String, String>,
+    /// Merged secret references (pipeline + per-step). env-var-name -> secret-name.
+    #[serde(default)]
+    pub secrets: BTreeMap<String, String>,
 }
 
 /// Edge label in the pipeline DAG.

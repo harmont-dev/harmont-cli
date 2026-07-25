@@ -8,3 +8,4 @@ pub(crate) mod job;
 pub(crate) mod org;
 pub(crate) mod pipeline;
 pub(crate) mod run;
+pub(crate) mod secret;

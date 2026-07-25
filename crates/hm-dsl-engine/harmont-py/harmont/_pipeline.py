@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from ._duration import parse_duration
 from ._keys import resolve_keys
+from ._secret import SecretRef
 from .cache import (
     CacheCompose,
     CacheForever,
@@ -37,7 +38,7 @@ DEFAULT_IMAGE = "ubuntu:24.04"
 def pipeline(
     leaves: list[Step] | tuple[Step, ...],
     *,
-    env: dict[str, str] | None = None,
+    env: dict[str, str | SecretRef] | None = None,
     timeout: str | int | None = None,
 ) -> dict[str, Any]:
     """Top-level factory. Returns a JSON-shaped dict (version "0").
@@ -66,7 +67,7 @@ def pipeline(
 def _lower_to_graph(
     leaves: list[Step],
     *,
-    env: dict[str, str] | None = None,
+    env: dict[str, str | SecretRef] | None = None,
 ) -> dict[str, Any]:
     """Walk back via `parent`, topo-sort, emit petgraph-serde graph dict.
 
@@ -131,7 +132,7 @@ def _lower_to_graph(
             step_dict["runner_args"] = s.runner_args
 
         # Baseline env for non-interactive operation inside VMs/containers.
-        merged_env: dict[str, str] = {
+        merged_env: dict[str, str | SecretRef] = {
             "DEBIAN_FRONTEND": "noninteractive",
             "TERM": "dumb",
         }
@@ -140,7 +141,21 @@ def _lower_to_graph(
         if s.env:
             merged_env.update(s.env)
 
-        nodes.append({"step": step_dict, "env": merged_env})
+        # Split the merged env: literal strings stay as env; SecretRefs become
+        # an env-var-name -> secret-name map resolved at run time. The
+        # node-level `secrets` map is authoritative; the step-level copy
+        # mirrors the same merged map so consumers that read either see it.
+        literal_env: dict[str, str] = {}
+        secret_refs: dict[str, str] = {}
+        for var, val in merged_env.items():
+            if isinstance(val, SecretRef):
+                secret_refs[var] = val.name
+            else:
+                literal_env[var] = val
+
+        step_dict["secrets"] = secret_refs
+
+        nodes.append({"step": step_dict, "env": literal_env, "secrets": secret_refs})
 
         # builds_in edge from parent.
         parent_key = _resolved_parent_key(s, keys)

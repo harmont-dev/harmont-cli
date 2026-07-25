@@ -40,6 +40,7 @@ from ._pipeline import pipeline as _pipeline_factory
 from ._pipeline import pipeline_to_json
 from ._python import python
 from ._rust import RustProject, rust
+from ._secret import SecretRef, secrets
 from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
 from ._toolchain import apt_base
@@ -58,6 +59,7 @@ from .triggers import pull_request as pr
 from .types import Pipeline
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import timedelta
 
 
@@ -237,7 +239,7 @@ def sh(
     cwd: str | None = None,
     label: str | None = None,
     cache: CachePolicy | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str | SecretRef] | None = None,
     image: str | None = None,
     key: str | None = None,
 ) -> Step:
@@ -309,6 +311,7 @@ __all__ = [
     "JsProject",
     "Pipeline",
     "RustProject",
+    "SecretRef",
     "Step",
     "Target",
     "apt_base",
@@ -330,6 +333,7 @@ __all__ = [
     "python",
     "rust",
     "scratch",
+    "secrets",
     "sh",
     "target",
     "timeout",

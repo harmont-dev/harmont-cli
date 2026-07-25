@@ -1,18 +1,31 @@
 //! Cloud client builders for the `hm cloud` verbs.
 //!
-//! Config and credentials are owned by the shared [`hm_config`] crate:
+//! Config and credentials come from two shared crates:
 //!
-//! - layered config (user `~/.config/hm/config.toml` + project
-//!   `.hm/config.toml` + `HM_*` env) supplies the API base
-//!   (`cloud.api_url`) and the active org (`cloud.org`);
-//! - bearer tokens live in `hm_config::creds`, keyed by API base, with
-//!   `HM_API_TOKEN` taking precedence.
+//! - [`hm_config`] supplies layered config (user `~/.config/hm/config.toml` +
+//!   project `.hm/config.toml` + `HM_*` env): the API base (`cloud.api_url`)
+//!   and the active org (`cloud.org`);
+//! - [`hm_core::Sys`] owns the single bearer token, with `HM_API_TOKEN` taking
+//!   precedence.
 //!
 //! This module only assembles an SDK client from that config; it does not own
 //! any config or credential storage of its own.
 
 use anyhow::{Context, Result};
 use harmont_cloud::HarmontClient;
+use secrecy::{ExposeSecret, SecretString};
+
+/// Resolve the bearer token, or the shared "not logged in" error.
+///
+/// Every authenticated path routes through here so the not-logged-in text
+/// lives in one place.
+fn token() -> Result<SecretString> {
+    hm_core::Sys::load()
+        .context("loading credentials")?
+        .creds()
+        .token()
+        .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")
+}
 
 /// Resolved cloud context for the `hm cloud` verbs.
 #[derive(Debug, Clone)]
@@ -45,9 +58,7 @@ impl ResolvedCtx {
 pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
     let cfg = hm_config::Config::load(None).context("loading config")?; // user + env layering
     let api = cfg.cloud.api_url.clone();
-    let token = hm_config::creds::cloud_token(&api)
-        .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
-    let client = HarmontClient::with_base_url(token, &api);
+    let client = HarmontClient::with_base_url(token()?.expose_secret(), &api);
     Ok((
         client,
         ResolvedCtx {
@@ -55,6 +66,30 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
             org: cfg.cloud.org,
         },
     ))
+}
+
+/// Resolve `(api base, bearer token, org slug)` for verbs that make raw
+/// HTTP calls instead of going through the generated SDK client (e.g. the
+/// secret verbs, whose endpoints the generated client doesn't carry yet).
+///
+/// Shares the exact config/credential/org resolution — and the
+/// not-logged-in and org-missing error strings — with [`client`] and
+/// [`ResolvedCtx::org`], so those messages live in one place.
+///
+/// # Errors
+///
+/// Returns an error if config can't be loaded, no token is available, or no
+/// organization is configured.
+pub fn raw_org_ctx() -> Result<(String, SecretString, String)> {
+    let cfg = hm_config::Config::load(None).context("loading config")?;
+    let api = cfg.cloud.api_url.clone();
+    let token = token()?;
+    let org = ResolvedCtx {
+        api: api.clone(),
+        org: cfg.cloud.org,
+    }
+    .org()?;
+    Ok((api, token, org))
 }
 
 /// An anonymous client (for the login flow) + the resolved API base.

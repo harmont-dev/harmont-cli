@@ -26,6 +26,8 @@
 //! `HarmontClient` and injects it; `hm` owns credential loading.
 #![forbid(unsafe_code)]
 
+mod domain;
+
 mod error;
 pub use error::{BackendError, Result};
 

@@ -21,4 +21,6 @@ def ci(project: hm.Target[PythonToolchain]) -> tuple[hm.Step, ...]:
         project.lint(),
         project.fmt(),
         project.typecheck(),
+        # Reference a secret stored on your org or pipeline (set it with `hm secret set`):
+        # hm.sh("deploy", env={"DEPLOY_TOKEN": hm.secrets["DEPLOY_TOKEN"]}),
     )

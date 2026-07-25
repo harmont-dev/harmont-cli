@@ -66,7 +66,9 @@ impl StepRunner for VmRunner {
     }
 }
 
-#[tracing::instrument(skip(vm, ctx), fields(step_key = %input.step.key))]
+// `input` is skipped: its `env` map holds resolved secret values, which must
+// never be Debug-recorded into a span field. Only the safe `step_key` is logged.
+#[tracing::instrument(skip(vm, ctx, input), fields(step_key = %input.step.key))]
 async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Result<StepResult> {
     let policy = match &input.cache_lookup {
         CacheDecision::Hit { tag } | CacheDecision::MissBuildAs { tag } => {

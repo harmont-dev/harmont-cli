@@ -14,12 +14,12 @@ use crate::os::dirs as platform;
 
 /// `~/.config/hm/` — user config root (`config.toml`, `credentials.toml`).
 pub fn hm_config_dir() -> Option<PathBuf> {
-    platform::config_dir().map(|c| c.join("hm"))
+    platform::config_dir().map(|c| c.join("hm").into_path_buf())
 }
 
 /// `~/.cache/hm/` — local build cache root (regenerable).
 pub fn hm_cache_dir() -> Option<PathBuf> {
-    platform::cache_dir().map(|c| c.join("hm"))
+    platform::cache_dir().map(|c| c.join("hm").into_path_buf())
 }
 
 /// `~/.cache/hm/workspaces/` — COW workspace cache root.

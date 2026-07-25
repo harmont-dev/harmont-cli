@@ -12,6 +12,7 @@ from ._registry import PipelineRegistration, register
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from ._secret import SecretRef
     from .triggers import Trigger
 
 _SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
@@ -33,7 +34,7 @@ def pipeline(
     name: str | None = None,
     triggers: tuple[Trigger, ...] | list[Trigger] = (),
     allow_manual: bool = True,
-    env: dict[str, str] | None = None,
+    env: dict[str, str | SecretRef] | None = None,
     timeout: str | int | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[[], Any]]:
     """Register a function as a CI pipeline (decorator form).

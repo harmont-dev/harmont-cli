@@ -18,6 +18,7 @@ expression: json
     "nodes": [
       {
         "env": {},
+        "secrets": {},
         "step": {
           "cache": null,
           "cmd": "echo a",
@@ -30,6 +31,7 @@ expression: json
       },
       {
         "env": {},
+        "secrets": {},
         "step": {
           "cache": null,
           "cmd": "echo b",
@@ -42,6 +44,7 @@ expression: json
       },
       {
         "env": {},
+        "secrets": {},
         "step": {
           "cache": null,
           "cmd": "echo c",
