@@ -7,17 +7,6 @@ use schemars::JsonSchema as DeriveJsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A duration in whole milliseconds, carried on the wire as a bare JSON number.
-///
-/// Milliseconds (rather than [`std::time::Duration`]) is the wire representation
-/// because `serde_json` cannot round-trip `u128`, and a `Duration` serializes as
-/// an awkward `{ secs, nanos }` pair that non-Rust consumers must special-case. A
-/// `u64` millisecond count is a plain integer any JSON consumer reads directly,
-/// and its ceiling (~584 million years) is unreachable in practice.
-///
-/// The newtype gives the conversion from [`Duration`] exactly one home
-/// ([`From<Duration>`]), so callers never hand-roll the saturating
-/// `as_millis` cast — which historically diverged between lossy `as u64` and
-/// saturating `try_from` call sites.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, DeriveJsonSchema,
 )]

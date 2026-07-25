@@ -48,15 +48,6 @@ pub(crate) fn ts_or_now(ts_unix_ns: Option<i64>) -> DateTime<Utc> {
     ts_unix_ns.map_or_else(Utc::now, DateTime::<Utc>::from_timestamp_nanos)
 }
 
-/// Duration between two optional timestamps, in milliseconds (0 if either is
-/// missing or the interval is negative).
-fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> DurationMs {
-    match (start, end) {
-        (Some(s), Some(e)) => DurationMs((e - s).num_milliseconds().max(0).cast_unsigned()),
-        _ => DurationMs(0),
-    }
-}
-
 /// Parse an optional RFC 3339 timestamp string (the form the v1 API serializes
 /// `started_at` / `finished_at` as) into a UTC datetime, dropping unparseable
 /// or absent values to `None`.
@@ -276,13 +267,19 @@ fn step_end(job: &HarmontJob, step_id: Uuid) -> BuildEvent {
         .exit_code
         // Saturate exit codes outside [i32::MIN, i32::MAX] rather than panic.
         .map_or_else(|| i32::from(!passed), |c| i32::try_from(c).unwrap_or(1));
+    // Duration between the job's recorded start/finish timestamps, in
+    // milliseconds (0 if either is missing or the interval is negative).
+    let duration_ms = match (
+        parse_rfc3339(job.started_at.as_deref()),
+        parse_rfc3339(job.finished_at.as_deref()),
+    ) {
+        (Some(s), Some(e)) => DurationMs((e - s).num_milliseconds().max(0).cast_unsigned()),
+        _ => DurationMs(0),
+    };
     BuildEvent::StepEnd {
         step_id,
         exit_code,
-        duration_ms: duration_ms(
-            parse_rfc3339(job.started_at.as_deref()),
-            parse_rfc3339(job.finished_at.as_deref()),
-        ),
+        duration_ms,
         snapshot: None,
     }
 }
