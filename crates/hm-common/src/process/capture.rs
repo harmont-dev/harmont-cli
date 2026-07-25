@@ -17,8 +17,7 @@ mod sealed {
 /// A finished process: its captured stdout/stderr and exit status.
 ///
 /// The output bytes are only readable after resolving the exit status with
-/// [`success`](Captured::success) — success and failure both expose the
-/// [`CapturedStreams`] accessors, so the check can't be skipped by accident.
+/// [`success`](Captured::success).
 #[derive(Debug, Clone)]
 pub struct Captured {
     program: String,
@@ -29,10 +28,6 @@ pub struct Captured {
 
 impl Captured {
     /// Split on the exit status: `Ok` if the process exited 0, else `Err`.
-    ///
-    /// # Errors
-    /// Returns [`CapturedError`] when the process exited non-zero (or was
-    /// killed by a signal).
     pub fn success(self) -> Result<CapturedOk, CapturedError> {
         if self.status.success() {
             Ok(CapturedOk(self))
@@ -54,16 +49,11 @@ impl Captured {
     }
 }
 
-/// A process that exited successfully (status 0). Read output via
-/// [`CapturedStreams`].
+/// A process that exited successfully (status 0). Read output via [`CapturedStreams`].
 #[derive(Debug, Clone)]
 pub struct CapturedOk(Captured);
 
 /// A process that exited non-zero.
-///
-/// Implements [`std::error::Error`]; its `Display` names the program, the exit
-/// status, and a trimmed snippet of stderr. Output is still readable via
-/// [`CapturedStreams`].
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("{}", render_capture_error(.0))]
 pub struct CapturedError(Captured);
@@ -90,8 +80,8 @@ fn render_capture_error(c: &Captured) -> String {
     msg
 }
 
-/// Byte-first accessors over a captured process's output, implemented by
-/// [`CapturedOk`] and [`CapturedError`]. Sealed; not implementable downstream.
+/// Accessors over a captured process's output, implemented by [`CapturedOk`] and
+/// [`CapturedError`].
 pub trait CapturedStreams: sealed::Sealed {
     /// Raw stdout bytes.
     fn stdout(&self) -> &[u8];
@@ -194,9 +184,6 @@ impl CapturedStreams for CapturedError {
 /// Adds [`captured`](CommandExt::captured) to [`std::process::Command`].
 pub trait CommandExt: sealed::Sealed {
     /// Spawn, wait for completion, and capture stdout/stderr and exit status.
-    ///
-    /// # Errors
-    /// Returns the [`io::Error`] from spawning (e.g. the program is not found).
     fn captured(&mut self) -> io::Result<Captured>;
 }
 
@@ -216,9 +203,6 @@ impl CommandExt for std::process::Command {
 /// Adds [`captured`](AsyncCommandExt::captured) to [`tokio::process::Command`].
 pub trait AsyncCommandExt: sealed::Sealed {
     /// Spawn, await completion, and capture stdout/stderr and exit status.
-    ///
-    /// # Errors
-    /// Returns the [`io::Error`] from spawning (e.g. the program is not found).
     fn captured(&mut self) -> impl Future<Output = io::Result<Captured>>;
 }
 
