@@ -1,9 +1,15 @@
 //! End-to-end: `-k/--keep-going` continues independent DAG branches
 //! even when one step fails, and without it the build fails fast.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 
 use assert_cmd::Command;
+use rstest::rstest;
 
 const FORK_PIPELINE_PY: &str = r#"
 import harmont as hm
@@ -83,7 +89,7 @@ fn collect_step_starts(stdout: &str) -> Vec<String> {
         .collect()
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn keep_going_runs_independent_branches() {
     let temp = tempfile::tempdir().unwrap();
@@ -115,7 +121,7 @@ fn keep_going_runs_independent_branches() {
     );
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn keep_going_skips_transitive_dependents() {
     // A->B->C linear chain, A fails. Under -k, B (child) and C (grandchild)
@@ -156,7 +162,7 @@ fn keep_going_skips_transitive_dependents() {
     );
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn without_keep_going_fails_fast() {
     let temp = tempfile::tempdir().unwrap();

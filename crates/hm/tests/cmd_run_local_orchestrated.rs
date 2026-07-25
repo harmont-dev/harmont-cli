@@ -4,10 +4,16 @@
 //! Gated `#[ignore]` because it shells out to a real Docker daemon —
 //! opt-in with `cargo test -p harmont-cli --test cmd_run_local_orchestrated -- --ignored`.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 
 use assert_cmd::Command;
 use predicates::str::contains;
+use rstest::rstest;
 
 /// A trivial one-step pipeline that doesn't need any user source — just
 /// runs a single `echo` in an alpine container.
@@ -26,22 +32,6 @@ def orchestrated() -> hm.Step:
     return hm.sh("echo orchestrated hello", label="hi", image="alpine:3.20")
 "#;
 
-#[test]
-#[ignore = "requires Docker daemon; opt-in with `cargo test -- --ignored`"]
-fn hm_run_local_executes_through_orchestrator() {
-    let temp = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
-    std::fs::write(temp.path().join(".hm/pipeline.py"), PIPELINE_PY).unwrap();
-
-    Command::cargo_bin("hm")
-        .unwrap()
-        .args(["run", "orchestrated"])
-        .current_dir(temp.path())
-        .assert()
-        .success()
-        .stderr(contains("orchestrated hello"));
-}
-
 /// Chain-lineage regression: a 2-step chain (`b.builds_in = a`) must
 /// inherit `a`'s filesystem mutations into `b`'s container. Pre-fix,
 /// the docker plugin booted a fresh container per step, losing
@@ -56,19 +46,26 @@ def chain() -> hm.Step:
     return a.sh("cat /tmp/a && echo step-b", label="b")
 "#;
 
-#[test]
-#[ignore = "requires Docker daemon; opt-in with `cargo test -- --ignored`"]
-fn hm_run_local_chain_inherits_filesystem() {
+#[rstest]
+#[case::single(PIPELINE_PY, "orchestrated", &["orchestrated hello"])]
+#[case::chain(CHAIN_PIPELINE_PY, "chain", &["step-a", "step-b"])]
+#[ignore = "requires Docker daemon"]
+fn hm_run_local_executes_through_orchestrator(
+    #[case] pipeline_src: &str,
+    #[case] slug: &str,
+    #[case] expected_stderr: &[&str],
+) {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join(".hm")).unwrap();
-    std::fs::write(temp.path().join(".hm/pipeline.py"), CHAIN_PIPELINE_PY).unwrap();
+    std::fs::write(temp.path().join(".hm/pipeline.py"), pipeline_src).unwrap();
 
-    Command::cargo_bin("hm")
+    let mut assert = Command::cargo_bin("hm")
         .unwrap()
-        .args(["run", "chain"])
+        .args(["run", slug])
         .current_dir(temp.path())
         .assert()
-        .success()
-        .stderr(contains("step-a"))
-        .stderr(contains("step-b"));
+        .success();
+    for substr in expected_stderr {
+        assert = assert.stderr(contains(*substr));
+    }
 }

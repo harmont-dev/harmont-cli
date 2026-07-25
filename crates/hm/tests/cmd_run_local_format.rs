@@ -1,10 +1,16 @@
 //! End-to-end: `hm run --local --format <name>` exercises both
 //! output plugins against a real Docker daemon.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 
 use assert_cmd::Command;
 use predicates::str::contains;
+use rstest::rstest;
 
 const PIPELINE_PY: &str = r#"
 import harmont as hm
@@ -20,7 +26,7 @@ fn write_pipeline(temp: &tempfile::TempDir) {
     std::fs::write(temp.path().join(".hm/pipeline.py"), PIPELINE_PY).unwrap();
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn format_human_writes_prefixed_lines_to_stderr() {
     let temp = tempfile::tempdir().unwrap();
@@ -34,7 +40,7 @@ fn format_human_writes_prefixed_lines_to_stderr() {
         .stderr(contains("[hi] formatted-hello"));
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn format_json_writes_one_event_per_line_to_stdout() {
     let temp = tempfile::tempdir().unwrap();
@@ -67,7 +73,7 @@ fn format_json_writes_one_event_per_line_to_stdout() {
     assert!(stdout.contains("formatted-hello"));
 }
 
-#[test]
+#[rstest]
 fn unknown_format_fails_fast_with_listing() {
     let temp = tempfile::tempdir().unwrap();
     write_pipeline(&temp);

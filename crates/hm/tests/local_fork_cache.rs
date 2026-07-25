@@ -1,4 +1,9 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 //! HAR-22 regression: a cache hit at a chain root must NOT pin the
 //! forked children to stale /workspace. We build a tiny pipeline that
 //! caches a cheap "echo" step on a forever policy, then forks off a
@@ -13,6 +18,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use rstest::rstest;
 use tempfile::tempdir;
 
 fn write_pipeline(dir: &Path, marker_contents: &str) {
@@ -57,7 +63,7 @@ fn run_harmont(repo: &Path) -> String {
     stderr
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires a running Docker daemon and network for image pulls"]
 fn fork_child_sees_refreshed_source_after_parent_cache_hit() {
     let dir = tempdir().expect("tempdir");
