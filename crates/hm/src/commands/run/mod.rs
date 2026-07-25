@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 
+use hm_common::process::{CapturedStreams as _, CommandExt as _};
 use hm_dsl_engine::{DslEngine, detect};
 use human_units::FormatSize as _;
 
@@ -240,16 +241,21 @@ fn parse_env(pairs: &[String]) -> HashMap<String, String> {
 
 /// Resolve `(branch, commit)` from git at `root`, best-effort. An explicit
 /// `branch_override` wins; missing values fall back to `HEAD` / the zero SHA.
+/// `git -C <root> <args...>`, ready to `.captured()`.
+fn git_at(root: &std::path::Path, args: &[&str]) -> std::process::Command {
+    let mut cmd = std::process::Command::new("git");
+    cmd.arg("-C").arg(root).args(args);
+    cmd
+}
+
 fn git_metadata(root: &std::path::Path, branch_override: Option<String>) -> (String, String) {
     let run = |a: &[&str]| {
-        std::process::Command::new("git")
-            .arg("-C")
-            .arg(root)
-            .args(a)
-            .output()
+        git_at(root, a)
+            .captured()
             .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .and_then(|c| c.success().ok())
+            .and_then(|ok| ok.stdout_string().ok())
+            .map(|s| s.trim().to_string())
     };
     let branch = branch_override
         .or_else(|| run(&["rev-parse", "--abbrev-ref", "HEAD"]))
@@ -296,28 +302,24 @@ fn parse_default_branch(symbolic_ref: &str) -> Option<String> {
 
 /// The worktree's raw `origin` remote URL (the pipeline's `repository`).
 fn git_remote_url(root: &std::path::Path) -> Option<String> {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["config", "--get", "remote.origin.url"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())?;
-    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let out = git_at(root, &["config", "--get", "remote.origin.url"])
+        .captured()
+        .ok()?
+        .success()
+        .ok()?;
+    let url = out.stdout_lossy().trim().to_string();
     (!url.is_empty()).then_some(url)
 }
 
 /// The repo's default branch, from `origin/HEAD`. `None` when `origin/HEAD`
 /// isn't set (common on fresh clones without `git remote set-head`).
 fn git_default_branch(root: &std::path::Path) -> Option<String> {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())?;
-    parse_default_branch(&String::from_utf8_lossy(&out.stdout))
+    let out = git_at(root, &["symbolic-ref", "refs/remotes/origin/HEAD"])
+        .captured()
+        .ok()?
+        .success()
+        .ok()?;
+    parse_default_branch(&out.stdout_lossy())
 }
 
 /// Best-effort `owner/repo` from the worktree's `origin` remote.

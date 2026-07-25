@@ -12,6 +12,7 @@ categories = ["command-line-utilities"]
 path = "src/lib.rs"
 
 [dependencies]
+hm-common   = { workspace = true }
 anyhow      = { workspace = true }
 async-trait = { workspace = true }
 derive_more = { workspace = true }

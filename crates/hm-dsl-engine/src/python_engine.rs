@@ -1,8 +1,8 @@
 use std::path::Path;
-use std::process::Stdio;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
+use hm_common::process::{AsyncCommandExt as _, CapturedStreams as _};
 use tracing::debug;
 
 use crate::bundled_sources;
@@ -91,22 +91,15 @@ impl SubprocessPythonEngine {
             .args(extra_args)
             .current_dir(project_dir)
             .env("PYTHONPATH", tmp.path())
-            .env("PYTHONDONTWRITEBYTECODE", "1")
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            .env("PYTHONDONTWRITEBYTECODE", "1");
 
         debug!(?cmd, "running python3 subprocess");
 
-        let output = cmd.output().await.context("spawning python3")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let code = output.status.code().unwrap_or(-1);
-            bail!("python3 exited with code {code}:\n{stderr}");
-        }
-
-        String::from_utf8(output.stdout).context("python3 stdout is not valid UTF-8")
+        // `.captured()` pipes stdout/stderr and nulls stdin; `.success()`
+        // surfaces a non-zero exit (with stderr) as an error via `?`.
+        let ok = cmd.captured().await.context("spawning python3")?.success()?;
+        ok.stdout_string()
+            .context("python3 stdout is not valid UTF-8")
     }
 }
 
