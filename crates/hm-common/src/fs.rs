@@ -1,82 +1,64 @@
-//! Filesystem helpers returning rich, typed errors.
-//!
-//! These wrap the corresponding [`std::fs`] operations, attaching the target
-//! path and the failing syscall's [`io::Error`] as a structured [`FsError`]
-//! rather than a stringly-typed context message.
+//! Filesystem helpers.
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-/// An error from one of this module's filesystem helpers.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum FsError {
-    /// A directory could not be created.
-    #[error("failed to create directory `{path}`")]
-    CreateDir {
-        /// The directory whose creation failed.
-        path: PathBuf,
-        /// The underlying OS error.
-        #[source]
-        source: io::Error,
-    },
-}
-
-/// Create `dir` and any missing ancestor directories.
+/// Write `contents` to `path`, creating any missing parent directories first.
 ///
-/// A no-op (returns `Ok`) when the directory already exists. Wraps
-/// [`std::fs::create_dir_all`], attaching `dir` to any failure.
+/// Joins [`std::fs::create_dir_all`] on the parent and [`std::fs::write`] into
+/// one call, so callers scaffolding a file into a not-yet-existing directory
+/// don't repeat the parent-creation dance. An existing file is overwritten.
 ///
 /// # Errors
-/// Returns [`FsError::CreateDir`] if the directory cannot be created — e.g. a
-/// component of the path exists but is not a directory, or permissions deny it.
-pub fn create_dir_all(dir: impl AsRef<Path>) -> Result<(), FsError> {
-    let dir = dir.as_ref();
-    std::fs::create_dir_all(dir).map_err(|source| FsError::CreateDir {
-        path: dir.to_path_buf(),
-        source,
-    })
+/// Returns the underlying [`io::Error`] if a parent directory cannot be created
+/// or the file cannot be written.
+pub fn write_create_all(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> io::Result<()> {
+    let path = path.as_ref();
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, contents)
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, reason = "test setup and assertions")]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn creates_nested_directories() {
+    #[rstest]
+    #[case::flat("file.txt")]
+    #[case::one_level("sub/file.txt")]
+    #[case::deeply_nested("a/b/c/file.txt")]
+    fn writes_file_creating_missing_parents(#[case] rel: &str) {
         let tmp = tempfile::tempdir().unwrap();
-        let nested = tmp.path().join("a/b/c");
+        let path = tmp.path().join(rel);
 
-        create_dir_all(&nested).unwrap();
+        write_create_all(&path, b"hello").unwrap();
 
-        assert!(nested.is_dir(), "expected {} to be a directory", nested.display());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello");
     }
 
-    #[test]
-    fn is_ok_when_directory_already_exists() {
+    #[rstest]
+    fn overwrites_an_existing_file() {
         let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path().join("here");
+        let path = tmp.path().join("file.txt");
 
-        create_dir_all(&dir).unwrap();
-        // Second call over an existing directory must still succeed.
-        create_dir_all(&dir).unwrap();
+        write_create_all(&path, b"first").unwrap();
+        write_create_all(&path, b"second").unwrap();
 
-        assert!(dir.is_dir());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "second");
     }
 
-    #[test]
-    fn error_carries_the_offending_path() {
+    #[rstest]
+    fn propagates_io_error_when_parent_is_a_file() {
         let tmp = tempfile::tempdir().unwrap();
-        // Occupy `blocker` with a *file*, then ask to create a directory
-        // underneath it — the OS refuses because a path component is not a dir.
+        // A *file* sits where the target's parent directory would go, so
+        // creating the parent must fail with an OS error.
         let blocker = tmp.path().join("blocker");
         std::fs::write(&blocker, b"x").unwrap();
-        let target = blocker.join("child");
+        let target = blocker.join("child.txt");
 
-        let err = create_dir_all(&target).unwrap_err();
-
-        let FsError::CreateDir { path, .. } = err;
-        assert_eq!(path, target);
+        assert!(write_create_all(&target, b"data").is_err());
     }
 }

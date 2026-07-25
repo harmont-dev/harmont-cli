@@ -55,7 +55,7 @@ impl ImageRegistry {
     /// be applied.
     pub fn open(path: &Path, capacity: NonZeroU64) -> Result<Self> {
         if let Some(parent) = path.parent() {
-            hm_common::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent)?;
         }
 
         let conn = Connection::open(path)?;

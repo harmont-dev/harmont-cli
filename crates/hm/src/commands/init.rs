@@ -185,9 +185,9 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     // wipe the whole `.hm/` directory: that would also delete config.toml,
     // .gitignore, and any co-resident pipeline (e.g. a repo with both
     // pipeline.py and deploy.py). `std::fs::write` clobbers just the target.
-    hm_common::fs::create_dir_all(&harmont_dir)?;
     let dest = harmont_dir.join(tmpl.filename);
-    std::fs::write(&dest, tmpl.content).with_context(|| format!("writing {}", dest.display()))?;
+    hm_common::fs::write_create_all(&dest, tmpl.content)
+        .with_context(|| format!("writing {}", dest.display()))?;
     ensure_gitignore_entry(&harmont_dir, "node_modules/")?;
     ensure_gitignore_entry(&harmont_dir, "__pycache__/")?;
     Ok(true)
@@ -219,8 +219,8 @@ fn write_skills(dir: &Path, force: bool) -> Result<()> {
         }
 
         let updated = dest.exists();
-        hm_common::fs::create_dir_all(&skill_dir)?;
-        std::fs::write(&dest, content).with_context(|| format!("writing {}", dest.display()))?;
+        hm_common::fs::write_create_all(&dest, content)
+            .with_context(|| format!("writing {}", dest.display()))?;
         if updated {
             tracing::info!("overwrote Claude Code skill: .claude/skills/{slug}/SKILL.md");
         } else {

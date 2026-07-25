@@ -17,7 +17,6 @@ async-trait = { workspace = true }
 derive_more = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
-thiserror   = { workspace = true }
 include_dir = "0.7"
 tempfile    = "3"
 tokio       = { version = "1", features = ["process", "fs"] }

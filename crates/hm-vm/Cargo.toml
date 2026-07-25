@@ -7,7 +7,6 @@ repository.workspace = true
 description = "Local VM/container backends (Docker) that run hm pipeline steps on the developer's machine."
 
 [dependencies]
-hm-common = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
