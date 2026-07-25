@@ -37,10 +37,16 @@ pub(crate) fn stable_cache_tag(step: &CommandStep) -> Option<String> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
     use hm_plugin_protocol::Cache;
+    use rstest::rstest;
 
     fn step(cache: Option<Cache>) -> CommandStep {
         CommandStep {
@@ -56,38 +62,29 @@ mod tests {
         }
     }
 
-    #[test]
-    fn sanitize_replaces_invalid_chars() {
-        assert_eq!(sanitize_for_tag("my/step.name:v1"), "my-step-name-v1");
-        assert_eq!(sanitize_for_tag("simple"), "simple");
-        assert_eq!(sanitize_for_tag("a_b-c"), "a_b-c");
+    #[rstest]
+    #[case::mixed("my/step.name:v1", "my-step-name-v1")]
+    #[case::simple("simple", "simple")]
+    #[case::already_safe("a_b-c", "a_b-c")]
+    fn sanitize_replaces_invalid_chars(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(sanitize_for_tag(input), expected);
     }
 
-    #[test]
-    fn stable_cache_tag_for_cacheable_step() {
-        let s = step(Some(Cache {
-            policy: "ttl".into(),
-            key: Some("0123456789abcdef0000".into()),
-        }));
-        let tag = stable_cache_tag(&s);
-        assert_eq!(
-            tag,
-            Some("harmont-cache/build:0123456789abcdef".to_string())
-        );
-    }
-
-    #[test]
-    fn stable_cache_tag_none_for_uncacheable() {
-        let s = step(None);
-        assert_eq!(stable_cache_tag(&s), None);
-    }
-
-    #[test]
-    fn stable_cache_tag_none_for_policy_none() {
-        let s = step(Some(Cache {
-            policy: "none".into(),
-            key: Some("abc".into()),
-        }));
-        assert_eq!(stable_cache_tag(&s), None);
+    #[rstest]
+    #[case::cacheable(
+        Some(Cache { policy: "ttl".into(), key: Some("0123456789abcdef0000".into()) }),
+        Some("harmont-cache/build:0123456789abcdef".to_string())
+    )]
+    #[case::uncacheable(None, None)]
+    #[case::policy_none(
+        Some(Cache { policy: "none".into(), key: Some("abc".into()) }),
+        None
+    )]
+    fn stable_cache_tag_derivation(
+        #[case] cache: Option<Cache>,
+        #[case] expected: Option<String>,
+    ) {
+        let s = step(cache);
+        assert_eq!(stable_cache_tag(&s), expected);
     }
 }

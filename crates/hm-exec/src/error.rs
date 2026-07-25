@@ -39,15 +39,16 @@ pub type Result<T> = std::result::Result<T, BackendError>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
+    #[rstest]
     fn unauthorized_is_matchable_and_displayed() {
         let e = BackendError::Unauthorized;
         assert!(matches!(e, BackendError::Unauthorized));
         assert!(e.to_string().contains("authentication"));
     }
 
-    #[test]
+    #[rstest]
     fn rejected_carries_code_and_message() {
         let e = BackendError::Rejected {
             code: "build_rejected".into(),

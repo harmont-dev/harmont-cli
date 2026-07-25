@@ -101,9 +101,14 @@ pub struct RunRequest {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     /// Minimal valid empty `PipelineGraph` serialized to JSON.
     ///
@@ -113,18 +118,8 @@ mod tests {
     /// optional `default_image`.  `"steps"` is NOT a valid field.
     const EMPTY_IR: &str = r#"{"version":"0","graph":{"nodes":[],"node_holes":[],"edge_property":"directed","edges":[]}}"#;
 
-    #[test]
-    fn plan_keeps_verbatim_json_and_typed_graph() {
-        let json = EMPTY_IR.to_string();
-        let plan = Plan::parse(json.clone()).expect("parse");
-        assert_eq!(plan.ir_json, json); // verbatim, byte-for-byte
-        assert_eq!(plan.summary.step_count, 0); // derived from the graph
-    }
-
-    #[test]
-    fn plan_summary_matches_scheduler_for_single_chain() {
-        // A graph with two nodes connected by a single BuildsIn edge forms one chain.
-        let json = r#"{
+    /// A graph with two nodes connected by a single `BuildsIn` edge forms one chain.
+    const SINGLE_CHAIN_IR: &str = r#"{
             "version": "0",
             "default_image": "ubuntu:24.04",
             "graph": {
@@ -136,21 +131,10 @@ mod tests {
                 "edge_property": "directed",
                 "edges": [[0, 1, "builds_in"]]
             }
-        }"#
-        .to_string();
+        }"#;
 
-        let plan = Plan::parse(json.clone()).expect("parse");
-        assert_eq!(plan.summary.step_count, 2);
-        assert_eq!(plan.summary.chain_count, 1);
-        assert_eq!(plan.summary.default_runner, "docker");
-        // ir_json is verbatim
-        assert_eq!(plan.ir_json, json);
-    }
-
-    #[test]
-    fn plan_summary_counts_two_independent_chains() {
-        // Two root nodes with no edges → two separate chains.
-        let json = r#"{
+    /// Two root nodes with no edges → two separate chains.
+    const TWO_CHAIN_IR: &str = r#"{
             "version": "0",
             "graph": {
                 "nodes": [
@@ -161,15 +145,22 @@ mod tests {
                 "edge_property": "directed",
                 "edges": []
             }
-        }"#
-        .to_string();
+        }"#;
 
-        let plan = Plan::parse(json).expect("parse");
-        assert_eq!(plan.summary.step_count, 2);
-        assert_eq!(plan.summary.chain_count, 2);
+    #[rstest]
+    #[case::empty(EMPTY_IR, 0, 0)]
+    #[case::single_chain(SINGLE_CHAIN_IR, 2, 1)]
+    #[case::two_independent_chains(TWO_CHAIN_IR, 2, 2)]
+    fn plan_summarizes(#[case] ir_json: &str, #[case] steps: usize, #[case] chains: usize) {
+        let json = ir_json.to_string();
+        let plan = Plan::parse(json.clone()).expect("parse");
+        assert_eq!(plan.ir_json, json); // verbatim, byte-for-byte
+        assert_eq!(plan.summary.step_count, steps); // derived from the graph
+        assert_eq!(plan.summary.chain_count, chains);
+        assert_eq!(plan.summary.default_runner, "docker");
     }
 
-    #[test]
+    #[rstest]
     fn invalid_ir_returns_rejected_error() {
         let err = Plan::parse("not json at all".to_string()).unwrap_err();
         assert!(matches!(err, crate::BackendError::Rejected { .. }));
@@ -177,7 +168,7 @@ mod tests {
         assert!(msg.contains("invalid_ir"));
     }
 
-    #[test]
+    #[rstest]
     fn run_options_default_is_zero() {
         let opts = RunOptions::default();
         assert!(!opts.no_cache);

@@ -1318,6 +1318,7 @@ dependencies = [
  "hm-vm",
  "human-units",
  "ignore",
+ "rstest",
  "serde",
  "serde_json",
  "tar",

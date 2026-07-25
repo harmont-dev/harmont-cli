@@ -66,12 +66,14 @@ pub struct BuildOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn status_maps_to_process_exit_codes() {
-        assert_eq!(BuildStatus::Passed.exit_code(), 0);
-        assert_eq!(BuildStatus::Failed.exit_code(), 1);
-        assert_eq!(BuildStatus::Canceled.exit_code(), 130);
-        assert_eq!(BuildStatus::TimedOut.exit_code(), 124);
+    #[rstest]
+    #[case::passed(BuildStatus::Passed, 0)]
+    #[case::failed(BuildStatus::Failed, 1)]
+    #[case::canceled(BuildStatus::Canceled, 130)]
+    #[case::timed_out(BuildStatus::TimedOut, 124)]
+    fn status_maps_to_exit_code(#[case] status: BuildStatus, #[case] code: i32) {
+        assert_eq!(status.exit_code(), code);
     }
 }

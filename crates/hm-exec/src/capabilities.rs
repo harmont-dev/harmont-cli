@@ -62,8 +62,9 @@ impl Capabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
+    #[rstest]
     fn presets_differ() {
         assert!(Capabilities::local().honors_parallelism);
         assert!(!Capabilities::local().is_observer);

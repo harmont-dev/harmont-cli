@@ -307,11 +307,17 @@ fn guard_archive_size(archive_len: usize, repo_root: &Path) -> Result<()> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic, clippy::cast_possible_truncation)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::cast_possible_truncation,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
+    #[rstest]
     fn watch_url_uses_app_host_and_pipelines_path() {
         // Mirrors hm_config::app_url(DEFAULT_API_URL) -> https://app.harmont.dev.
         assert_eq!(
@@ -320,14 +326,14 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn archive_under_warn_passes() {
         // A tiny archive (well under the warn threshold) never walks the tree
         // and never errors; repo_root is irrelevant.
         guard_archive_size(1024, std::path::Path::new("/nonexistent")).unwrap();
     }
 
-    #[test]
+    #[rstest]
     fn archive_over_cap_fails_with_source_too_large() {
         let tmp = tempfile::tempdir().unwrap();
         let err = guard_archive_size(ARCHIVE_CAP_BYTES as usize + 1, tmp.path()).unwrap_err();

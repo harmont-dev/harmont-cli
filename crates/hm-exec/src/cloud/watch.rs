@@ -433,45 +433,36 @@ async fn emit(
 
 #[cfg(test)]
 mod tests {
-    use super::{OpenJobState, exit_code_for_state, job_logs_available};
+    use super::{OpenJobState, job_logs_available};
+    use rstest::rstest;
 
-    #[test]
-    fn logs_available_for_running_and_terminal_states() {
-        for state in [
-            OpenJobState::Running,
-            OpenJobState::Passed,
-            OpenJobState::Failed,
-            OpenJobState::TimedOut,
-            OpenJobState::Canceling,
-            OpenJobState::Canceled,
-            OpenJobState::TimingOut,
-            // A future state we don't recognize is streamed rather than
-            // silently dropped.
-            OpenJobState::Unknown,
-        ] {
-            assert!(job_logs_available(&state), "expected logs for {state}");
-        }
+    // A future state we don't recognize (`Unknown`) is streamed rather than
+    // silently dropped.
+    #[rstest]
+    #[case::running(OpenJobState::Running, true)]
+    #[case::passed(OpenJobState::Passed, true)]
+    #[case::failed(OpenJobState::Failed, true)]
+    #[case::timed_out(OpenJobState::TimedOut, true)]
+    #[case::canceling(OpenJobState::Canceling, true)]
+    #[case::canceled(OpenJobState::Canceled, true)]
+    #[case::timing_out(OpenJobState::TimingOut, true)]
+    #[case::unknown(OpenJobState::Unknown, true)]
+    #[case::pending(OpenJobState::Pending, false)]
+    #[case::scheduled(OpenJobState::Scheduled, false)]
+    #[case::assigned(OpenJobState::Assigned, false)]
+    #[case::skipped(OpenJobState::Skipped, false)]
+    fn job_logs_available_matches_state(#[case] state: OpenJobState, #[case] expected: bool) {
+        assert_eq!(job_logs_available(&state), expected);
     }
 
-    #[test]
-    fn no_logs_before_start_or_when_skipped() {
-        for state in [
-            OpenJobState::Pending,
-            OpenJobState::Scheduled,
-            OpenJobState::Assigned,
-            OpenJobState::Skipped,
-        ] {
-            assert!(!job_logs_available(&state), "expected no logs for {state}");
-        }
-    }
-
-    #[test]
-    fn passed_is_zero_canceled_is_130_else_is_one() {
-        assert_eq!(exit_code_for_state("passed"), 0);
-        // A server-side cancel must NOT collapse to the generic failure code.
-        assert_eq!(exit_code_for_state("canceled"), 130);
-        assert_eq!(exit_code_for_state("failed"), 1);
-        // Unexpected/unknown terminal states fail closed.
-        assert_eq!(exit_code_for_state("timed_out"), 1);
+    // A server-side cancel must NOT collapse to the generic failure code;
+    // unexpected/unknown terminal states fail closed.
+    #[rstest]
+    #[case::passed("passed", 0)]
+    #[case::canceled("canceled", 130)]
+    #[case::failed("failed", 1)]
+    #[case::timed_out("timed_out", 1)]
+    fn exit_code_for_state(#[case] state: &str, #[case] code: i32) {
+        assert_eq!(super::exit_code_for_state(state), code);
     }
 }
