@@ -10,7 +10,7 @@ use hm_dsl_engine::DslEngine;
 #[tokio::test]
 async fn python_roundtrip() {
     // Skip if python3 not available or harmont deps missing
-    if which::which("python3").is_err() {
+    if hm_common::process::pathbin("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");
         return;
     }
@@ -43,7 +43,7 @@ def ci() -> hm.Step:
 
 #[tokio::test]
 async fn python_registry_json_carries_triggers_and_allow_manual() {
-    if which::which("python3").is_err() {
+    if hm_common::process::pathbin("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");
         return;
     }

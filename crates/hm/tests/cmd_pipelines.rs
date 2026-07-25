@@ -13,7 +13,7 @@ use rstest::rstest;
 
 #[rstest]
 fn pipelines_emits_discovery_envelope() {
-    if which::which("python3").is_err() {
+    if hm_common::process::pathbin("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");
         return;
     }

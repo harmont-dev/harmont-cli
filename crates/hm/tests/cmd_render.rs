@@ -28,7 +28,7 @@ def ci() -> hm.Step:
 
 #[rstest]
 fn render_emits_v0_ir_for_slug() {
-    if which::which("python3").is_err() {
+    if hm_common::process::pathbin("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");
         return;
     }
@@ -58,7 +58,7 @@ fn render_emits_v0_ir_for_slug() {
 
 #[rstest]
 fn render_unknown_slug_fails_with_available_on_stderr() {
-    if which::which("python3").is_err() {
+    if hm_common::process::pathbin("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");
         return;
     }

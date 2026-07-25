@@ -193,7 +193,7 @@ fn init_all_templates_create_files(#[case] slug: &str) {
 // ── roundtrip: init → render ──────────────────────────────────
 
 fn has_python() -> bool {
-    which::which("python3").is_ok()
+    hm_common::process::pathbin("python3").is_ok()
 }
 
 #[rstest]
