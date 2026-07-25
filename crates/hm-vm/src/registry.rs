@@ -238,9 +238,14 @@ impl ImageRegistry {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     fn open_temp(capacity: u64) -> (ImageRegistry, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
@@ -250,13 +255,13 @@ mod tests {
         (registry, dir)
     }
 
-    #[test]
+    #[rstest]
     fn get_returns_none_for_unknown_key() {
         let (reg, _dir) = open_temp(10);
         assert!(reg.get("nonexistent").is_none());
     }
 
-    #[test]
+    #[rstest]
     fn put_then_get_returns_snapshot() {
         let (reg, _dir) = open_temp(10);
         let snap = SnapshotId::new("snap-abc");
@@ -267,7 +272,7 @@ mod tests {
         assert_eq!(got, Some(SnapshotId::new("snap-abc")));
     }
 
-    #[test]
+    #[rstest]
     fn get_updates_access_time() {
         let (reg, _dir) = open_temp(2);
 
@@ -297,7 +302,7 @@ mod tests {
         assert!(reg.get("b").is_none());
     }
 
-    #[test]
+    #[rstest]
     fn eviction_returns_overflow_entries() {
         let (reg, _dir) = open_temp(2);
 
@@ -314,7 +319,7 @@ mod tests {
         assert_eq!(reg.len(), 2);
     }
 
-    #[test]
+    #[rstest]
     fn survives_reopen() {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("registry.db");
@@ -334,7 +339,7 @@ mod tests {
         assert_eq!(got, Some(SnapshotId::new("snap-persist")));
     }
 
-    #[test]
+    #[rstest]
     fn all_snapshot_ids_returns_every_entry() {
         let (reg, _dir) = open_temp(10);
         assert!(reg.all_snapshot_ids().is_empty());
@@ -351,7 +356,7 @@ mod tests {
         assert_eq!(ids, vec!["forever-a".to_string(), "forever-b".to_string()]);
     }
 
-    #[test]
+    #[rstest]
     fn invalidate_returns_removed_snapshot() {
         let (reg, _dir) = open_temp(10);
         let snap = SnapshotId::new("snap-rm");
