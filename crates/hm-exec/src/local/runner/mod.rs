@@ -136,8 +136,15 @@ impl fmt::Debug for RunnerRegistry {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code: panicking asserts are intentional"
+)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
     /// Minimal stub runner for unit tests.
@@ -172,7 +179,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[rstest]
     fn resolve_by_name() {
         let mut reg = RunnerRegistry::new();
         reg.register(Arc::new(StubRunner::new("docker")), false);
@@ -187,7 +194,7 @@ mod tests {
         assert!(reg.resolve(Some("nope")).is_none());
     }
 
-    #[test]
+    #[rstest]
     fn resolve_default() {
         let mut reg = RunnerRegistry::new();
         reg.register(Arc::new(StubRunner::new("docker")), true);
@@ -199,7 +206,7 @@ mod tests {
         assert_eq!(reg.default_runner_name(), Some("docker"));
     }
 
-    #[test]
+    #[rstest]
     fn no_default_returns_none() {
         let mut reg = RunnerRegistry::new();
         reg.register(Arc::new(StubRunner::new("docker")), false);
@@ -208,7 +215,7 @@ mod tests {
         assert!(reg.default_runner_name().is_none());
     }
 
-    #[test]
+    #[rstest]
     fn runner_names_sorted() {
         let mut reg = RunnerRegistry::new();
         reg.register(Arc::new(StubRunner::new("zeta")), false);
@@ -218,7 +225,7 @@ mod tests {
         assert_eq!(reg.runner_names(), vec!["alpha", "mid", "zeta"]);
     }
 
-    #[test]
+    #[rstest]
     fn debug_impl() {
         let reg = RunnerRegistry::new();
         // Just ensure it doesn't panic.

@@ -80,11 +80,18 @@ impl ArchiveStore {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code: panicking asserts are intentional"
+)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
-    #[test]
+    #[rstest]
     fn register_then_read_round_trip() {
         let s = ArchiveStore::new();
         let id = s.register(b"hello world".to_vec());
@@ -94,7 +101,7 @@ mod tests {
         assert_eq!(s.read(id, 100, 5), Vec::<u8>::new());
     }
 
-    #[test]
+    #[rstest]
     fn unknown_id_returns_empty() {
         let s = ArchiveStore::new();
         let bogus = ArchiveId(Uuid::new_v4());

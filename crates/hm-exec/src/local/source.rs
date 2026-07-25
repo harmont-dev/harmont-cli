@@ -121,13 +121,20 @@ pub(crate) fn top_level_sizes(source_dir: &Path) -> Vec<(String, u64)> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code: panicking asserts are intentional"
+)]
 mod tests {
     use std::fs;
 
+    use rstest::rstest;
+
     use super::*;
 
-    #[test]
+    #[rstest]
     fn build_archive_emits_nonempty_gzip_for_simple_tree() {
         let tmp = tempfile::tempdir().unwrap();
         fs::write(tmp.path().join("hello.txt"), b"hi").unwrap();
@@ -137,7 +144,7 @@ mod tests {
         assert_eq!(&bytes[..2], &[0x1f, 0x8b]);
     }
 
-    #[test]
+    #[rstest]
     fn build_archive_skips_dot_git() {
         use flate2::read::GzDecoder;
         use std::io::Read;

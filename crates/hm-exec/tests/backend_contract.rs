@@ -1,9 +1,14 @@
 #![allow(
-    clippy::unwrap_used,      // test code: panicking asserts are intentional
-    clippy::default_trait_access, // `Default::default()` is clear enough in tests
+    clippy::unwrap_used,
+    reason = "test code: panicking asserts are intentional"
+)]
+#![allow(
+    clippy::default_trait_access,
+    reason = "`Default::default()` is clear enough in tests"
 )]
 
 use futures::StreamExt;
+use rstest::rstest;
 use hm_exec::*;
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
 use tokio_util::sync::CancellationToken;
@@ -48,6 +53,7 @@ impl ExecutionBackend for FakeBackend {
     }
 }
 
+#[rstest]
 #[tokio::test]
 async fn handle_yields_events_then_outcome() {
     let backend: Box<dyn ExecutionBackend> = Box::new(FakeBackend);
@@ -92,6 +98,7 @@ impl hm_vm::VmBackend for NoopVmBackend {
     }
 }
 
+#[rstest]
 #[tokio::test]
 async fn local_backend_reports_capabilities() {
     let b = hm_exec::LocalBackend::new(
@@ -104,7 +111,7 @@ async fn local_backend_reports_capabilities() {
     assert!(!b.capabilities().is_observer);
 }
 
-#[test]
+#[rstest]
 fn cloud_backend_capabilities() {
     // `with_base_url` does no network IO, so this is safe with a dummy token.
     let c = hm_exec::CloudBackend::new(
