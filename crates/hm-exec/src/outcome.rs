@@ -1,6 +1,7 @@
 //! The typed result of a backend run.
 
 use chrono::{DateTime, Utc};
+use hm_pipeline_ir::DurationMs;
 use hm_plugin_protocol::events::BuildRef;
 use uuid::Uuid;
 
@@ -48,7 +49,7 @@ pub struct StepResultSummary {
     pub key: String,
     pub status: StepStatus,
     pub exit_code: Option<i32>,
-    pub duration_ms: u64,
+    pub duration_ms: DurationMs,
 }
 
 /// The terminal result of a build.

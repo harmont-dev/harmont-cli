@@ -11,6 +11,7 @@ use futures::StreamExt;
 use rstest::rstest;
 use hm_exec::*;
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
+use hm_plugin_protocol::ir::DurationMs;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ impl ExecutionBackend for FakeBackend {
             let _ = tx
                 .send(BuildEvent::BuildEnd {
                     exit_code: 0,
-                    duration_ms: 5,
+                    duration_ms: DurationMs(5),
                 })
                 .await;
             Ok(BuildOutcome {

@@ -18,6 +18,7 @@ use harmont_cloud::{
     logs::{LogEvent, StreamKind},
     models::{HarmontJob, OpenJobState, build_is_terminal, job_is_terminal},
 };
+use hm_pipeline_ir::DurationMs;
 use hm_plugin_protocol::events::{BuildEvent, PlanSummary, StdStream};
 use uuid::Uuid;
 
@@ -49,10 +50,10 @@ pub(crate) fn ts_or_now(ts_unix_ns: Option<i64>) -> DateTime<Utc> {
 
 /// Duration between two optional timestamps, in milliseconds (0 if either is
 /// missing or the interval is negative).
-fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> u64 {
+fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> DurationMs {
     match (start, end) {
-        (Some(s), Some(e)) => (e - s).num_milliseconds().max(0).cast_unsigned(),
-        _ => 0,
+        (Some(s), Some(e)) => DurationMs((e - s).num_milliseconds().max(0).cast_unsigned()),
+        _ => DurationMs(0),
     }
 }
 
@@ -260,8 +261,7 @@ pub async fn watch_build(
     let _ = tx
         .send(BuildEvent::BuildEnd {
             exit_code: code,
-            // Saturate at u64::MAX (~584 million years) rather than panic.
-            duration_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            duration_ms: DurationMs::from(started.elapsed()),
         })
         .await;
     Ok(code)
