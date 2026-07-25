@@ -43,19 +43,18 @@ pub fn python3() -> Result<PathBuf, ExecutableNotFound> {
 #[derive(Debug, Clone)]
 pub struct SystemBins {
     python3: PathBuf,
-    git: Option<PathBuf>,
+    git: PathBuf,
 }
 
 impl SystemBins {
     /// Resolve the toolchain from `PATH`.
     ///
     /// # Errors
-    /// [`ExecutableNotFound`] if a required executable (`python3`) is missing.
-    /// Optional executables absent from `PATH` resolve to `None`.
+    /// [`ExecutableNotFound`] if `python3` or `git` is not on `PATH`.
     pub fn resolve() -> Result<Self, ExecutableNotFound> {
         Ok(Self {
             python3: python3()?,
-            git: git().ok(),
+            git: git()?,
         })
     }
 
@@ -65,10 +64,10 @@ impl SystemBins {
         &self.python3
     }
 
-    /// Path to `git`, or `None` if it was not on `PATH` at resolution.
+    /// Path to `git`.
     #[must_use]
-    pub fn git(&self) -> Option<&Path> {
-        self.git.as_deref()
+    pub fn git(&self) -> &Path {
+        &self.git
     }
 }
 
@@ -109,19 +108,17 @@ mod tests {
     }
 
     #[rstest]
-    fn resolve_succeeds_when_python3_is_present() {
-        assert_eq!(SystemBins::resolve().is_ok(), python3().is_ok());
+    fn resolve_succeeds_when_python3_and_git_present() {
+        assert_eq!(SystemBins::resolve().is_ok(), python3().is_ok() && git().is_ok());
     }
 
     #[rstest]
-    #[case::with_git(Some(PathBuf::from("/opt/git")))]
-    #[case::without_git(None)]
-    fn system_bins_exposes_paths(#[case] git: Option<PathBuf>) {
+    fn system_bins_exposes_paths() {
         let bins = SystemBins {
             python3: PathBuf::from("/opt/python3"),
-            git: git.clone(),
+            git: PathBuf::from("/opt/git"),
         };
         assert_eq!(bins.python3(), Path::new("/opt/python3"));
-        assert_eq!(bins.git(), git.as_deref());
+        assert_eq!(bins.git(), Path::new("/opt/git"));
     }
 }
