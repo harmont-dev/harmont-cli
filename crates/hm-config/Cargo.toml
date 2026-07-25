@@ -17,6 +17,7 @@ anyhow = "1"
 [dev-dependencies]
 tempfile = "3"
 tokio = { workspace = true }
+rstest = { workspace = true }
 # `test` brings in `figment::Jail` for isolated env-var/cwd testing.
 figment = { workspace = true, features = ["test"] }
 

@@ -217,9 +217,10 @@ fn hm_alias_env() -> Env {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, reason = "test setup and assertions")]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use std::io::Write as _;
     use std::sync::{Mutex, MutexGuard};
 
@@ -238,38 +239,25 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    #[test]
-    fn app_url_maps_prod_api_to_app() {
-        assert_eq!(app_url(DEFAULT_API_URL, None), "https://app.harmont.dev");
+    #[rstest]
+    #[case::prod_api_to_app(DEFAULT_API_URL, None, "https://app.harmont.dev")]
+    #[case::override_wins_trims_slash(
+        DEFAULT_API_URL,
+        Some("http://localhost:5173/"),
+        "http://localhost:5173"
+    )]
+    #[case::empty_override_ignored(DEFAULT_API_URL, Some("   "), "https://app.harmont.dev")]
+    #[case::unmapped_host_fallback("http://localhost:4000", None, "http://localhost:4000")]
+    #[case::http_api_to_app("http://api.dev.test/", None, "http://app.dev.test")]
+    fn app_url_derives_app_host(
+        #[case] api: &str,
+        #[case] override_url: Option<&str>,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(app_url(api, override_url), expected);
     }
 
-    #[test]
-    fn app_url_override_wins_and_trims_trailing_slash() {
-        assert_eq!(
-            app_url(DEFAULT_API_URL, Some("http://localhost:5173/")),
-            "http://localhost:5173"
-        );
-    }
-
-    #[test]
-    fn app_url_empty_override_is_ignored() {
-        assert_eq!(
-            app_url(DEFAULT_API_URL, Some("   ")),
-            "https://app.harmont.dev"
-        );
-    }
-
-    #[test]
-    fn app_url_falls_back_to_api_for_unmapped_host() {
-        assert_eq!(
-            app_url("http://localhost:4000", None),
-            "http://localhost:4000"
-        );
-        // http api. → http app.
-        assert_eq!(app_url("http://api.dev.test/", None), "http://app.dev.test");
-    }
-
-    #[test]
+    #[rstest]
     fn default_config_values() {
         let cfg = Config::default();
         assert_eq!(cfg.backend, Backend::Docker);
@@ -280,7 +268,7 @@ mod tests {
         assert!(!cfg.preferences.auto_watch);
     }
 
-    #[test]
+    #[rstest]
     fn deserialize_full_toml() {
         let toml_str = r#"
 [cloud]
@@ -300,7 +288,7 @@ auto_watch = true
         assert!(cfg.preferences.auto_watch);
     }
 
-    #[test]
+    #[rstest]
     fn deserialize_sparse_toml() {
         let _g = env_guard();
         let toml_str = r#"
@@ -317,7 +305,7 @@ org = "sparse-co"
         assert!(!cfg.preferences.auto_watch);
     }
 
-    #[test]
+    #[rstest]
     fn deserialize_empty_toml() {
         let _g = env_guard();
         let mut f = tempfile::NamedTempFile::new().unwrap();
@@ -330,7 +318,7 @@ org = "sparse-co"
         assert!(!cfg.preferences.auto_watch);
     }
 
-    #[test]
+    #[rstest]
     fn figment_project_overrides_user() {
         let _g = env_guard();
         let user_toml = r#"
@@ -360,13 +348,13 @@ org = "project-org"
         assert_eq!(cfg.preferences.format, "json");
     }
 
-    #[test]
+    #[rstest]
     fn backend_display_matches_wire_strings() {
         assert_eq!(Backend::Docker.to_string(), "docker");
         assert_eq!(Backend::Cloud.to_string(), "cloud");
     }
 
-    #[test]
+    #[rstest]
     fn backend_defaults_docker_and_parses_and_layers() {
         let _g = env_guard();
         // default
@@ -388,6 +376,7 @@ org = "project-org"
         assert_eq!(cfg_user.backend, Backend::Cloud);
     }
 
+    #[rstest]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn save_and_reload_roundtrip() {
         let _g = env_guard();
@@ -410,8 +399,11 @@ org = "project-org"
         assert_eq!(loaded.preferences.format, "human");
     }
 
-    #[test]
-    #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
+    #[rstest]
+    #[allow(
+        clippy::result_large_err,
+        reason = "figment::Error is the Jail closure's error type"
+    )]
     fn hm_env_overrides_cloud_keys() {
         let _g = env_guard();
         // `Jail` isolates env mutation from concurrently-running tests.
@@ -426,8 +418,11 @@ org = "project-org"
         });
     }
 
-    #[test]
-    #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
+    #[rstest]
+    #[allow(
+        clippy::result_large_err,
+        reason = "figment::Error is the Jail closure's error type"
+    )]
     fn hm_env_overrides_user_file() {
         let _g = env_guard();
         // Env is the highest-precedence layer: it wins over a user file.
@@ -448,7 +443,7 @@ org = "project-org"
         });
     }
 
-    #[test]
+    #[rstest]
     fn figment_missing_files_still_resolve() {
         let _g = env_guard();
         let nonexistent_user = Path::new("/tmp/harmont-test-nonexistent-user/config.toml");
