@@ -41,11 +41,13 @@ pub fn find_project_root(start: &std::path::Path) -> Option<PathBuf> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, reason = "test setup and assertions")]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
-    #[test]
+    #[rstest]
     fn hm_config_dir_under_config() {
         let p = hm_config_dir().unwrap();
         assert!(p.ends_with("hm"), "expected path ending in 'hm', got {p:?}");
@@ -56,19 +58,19 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn hm_cache_dir_under_cache() {
         let p = hm_cache_dir().unwrap();
         assert!(p.ends_with("hm"), "expected path ending in 'hm', got {p:?}");
     }
 
-    #[test]
+    #[rstest]
     fn hm_workspace_cache_dir_resolves() {
         let p = hm_workspace_cache_dir().unwrap();
         assert!(p.ends_with("hm/workspaces"), "got {p:?}");
     }
 
-    #[test]
+    #[rstest]
     fn find_project_root_at_current_dir() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir(tmp.path().join(".hm")).unwrap();
@@ -76,7 +78,7 @@ mod tests {
         assert_eq!(found, Some(tmp.path().to_path_buf()));
     }
 
-    #[test]
+    #[rstest]
     fn find_project_root_walks_up() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir(tmp.path().join(".hm")).unwrap();
@@ -86,7 +88,7 @@ mod tests {
         assert_eq!(found, Some(tmp.path().to_path_buf()));
     }
 
-    #[test]
+    #[rstest]
     fn find_project_root_returns_none_when_missing() {
         let tmp = tempfile::tempdir().unwrap();
         let found = find_project_root(tmp.path());
