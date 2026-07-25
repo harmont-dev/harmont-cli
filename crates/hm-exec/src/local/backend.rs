@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+use hm_util::path::AbsPathBuf;
 use hm_vm::{HmVm, ImageRegistry, VmBackend, VmConfig};
 
 use crate::local::{RunnerRegistry, VmRunner};
@@ -30,6 +31,7 @@ const REGISTRY_CAPACITY: NonZeroU64 = NonZeroU64::new(64).expect("64 is non-zero
 pub struct LocalBackend {
     parallelism: NonZeroUsize,
     vm_backend: Arc<dyn VmBackend>,
+    cache_dir: AbsPathBuf,
 }
 
 impl LocalBackend {
@@ -38,11 +40,21 @@ impl LocalBackend {
     /// `parallelism` = max concurrent step chains. The [`NonZeroUsize`] type
     /// makes the scheduler's semaphore construction deadlock-free by
     /// construction (a zero-permit semaphore would stall every step).
+    ///
+    /// `cache_dir` is where the snapshot registry lives. It is injected for the
+    /// same reason the [`harmont_cloud::HarmontClient`] is: this crate executes
+    /// builds, it does not decide where a user's state lives. That also lets
+    /// tests point it at a tempdir instead of the real `~/.cache/hm`.
     #[must_use]
-    pub fn new(parallelism: NonZeroUsize, vm_backend: Arc<dyn VmBackend>) -> Self {
+    pub fn new(
+        parallelism: NonZeroUsize,
+        vm_backend: Arc<dyn VmBackend>,
+        cache_dir: AbsPathBuf,
+    ) -> Self {
         Self {
             parallelism,
             vm_backend,
+            cache_dir,
         }
     }
 
@@ -50,10 +62,7 @@ impl LocalBackend {
     /// (VM backend + snapshot registry) and registering the [`VmRunner`] as
     /// the default runner.
     fn build_registry(&self) -> Result<RunnerRegistry> {
-        let cache_dir = hm_util::dirs::hm_cache_dir().ok_or_else(|| {
-            BackendError::Local("cannot resolve the Harmont cache directory".into())
-        })?;
-        let registry = ImageRegistry::open(&cache_dir.join("registry.db"), REGISTRY_CAPACITY)
+        let registry = ImageRegistry::open(&self.cache_dir.join("registry.db"), REGISTRY_CAPACITY)
             .map_err(|e| BackendError::Local(format!("opening snapshot registry: {e:#}")))?;
 
         let config = VmConfig {

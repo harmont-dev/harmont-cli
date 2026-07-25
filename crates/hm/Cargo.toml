@@ -61,6 +61,8 @@ hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 hm-util = { workspace = true }
 hm-config = { workspace = true }
+hm-core = { workspace = true }
+secrecy = "0.10.3"
 hm-plugin-cloud = { workspace = true }
 harmont-cloud   = { workspace = true }
 hm-vm           = { workspace = true, features = ["docker-backend"] }

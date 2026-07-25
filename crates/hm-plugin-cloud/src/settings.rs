@@ -1,18 +1,50 @@
 //! Cloud client builders for the `hm cloud` verbs.
 //!
-//! Config and credentials are owned by the shared [`hm_config`] crate:
+//! Config and credentials come from two shared crates:
 //!
-//! - layered config (user `~/.config/hm/config.toml` + project
-//!   `.hm/config.toml` + `HM_*` env) supplies the API base
-//!   (`cloud.api_url`) and the active org (`cloud.org`);
-//! - bearer tokens live in `hm_config::creds`, keyed by API base, with
-//!   `HM_API_TOKEN` taking precedence.
+//! - [`hm_config`] supplies layered config (user `~/.config/hm/config.toml` +
+//!   project `.hm/config.toml` + `HM_*` env): the API base (`cloud.api_url`)
+//!   and the active org (`cloud.org`);
+//! - [`hm_core::Sys`] owns the single bearer token, with `HM_API_TOKEN` taking
+//!   precedence.
 //!
 //! This module only assembles an SDK client from that config; it does not own
 //! any config or credential storage of its own.
 
 use anyhow::{Context, Result};
 use harmont_cloud::HarmontClient;
+use secrecy::{ExposeSecret, SecretString};
+
+/// The layered config for the current directory.
+///
+/// Inside a harmont project this is the workspace's config, project layer
+/// included — [`ResolvedCtx::org`]'s own error text tells users to set
+/// `[cloud] org` in `.hm/config.toml`, so it has to be read. Outside a project
+/// there is simply no project layer, and the cloud verbs still work from
+/// anywhere.
+///
+/// **Read-only callers only.** `hm cloud org switch` deliberately uses
+/// [`hm_core::Sys::config`] instead: it saves back to the user file, and merging
+/// the project layer in first would persist project-scoped values into
+/// `~/.config/hm/config.toml`.
+fn config() -> Result<hm_config::Config> {
+    match hm_core::Workspace::find(None).context("loading config")? {
+        Some(ws) => Ok(ws.config().clone()),
+        None => hm_core::Sys::config().context("loading config"),
+    }
+}
+
+/// Resolve the bearer token, or the shared "not logged in" error.
+///
+/// Every authenticated path routes through here so the not-logged-in text
+/// lives in one place.
+fn token() -> Result<SecretString> {
+    hm_core::Sys::load()
+        .context("loading credentials")?
+        .creds()
+        .token()
+        .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")
+}
 
 /// Resolved cloud context for the `hm cloud` verbs.
 #[derive(Debug, Clone)]
@@ -43,11 +75,9 @@ impl ResolvedCtx {
 ///
 /// Returns an error if config can't be loaded or no token is available.
 pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?; // user + env layering
+    let cfg = config()?; // user + project + env layering
     let api = cfg.cloud.api_url.clone();
-    let token = hm_config::creds::cloud_token(&api)
-        .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
-    let client = HarmontClient::with_base_url(token, &api);
+    let client = HarmontClient::with_base_url(token()?.expose_secret(), &api);
     Ok((
         client,
         ResolvedCtx {
@@ -63,7 +93,7 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
 ///
 /// Returns an error if config can't be loaded.
 pub fn anon_client() -> Result<(HarmontClient, String)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?;
+    let cfg = config()?;
     let api = cfg.cloud.api_url.clone();
     Ok((HarmontClient::anonymous(&api), api))
 }

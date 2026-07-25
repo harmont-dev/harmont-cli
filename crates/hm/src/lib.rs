@@ -3,10 +3,11 @@
     reason = "transitive dependency version conflicts in rand/windows-sys/thiserror chains; not fixable without upstream updates"
 )]
 // The `dirs` crate must NOT be added as a direct dependency of this
-// crate. All directory resolution goes through `hm_util::dirs`, which
-// owns the `dirs` dependency and provides both platform primitives and
-// Harmont-specific discovery. Adding `dirs` here would bypass that
-// single source of truth.
+// crate. Directory resolution is split by scope and both halves are
+// single sources of truth: `hm_util::os::dirs` owns the `dirs`
+// dependency and exposes the raw platform roots, and `hm_core::Sys`
+// owns where *this user's* hm state lives under them
+// (`~/.config/hm`, `~/.cache/hm`). Adding `dirs` here would bypass both.
 
 #[allow(
     clippy::print_stdout,
@@ -20,9 +21,6 @@ pub mod commands;
 /// keep resolving. The layered config + credential store now live in
 /// `hm-config` so `hm-plugin-cloud` can share them.
 pub use hm_config as config;
-/// Re-export the credential store under the historical
-/// `harmont_cli::creds_store` path.
-pub use hm_config::creds as creds_store;
 pub mod context;
 pub mod error;
 pub(crate) mod signal;

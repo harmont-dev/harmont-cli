@@ -97,9 +97,10 @@ fn prompt_skills() -> Result<bool> {
 ///
 /// Silently returns `Ok(())` on any user-cancellation (Esc, Ctrl-C on a prompt).
 async fn prompt_cloud_registration(dir: &std::path::Path) -> Result<()> {
-    let cfg = hm_config::Config::load(None).unwrap_or_default();
-    let api_url = &cfg.cloud.api_url;
-    let is_logged_in = hm_config::creds::cloud_token(api_url).is_some();
+    let is_logged_in = hm_core::Sys::load()
+        .ok()
+        .and_then(|sys| sys.creds().token())
+        .is_some();
 
     if !is_logged_in {
         let want_login = dialoguer::Confirm::new()
