@@ -20,16 +20,6 @@ pub fn pathbin(program: impl AsRef<OsStr>) -> Result<PathBuf, ExecutableNotFound
     })
 }
 
-/// Resolve `git` to its absolute path on `PATH`.
-pub fn git() -> Result<PathBuf, ExecutableNotFound> {
-    pathbin("git")
-}
-
-/// Resolve `python3` to its absolute path on `PATH`.
-pub fn python3() -> Result<PathBuf, ExecutableNotFound> {
-    pathbin("python3")
-}
-
 /// The external executables Harmont shells out to, resolved from `PATH`.
 #[derive(Debug, Clone)]
 pub struct SystemBins {
@@ -41,8 +31,8 @@ impl SystemBins {
     /// Resolve the toolchain from `PATH`.
     pub fn resolve() -> Result<Self, ExecutableNotFound> {
         Ok(Self {
-            python3: python3()?,
-            git: git()?,
+            python3: pathbin("python3")?,
+            git: pathbin("git")?,
         })
     }
 
@@ -88,16 +78,11 @@ mod tests {
     }
 
     #[rstest]
-    #[case::git("git")]
-    #[case::python3("python3")]
-    fn alias_matches_pathbin(#[case] program: &str) {
-        let via_alias = if program == "git" { git() } else { python3() };
-        assert_eq!(via_alias.ok(), pathbin(program).ok());
-    }
-
-    #[rstest]
     fn resolve_succeeds_when_python3_and_git_present() {
-        assert_eq!(SystemBins::resolve().is_ok(), python3().is_ok() && git().is_ok());
+        assert_eq!(
+            SystemBins::resolve().is_ok(),
+            pathbin("python3").is_ok() && pathbin("git").is_ok()
+        );
     }
 
     #[rstest]

@@ -86,14 +86,14 @@ impl AppRuntime {
 )]
 mod tests {
     use super::*;
-    use crate::process::{git, pathbin, python3};
+    use crate::process::pathbin;
     use rstest::rstest;
 
     #[rstest]
     fn resolve_reports_toolchain_availability() {
         assert_eq!(
             AppRuntime::resolve().is_ok(),
-            python3().is_ok() && git().is_ok()
+            pathbin("python3").is_ok() && pathbin("git").is_ok()
         );
     }
 
