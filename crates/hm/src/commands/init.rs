@@ -337,7 +337,9 @@ pub async fn handle(args: InitArgs) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used, reason = "test setup and assertions")]
+
+    use rstest::rstest;
 
     use super::*;
 
@@ -345,59 +347,34 @@ mod tests {
         dir.join(format!(".claude/skills/{slug}/SKILL.md"))
     }
 
-    #[test]
-    fn write_skills_installs_when_absent() {
+    #[rstest]
+    #[case::absent(None, false, SKILL_VALIDATE_CI)]
+    #[case::customized_no_force(Some("# my local edits"), false, "# my local edits")]
+    #[case::customized_force(Some("# my local edits"), true, SKILL_VALIDATE_CI)]
+    #[case::unchanged_idempotent(Some(SKILL_VALIDATE_CI), false, SKILL_VALIDATE_CI)]
+    fn write_skills_behaves(
+        #[case] preexisting: Option<&str>,
+        #[case] force: bool,
+        #[case] expected: &str,
+    ) {
         let dir = tempfile::tempdir().unwrap();
-        write_skills(dir.path(), false).unwrap();
-
         let dest = skill_path(dir.path(), "validate-ci");
-        assert!(dest.exists());
-        assert_eq!(std::fs::read_to_string(&dest).unwrap(), SKILL_VALIDATE_CI);
+        if let Some(content) = preexisting {
+            std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+            std::fs::write(&dest, content).unwrap();
+        }
+
+        write_skills(dir.path(), force).unwrap();
+
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), expected);
     }
 
-    #[test]
-    fn write_skills_preserves_customized_file_without_force() {
+    #[rstest]
+    fn write_skills_installs_sibling_skills_when_absent() {
         let dir = tempfile::tempdir().unwrap();
-        let dest = skill_path(dir.path(), "validate-ci");
-        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        std::fs::write(&dest, "# my local edits").unwrap();
-
         write_skills(dir.path(), false).unwrap();
 
-        assert_eq!(
-            std::fs::read_to_string(&dest).unwrap(),
-            "# my local edits",
-            "a customized skill must not be clobbered without --force"
-        );
-        // Other skills, which were absent, are still installed.
+        // Skills other than the one under test are installed too.
         assert!(skill_path(dir.path(), "write-pipeline").exists());
-    }
-
-    #[test]
-    fn write_skills_force_overwrites_customized_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let dest = skill_path(dir.path(), "validate-ci");
-        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        std::fs::write(&dest, "# my local edits").unwrap();
-
-        write_skills(dir.path(), true).unwrap();
-
-        assert_eq!(
-            std::fs::read_to_string(&dest).unwrap(),
-            SKILL_VALIDATE_CI,
-            "--force must overwrite a customized skill with the bundled version"
-        );
-    }
-
-    #[test]
-    fn write_skills_skips_unchanged_file_idempotently() {
-        let dir = tempfile::tempdir().unwrap();
-        let dest = skill_path(dir.path(), "validate-ci");
-        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        std::fs::write(&dest, SKILL_VALIDATE_CI).unwrap();
-
-        // Re-running with an identical, bundled file is a silent no-op.
-        write_skills(dir.path(), false).unwrap();
-        assert_eq!(std::fs::read_to_string(&dest).unwrap(), SKILL_VALIDATE_CI);
     }
 }

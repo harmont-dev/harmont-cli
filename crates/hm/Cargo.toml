@@ -88,6 +88,7 @@ predicates = "3"
 assert_fs = "1"
 tempfile = "3"
 which = "6"
+rstest = { workspace = true }
 
 [lints]
 workspace = true

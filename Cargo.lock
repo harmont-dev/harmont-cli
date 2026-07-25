@@ -1140,6 +1140,7 @@ dependencies = [
  "predicates",
  "rand 0.8.6",
  "reqwest",
+ "rstest",
  "schemars 0.8.22",
  "semver",
  "serde",

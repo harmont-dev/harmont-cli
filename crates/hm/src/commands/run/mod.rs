@@ -698,87 +698,73 @@ error[source_too_large]: worktree archive is {observed} (cap {cap})
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 mod tests {
+    use hm_exec::BackendError as E;
+    use rstest::rstest;
+
     use super::*;
 
-    #[test]
-    fn missing_pipeline_detected_from_structured_reject() {
-        let err = hm_exec::BackendError::Rejected {
+    #[rstest]
+    #[case::structured_reject(
+        E::Rejected {
             code: "pipeline_not_found".into(),
             message: "No pipeline with that slug exists in this organization.".into(),
-        };
-        assert!(is_missing_pipeline(&err));
-    }
-
-    #[test]
-    fn other_reject_is_not_missing_pipeline() {
-        let err = hm_exec::BackendError::Rejected {
+        },
+        true
+    )]
+    #[case::other_reject(
+        E::Rejected {
             code: "build_rejected".into(),
             message: "pipeline_ir invalid".into(),
-        };
-        assert!(!is_missing_pipeline(&err));
+        },
+        false
+    )]
+    #[case::opaque_not_found(
+        E::NotFound(r#"{"error":{"code":"pipeline_not_found"}}"#.into()),
+        true
+    )]
+    #[case::transport(E::Transport("connection refused".into()), false)]
+    fn is_missing_pipeline_classifies(#[case] err: E, #[case] expected: bool) {
+        assert_eq!(is_missing_pipeline(&err), expected);
     }
 
-    #[test]
-    fn missing_pipeline_detected_from_opaque_not_found() {
-        let err =
-            hm_exec::BackendError::NotFound(r#"{"error":{"code":"pipeline_not_found"}}"#.into());
-        assert!(is_missing_pipeline(&err));
+    #[rstest]
+    #[case::https(
+        "https://github.com/harmont-dev/harmont-cli.git",
+        Some("harmont-dev/harmont-cli")
+    )]
+    #[case::scp(
+        "git@github.com:harmont-dev/harmont-cli.git",
+        Some("harmont-dev/harmont-cli")
+    )]
+    #[case::ssh(
+        "ssh://git@github.com/harmont-dev/harmont-cli",
+        Some("harmont-dev/harmont-cli")
+    )]
+    #[case::deep_path("https://example.com/a/b/c/repo", Some("c/repo"))]
+    #[case::empty("", None)]
+    #[case::not_a_url("not-a-url", None)]
+    fn parse_repo_name_cases(#[case] url: &str, #[case] expected: Option<&str>) {
+        assert_eq!(parse_repo_name(url).as_deref(), expected);
     }
 
-    #[test]
-    fn transport_error_is_not_missing_pipeline() {
-        let err = hm_exec::BackendError::Transport("connection refused".into());
-        assert!(!is_missing_pipeline(&err));
+    #[rstest]
+    #[case::main_trailing_newline("refs/remotes/origin/main\n", Some("main"))]
+    #[case::master("refs/remotes/origin/master", Some("master"))]
+    #[case::empty("", None)]
+    #[case::refs_heads("refs/heads/main", None)]
+    #[case::trailing_slash("refs/remotes/origin/", None)]
+    fn parse_default_branch_cases(#[case] input: &str, #[case] expected: Option<&str>) {
+        assert_eq!(parse_default_branch(input).as_deref(), expected);
     }
 
-    #[test]
-    fn parse_repo_name_handles_https_ssh_and_scp() {
-        assert_eq!(
-            parse_repo_name("https://github.com/harmont-dev/harmont-cli.git").as_deref(),
-            Some("harmont-dev/harmont-cli")
-        );
-        assert_eq!(
-            parse_repo_name("git@github.com:harmont-dev/harmont-cli.git").as_deref(),
-            Some("harmont-dev/harmont-cli")
-        );
-        assert_eq!(
-            parse_repo_name("ssh://git@github.com/harmont-dev/harmont-cli").as_deref(),
-            Some("harmont-dev/harmont-cli")
-        );
-        assert_eq!(
-            parse_repo_name("https://example.com/a/b/c/repo").as_deref(),
-            Some("c/repo")
-        );
-    }
-
-    #[test]
-    fn parse_repo_name_rejects_unparseable() {
-        assert_eq!(parse_repo_name(""), None);
-        assert_eq!(parse_repo_name("not-a-url"), None);
-    }
-
-    #[test]
-    fn parses_default_branch_from_symbolic_ref() {
-        assert_eq!(
-            parse_default_branch("refs/remotes/origin/main\n").as_deref(),
-            Some("main")
-        );
-        assert_eq!(
-            parse_default_branch("refs/remotes/origin/master").as_deref(),
-            Some("master")
-        );
-    }
-
-    #[test]
-    fn default_branch_none_when_unexpected_or_empty() {
-        assert_eq!(parse_default_branch(""), None);
-        assert_eq!(parse_default_branch("refs/heads/main"), None);
-        assert_eq!(parse_default_branch("refs/remotes/origin/"), None);
-    }
-
-    #[test]
+    #[rstest]
     fn parse_env_splits_pairs() {
         let m = parse_env(&["A=1".into(), "B=x=y".into(), "bad".into()]);
         assert_eq!(m.get("A").unwrap(), "1");
@@ -786,26 +772,49 @@ mod tests {
         assert!(!m.contains_key("bad"));
     }
 
-    #[test]
+    #[rstest]
     fn git_metadata_falls_back_outside_repo() {
         let (b, c) = git_metadata(std::path::Path::new("/"), None);
         assert!(!b.is_empty() && !c.is_empty());
         assert_eq!(c.len(), 40); // zero-sha fallback
     }
 
-    #[test]
-    fn explain_carries_stable_codes() {
-        use hm_exec::BackendError as E;
-        assert!(explain(&E::Unauthorized).contains("error[auth_required]"));
-        assert!(explain(&E::NotFound("x".into())).contains("error[not_found]"));
-        assert!(explain(&E::LogStream("x".into())).contains("error[log_stream]"));
-        assert!(explain(&E::Transport("x".into())).contains("error[network]"));
-        assert!(explain(&E::Local("x".into())).contains("error[local]"));
+    #[rstest]
+    #[case::unauthorized(E::Unauthorized, "error[auth_required]")]
+    #[case::not_found(E::NotFound("x".into()), "error[not_found]")]
+    #[case::log_stream(E::LogStream("x".into()), "error[log_stream]")]
+    #[case::transport(E::Transport("x".into()), "error[network]")]
+    #[case::local(E::Local("x".into()), "error[local]")]
+    #[case::rejected(
+        E::Rejected { code: "invalid_ir".into(), message: "bad IR".into() },
+        "error[invalid_ir]"
+    )]
+    #[case::source_too_large(
+        E::SourceTooLarge {
+            observed_bytes: 7 * 1024 * 1024,
+            cap_bytes: 6 * 1024 * 1024,
+            largest_paths: vec![("node_modules".into(), 5 * 1024 * 1024)],
+        },
+        "error[source_too_large]"
+    )]
+    fn explain_carries_stable_codes(#[case] err: E, #[case] code: &str) {
+        let rendered = explain(&err);
+        assert!(rendered.contains(code));
+        // Doc URLs were removed (the pages 404); no error should link to them.
+        assert!(!rendered.contains("docs   https://harmont.dev/docs/errors/"));
+    }
+
+    #[rstest]
+    fn explain_rejected_includes_message() {
         let r = explain(&E::Rejected {
             code: "invalid_ir".into(),
             message: "bad IR".into(),
         });
         assert!(r.contains("error[invalid_ir]") && r.contains("bad IR"));
+    }
+
+    #[rstest]
+    fn explain_source_too_large_points_precisely() {
         let big = explain(&E::SourceTooLarge {
             observed_bytes: 7 * 1024 * 1024,
             cap_bytes: 6 * 1024 * 1024,
@@ -815,101 +824,87 @@ mod tests {
         // Points precisely (observed + cap), names the offender, states the fix.
         assert!(big.contains("7 MiB") && big.contains("6 MiB"));
         assert!(big.contains("node_modules") && big.contains(".gitignore"));
-        // Doc URLs were removed (the pages 404); no error should link to them.
-        for s in [
-            explain(&E::Unauthorized),
-            explain(&E::NotFound("x".into())),
-            explain(&E::Transport("x".into())),
-            explain(&E::Local("x".into())),
-        ] {
-            assert!(!s.contains("docs   https://harmont.dev/docs/errors/"));
-        }
+    }
+
+    #[rstest]
+    fn explain_local_omits_docker_advice() {
         // The Local arm no longer gives misleading Docker advice.
         assert!(!explain(&E::Local("archiving worktree: boom".into())).contains("Docker"));
         assert!(explain(&E::Local("archiving worktree: boom".into())).contains("error[local]"));
     }
 
-    #[test]
-    fn exit_category_preserves_taxonomy() {
-        use hm_exec::BackendError as E;
-        assert_eq!(
-            exit_category(&E::Rejected {
-                code: "invalid_ir".into(),
-                message: String::new()
-            }),
-            ErrorCategory::PipelineInvalid
-        );
-        assert_eq!(exit_category(&E::Unauthorized), ErrorCategory::Auth);
-        assert_eq!(
-            exit_category(&E::Transport("x".into())),
-            ErrorCategory::Network
-        );
-        assert_eq!(exit_category(&E::Local("x".into())), ErrorCategory::Network);
-        assert_eq!(exit_category(&E::NotFound("x".into())), ErrorCategory::Api);
-        assert_eq!(
-            exit_category(&E::SourceTooLarge {
-                observed_bytes: 1,
-                cap_bytes: 0,
-                largest_paths: vec![],
-            }),
-            ErrorCategory::Usage
-        );
+    #[rstest]
+    #[case::rejected(
+        E::Rejected { code: "invalid_ir".into(), message: String::new() },
+        ErrorCategory::PipelineInvalid
+    )]
+    #[case::unauthorized(E::Unauthorized, ErrorCategory::Auth)]
+    #[case::transport(E::Transport("x".into()), ErrorCategory::Network)]
+    #[case::local(E::Local("x".into()), ErrorCategory::Network)]
+    #[case::not_found(E::NotFound("x".into()), ErrorCategory::Api)]
+    #[case::source_too_large(
+        E::SourceTooLarge { observed_bytes: 1, cap_bytes: 0, largest_paths: vec![] },
+        ErrorCategory::Usage
+    )]
+    fn exit_category_preserves_taxonomy(#[case] err: E, #[case] expected: ErrorCategory) {
+        assert_eq!(exit_category(&err), expected);
     }
 
-    #[test]
-    fn create_request_maps_fields_and_sets_repo_name() {
-        let body = build_create_pipeline_request(
-            "web",
-            "main",
-            "git@github.com:acme/my-app.git",
-            Some("acme/my-app"),
-        );
-        assert_eq!(body.name, "web");
-        assert_eq!(body.default_branch, "main");
-        assert_eq!(body.repository, "git@github.com:acme/my-app.git");
-        assert_eq!(body.repo_name.as_deref(), Some("acme/my-app"));
+    #[rstest]
+    #[case::with_repo_name(
+        "web",
+        "main",
+        "git@github.com:acme/my-app.git",
+        Some("acme/my-app"),
+        Some("acme/my-app")
+    )]
+    // The remoteless path passes `None`: no `repo_name`, and `repository`
+    // falls back to the pipeline name itself.
+    #[case::remoteless("my-app-2", "main", "my-app-2", None, None)]
+    fn create_request_maps_fields_and_sets_repo_name(
+        #[case] name: &str,
+        #[case] default_branch: &str,
+        #[case] repository: &str,
+        #[case] repo_name: Option<&str>,
+        #[case] expected_repo_name: Option<&str>,
+    ) {
+        let body = build_create_pipeline_request(name, default_branch, repository, repo_name);
+        assert_eq!(body.name, name);
+        assert_eq!(body.default_branch, default_branch);
+        assert_eq!(body.repository, repository);
+        assert_eq!(body.repo_name.as_deref(), expected_repo_name);
         assert!(body.description.is_none());
-
-        // The remoteless path passes `None`: no `repo_name`, and `repository`
-        // falls back to the pipeline name itself.
-        let body = build_create_pipeline_request("my-app-2", "main", "my-app-2", None);
-        assert!(body.repo_name.is_none());
-        assert_eq!(body.repository, "my-app-2");
-        assert_eq!(body.name, "my-app-2");
     }
 
-    #[test]
-    fn persist_creates_config_when_absent() {
+    #[rstest]
+    #[case::absent(None, "my-app-2", None)]
+    #[case::existing_keys(
+        Some("backend = \"docker\"\n[cloud]\norg = \"old\"\napi_url = \"https://example.test\"\n"),
+        "web",
+        Some("https://example.test")
+    )]
+    fn persist_project_pipeline_writes_config(
+        #[case] preexisting: Option<&str>,
+        #[case] slug: &str,
+        #[case] expected_api_url: Option<&str>,
+    ) {
         let dir = tempfile::tempdir().unwrap();
-        persist_project_pipeline(dir.path(), "acme", "my-app-2").unwrap();
+        if let Some(content) = preexisting {
+            std::fs::create_dir_all(dir.path().join(".hm")).unwrap();
+            std::fs::write(dir.path().join(".hm/config.toml"), content).unwrap();
+        }
+
+        persist_project_pipeline(dir.path(), "acme", slug).unwrap();
 
         let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
         let doc: toml::Table = toml::from_str(&raw).unwrap();
         assert_eq!(doc["backend"].as_str(), Some("cloud"));
         let cloud = doc["cloud"].as_table().unwrap();
         assert_eq!(cloud["org"].as_str(), Some("acme"));
-        assert_eq!(cloud["pipeline"].as_str(), Some("my-app-2"));
-    }
-
-    #[test]
-    fn persist_preserves_existing_keys() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(dir.path().join(".hm")).unwrap();
-        std::fs::write(
-            dir.path().join(".hm/config.toml"),
-            "backend = \"docker\"\n[cloud]\norg = \"old\"\napi_url = \"https://example.test\"\n",
-        )
-        .unwrap();
-
-        persist_project_pipeline(dir.path(), "acme", "web").unwrap();
-
-        let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
-        let doc: toml::Table = toml::from_str(&raw).unwrap();
-        assert_eq!(doc["backend"].as_str(), Some("cloud"));
-        let cloud = doc["cloud"].as_table().unwrap();
-        assert_eq!(cloud["pipeline"].as_str(), Some("web"));
-        assert_eq!(cloud["org"].as_str(), Some("acme"));
-        // The unrelated key is preserved across the merge.
-        assert_eq!(cloud["api_url"].as_str(), Some("https://example.test"));
+        assert_eq!(cloud["pipeline"].as_str(), Some(slug));
+        // Any unrelated key present beforehand is preserved across the merge.
+        if let Some(api_url) = expected_api_url {
+            assert_eq!(cloud["api_url"].as_str(), Some(api_url));
+        }
     }
 }

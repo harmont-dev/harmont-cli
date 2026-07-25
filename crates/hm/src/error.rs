@@ -118,9 +118,11 @@ impl HmError {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::{ErrorCategory, HmError};
 
-    #[test]
+    #[rstest]
     fn pipeline_manual_disabled_renders_section5_shape() {
         let s = format!("{}", HmError::PipelineManualDisabled);
         assert_eq!(
@@ -129,7 +131,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn pipeline_manual_disabled_is_api_category() {
         assert_eq!(
             HmError::PipelineManualDisabled.category(),
