@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 
+use hm_common::app_runtime::AppRuntime;
 use hm_common::process::{CapturedStreams as _, CommandExt as _};
 use hm_dsl_engine::{DslEngine, detect};
 use human_units::FormatSize as _;
@@ -34,6 +35,10 @@ use crate::error::{ErrorCategory, HmError};
 /// unreachable, the local daemon is down, or the pipeline fails to render.
 #[allow(clippy::too_many_lines)] // thin top-level driver: linear, no good split point
 pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
+    // `hm run` needs the build toolchain (git + python3). Resolve it once up
+    // front, failing fast with a clear error when anything is missing.
+    AppRuntime::init().context("resolving the build toolchain")?;
+
     // 1. Resolve the backend name: explicit --backend > legacy --cloud alias >
     //    config.backend (figment-layered default "docker").
     let backend_name = args
@@ -243,7 +248,7 @@ fn parse_env(pairs: &[String]) -> HashMap<String, String> {
 /// `branch_override` wins; missing values fall back to `HEAD` / the zero SHA.
 /// `git -C <root> <args...>`, ready to `.captured()`.
 fn git_at(root: &std::path::Path, args: &[&str]) -> std::process::Command {
-    let mut cmd = std::process::Command::new("git");
+    let mut cmd = std::process::Command::new(AppRuntime::bins().git());
     cmd.arg("-C").arg(root).args(args);
     cmd
 }
@@ -345,7 +350,7 @@ async fn render_pipeline(
 ) -> Result<(std::path::PathBuf, String, String)> {
     let repo_root = match args.dir.clone() {
         Some(p) => p,
-        None => std::env::current_dir().context("cannot determine current directory")?,
+        None => AppRuntime::cwd().to_path_buf(),
     };
 
     detect::check_python(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;

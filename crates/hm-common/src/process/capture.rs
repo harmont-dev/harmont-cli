@@ -28,9 +28,6 @@ pub struct Captured {
 
 impl Captured {
     /// Split on the exit status: `Ok` if the process exited 0, else `Err`.
-    ///
-    /// # Errors
-    /// [`CapturedError`] when the process exited non-zero or was killed by a signal.
     pub fn success(self) -> Result<CapturedOk, CapturedError> {
         if self.status.success() {
             Ok(CapturedOk(self))
@@ -99,31 +96,19 @@ pub trait CapturedStreams: sealed::Sealed {
     }
 
     /// stdout as UTF-8, borrowed.
-    ///
-    /// # Errors
-    /// Returns [`Utf8Error`] if stdout is not valid UTF-8.
     fn stdout_str(&self) -> Result<&str, Utf8Error> {
         std::str::from_utf8(self.stdout())
     }
     /// stderr as UTF-8, borrowed.
-    ///
-    /// # Errors
-    /// Returns [`Utf8Error`] if stderr is not valid UTF-8.
     fn stderr_str(&self) -> Result<&str, Utf8Error> {
         std::str::from_utf8(self.stderr())
     }
 
     /// stdout as an owned UTF-8 `String`.
-    ///
-    /// # Errors
-    /// Returns [`Utf8Error`] if stdout is not valid UTF-8.
     fn stdout_string(&self) -> Result<String, Utf8Error> {
         self.stdout_str().map(str::to_owned)
     }
     /// stderr as an owned UTF-8 `String`.
-    ///
-    /// # Errors
-    /// Returns [`Utf8Error`] if stderr is not valid UTF-8.
     fn stderr_string(&self) -> Result<String, Utf8Error> {
         self.stderr_str().map(str::to_owned)
     }
@@ -187,9 +172,6 @@ impl CapturedStreams for CapturedError {
 /// Adds [`captured`](CommandExt::captured) to [`std::process::Command`].
 pub trait CommandExt: sealed::Sealed {
     /// Spawn, wait for completion, and capture stdout/stderr and exit status.
-    ///
-    /// # Errors
-    /// The spawn [`io::Error`] (e.g. the program is not found).
     fn captured(&mut self) -> io::Result<Captured>;
 }
 
@@ -209,9 +191,6 @@ impl CommandExt for std::process::Command {
 /// Adds [`captured`](AsyncCommandExt::captured) to [`tokio::process::Command`].
 pub trait AsyncCommandExt: sealed::Sealed {
     /// Spawn, await completion, and capture stdout/stderr and exit status.
-    ///
-    /// # Errors
-    /// The spawn [`io::Error`] (e.g. the program is not found).
     fn captured(&mut self) -> impl Future<Output = io::Result<Captured>>;
 }
 

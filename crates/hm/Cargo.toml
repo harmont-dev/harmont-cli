@@ -58,7 +58,7 @@ futures = "0.3"
 futures-util = "0.3"
 hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
-hm-common = { workspace = true }
+hm-common = { workspace = true, features = ["app-runtime"] }
 hm-util = { workspace = true }
 hm-config = { workspace = true }
 hm-plugin-cloud = { workspace = true }
