@@ -4,10 +4,12 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::print_stderr
+    clippy::print_stderr,
+    reason = "test setup and assertions"
 )]
 
 use assert_cmd::Command;
+use rstest::rstest;
 
 fn write_fixture(dir: &std::path::Path) {
     let harmont = dir.join(".hm");
@@ -24,7 +26,7 @@ def ci() -> hm.Step:
     .unwrap();
 }
 
-#[test]
+#[rstest]
 fn render_emits_v0_ir_for_slug() {
     if which::which("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");
@@ -54,7 +56,7 @@ fn render_emits_v0_ir_for_slug() {
     );
 }
 
-#[test]
+#[rstest]
 fn render_unknown_slug_fails_with_available_on_stderr() {
     if which::which("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");

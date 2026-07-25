@@ -1,11 +1,17 @@
 //! `hm plugin list` smoke test.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 
 use assert_cmd::Command;
 use predicates::str::contains;
+use rstest::rstest;
 
-#[test]
+#[rstest]
 fn plugin_list_shows_registered_runners() {
     Command::cargo_bin("hm")
         .unwrap()

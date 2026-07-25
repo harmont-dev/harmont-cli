@@ -1,10 +1,16 @@
 //! `hm init` scaffolds a `.hm/` pipeline from a project template.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 
 use assert_cmd::Command;
 use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
+use rstest::rstest;
 
 fn hm() -> Command {
     Command::cargo_bin("hm").unwrap()
@@ -12,7 +18,7 @@ fn hm() -> Command {
 
 // ── non-interactive (--template) ──────────────────────────────
 
-#[test]
+#[rstest]
 fn init_rust_creates_pipeline_py() {
     let dir = tempfile::tempdir().unwrap();
     hm().args(["init", "--template", "rust", "--dir"])
@@ -42,7 +48,7 @@ fn init_rust_creates_pipeline_py() {
     );
 }
 
-#[test]
+#[rstest]
 fn init_existing_hm_dir_no_pipeline_succeeds() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join(".hm")).unwrap();
@@ -53,7 +59,7 @@ fn init_existing_hm_dir_no_pipeline_succeeds() {
         .success();
 }
 
-#[test]
+#[rstest]
 fn init_existing_pipeline_without_force_warns_and_succeeds() {
     let dir = tempfile::tempdir().unwrap();
     let harmont = dir.path().join(".hm");
@@ -67,7 +73,7 @@ fn init_existing_pipeline_without_force_warns_and_succeeds() {
         .stderr(contains("pipeline already exists"));
 }
 
-#[test]
+#[rstest]
 fn init_force_preserves_coresident_files() {
     // `--force` must overwrite ONLY the target template file. It must never
     // wipe the whole `.hm/` directory: config.toml and any co-resident
@@ -96,7 +102,7 @@ fn init_force_preserves_coresident_files() {
     );
 }
 
-#[test]
+#[rstest]
 fn init_force_replaces_existing_pipeline() {
     let dir = tempfile::tempdir().unwrap();
     let harmont = dir.path().join(".hm");
@@ -119,7 +125,7 @@ fn init_force_replaces_existing_pipeline() {
     );
 }
 
-#[test]
+#[rstest]
 fn init_skips_pipeline_when_one_exists() {
     let dir = tempfile::tempdir().unwrap();
     let hm_dir = dir.path().join(".hm");
@@ -139,7 +145,7 @@ fn init_skips_pipeline_when_one_exists() {
     );
 }
 
-#[test]
+#[rstest]
 fn init_writes_pipeline_when_hm_dir_exists_but_empty() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join(".hm")).unwrap();
@@ -155,7 +161,7 @@ fn init_writes_pipeline_when_hm_dir_exists_but_empty() {
     );
 }
 
-#[test]
+#[rstest]
 fn init_unknown_template_rejected_by_clap() {
     let dir = tempfile::tempdir().unwrap();
     hm().args(["init", "--template", "cobol", "--dir"])
@@ -165,18 +171,23 @@ fn init_unknown_template_rejected_by_clap() {
         .stderr(contains("invalid value"));
 }
 
-#[test]
-fn init_all_templates_create_files() {
-    for slug in ["cmake", "elixir", "nextjs", "js", "rust", "zig", "python"] {
-        let dir = tempfile::tempdir().unwrap();
-        hm().args(["init", "--template", slug, "--dir"])
-            .arg(dir.path())
-            .assert()
-            .success();
+#[rstest]
+#[case::cmake("cmake")]
+#[case::elixir("elixir")]
+#[case::nextjs("nextjs")]
+#[case::js("js")]
+#[case::rust("rust")]
+#[case::zig("zig")]
+#[case::python("python")]
+fn init_all_templates_create_files(#[case] slug: &str) {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", slug, "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
 
-        let has_py = dir.path().join(".hm/pipeline.py").exists();
-        assert!(has_py, "template {slug}: no pipeline file created");
-    }
+    let has_py = dir.path().join(".hm/pipeline.py").exists();
+    assert!(has_py, "template {slug}: no pipeline file created");
 }
 
 // ── roundtrip: init → render ──────────────────────────────────
@@ -185,81 +196,75 @@ fn has_python() -> bool {
     which::which("python3").is_ok()
 }
 
-#[test]
-fn init_python_templates_roundtrip_render() {
+#[rstest]
+#[case::cmake("cmake")]
+#[case::elixir("elixir")]
+#[case::rust("rust")]
+#[case::python("python")]
+fn init_python_templates_roundtrip_render(#[case] slug: &str) {
     if !has_python() {
         return;
     }
 
-    for slug in ["cmake", "elixir", "rust", "python"] {
-        let dir = tempfile::tempdir().unwrap();
-        hm().args(["init", "--template", slug, "--dir"])
-            .arg(dir.path())
-            .assert()
-            .success();
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", slug, "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
 
-        let out = hm()
-            .args(["render", "ci", "--dir"])
-            .arg(dir.path())
-            .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
+    let out = hm()
+        .args(["render", "ci", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
 
-        let v: serde_json::Value = serde_json::from_slice(&out)
-            .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
-        assert_eq!(v["version"], "0", "template {slug}: expected v0 IR");
-        assert!(
-            v["graph"].is_object(),
-            "template {slug}: expected graph object"
-        );
-    }
+    let v: serde_json::Value =
+        serde_json::from_slice(&out).unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
+    assert_eq!(v["version"], "0", "template {slug}: expected v0 IR");
+    assert!(
+        v["graph"].is_object(),
+        "template {slug}: expected graph object"
+    );
 }
 
 // ── skills ───────────────────────────────────────────────────────
 
-#[test]
-fn init_noninteractive_skips_skills() {
+#[rstest]
+#[case::validate_ci("validate-ci")]
+#[case::write_pipeline("write-pipeline")]
+#[case::convert_gha("convert-gha")]
+fn init_noninteractive_skips_skills(#[case] skill: &str) {
     let dir = tempfile::tempdir().unwrap();
     hm().args(["init", "--template", "rust", "--dir"])
         .arg(dir.path())
         .assert()
         .success();
 
-    let skill_validate = dir.path().join(".claude/skills/validate-ci/SKILL.md");
+    let skill_md = dir.path().join(format!(".claude/skills/{skill}/SKILL.md"));
     assert!(
-        !skill_validate.exists(),
-        "non-interactive init should not create skills"
-    );
-
-    let skill_pipeline = dir.path().join(".claude/skills/write-pipeline/SKILL.md");
-    assert!(
-        !skill_pipeline.exists(),
-        "non-interactive init should not create write-pipeline skill"
+        !skill_md.exists(),
+        "non-interactive init should not create the {skill} skill"
     );
 }
 
-#[test]
-fn init_noninteractive_skips_convert_gha_skill() {
-    let dir = tempfile::tempdir().unwrap();
-    hm().args(["init", "--template", "rust", "--dir"])
-        .arg(dir.path())
-        .assert()
-        .success();
-
-    let skill = dir.path().join(".claude/skills/convert-gha/SKILL.md");
-    assert!(
-        !skill.exists(),
-        "non-interactive init should not create convert-gha skill"
-    );
-}
-
-#[test]
-fn skill_validate_ci_content_is_well_formed() {
-    let content = include_str!("../src/commands/init_templates/skill_validate_ci.md");
+#[rstest]
+#[case::validate_ci(
+    include_str!("../src/commands/init_templates/skill_validate_ci.md"),
+    &["hm run"]
+)]
+#[case::write_pipeline(
+    include_str!("../src/commands/init_templates/skill_write_pipeline.md"),
+    &["docs.harmont.dev", "hm run", "gh issue create"]
+)]
+#[case::convert_gha(
+    include_str!("../src/commands/init_templates/skill_convert_gha.md"),
+    &["write-pipeline", "actions/cache", "actions/checkout"]
+)]
+fn skill_content_is_well_formed(#[case] content: &str, #[case] extras: &[&str]) {
     assert!(!content.is_empty(), "skill template must not be empty");
-    assert!(content.contains("hm run"), "skill must reference `hm run`");
     assert!(
         content.contains("## When to use"),
         "skill must have 'When to use' section"
@@ -272,39 +277,15 @@ fn skill_validate_ci_content_is_well_formed() {
         content.contains("## Procedure"),
         "skill must have 'Procedure' section"
     );
+    for needle in extras {
+        assert!(
+            content.contains(needle),
+            "skill must reference `{needle}`"
+        );
+    }
 }
 
-#[test]
-fn skill_write_pipeline_content_is_well_formed() {
-    let content = include_str!("../src/commands/init_templates/skill_write_pipeline.md");
-    assert!(!content.is_empty(), "skill template must not be empty");
-    assert!(
-        content.contains("docs.harmont.dev"),
-        "skill must reference documentation site"
-    );
-    assert!(
-        content.contains("hm run"),
-        "skill must reference `hm run` for validation"
-    );
-    assert!(
-        content.contains("## When to use"),
-        "skill must have 'When to use' section"
-    );
-    assert!(
-        content.contains("## When NOT to use"),
-        "skill must have 'When NOT to use' section"
-    );
-    assert!(
-        content.contains("## Procedure"),
-        "skill must have 'Procedure' section"
-    );
-    assert!(
-        content.contains("gh issue create"),
-        "skill must include gh issue filing instructions"
-    );
-}
-
-#[test]
+#[rstest]
 fn init_detects_github_workflows_in_noninteractive_mode() {
     let dir = tempfile::tempdir().unwrap();
     let workflows = dir.path().join(".github/workflows");
@@ -318,39 +299,14 @@ fn init_detects_github_workflows_in_noninteractive_mode() {
         .stderr(contains("convert-gha"));
 }
 
-#[test]
-fn skill_convert_gha_content_is_well_formed() {
-    let content = include_str!("../src/commands/init_templates/skill_convert_gha.md");
-    assert!(!content.is_empty(), "skill template must not be empty");
-    assert!(
-        content.contains("## When to use"),
-        "skill must have 'When to use' section"
-    );
-    assert!(
-        content.contains("## When NOT to use"),
-        "skill must have 'When NOT to use' section"
-    );
-    assert!(
-        content.contains("## Procedure"),
-        "skill must have 'Procedure' section"
-    );
-    assert!(
-        content.contains("write-pipeline"),
-        "skill must reference write-pipeline skill"
-    );
-    assert!(
-        content.contains("actions/cache"),
-        "skill must mention actions/cache and implicit caching"
-    );
-    assert!(
-        content.contains("actions/checkout"),
-        "skill must mention actions/checkout is not needed"
-    );
-}
-
-#[test]
-fn init_no_gha_hint_without_workflows_dir() {
+#[rstest]
+#[case::no_dir(false)]
+#[case::empty_dir(true)]
+fn init_no_gha_hint_without_real_workflows(#[case] create_empty_workflows_dir: bool) {
     let dir = tempfile::tempdir().unwrap();
+    if create_empty_workflows_dir {
+        std::fs::create_dir_all(dir.path().join(".github/workflows")).unwrap();
+    }
 
     hm().args(["init", "--template", "rust", "--dir"])
         .arg(dir.path())
@@ -359,7 +315,7 @@ fn init_no_gha_hint_without_workflows_dir() {
         .stderr(predicates::str::contains("convert-gha").not());
 }
 
-#[test]
+#[rstest]
 fn init_skips_template_prompt_when_pipeline_exists() {
     // A project that already has a pipeline. Running `hm init` with no
     // --template (interactive intent) in a non-TTY context must NOT try to
@@ -390,19 +346,7 @@ fn init_skips_template_prompt_when_pipeline_exists() {
     );
 }
 
-#[test]
-fn init_no_gha_hint_with_empty_workflows_dir() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join(".github/workflows")).unwrap();
-
-    hm().args(["init", "--template", "rust", "--dir"])
-        .arg(dir.path())
-        .assert()
-        .success()
-        .stderr(predicates::str::contains("convert-gha").not());
-}
-
-#[test]
+#[rstest]
 fn init_without_template_in_non_tty_errors_clearly() {
     // No pipeline, no --template, no TTY: cannot prompt, so fail with a
     // helpful hint rather than a raw dialoguer IO error.
@@ -422,7 +366,7 @@ fn init_without_template_in_non_tty_errors_clearly() {
 
 // ── cloud registration ──────────────────────────────────────
 
-#[test]
+#[rstest]
 fn init_noninteractive_skips_cloud_registration() {
     let dir = tempfile::tempdir().unwrap();
     hm().args(["init", "--template", "rust", "--dir"])
@@ -437,7 +381,7 @@ fn init_noninteractive_skips_cloud_registration() {
     );
 }
 
-#[test]
+#[rstest]
 fn cloud_project_config_layers_correctly() {
     let dir = tempfile::tempdir().unwrap();
     let hm_dir = dir.path().join(".hm");

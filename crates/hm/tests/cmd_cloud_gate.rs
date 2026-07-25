@@ -1,11 +1,12 @@
 //! Integration tests proving that `hm cloud` is wired to the real plugin
 //! (the old waitlist gate has been removed).
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, reason = "test setup and assertions")]
 
 use assert_cmd::Command;
 use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
+use rstest::rstest;
 
 /// Any authenticated verb must fail fast with an auth-required error when
 /// no token is present.  The command must NOT succeed (proving the gate is
@@ -15,7 +16,7 @@ use predicates::str::contains;
 /// Hermetic: `HOME` is overridden to a fresh temp dir (no
 /// `~/.config/hm/credentials.toml`) and `HM_API_TOKEN` is explicitly
 /// unset, so no credentials can bleed in from the developer's machine.
-#[test]
+#[rstest]
 fn cloud_unauthed_verb_fails_with_login_hint() {
     let tmp = tempfile::tempdir().unwrap();
     Command::cargo_bin("hm")
@@ -35,7 +36,7 @@ fn cloud_unauthed_verb_fails_with_login_hint() {
 /// `cloud_login_prints_waitlist` test: login now starts a real browser
 /// OAuth flow that is unsuitable for a hermetic test, but `--help` proves
 /// the subcommand is wired and the old gate text is gone.
-#[test]
+#[rstest]
 fn cloud_help_lists_real_subcommands_without_waitlist_text() {
     Command::cargo_bin("hm")
         .unwrap()

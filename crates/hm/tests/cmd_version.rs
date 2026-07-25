@@ -1,11 +1,12 @@
 //! `hm version` should exit 0 and print the version.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, reason = "test setup and assertions")]
 
 use assert_cmd::Command;
 use predicates::str::contains;
+use rstest::rstest;
 
-#[test]
+#[rstest]
 fn version_prints_version() {
     Command::cargo_bin("hm")
         .unwrap()
