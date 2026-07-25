@@ -45,6 +45,20 @@ Most functions need 1–3 lines. Reach for more only when a caller-facing caveat
 
 Never guess at behavior to pad length — a wrong doc is worse than a short one.
 
+## Module-level docs — name the domain, not today's contents
+
+A module doc (`//!`, module docstring, file header) names the **general domain the module owns**, assuming it will grow into a broader utility. A module that today holds one narrow helper still gets a doc for the whole area it will accrete.
+
+Scope the doc to the file name's domain, never to the single function currently inside it.
+
+| Module (only item today) | Bad — scoped to the one item | Good — scoped to the domain |
+|---|---|---|
+| `fs.rs` (`atomic_rmw`) | `//! Atomic file operations.` | `//! Filesystem utilities.` |
+| `text.rs` (`strip_ansi_codes`) | `//! ANSI escape stripping.` | `//! String utilities.` |
+| `time.rs` (`format_duration`) | `//! Duration formatting helpers.` | `//! Time utilities.` |
+
+Red flag: the module doc names, or is narrowed by, the single function inside it (`"...for terminal-facing text"`, `"...formatting helpers"`). Widen it to the domain.
+
 ## Inline `//` comments — heavily avoided
 
 Inline comments are the **only** sanctioned place for implementation talk, and you avoid them anyway.
