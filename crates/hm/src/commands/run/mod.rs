@@ -248,7 +248,7 @@ fn parse_env(pairs: &[String]) -> HashMap<String, String> {
 /// `branch_override` wins; missing values fall back to `HEAD` / the zero SHA.
 /// `git -C <root> <args...>`, ready to `.captured()`.
 fn git_at(root: &std::path::Path, args: &[&str]) -> std::process::Command {
-    let mut cmd = std::process::Command::new(AppRuntime::bins().git());
+    let mut cmd = std::process::Command::new("git");
     cmd.arg("-C").arg(root).args(args);
     cmd
 }

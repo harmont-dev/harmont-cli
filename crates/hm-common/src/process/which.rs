@@ -13,9 +13,6 @@ pub struct ExecutableNotFound {
 /// Resolve `program` to its absolute path on `PATH`.
 ///
 /// For a presence check, call `pathbin(program).is_ok()`.
-///
-/// # Errors
-/// Returns [`ExecutableNotFound`] if `program` is not an executable on `PATH`.
 pub fn pathbin(program: impl AsRef<OsStr>) -> Result<PathBuf, ExecutableNotFound> {
     let program = program.as_ref();
     which::which(program).map_err(|_| ExecutableNotFound {
@@ -24,17 +21,11 @@ pub fn pathbin(program: impl AsRef<OsStr>) -> Result<PathBuf, ExecutableNotFound
 }
 
 /// Resolve `git` to its absolute path on `PATH`.
-///
-/// # Errors
-/// [`ExecutableNotFound`] if `git` is not on `PATH`.
 pub fn git() -> Result<PathBuf, ExecutableNotFound> {
     pathbin("git")
 }
 
 /// Resolve `python3` to its absolute path on `PATH`.
-///
-/// # Errors
-/// [`ExecutableNotFound`] if `python3` is not on `PATH`.
 pub fn python3() -> Result<PathBuf, ExecutableNotFound> {
     pathbin("python3")
 }
@@ -48,9 +39,6 @@ pub struct SystemBins {
 
 impl SystemBins {
     /// Resolve the toolchain from `PATH`.
-    ///
-    /// # Errors
-    /// [`ExecutableNotFound`] if `python3` or `git` is not on `PATH`.
     pub fn resolve() -> Result<Self, ExecutableNotFound> {
         Ok(Self {
             python3: python3()?,
