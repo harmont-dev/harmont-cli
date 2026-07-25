@@ -373,10 +373,16 @@ where
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
     use hm_plugin_protocol::{PlanSummary, StdStream};
+    use rstest::rstest;
 
     fn renderer() -> ProgressRenderer<Vec<u8>> {
         ProgressRenderer::new(Vec::new(), false)
@@ -386,7 +392,7 @@ mod tests {
         String::from_utf8(r.out.clone()).unwrap()
     }
 
-    #[test]
+    #[rstest]
     fn buffers_logs_silently() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -413,7 +419,7 @@ mod tests {
         assert_eq!(buf[0], "compiling main.rs");
     }
 
-    #[test]
+    #[rstest]
     fn replays_logs_on_failure() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -464,7 +470,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn no_output_on_success() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -513,15 +519,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn color_flag_stored() {
-        let r = ProgressRenderer::new(Vec::<u8>::new(), true);
-        assert!(r.color);
-        let r2 = ProgressRenderer::new(Vec::<u8>::new(), false);
-        assert!(!r2.color);
+    #[rstest]
+    #[case::on(true)]
+    #[case::off(false)]
+    fn color_flag_stored(#[case] flag: bool) {
+        let r = ProgressRenderer::new(Vec::<u8>::new(), flag);
+        assert_eq!(r.color, flag);
     }
 
-    #[test]
+    #[rstest]
     fn cache_hit_increments_root() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -556,7 +562,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn step_outcome_tracks_failure() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -593,7 +599,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn colored_summary_has_indicators() {
         let mut r = ProgressRenderer::new(Vec::new(), true);
         let s1 = Uuid::new_v4();
@@ -651,7 +657,7 @@ mod tests {
         assert!(s.contains("Build failed"), "expected failure banner: {s}");
     }
 
-    #[test]
+    #[rstest]
     fn colored_success_banner() {
         let mut r = ProgressRenderer::new(Vec::new(), true);
         let s1 = Uuid::new_v4();

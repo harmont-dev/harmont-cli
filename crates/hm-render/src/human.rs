@@ -160,10 +160,16 @@ where
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
     use hm_plugin_protocol::{PlanSummary, StdStream};
+    use rstest::rstest;
 
     /// Helper: create a renderer backed by an in-memory buffer (no color).
     fn renderer() -> HumanRenderer<Vec<u8>> {
@@ -175,7 +181,7 @@ mod tests {
         String::from_utf8(r.out.clone()).unwrap()
     }
 
-    #[test]
+    #[rstest]
     fn build_start_renders_counts() {
         let mut r = renderer();
         r.on_event(&BuildEvent::BuildStart {
@@ -193,7 +199,7 @@ mod tests {
         assert!(s.contains("3 chain(s)"), "expected chain count: {s}");
     }
 
-    #[test]
+    #[rstest]
     fn step_log_with_key() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -218,7 +224,7 @@ mod tests {
         assert_eq!(s, "[build] compiling...\n");
     }
 
-    #[test]
+    #[rstest]
     fn step_log_unknown_key() {
         let mut r = renderer();
 
@@ -234,7 +240,7 @@ mod tests {
         assert!(s.starts_with("[?]"), "expected [?] prefix: {s}");
     }
 
-    #[test]
+    #[rstest]
     fn colored_output_wraps_key_in_ansi() {
         let mut r = HumanRenderer::new(Vec::new(), true);
         let step_id = Uuid::new_v4();

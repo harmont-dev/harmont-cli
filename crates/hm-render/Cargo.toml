@@ -21,6 +21,7 @@ futures = "0.3"
 
 [dev-dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+rstest = { workspace = true }
 
 [lints]
 workspace = true
