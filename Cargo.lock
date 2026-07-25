@@ -1266,6 +1266,8 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "unicode-segmentation",
+ "unicode-width",
  "which 7.0.3",
 ]
 
