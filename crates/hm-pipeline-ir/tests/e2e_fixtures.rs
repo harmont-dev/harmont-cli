@@ -3,7 +3,8 @@
     clippy::multiple_crate_versions,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::panic
+    clippy::panic,
+    reason = "integration test fixtures and assertions"
 )]
 
 use std::collections::BTreeSet;
@@ -12,13 +13,7 @@ use std::path::PathBuf;
 
 use daggy::petgraph::visit::{EdgeRef, IntoNodeReferences};
 use hm_pipeline_ir::{EdgeKind, PipelineGraph};
-
-const SCENARIOS: &[&str] = &[
-    "monorepo-ci",
-    "rust-release",
-    "zig-node-polyglot",
-    "kitchen-sink",
-];
+use rstest::rstest;
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/e2e/fixtures")
@@ -52,33 +47,37 @@ fn edge_kinds(g: &PipelineGraph) -> (usize, usize) {
     (builds_in, depends_on)
 }
 
-#[test]
-fn python_monorepo_ci() {
-    let g = load_fixture("monorepo-ci");
+/// Shared shape check: no pipeline `default_image`, a minimum node count, and
+/// at least one label matching each required group of substring alternatives.
+#[rstest]
+#[case::monorepo_ci("monorepo-ci", 15, &[&["go"] as &[&str], &["python", "uv"], &["node", "npm"]])]
+#[case::rust_release("rust-release", 5, &[&["rust"] as &[&str]])]
+#[case::zig_node_polyglot("zig-node-polyglot", 10, &[&["zig"] as &[&str], &["node", "npm"]])]
+#[case::kitchen_sink("kitchen-sink", 10, &[&["python"] as &[&str], &["cmake", ":c:"]])]
+fn fixture_has_expected_shape(
+    #[case] scenario: &str,
+    #[case] min_nodes: usize,
+    #[case] required_label_substrings: &[&[&str]],
+) {
+    let g = load_fixture(scenario);
     assert_eq!(g.default_image(), None);
-    assert!(g.node_count() >= 15, "nodes: {}", g.node_count());
+    assert!(g.node_count() >= min_nodes, "nodes: {}", g.node_count());
     let labels = step_labels(&g);
-    assert!(labels.iter().any(|l| l.contains("go")));
-    assert!(
-        labels
-            .iter()
-            .any(|l| l.contains("python") || l.contains("uv"))
-    );
-    assert!(
-        labels
-            .iter()
-            .any(|l| l.contains("node") || l.contains("npm"))
-    );
+    for group in required_label_substrings {
+        assert!(
+            labels
+                .iter()
+                .any(|l| group.iter().any(|needle| l.contains(needle))),
+            "py/{scenario}: no label matched any of {group:?}"
+        );
+    }
 }
 
-#[test]
-fn python_rust_release() {
+// The DSL now injects image on each imageless root step directly; unique to the
+// rust-release fixture, so kept out of the shared shape check.
+#[rstest]
+fn python_rust_release_root_step_carries_explicit_image() {
     let g = load_fixture("rust-release");
-    assert_eq!(g.default_image(), None);
-    assert!(g.node_count() >= 5, "nodes: {}", g.node_count());
-    let labels = step_labels(&g);
-    assert!(labels.iter().any(|l| l.contains("rust")));
-    // The DSL now injects image on each imageless root step directly.
     let apt_base = g
         .dag()
         .graph()
@@ -92,32 +91,11 @@ fn python_rust_release() {
     );
 }
 
-#[test]
-fn python_zig_node_polyglot() {
-    let g = load_fixture("zig-node-polyglot");
-    assert_eq!(g.default_image(), None);
-    assert!(g.node_count() >= 10, "nodes: {}", g.node_count());
-    let labels = step_labels(&g);
-    assert!(labels.iter().any(|l| l.contains("zig")));
-    assert!(
-        labels
-            .iter()
-            .any(|l| l.contains("node") || l.contains("npm"))
-    );
-}
-
-#[test]
-fn python_kitchen_sink() {
+// Unique to the kitchen-sink fixture: every node inherits a `CI` env var. Loops
+// over dynamic graph nodes (not fixed literals), so this stays a loop.
+#[rstest]
+fn python_kitchen_sink_all_nodes_have_ci_env() {
     let g = load_fixture("kitchen-sink");
-    assert_eq!(g.default_image(), None);
-    assert!(g.node_count() >= 10, "nodes: {}", g.node_count());
-    let labels = step_labels(&g);
-    assert!(labels.iter().any(|l| l.contains("python")));
-    assert!(
-        labels
-            .iter()
-            .any(|l| l.contains("cmake") || l.contains(":c:"))
-    );
     for (_, t) in g.dag().graph().node_references() {
         assert!(
             t.env.contains_key("CI"),
@@ -127,25 +105,27 @@ fn python_kitchen_sink() {
     }
 }
 
-#[test]
-fn all_fixtures_have_valid_structure() {
-    for scenario in SCENARIOS {
-        let g = load_fixture(scenario);
+#[rstest]
+#[case::monorepo_ci("monorepo-ci")]
+#[case::rust_release("rust-release")]
+#[case::zig_node_polyglot("zig-node-polyglot")]
+#[case::kitchen_sink("kitchen-sink")]
+fn fixture_has_valid_structure(#[case] scenario: &str) {
+    let g = load_fixture(scenario);
 
-        for (_, t) in g.dag().graph().node_references() {
-            assert!(!t.step.key.is_empty(), "py/{scenario}: empty key");
-            assert!(
-                !t.step.cmd.is_empty(),
-                "py/{scenario}: empty cmd for {}",
-                t.step.key,
-            );
-        }
+    for (_, t) in g.dag().graph().node_references() {
+        assert!(!t.step.key.is_empty(), "py/{scenario}: empty key");
+        assert!(
+            !t.step.cmd.is_empty(),
+            "py/{scenario}: empty cmd for {}",
+            t.step.key,
+        );
+    }
 
-        let (bi, dep) = edge_kinds(&g);
-        assert!(bi + dep > 0, "py/{scenario}: no edges");
+    let (bi, dep) = edge_kinds(&g);
+    assert!(bi + dep > 0, "py/{scenario}: no edges");
 
-        for e in g.dag().graph().edge_references() {
-            assert_ne!(e.source(), e.target(), "py/{scenario}: self-loop");
-        }
+    for e in g.dag().graph().edge_references() {
+        assert_ne!(e.source(), e.target(), "py/{scenario}: self-loop");
     }
 }

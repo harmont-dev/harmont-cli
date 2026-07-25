@@ -3,14 +3,16 @@
     clippy::multiple_crate_versions,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::panic
+    clippy::panic,
+    reason = "integration test fixtures and assertions"
 )]
 
 use std::collections::BTreeMap;
 
 use hm_pipeline_ir::{CommandStep, EdgeKind, Transition};
+use rstest::rstest;
 
-#[test]
+#[rstest]
 fn transition_round_trips() {
     let nw = Transition {
         step: CommandStep {
@@ -32,24 +34,19 @@ fn transition_round_trips() {
     assert_eq!(back.env.get("FOO").unwrap(), "bar");
 }
 
-#[test]
-fn edge_kind_serializes_as_snake_case() {
-    assert_eq!(
-        serde_json::to_string(&EdgeKind::BuildsIn).unwrap(),
-        "\"builds_in\""
-    );
-    assert_eq!(
-        serde_json::to_string(&EdgeKind::DependsOn).unwrap(),
-        "\"depends_on\""
-    );
+#[rstest]
+#[case::builds_in(EdgeKind::BuildsIn, "\"builds_in\"")]
+#[case::depends_on(EdgeKind::DependsOn, "\"depends_on\"")]
+fn edge_kind_serializes_as_snake_case(#[case] variant: EdgeKind, #[case] wire: &str) {
+    assert_eq!(serde_json::to_string(&variant).unwrap(), wire);
 }
 
-#[test]
-fn edge_kind_round_trips() {
-    let bi: EdgeKind = serde_json::from_str("\"builds_in\"").unwrap();
-    assert_eq!(bi, EdgeKind::BuildsIn);
-    let dep: EdgeKind = serde_json::from_str("\"depends_on\"").unwrap();
-    assert_eq!(dep, EdgeKind::DependsOn);
+#[rstest]
+#[case::builds_in(EdgeKind::BuildsIn, "\"builds_in\"")]
+#[case::depends_on(EdgeKind::DependsOn, "\"depends_on\"")]
+fn edge_kind_round_trips(#[case] variant: EdgeKind, #[case] wire: &str) {
+    let parsed: EdgeKind = serde_json::from_str(wire).unwrap();
+    assert_eq!(parsed, variant);
 }
 
 use hm_pipeline_ir::PipelineGraph;
@@ -74,7 +71,7 @@ fn build_test_graph() -> PipelineGraph {
     .unwrap()
 }
 
-#[test]
+#[rstest]
 fn pipeline_graph_round_trips_through_json() {
     use daggy::{Walker, petgraph::visit::IntoNodeReferences};
 
@@ -111,13 +108,13 @@ fn pipeline_graph_round_trips_through_json() {
     assert!(has_builds_in_parent);
 }
 
-#[test]
+#[rstest]
 fn dag_accessor_exposes_node_count() {
     let g = build_test_graph();
     assert_eq!(g.dag().node_count(), 3);
 }
 
-#[test]
+#[rstest]
 fn pipeline_graph_snapshot() {
     let g = build_test_graph();
     let json = serde_json::to_value(&g).unwrap();
