@@ -5,3 +5,9 @@ edition = "2021"
 
 [lib]
 path = "src/lib.rs"
+
+[dev-dependencies]
+rstest = "0.23"
+
+# Standalone example project: not a member of the outer cli/ workspace.
+[workspace]
