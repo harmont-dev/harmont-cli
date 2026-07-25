@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use hm_common::process::{AsyncCommandExt as _, CapturedStreams as _, pathbin};
+use hm_common::process::{AsyncCommandExt as _, CapturedStreams as _, python3};
 use tracing::debug;
 
 use crate::bundled_sources;
@@ -70,7 +70,7 @@ impl SubprocessPythonEngine {
     ///
     /// Returns an error if `python3` is not found on `PATH`.
     pub fn new() -> Result<Self> {
-        let python_bin = pathbin("python3").context("install Python 3.11+")?;
+        let python_bin = python3().context("install Python 3.11+")?;
         Ok(Self { python_bin })
     }
 

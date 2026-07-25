@@ -28,6 +28,9 @@ pub struct Captured {
 
 impl Captured {
     /// Split on the exit status: `Ok` if the process exited 0, else `Err`.
+    ///
+    /// # Errors
+    /// [`CapturedError`] when the process exited non-zero or was killed by a signal.
     pub fn success(self) -> Result<CapturedOk, CapturedError> {
         if self.status.success() {
             Ok(CapturedOk(self))
@@ -184,6 +187,9 @@ impl CapturedStreams for CapturedError {
 /// Adds [`captured`](CommandExt::captured) to [`std::process::Command`].
 pub trait CommandExt: sealed::Sealed {
     /// Spawn, wait for completion, and capture stdout/stderr and exit status.
+    ///
+    /// # Errors
+    /// The spawn [`io::Error`] (e.g. the program is not found).
     fn captured(&mut self) -> io::Result<Captured>;
 }
 
@@ -203,6 +209,9 @@ impl CommandExt for std::process::Command {
 /// Adds [`captured`](AsyncCommandExt::captured) to [`tokio::process::Command`].
 pub trait AsyncCommandExt: sealed::Sealed {
     /// Spawn, await completion, and capture stdout/stderr and exit status.
+    ///
+    /// # Errors
+    /// The spawn [`io::Error`] (e.g. the program is not found).
     fn captured(&mut self) -> impl Future<Output = io::Result<Captured>>;
 }
 
