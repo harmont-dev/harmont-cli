@@ -1,21 +1,4 @@
-//! Subprocess execution: spawn a command, capture its output, and inspect the
-//! result with a typed success/failure split and byte-first accessors.
-//!
-//! [`CommandExt`] and [`AsyncCommandExt`] add `.captured()` to
-//! [`std::process::Command`] and [`tokio::process::Command`]. It returns a
-//! [`Captured`]; call [`Captured::success`] to separate a zero exit from a
-//! failure, then read output through the [`CapturedStreams`] accessors.
-//!
-//! ```no_run
-//! use hm_common::process::{CommandExt, CapturedStreams};
-//!
-//! let out = std::process::Command::new("git")
-//!     .args(["rev-parse", "HEAD"])
-//!     .captured()?          // io::Error if git can't be spawned
-//!     .success()?;          // CapturedError if git exits non-zero
-//! let sha = out.stdout_string()?;
-//! # Ok::<(), Box<dyn std::error::Error>>(())
-//! ```
+//! Spawn a command and capture its output, with a typed success/failure split.
 
 use std::borrow::Cow;
 use std::future::Future;
