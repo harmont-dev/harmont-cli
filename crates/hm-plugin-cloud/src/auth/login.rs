@@ -156,6 +156,7 @@ fn random_nonce() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     fn env(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         pairs
@@ -164,34 +165,23 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn app_url_maps_prod_api_to_app() {
-        assert_eq!(
-            app_url("https://api.harmont.dev", &env(&[])),
-            "https://app.harmont.dev"
-        );
+    #[rstest]
+    #[case::prod_api_to_app("https://api.harmont.dev", &[], "https://app.harmont.dev")]
+    #[case::env_override_wins(
+        "https://api.harmont.dev",
+        &[("HM_APP_URL", "http://localhost:5173/")],
+        "http://localhost:5173"
+    )]
+    #[case::unmapped_fallback("http://localhost:4000", &[], "http://localhost:4000")]
+    fn app_url_derives_app_host(
+        #[case] api: &str,
+        #[case] env_pairs: &[(&str, &str)],
+        #[case] expected: &str,
+    ) {
+        assert_eq!(app_url(api, &env(env_pairs)), expected);
     }
 
-    #[test]
-    fn app_url_env_override_wins() {
-        assert_eq!(
-            app_url(
-                "https://api.harmont.dev",
-                &env(&[("HM_APP_URL", "http://localhost:5173/")])
-            ),
-            "http://localhost:5173"
-        );
-    }
-
-    #[test]
-    fn app_url_falls_back_to_api_for_unmapped_host() {
-        assert_eq!(
-            app_url("http://localhost:4000", &env(&[])),
-            "http://localhost:4000"
-        );
-    }
-
-    #[test]
+    #[rstest]
     fn nonces_are_distinct() {
         assert_ne!(random_nonce(), random_nonce());
     }
