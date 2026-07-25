@@ -14,28 +14,26 @@ pub(crate) fn extract_to(dir: &Dir<'_>, target: &Path) -> anyhow::Result<()> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn harmont_py_contains_init() {
-        assert!(HARMONT_PY.get_file("__init__.py").is_some());
+    // The pipeline module is private (underscore-prefixed); the public
+    // surface is re-exported from `__init__.py`.
+    #[rstest]
+    #[case::init("__init__.py")]
+    #[case::pipeline("_pipeline.py")]
+    #[case::py_typed("py.typed")]
+    fn harmont_py_contains(#[case] name: &str) {
+        assert!(HARMONT_PY.get_file(name).is_some());
     }
 
-    #[test]
-    fn harmont_py_contains_pipeline() {
-        // The pipeline module is private (underscore-prefixed); the public
-        // surface is re-exported from `__init__.py`.
-        assert!(HARMONT_PY.get_file("_pipeline.py").is_some());
-    }
-
-    #[test]
-    fn harmont_py_contains_py_typed() {
-        assert!(HARMONT_PY.get_file("py.typed").is_some());
-    }
-
-    #[test]
+    #[rstest]
     fn extract_harmont_py_creates_files() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let target = tmp.path().join("harmont");

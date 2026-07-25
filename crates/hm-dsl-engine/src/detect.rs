@@ -50,11 +50,23 @@ fn scan_for_py_files(folder: &Path) -> anyhow::Result<bool> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use std::fs;
     use tempfile::TempDir;
+
+    /// Expected outcome of a [`check_python`] call.
+    enum Outcome {
+        Ok,
+        /// The error message must contain this substring.
+        Err(&'static str),
+    }
 
     /// Helper: create a temp dir with `.hm/` and the given filenames inside
     /// it.
@@ -68,66 +80,49 @@ mod tests {
         tmp
     }
 
-    #[test]
-    fn python_file_detected() {
-        let tmp = setup(&["ci.py"]);
-        check_python(tmp.path()).unwrap();
+    #[rstest]
+    #[case::py_ok(true, &["ci.py"], Outcome::Ok)]
+    #[case::py_and_ts_ok(true, &["ci.py", "deploy.ts"], Outcome::Ok)]
+    #[case::only_ts_errs(true, &["ci.ts"], Outcome::Err("no .py files"))]
+    #[case::empty_dir_errs(true, &[], Outcome::Err("no .py files"))]
+    #[case::no_hm_dir_errs(false, &[], Outcome::Err("no .hm/ directory"))]
+    fn check_python_reports(
+        #[case] make_hm: bool,
+        #[case] files: &[&str],
+        #[case] expected: Outcome,
+    ) {
+        // When `make_hm` is false we deliberately leave off the `.hm/` dir so
+        // the "no .hm/ directory" branch is exercised faithfully.
+        let tmp = if make_hm {
+            setup(files)
+        } else {
+            TempDir::new().unwrap()
+        };
+        match expected {
+            Outcome::Ok => check_python(tmp.path()).unwrap(),
+            Outcome::Err(needle) => {
+                let msg = check_python(tmp.path()).unwrap_err().to_string();
+                assert!(msg.contains(needle), "unexpected error: {msg}");
+            }
+        }
     }
 
-    #[test]
-    fn no_harmont_dir_is_error() {
-        let tmp = TempDir::new().unwrap();
-        // Do NOT create .hm/
-        let err = check_python(tmp.path()).unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("no .hm/ directory"), "unexpected error: {msg}");
-    }
-
-    #[test]
-    fn empty_harmont_dir_is_error() {
-        let tmp = TempDir::new().unwrap();
-        fs::create_dir(tmp.path().join(".hm")).unwrap();
-        let err = check_python(tmp.path()).unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("no .py files"), "unexpected error: {msg}");
-    }
-
-    #[test]
-    fn other_file_extensions_dont_affect_the_check() {
-        let tmp = setup(&["ci.py", "deploy.ts"]);
-        assert_eq!(check_python(tmp.path()).unwrap(), ());
-    }
-
-    #[test]
-    fn python_fails_when_only_ts() {
-        let tmp = setup(&["ci.ts"]);
-        let err = check_python(tmp.path()).unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("no .py files"), "unexpected error: {msg}");
-    }
-
-    #[test]
-    fn python_first_no_harmont_dir_is_error() {
-        let tmp = TempDir::new().unwrap();
-        let err = check_python(tmp.path()).unwrap_err();
-        assert!(
-            err.to_string().contains("no .hm/ directory"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn has_pipeline_files_true_for_py() {
-        assert!(has_pipeline_files(setup(&["ci.py"]).path()));
-        assert!(!has_pipeline_files(setup(&["ci.ts"]).path()));
-        assert!(has_pipeline_files(setup(&["ci.py", "deploy.ts"]).path()));
-    }
-
-    #[test]
-    fn has_pipeline_files_false_for_missing_or_empty_harmont() {
-        // No .hm/ directory at all.
-        assert!(!has_pipeline_files(TempDir::new().unwrap().path()));
-        // .hm/ exists but declares no .py/.ts files.
-        assert!(!has_pipeline_files(setup(&["README.md"]).path()));
+    #[rstest]
+    #[case::py_true(true, &["ci.py"], true)]
+    #[case::ts_only_false(true, &["ci.ts"], false)]
+    #[case::py_and_ts_true(true, &["ci.py", "deploy.ts"], true)]
+    #[case::no_hm_false(false, &[], false)]
+    #[case::readme_only_false(true, &["README.md"], false)]
+    fn has_pipeline_files_reflects_py_presence(
+        #[case] make_hm: bool,
+        #[case] files: &[&str],
+        #[case] expected: bool,
+    ) {
+        let tmp = if make_hm {
+            setup(files)
+        } else {
+            TempDir::new().unwrap()
+        };
+        assert_eq!(has_pipeline_files(tmp.path()), expected);
     }
 }
