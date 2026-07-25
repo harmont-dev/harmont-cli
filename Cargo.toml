@@ -64,6 +64,8 @@ tokio       = { version = "1", features = ["full"] }
 tokio-util  = { version = "0.7", features = ["rt"] }
 tracing     = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry"] }
+rstest      = "0.23"
+proptest    = "1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

@@ -27,8 +27,8 @@ which       = "7"
 tempfile    = "3"
 tokio       = { version = "1", features = ["macros", "rt-multi-thread"] }
 which       = "7"
-rstest      = "0.23"
-proptest    = "1"
+rstest      = { workspace = true }
+proptest    = { workspace = true }
 
 [lints]
 workspace = true
