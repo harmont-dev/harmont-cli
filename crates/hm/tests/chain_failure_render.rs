@@ -2,9 +2,15 @@
 //! and both output plugins render it. See plan task B5 in
 //! docs/superpowers/plans/2026-05-19-pr22-followups.md.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "integration test setup and assertions"
+)]
 
 use assert_cmd::Command;
+use rstest::rstest;
 
 const FAILING_PIPELINE_PY: &str = r#"
 import harmont as hm
@@ -20,7 +26,7 @@ fn write_failing_pipeline(temp: &tempfile::TempDir) {
     std::fs::write(temp.path().join(".hm/pipeline.py"), FAILING_PIPELINE_PY).unwrap();
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn human_format_renders_chain_failure_to_stderr() {
     let temp = tempfile::tempdir().unwrap();
@@ -45,7 +51,7 @@ fn human_format_renders_chain_failure_to_stderr() {
     );
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn json_format_emits_chain_failed_event() {
     let temp = tempfile::tempdir().unwrap();

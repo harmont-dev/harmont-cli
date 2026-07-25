@@ -1,9 +1,15 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "integration test setup and assertions"
+)]
 
+use rstest::rstest;
 use std::fs;
 use tempfile::tempdir;
 
-#[test]
+#[rstest]
 fn project_overrides_user() {
     let user_dir = tempdir().unwrap();
     let user_path = user_dir.path().join("config.toml");
@@ -26,7 +32,7 @@ fn project_overrides_user() {
     assert_eq!(config.preferences.format, "json");
 }
 
-#[test]
+#[rstest]
 fn missing_files_resolve_to_defaults() {
     let config = harmont_cli::config::Config::load_from_paths(None, None).unwrap();
     assert_eq!(config.cloud.api_url, harmont_cli::config::DEFAULT_API_URL);
@@ -35,65 +41,40 @@ fn missing_files_resolve_to_defaults() {
     assert!(config.cloud.org.is_none());
 }
 
-#[test]
-fn project_only_no_user() {
-    let project_dir = tempdir().unwrap();
-    let project_path = project_dir.path().join("config.toml");
-    fs::write(&project_path, b"[cloud]\norg = \"proj\"\n").unwrap();
+/// A single config file resolves its `cloud.org` while leaving `api_url` at the
+/// default. Covers project-only loads, user-only loads, and files carrying
+/// unknown keys/sections (figment ignores those by default).
+#[rstest]
+#[case::project_only("[cloud]\norg = \"proj\"\n", "proj")]
+#[case::file_values("[cloud]\norg = \"file-org\"\n", "file-org")]
+#[case::unknown_keys_ignored(
+    "[cloud]\norg = \"ok\"\nunknown_key = 42\n\n[unknown_section]\nfoo = true\n",
+    "ok"
+)]
+fn single_file_resolves_org(#[case] toml_body: &str, #[case] expected_org: &str) {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(&path, toml_body).unwrap();
 
-    let config = harmont_cli::config::Config::load_from_paths(None, Some(&project_path)).unwrap();
+    let config = harmont_cli::config::Config::load_from_paths(Some(&path), None).unwrap();
 
-    assert_eq!(config.cloud.org.as_deref(), Some("proj"));
+    assert_eq!(config.cloud.org.as_deref(), Some(expected_org));
     assert_eq!(config.cloud.api_url, harmont_cli::config::DEFAULT_API_URL);
 }
 
-#[test]
-fn file_values_survive_without_env_override() {
-    let user_dir = tempdir().unwrap();
-    let user_path = user_dir.path().join("config.toml");
-    fs::write(&user_path, b"[cloud]\norg = \"file-org\"\n").unwrap();
-
-    let config = harmont_cli::config::Config::load_from_paths(Some(&user_path), None).unwrap();
-    assert_eq!(config.cloud.org.as_deref(), Some("file-org"));
-}
-
-#[test]
-fn unknown_keys_are_ignored() {
+#[rstest]
+#[case::malformed("this is not [valid toml\n")]
+#[case::type_mismatch("[preferences]\nauto_watch = \"not-a-bool\"\n")]
+fn invalid_toml_returns_error(#[case] toml_body: &str) {
     let dir = tempdir().unwrap();
     let path = dir.path().join("config.toml");
-    fs::write(
-        &path,
-        b"[cloud]\norg = \"ok\"\nunknown_key = 42\n\n[unknown_section]\nfoo = true\n",
-    )
-    .unwrap();
-
-    // Figment with serde by default ignores unknown fields.
-    let config = harmont_cli::config::Config::load_from_paths(Some(&path), None).unwrap();
-    assert_eq!(config.cloud.org.as_deref(), Some("ok"));
-}
-
-#[test]
-fn malformed_toml_returns_error() {
-    let dir = tempdir().unwrap();
-    let path = dir.path().join("config.toml");
-    fs::write(&path, b"this is not [valid toml\n").unwrap();
+    fs::write(&path, toml_body).unwrap();
 
     let result = harmont_cli::config::Config::load_from_paths(Some(&path), None);
     assert!(result.is_err());
 }
 
-#[test]
-fn type_mismatch_returns_error() {
-    let dir = tempdir().unwrap();
-    let path = dir.path().join("config.toml");
-    // auto_watch should be bool, not string
-    fs::write(&path, b"[preferences]\nauto_watch = \"not-a-bool\"\n").unwrap();
-
-    let result = harmont_cli::config::Config::load_from_paths(Some(&path), None);
-    assert!(result.is_err());
-}
-
-#[test]
+#[rstest]
 fn load_resolves_project_root() {
     let project_dir = tempdir().unwrap();
     let harmont_dir = project_dir.path().join(".hm");

@@ -15,6 +15,7 @@
 
 use daggy::petgraph::visit::IntoNodeReferences;
 use hm_pipeline_ir::PipelineGraph;
+use rstest::rstest;
 
 fn decode(json: &[u8]) -> PipelineGraph {
     serde_json::from_slice::<PipelineGraph>(json).unwrap()
@@ -30,9 +31,12 @@ fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::Command
     &t.step
 }
 
-#[test]
-fn root_step_inherits_default_image() {
-    let g = decode(br#"{
+// Children boot from the parent's committed snapshot at runtime, not from an
+// image tag — leaving `child`'s image=None is the correct wire state for chain
+// steps. Likewise, an absent `default_image` must never synthesize an image.
+#[rstest]
+#[case::root_inherits(
+    br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
         "graph": {
@@ -42,19 +46,12 @@ fn root_step_inherits_default_image() {
             "edge_property": "directed",
             "edges": []
         }
-    }"#);
-    let step = find_step(&g, "apt-base");
-    assert_eq!(
-        step.image.as_deref(),
-        Some("ubuntu:24.04"),
-        "root step must inherit pipeline default_image"
-    );
-}
-
-#[test]
-fn root_step_explicit_image_wins() {
-    let g = decode(
-        br#"{
+    }"#,
+    "apt-base",
+    Some("ubuntu:24.04")
+)]
+#[case::explicit_wins(
+    br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
         "graph": {
@@ -65,22 +62,11 @@ fn root_step_explicit_image_wins() {
             "edges": []
         }
     }"#,
-    );
-    let step = find_step(&g, "rust");
-    assert_eq!(
-        step.image.as_deref(),
-        Some("rust:1.82"),
-        "explicit per-step image must override default_image"
-    );
-}
-
-#[test]
-fn child_step_unchanged_by_default_image() {
-    // Children boot from the parent's committed snapshot at runtime,
-    // not from an image tag — leaving their image=None is the correct
-    // wire state for chain steps.
-    let g = decode(
-        br#"{
+    "rust",
+    Some("rust:1.82")
+)]
+#[case::child_none(
+    br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
         "graph": {
@@ -94,18 +80,11 @@ fn child_step_unchanged_by_default_image() {
             ]
         }
     }"#,
-    );
-    let step = find_step(&g, "child");
-    assert!(
-        step.image.is_none(),
-        "child step must not inherit default_image — chain steps boot from parent snapshot",
-    );
-}
-
-#[test]
-fn no_default_image_leaves_root_alone() {
-    let g = decode(
-        br#"{
+    "child",
+    None
+)]
+#[case::no_default(
+    br#"{
         "version": "0",
         "graph": {
             "nodes": [
@@ -115,10 +94,15 @@ fn no_default_image_leaves_root_alone() {
             "edges": []
         }
     }"#,
-    );
-    let step = find_step(&g, "k");
-    assert!(
-        step.image.is_none(),
-        "absent default_image must not synthesize an image"
-    );
+    "k",
+    None
+)]
+fn default_image_resolves(
+    #[case] json: &[u8],
+    #[case] step_key: &str,
+    #[case] expected: Option<&str>,
+) {
+    let g = decode(json);
+    let step = find_step(&g, step_key);
+    assert_eq!(step.image.as_deref(), expected);
 }
