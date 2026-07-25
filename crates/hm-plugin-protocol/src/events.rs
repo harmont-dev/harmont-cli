@@ -116,9 +116,10 @@ pub struct PlanSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[allow(clippy::unwrap_used)]
-    #[test]
+    #[allow(clippy::unwrap_used, reason = "test setup and assertions")]
+    #[rstest]
     fn build_accepted_round_trips() {
         let ev = BuildEvent::BuildAccepted {
             build: BuildRef {

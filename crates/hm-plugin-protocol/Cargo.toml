@@ -15,5 +15,8 @@ uuid       = { workspace = true }
 chrono     = { workspace = true }
 derive_more = { workspace = true }
 
+[dev-dependencies]
+rstest = { workspace = true }
+
 [lints]
 workspace = true
