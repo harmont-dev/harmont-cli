@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
 
+use hm_common::string::EscapeNonPrintablePosixExt as _;
 use hm_plugin_protocol::BuildEvent;
 use owo_colors::{AnsiColors, OwoColorize};
 use uuid::Uuid;
@@ -103,6 +104,9 @@ where
 
             BuildEvent::StepLog { step_id, line, .. } => {
                 let prefix = fmt_key(self.step_key(step_id), self.color);
+                // `line` is raw subprocess stdout/stderr: escape control chars so
+                // they can't drive the terminal (cursor moves, title changes, …).
+                let line = line.escape_non_printable();
                 format!("{prefix} {line}\n").into_bytes()
             }
 
@@ -222,6 +226,32 @@ mod tests {
 
         let s = output(&r);
         assert_eq!(s, "[build] compiling...\n");
+    }
+
+    #[rstest]
+    #[case::escape_sequence("\x1b[2J", "^[[2J")]
+    #[case::carriage_return("a\rb", "a^Mb")]
+    #[case::nul_byte("a\0b", "a^@b")]
+    #[case::printable_untouched("plain text", "plain text")]
+    fn step_log_escapes_control_chars(#[case] raw: &str, #[case] expected: &str) {
+        let mut r = renderer();
+        let step_id = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::StepQueued {
+            step_id,
+            key: "build".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
+        });
+        r.on_event(&BuildEvent::StepLog {
+            step_id,
+            stream: StdStream::Stdout,
+            line: raw.into(),
+            ts: chrono::Utc::now(),
+        });
+
+        assert_eq!(output(&r), format!("[build] {expected}\n"));
     }
 
     #[rstest]

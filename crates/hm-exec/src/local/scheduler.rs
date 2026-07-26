@@ -33,6 +33,7 @@ use daggy::{Dag, NodeIndex, Walker};
 use futures::future::{BoxFuture, FutureExt, join_all};
 
 use anyhow::Context as _;
+use hm_common::string::{EllipsizeExt as _, Indicator, Measure, Pos};
 use hm_plugin_protocol::events::BuildRef;
 use hm_plugin_protocol::{
     ArchiveId, BuildEvent, CacheDecision, ExecutorInput, PlanSummary, SnapshotRef, StepResult,
@@ -390,15 +391,14 @@ async fn execute_step(
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
-        let cmd = step_wire.cmd.trim();
-        if cmd.chars().count() <= 40 {
-            cmd.to_owned()
-        } else {
-            // Truncate on a char boundary, not a byte offset: `&cmd[..39]`
-            // panics if byte 39 falls inside a multibyte UTF-8 sequence.
-            let truncated: String = cmd.chars().take(39).collect();
-            format!("{truncated}…")
-        }
+        // Cap the command at 40 display columns, eliding the tail with `…`.
+        // `ellipsize` measures display width (double-width glyphs count as two)
+        // and cuts on grapheme boundaries, so no byte-boundary panics.
+        step_wire
+            .cmd
+            .trim()
+            .ellipsize(Measure::Columns(40), Pos::End, Indicator::UNICODE)
+            .to_string()
     });
     let env_map = transition.env;
     let step_id = Uuid::new_v4();

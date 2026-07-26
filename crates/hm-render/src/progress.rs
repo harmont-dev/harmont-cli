@@ -13,10 +13,12 @@ use std::io::Write;
 use std::time::Duration;
 
 use hm_common::format::CompactDuration as _;
+use hm_common::string::{AlignExt as _, Alignment, EscapeNonPrintablePosixExt as _, Measure};
 use hm_plugin_protocol::BuildEvent;
 use indicatif::ProgressStyle;
 use owo_colors::{OwoColorize, Style};
 use tracing::{Span, info_span};
+use unicode_width::UnicodeWidthStr;
 
 /// Tracing target for TUI progress-bar spans.
 ///
@@ -132,18 +134,22 @@ impl<W: Write> ProgressRenderer<W> {
             );
             if let Some(lines) = self.log_buffer.get(step_id) {
                 for line in lines {
-                    let _ = writeln!(self.out, "{line}");
+                    // Buffered log lines are raw subprocess output: escape control
+                    // characters so replaying them can't drive the terminal.
+                    let _ = writeln!(self.out, "{}", line.escape_non_printable());
                 }
             }
         }
     }
 
     fn print_step_summary(&mut self) {
-        let max_name_len = self
+        // Measure the column in display width, not bytes, so a step name with
+        // wide or multibyte glyphs still lines up with its neighbours.
+        let max_name_cols = self
             .step_order
             .iter()
             .filter_map(|id| self.step_names.get(id))
-            .map(String::len)
+            .map(|name| UnicodeWidthStr::width(name.as_str()))
             .max()
             .unwrap_or(0);
 
@@ -193,7 +199,8 @@ impl<W: Write> ProgressRenderer<W> {
                     styled("—", Style::new().dimmed(), self.color),
                 ),
             };
-            let _ = writeln!(self.out, "  {indicator} {name:<max_name_len$}  {timing}");
+            let padded = name.pad_to(Measure::Columns(max_name_cols), Alignment::Start);
+            let _ = writeln!(self.out, "  {indicator} {padded}  {timing}");
         }
     }
 }
@@ -467,6 +474,89 @@ mod tests {
         assert!(
             s.contains("assertion failed at line 42"),
             "expected log line in output: {s}"
+        );
+    }
+
+    #[rstest]
+    fn failure_replay_escapes_control_chars() {
+        let mut r = renderer();
+        let step_id = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::StepQueued {
+            step_id,
+            key: "test".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "test".into(),
+        });
+        // A log line that clears the screen if written to a terminal raw.
+        r.on_event(&BuildEvent::StepLog {
+            step_id,
+            stream: StdStream::Stderr,
+            line: "boom\x1b[2J".into(),
+            ts: chrono::Utc::now(),
+        });
+        r.on_event(&BuildEvent::StepEnd {
+            step_id,
+            exit_code: 1,
+            duration_ms: 10,
+            snapshot: None,
+        });
+        r.on_event(&BuildEvent::BuildEnd {
+            exit_code: 1,
+            duration_ms: 20,
+        });
+
+        let s = output(&r);
+        assert!(
+            s.contains("boom^[[2J"),
+            "control chars must be escaped: {s:?}"
+        );
+        assert!(
+            !s.contains("boom\x1b[2J"),
+            "raw escape sequence must not reach the terminal: {s:?}"
+        );
+    }
+
+    #[rstest]
+    fn summary_aligns_names_by_display_width() {
+        // "世界" is 2 chars / 4 display columns / 6 bytes. Byte-width padding
+        // would misalign it against an ASCII name; column-width padding lines
+        // the trailing timing column up.
+        let mut r = renderer();
+        let wide = Uuid::new_v4();
+        let narrow = Uuid::new_v4();
+
+        for (id, name) in [(wide, "世界"), (narrow, "ab")] {
+            r.on_event(&BuildEvent::StepQueued {
+                step_id: id,
+                key: name.into(),
+                chain_idx: 0,
+                parent_key: None,
+                display_name: name.into(),
+            });
+            r.on_event(&BuildEvent::StepEnd {
+                step_id: id,
+                exit_code: 0,
+                duration_ms: 1,
+                snapshot: None,
+            });
+        }
+        r.on_event(&BuildEvent::BuildEnd {
+            exit_code: 0,
+            duration_ms: 5,
+        });
+
+        // The narrow "ab" (2 cols) is padded to the 4-col width of "世界", so it
+        // carries two trailing spaces before the timing column; "世界" carries none.
+        let s = output(&r);
+        assert!(
+            s.contains("世界  "),
+            "wide name gets the two-space gap: {s:?}"
+        );
+        assert!(
+            s.contains("ab    "),
+            "narrow name padded to the wide column width + gap: {s:?}"
         );
     }
 
