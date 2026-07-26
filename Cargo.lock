@@ -1260,6 +1260,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "include_dir",
+ "num-traits",
  "proptest",
  "rstest",
  "serde",

@@ -75,7 +75,7 @@ impl ImageRegistry {
     /// Returns `None` if no entry exists for `key`.
     #[must_use]
     pub fn get(&self, key: &str) -> Option<SnapshotId> {
-        let now = Duration::now_epoch_secs_i64();
+        let now = Duration::now_epoch_secs::<i64>();
         let conn = self.conn.lock().ok()?;
 
         let snapshot: Option<String> = conn
@@ -103,7 +103,7 @@ impl ImageRegistry {
     /// within its configured capacity. The caller is responsible for cleaning
     /// up the backend resources associated with evicted snapshots.
     pub fn put(&self, key: &str, snapshot: &SnapshotId) -> Vec<SnapshotId> {
-        let now = Duration::now_epoch_secs_i64();
+        let now = Duration::now_epoch_secs::<i64>();
 
         let Ok(conn) = self.conn.lock() else {
             return Vec::new();
