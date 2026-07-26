@@ -34,9 +34,6 @@ impl DurationMs {
 }
 
 impl From<Duration> for DurationMs {
-    /// Saturating: a duration beyond `u64::MAX` ms (~584 million years) clamps to
-    /// `u64::MAX` rather than panicking. `Duration::as_millis` returns `u128`, so
-    /// the narrowing is real even though the ceiling cannot occur in practice.
     fn from(d: Duration) -> Self {
         Self(u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
     }
