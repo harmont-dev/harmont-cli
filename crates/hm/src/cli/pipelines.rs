@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use hm_dsl_engine::{DslEngine, detect, python_engine};
+use hm_dsl_engine::{DslEngine, SubprocessPythonEngine, detect};
 
 #[derive(Debug, Clone, Parser)]
 pub struct PipelinesArgs {
@@ -39,7 +39,7 @@ pub async fn run(args: PipelinesArgs) -> Result<()> {
     }
 
     detect::check_python(&repo_root).context("detecting pipeline language")?;
-    let engine = python_engine();
+    let engine = SubprocessPythonEngine::new();
     let json = engine
         .registry_json(&repo_root)
         .await

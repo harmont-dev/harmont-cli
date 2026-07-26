@@ -115,10 +115,3 @@ impl DslEngine for SubprocessPythonEngine {
             .context("dumping pipeline registry via python3")
     }
 }
-
-/// Instantiates a python engine. Shorthand for [`SubprocessPythonEngine::new`].
-#[inline]
-#[must_use]
-pub const fn engine() -> SubprocessPythonEngine {
-    SubprocessPythonEngine::new()
-}

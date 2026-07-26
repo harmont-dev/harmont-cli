@@ -6,7 +6,7 @@ use serde::Deserialize;
 pub mod detect;
 mod python_engine;
 
-pub use python_engine::{SubprocessPythonEngine, engine as python_engine};
+pub use python_engine::SubprocessPythonEngine;
 
 mod bundled_sources;
 

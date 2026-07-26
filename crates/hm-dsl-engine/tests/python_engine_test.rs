@@ -31,7 +31,7 @@ def ci() -> hm.Step:
 
     hm_dsl_engine::detect::check_python(dir.path()).unwrap();
 
-    let engine = hm_dsl_engine::python_engine();
+    let engine = hm_dsl_engine::SubprocessPythonEngine::new();
     let metas = engine.list_pipelines(dir.path()).await.unwrap();
     assert_eq!(metas.len(), 1);
     assert_eq!(metas[0].slug, "ci");
@@ -62,7 +62,7 @@ def ci() -> hm.Step:
     )
     .unwrap();
 
-    let engine = hm_dsl_engine::python_engine();
+    let engine = hm_dsl_engine::SubprocessPythonEngine::new();
     let json = engine.registry_json(dir.path()).await.unwrap();
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
 

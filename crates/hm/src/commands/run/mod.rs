@@ -300,7 +300,7 @@ async fn render_pipeline(
     };
 
     detect::check_python(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
-    let engine = hm_dsl_engine::python_engine();
+    let engine = hm_dsl_engine::SubprocessPythonEngine::new();
 
     let slug = if let Some(s) = &args.pipeline {
         s.clone()
