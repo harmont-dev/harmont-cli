@@ -100,7 +100,7 @@ pub struct CacheRestoreArgs {
 /// # Errors
 ///
 /// Returns an error if the dispatched handler fails.
-pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
+pub async fn dispatch(command: Command, ctx: RunContext<'_>) -> Result<i32> {
     let app = ctx.app;
     match command {
         Command::Init(args) => crate::commands::init::handle(args, app).await.map(|()| 0),

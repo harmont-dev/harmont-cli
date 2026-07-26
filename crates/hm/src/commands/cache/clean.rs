@@ -1,11 +1,11 @@
 use anyhow::Result;
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 use hm_vm::VmBackend as _;
 use human_units::FormatSize as _;
 
 /// # Errors
 /// Returns an error if workspace cache removal fails.
-pub async fn handle_clean(app: &AppContext) -> Result<i32> {
+pub async fn handle_clean(app: &AppCtx) -> Result<i32> {
     let hm_cache = app.dirs().cache().join("hm");
 
     let ws_cache = hm_cache.join("workspaces");

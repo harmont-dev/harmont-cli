@@ -15,14 +15,14 @@ use std::time::Duration;
 
 use anyhow::{Result, bail};
 use harmont_cloud::{HarmontClient, HarmontError};
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 
 use crate::settings;
 
 pub(crate) async fn run(
     env: &BTreeMap<String, String>,
     paste: bool,
-    app_ctx: &AppContext,
+    app_ctx: &AppCtx,
 ) -> Result<()> {
     let (client, domain) = settings::anon_client(app_ctx);
     let api = domain.api_url();
@@ -34,7 +34,7 @@ pub(crate) async fn run(
         login_loopback(&client, &app).await?
     };
 
-    hm_core::config::creds::set_cloud_token(&api, &token).await;
+    app_ctx.creds().set(&token).await;
 
     // Confirm by reading back the authenticated user.
     let authed = HarmontClient::with_base_url(token, &api);

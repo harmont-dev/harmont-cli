@@ -7,7 +7,7 @@ use harmont_cloud::HarmontClient;
 
 use crate::cli::BillingCommand;
 use crate::settings;
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 
 /// Convert an integer cent amount to dollars for display.
 #[allow(
@@ -21,9 +21,9 @@ fn cents_to_dollars(cents: i64) -> f64 {
 pub(crate) async fn run(
     _env: &BTreeMap<String, String>,
     cmd: BillingCommand,
-    app: &AppContext,
+    app: &AppCtx,
 ) -> Result<()> {
-    let (client, ctx) = settings::client(app)?;
+    let (client, ctx) = settings::client(app).await?;
     let org = ctx.org()?;
 
     match cmd {

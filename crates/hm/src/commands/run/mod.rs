@@ -4,9 +4,10 @@ use anyhow::{Context, Result};
 
 use bstr::ByteSlice as _;
 use hm_common::git::{GitBranch, GitRemote, GitRepo};
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::BackendConfig;
 use hm_dsl_engine::{DslEngine, detect};
+use secrecy::ExposeSecret as _;
 use human_units::FormatSize as _;
 
 use crate::cli::RunArgs;
@@ -37,14 +38,14 @@ use crate::error::{ErrorCategory, HmError};
 /// unreachable, the local daemon is down, or the pipeline fails to render.
 #[allow(clippy::too_many_lines)] // thin top-level driver: linear, no good split point
 #[allow(clippy::similar_names, reason = "api_url and app_url are distinct hosts")]
-pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
+pub async fn handle(args: RunArgs, ctx: RunContext<'_>) -> Result<i32> {
     let app = ctx.app;
 
     // The workspace root: explicit --dir or the cwd captured at startup.
     let repo_root = args.dir.clone().unwrap_or_else(|| app.cwd().to_path_buf());
 
     // Resolve the effective config (user + project layers merged).
-    let project = hm_core::project::ProjectContext::at(app, repo_root.clone()).await?;
+    let project = hm_core::project_ctx::ProjectCtx::at(app, repo_root.clone()).await?;
     let resolved_backend = project.config().backend.clone();
 
     // Project-persisted cloud pipeline slug, if any (consulted at submit time).
@@ -79,7 +80,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         };
         let api_url = cloud.domain.api_url();
         let app_url = cloud.domain.app_url();
-        let token = hm_core::config::creds::cloud_token(&api_url).context(
+        let token = app.creds().get().await.context(
             "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HM_API_TOKEN",
         )?;
         let org = args
@@ -113,7 +114,10 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let mut autocreate_client: Option<(harmont_cloud::HarmontClient, String)> = None;
     let backend: Box<dyn hm_core::exec::ExecutionBackend> =
         if let Some((api_url, app_url, token, org)) = cloud_creds {
-            let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
+            let client = harmont_cloud::HarmontClient::with_base_url(
+                token.expose_secret().to_owned(),
+                &api_url,
+            );
             autocreate_client = Some((client.clone(), org.clone()));
             Box::new(hm_core::exec::CloudBackend::new(client, api_url, app_url, org))
         } else {
@@ -310,7 +314,7 @@ fn parse_env(pairs: &[String]) -> HashMap<String, String> {
 /// the DSL detection / pipeline-render step fails.
 async fn render_pipeline(
     args: &RunArgs,
-    app: &AppContext,
+    app: &AppCtx,
     repo_root: &std::path::Path,
 ) -> Result<(String, String)> {
     detect::check_python(repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;

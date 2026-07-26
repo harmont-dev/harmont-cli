@@ -15,7 +15,7 @@ pub struct Python<'bin> {
 }
 
 impl<'bin> Python<'bin> {
-    /// Wrap a `python3` executable, typically via `AppContext::python()`.
+    /// Wrap a `python3` executable, typically via `AppCtx::python()`.
     #[must_use]
     pub const fn new(bin: &'bin Path) -> Self {
         Self { bin }

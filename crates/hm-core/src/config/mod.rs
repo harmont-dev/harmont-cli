@@ -4,7 +4,6 @@
 //! [`ResolvedProjectConfig`] is the two merged — project over user, defaults
 //! applied.
 
-pub mod creds;
 pub mod domain;
 pub mod project;
 pub mod user;

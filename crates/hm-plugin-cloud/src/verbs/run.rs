@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use clap::Parser;
 use harmont_cloud::builds::NewBuild;
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 
 use crate::settings;
 
@@ -44,9 +44,9 @@ pub struct RunArgs {
 pub(crate) async fn run(
     env: &BTreeMap<String, String>,
     args: RunArgs,
-    app: &AppContext,
+    app: &AppCtx,
 ) -> Result<()> {
-    let (client, ctx) = settings::client(app)?;
+    let (client, ctx) = settings::client(app).await?;
     let org = ctx.org()?;
 
     let plan_path = args.plan_file.as_deref().unwrap_or("plan.json");

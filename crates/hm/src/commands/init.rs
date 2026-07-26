@@ -99,10 +99,9 @@ fn prompt_skills() -> Result<bool> {
 /// Silently returns `Ok(())` on any user-cancellation (Esc, Ctrl-C on a prompt).
 async fn prompt_cloud_registration(
     dir: &std::path::Path,
-    app: &hm_core::app_context::AppContext,
+    app: &hm_core::app_ctx::AppCtx,
 ) -> Result<()> {
-    let api_url = hm_plugin_cloud::settings::domain(app).api_url();
-    let is_logged_in = hm_core::config::creds::cloud_token(&api_url).is_some();
+    let is_logged_in = app.creds().get().await.is_some();
 
     if !is_logged_in {
         let want_login = dialoguer::Confirm::new()
@@ -119,6 +118,7 @@ async fn prompt_cloud_registration(
     }
 
     let (client, _ctx) = hm_plugin_cloud::settings::client(app)
+        .await
         .context("could not build authenticated cloud client")?;
 
     let orgs = client
@@ -268,7 +268,7 @@ fn has_github_workflows(dir: &Path) -> bool {
 ///
 /// Returns an error if the target directory is unwritable, or if no template
 /// can be determined in a non-interactive context.
-pub async fn handle(args: InitArgs, app: &hm_core::app_context::AppContext) -> Result<()> {
+pub async fn handle(args: InitArgs, app: &hm_core::app_ctx::AppCtx) -> Result<()> {
     let tty = std::io::stdin().is_terminal();
     let has_pipeline = detect::has_pipeline_files(&args.dir);
 
@@ -322,7 +322,7 @@ pub async fn handle(args: InitArgs, app: &hm_core::app_context::AppContext) -> R
         write_skills(&args.dir, args.force).await?;
     }
 
-    let backend = hm_core::project::ProjectContext::at(app, args.dir.clone())
+    let backend = hm_core::project_ctx::ProjectCtx::at(app, args.dir.clone())
         .await
         .map_or(BackendConfig::Docker, |p| p.config().backend.clone());
     match backend {

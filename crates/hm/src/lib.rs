@@ -16,8 +16,6 @@ pub mod cli;
 pub mod commands;
 /// Re-export of [`hm_core::config`] at `harmont_cli::config`.
 pub use hm_core::config;
-/// Re-export of the credential store at `harmont_cli::creds_store`.
-pub use hm_core::config::creds as creds_store;
 pub mod context;
 pub mod error;
 pub(crate) mod signal;

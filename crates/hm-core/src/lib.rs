@@ -1,11 +1,13 @@
 //! Core of the `hm` CLI.
 //!
 //! - [`config`] — user/project config resolution.
+//! - [`creds`] — Harmont cloud token storage.
 //! - [`exec`] — the [`exec::ExecutionBackend`] trait and its backends.
-//! - [`app_context`] — process-wide toolchain, directories, and user config.
-//! - [`project`] — a workspace and its resolved config.
+//! - [`app_ctx`] — process-wide toolchain, directories, and user config.
+//! - [`project_ctx`] — a workspace and its resolved config.
 
-pub mod app_context;
+pub mod app_ctx;
 pub mod config;
+pub mod creds;
 pub mod exec;
-pub mod project;
+pub mod project_ctx;

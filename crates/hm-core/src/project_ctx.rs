@@ -4,20 +4,22 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::app_context::AppContext;
+use crate::app_ctx::AppCtx;
 use crate::config::ResolvedProjectConfig;
 use crate::config::domain::ConfigLoadingError;
 use crate::config::project::ProjectConfig;
 
-/// A workspace root and its config, resolved against an [`AppContext`].
+/// A workspace root and its config, resolved against an [`AppCtx`].
 #[derive(Debug, Clone)]
-pub struct ProjectContext<'app> {
-    app: &'app AppContext,
+pub struct ProjectCtx<'app> {
+    app: &'app AppCtx,
     path: PathBuf,
+    hm_dir: PathBuf,
+    config_path: PathBuf,
     config: ResolvedProjectConfig,
 }
 
-impl<'app> ProjectContext<'app> {
+impl<'app> ProjectCtx<'app> {
     /// Locate the project containing the app's working directory (walking up to
     /// a directory with a `.hm/`) and resolve its config.
     ///
@@ -26,7 +28,7 @@ impl<'app> ProjectContext<'app> {
     /// # Errors
     /// [`ConfigLoadingError`] if the project config file is present but
     /// unreadable or malformed.
-    pub async fn discover(app: &'app AppContext) -> Result<Option<Self>, ConfigLoadingError> {
+    pub async fn discover(app: &'app AppCtx) -> Result<Option<Self>, ConfigLoadingError> {
         match Self::find_root(app.cwd()) {
             Some(root) => Ok(Some(Self::at(app, root).await?)),
             None => Ok(None),
@@ -39,16 +41,24 @@ impl<'app> ProjectContext<'app> {
     /// # Errors
     /// [`ConfigLoadingError`] if the project config file is present but
     /// unreadable or malformed.
-    pub async fn at(app: &'app AppContext, path: PathBuf) -> Result<Self, ConfigLoadingError> {
-        let project = Self::load_config(&Self::config_file(&path)).await?;
+    pub async fn at(app: &'app AppCtx, path: PathBuf) -> Result<Self, ConfigLoadingError> {
+        let hm_dir = path.join(".hm");
+        let config_path = hm_dir.join("config.toml");
+        let project = Self::load_config(&config_path).await?;
         let user = app.user_config().cloned().unwrap_or_default();
         let config = ResolvedProjectConfig::from_user_project(&user, &project);
-        Ok(Self { app, path, config })
+        Ok(Self {
+            app,
+            path,
+            hm_dir,
+            config_path,
+            config,
+        })
     }
 
     /// The application context this workspace resolved against.
     #[must_use]
-    pub const fn app(&self) -> &'app AppContext {
+    pub const fn app(&self) -> &'app AppCtx {
         self.app
     }
 
@@ -60,25 +70,20 @@ impl<'app> ProjectContext<'app> {
 
     /// The `.hm/` directory path.
     #[must_use]
-    pub fn hm_dir(&self) -> PathBuf {
-        self.path.join(".hm")
+    pub fn hm_dir(&self) -> &Path {
+        self.hm_dir.as_path()
     }
 
     /// The project config file path (`.hm/config.toml`).
     #[must_use]
-    pub fn config_path(&self) -> PathBuf {
-        Self::config_file(&self.path)
+    pub fn config_path(&self) -> &Path {
+        self.config_path.as_path()
     }
 
     /// The resolved configuration for this workspace.
     #[must_use]
     pub const fn config(&self) -> &ResolvedProjectConfig {
         &self.config
-    }
-
-    /// The project config file path for a workspace root.
-    fn config_file(root: &Path) -> PathBuf {
-        root.join(".hm").join("config.toml")
     }
 
     /// Walk up from `start` to the first directory containing `.hm/`.
@@ -122,7 +127,7 @@ mod tests {
         let nested = tmp.path().join("src").join("deep");
         std::fs::create_dir_all(&nested).unwrap();
         assert_eq!(
-            ProjectContext::find_root(&nested),
+            ProjectCtx::find_root(&nested),
             Some(tmp.path().to_path_buf())
         );
     }
@@ -130,23 +135,24 @@ mod tests {
     #[rstest]
     fn find_project_root_none_when_absent() {
         let tmp = tempfile::tempdir().unwrap();
-        assert_eq!(ProjectContext::find_root(tmp.path()), None);
+        assert_eq!(ProjectCtx::find_root(tmp.path()), None);
     }
 
     #[rstest]
     #[tokio::test]
     async fn at_exposes_paths_for_a_workspace() {
-        let Ok(app) = AppContext::init().await else {
+        let Ok(app) = AppCtx::init().await else {
             eprintln!("skipping: toolchain unavailable");
             return;
         };
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir(tmp.path().join(".hm")).unwrap();
 
-        let ctx = ProjectContext::at(&app, tmp.path().to_path_buf())
+        let ctx = ProjectCtx::at(&app, tmp.path().to_path_buf())
             .await
             .unwrap();
         assert_eq!(ctx.path(), tmp.path());
+        assert_eq!(ctx.hm_dir(), tmp.path().join(".hm"));
         assert_eq!(ctx.config_path(), tmp.path().join(".hm").join("config.toml"));
     }
 }

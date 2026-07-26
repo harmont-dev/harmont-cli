@@ -23,6 +23,7 @@ name = "hm"
 path = "src/main.rs"
 
 [dependencies]
+secrecy = "0.10"
 clap = { version = "4", features = ["derive", "env", "color", "suggestions", "wrap_help"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { workspace = true }

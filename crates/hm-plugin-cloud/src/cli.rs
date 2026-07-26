@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use clap::Subcommand;
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 
 use crate::{auth, verbs};
 
@@ -162,7 +162,7 @@ pub enum BillingCommand {
 pub async fn dispatch_command(
     command: CloudCommand,
     env: BTreeMap<String, String>,
-    app: &AppContext,
+    app: &AppCtx,
 ) -> Result<i32> {
     let result = match command {
         CloudCommand::Login { paste } => auth::login::run(&env, paste, app).await,

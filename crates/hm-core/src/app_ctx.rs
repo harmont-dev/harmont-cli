@@ -10,8 +10,9 @@ use hm_common::python::Python;
 
 use crate::config::domain::ConfigLoadingError;
 use crate::config::user::UserConfig;
+use crate::creds::{CredsInitError, CredsProvider};
 
-/// Failure to initialize the [`AppContext`].
+/// Failure to initialize the [`AppCtx`].
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
     /// A required executable was missing from `PATH`.
@@ -26,19 +27,23 @@ pub enum InitError {
     /// The user config file exists but could not be read or parsed.
     #[error("loading the user config")]
     UserConfig(#[source] ConfigLoadingError),
+    /// The credentials store could not be opened.
+    #[error(transparent)]
+    Creds(#[from] CredsInitError),
 }
 
-/// Resolved toolchain, platform directories, and the user config.
+/// Resolved toolchain, platform directories, user config, and credentials.
 #[derive(Debug)]
-pub struct AppContext {
+pub struct AppCtx {
     git: PathBuf,
     python3: PathBuf,
     cwd: PathBuf,
     dirs: DirProvider,
     user_config: Option<UserConfig>,
+    creds: CredsProvider,
 }
 
-impl AppContext {
+impl AppCtx {
     /// Resolve the toolchain, directories, and user config.
     ///
     /// # Errors
@@ -51,9 +56,17 @@ impl AppContext {
         let python3 = pathbin("python3")?;
         let cwd = std::env::current_dir().map_err(InitError::Cwd)?;
         let dirs = DirProvider::new().ok_or(InitError::Dirs)?;
-        let user_config = Self::load_user_config(&Self::user_config_file(&dirs))
-            .await
-            .map_err(InitError::UserConfig)?;
+        let hm_dir = dirs.home().join(".hm");
+        let config_path = hm_dir.join("config.toml");
+
+        // Independent I/O — resolve the user config and open the creds store
+        // concurrently.
+        let (user_config, creds) = tokio::join!(
+            Self::load_user_config(&config_path),
+            CredsProvider::new(&hm_dir),
+        );
+        let user_config = user_config.map_err(InitError::UserConfig)?;
+        let creds = creds?;
 
         Ok(Self {
             git,
@@ -61,13 +74,14 @@ impl AppContext {
             cwd,
             dirs,
             user_config,
+            creds,
         })
     }
 
     /// The user config path (`~/.hm/config.toml`).
     #[must_use]
     pub fn user_config_path(&self) -> PathBuf {
-        Self::user_config_file(&self.dirs)
+        self.dirs.home().join(".hm").join("config.toml")
     }
 
     /// Read the user config, treating a missing file as [`None`].
@@ -100,6 +114,12 @@ impl AppContext {
         self.user_config.as_ref()
     }
 
+    /// The credentials store under `~/.hm/creds/`.
+    #[must_use]
+    pub const fn creds(&self) -> &CredsProvider {
+        &self.creds
+    }
+
     /// The system `git`, bound to a [`Git`] handle.
     #[must_use]
     pub fn git(&self) -> Git<'_> {
@@ -110,11 +130,6 @@ impl AppContext {
     #[must_use]
     pub fn python(&self) -> Python<'_> {
         Python::new(&self.python3)
-    }
-
-    /// The user config path (`~/.hm/config.toml`) under `dirs`.
-    fn user_config_file(dirs: &DirProvider) -> PathBuf {
-        dirs.home().join(".hm").join("config.toml")
     }
 }
 
@@ -135,7 +150,7 @@ mod tests {
             eprintln!("skipping: toolchain unavailable");
             return;
         }
-        let ctx = AppContext::init().await.unwrap();
+        let ctx = AppCtx::init().await.unwrap();
         assert!(ctx.cwd().is_absolute());
         // git() binds the resolved git; a fresh temp dir is not a repo.
         let dir = tempfile::tempdir().unwrap();
@@ -146,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn missing_user_config_is_none() {
         let path = Path::new("/nonexistent/harmont-test/.hm/config.toml");
-        assert!(AppContext::load_user_config(path).await.unwrap().is_none());
+        assert!(AppCtx::load_user_config(path).await.unwrap().is_none());
     }
 
     #[rstest]
@@ -155,7 +170,7 @@ mod tests {
         use std::io::Write as _;
         let mut f = tempfile::NamedTempFile::new().unwrap();
         f.write_all(b"[backend]\ntype = \"docker\"\n").unwrap();
-        let loaded = AppContext::load_user_config(f.path()).await.unwrap();
+        let loaded = AppCtx::load_user_config(f.path()).await.unwrap();
         assert!(loaded.is_some());
     }
 

@@ -12,6 +12,7 @@ categories = ["command-line-utilities"]
 path = "src/lib.rs"
 
 [dependencies]
+secrecy           = "0.10"
 harmont-cloud      = { workspace = true }
 harmont-cloud-raw  = { workspace = true }
 hm-core            = { workspace = true }

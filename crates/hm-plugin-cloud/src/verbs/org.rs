@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::BackendConfig;
 use hm_core::config::user::UserCloudConfig;
 
@@ -13,16 +13,16 @@ use crate::settings;
 pub(crate) async fn run(
     _env: &BTreeMap<String, String>,
     cmd: OrgCommand,
-    app: &AppContext,
+    app: &AppCtx,
 ) -> Result<()> {
-    let (client, _ctx) = settings::client(app)?;
+    let (client, _ctx) = settings::client(app).await?;
 
     match cmd {
         OrgCommand::Switch { slug } => switch(&client, &slug, app).await,
     }
 }
 
-async fn switch(client: &harmont_cloud::HarmontClient, slug: &str, app: &AppContext) -> Result<()> {
+async fn switch(client: &harmont_cloud::HarmontClient, slug: &str, app: &AppCtx) -> Result<()> {
     let orgs = client
         .raw()
         .list_organizations(None, None)

@@ -1,13 +1,14 @@
 //! Cloud client builders for the `hm cloud` verbs.
 //!
-//! Tokens come from [`hm_core::config::creds`] (`HM_API_TOKEN` wins); the domain
-//! and org come from the user config.
+//! Tokens come from [`hm_core::creds`] (`HM_API_TOKEN` wins); the domain and org
+//! come from the user config.
 
 use anyhow::{Context, Result};
 use harmont_cloud::HarmontClient;
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::{BackendConfig, BackendDomain};
 use hm_core::config::user::UserCloudConfig;
+use secrecy::ExposeSecret as _;
 
 /// Resolved cloud context for the `hm cloud` verbs.
 #[derive(Debug, Clone)]
@@ -33,7 +34,7 @@ impl ResolvedCtx {
 }
 
 /// The user's cloud settings, when the user config selects a cloud backend.
-fn user_cloud(app: &AppContext) -> Option<&UserCloudConfig> {
+fn user_cloud(app: &AppCtx) -> Option<&UserCloudConfig> {
     match app.user_config().and_then(|u| u.backend.as_ref()) {
         Some(BackendConfig::Cloud(cloud)) => Some(cloud),
         _ => None,
@@ -42,7 +43,7 @@ fn user_cloud(app: &AppContext) -> Option<&UserCloudConfig> {
 
 /// The cloud domain from the user config, or the default.
 #[must_use]
-pub fn domain(app: &AppContext) -> BackendDomain {
+pub fn domain(app: &AppCtx) -> BackendDomain {
     user_cloud(app)
         .and_then(|c| c.domain.clone())
         .unwrap_or_default()
@@ -55,19 +56,22 @@ pub fn domain(app: &AppContext) -> BackendDomain {
 /// # Errors
 ///
 /// Returns an error if no token is available.
-pub fn client(app: &AppContext) -> Result<(HarmontClient, ResolvedCtx)> {
+pub async fn client(app: &AppCtx) -> Result<(HarmontClient, ResolvedCtx)> {
     let domain = domain(app);
     let api = domain.api_url();
-    let token = hm_core::config::creds::cloud_token(&api)
+    let token = app
+        .creds()
+        .get()
+        .await
         .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
-    let client = HarmontClient::with_base_url(token, &api);
+    let client = HarmontClient::with_base_url(token.expose_secret().to_owned(), &api);
     let org = user_cloud(app).and_then(|c| c.org.clone());
     Ok((client, ResolvedCtx { api, domain, org }))
 }
 
 /// An anonymous client (for the login flow) + the resolved cloud domain.
 #[must_use]
-pub fn anon_client(app: &AppContext) -> (HarmontClient, BackendDomain) {
+pub fn anon_client(app: &AppCtx) -> (HarmontClient, BackendDomain) {
     let domain = domain(app);
     (HarmontClient::anonymous(domain.api_url()), domain)
 }

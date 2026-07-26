@@ -10,7 +10,7 @@ use hm_dsl_engine::DslEngine;
 #[tokio::test]
 async fn python_roundtrip() {
     // Skip if the toolchain (python3 + git) is unavailable.
-    let Ok(app) = hm_core::app_context::AppContext::init().await else {
+    let Ok(app) = hm_core::app_ctx::AppCtx::init().await else {
         eprintln!("skipping: build toolchain unavailable");
         return;
     };
@@ -43,7 +43,7 @@ def ci() -> hm.Step:
 
 #[tokio::test]
 async fn python_registry_json_carries_triggers_and_allow_manual() {
-    let Ok(app) = hm_core::app_context::AppContext::init().await else {
+    let Ok(app) = hm_core::app_ctx::AppCtx::init().await else {
         eprintln!("skipping: build toolchain unavailable");
         return;
     };

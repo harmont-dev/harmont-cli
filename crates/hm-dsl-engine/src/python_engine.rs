@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use hm_common::process::CapturedStreams as _;
-use hm_core::app_context::AppContext;
+use hm_core::app_ctx::AppCtx;
 use tracing::debug;
 
 use crate::bundled_sources;
@@ -61,13 +61,13 @@ print(json.dumps(match['definition']))
 
 #[derive(Debug)]
 pub struct SubprocessPythonEngine<'app> {
-    app: &'app AppContext,
+    app: &'app AppCtx,
 }
 
 impl<'app> SubprocessPythonEngine<'app> {
     /// Create the engine bound to `app`, whose resolved `python3` it runs.
     #[must_use]
-    pub const fn new(app: &'app AppContext) -> Self {
+    pub const fn new(app: &'app AppCtx) -> Self {
         Self { app }
     }
 
