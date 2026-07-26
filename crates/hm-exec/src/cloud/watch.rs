@@ -43,6 +43,12 @@ impl Drop for AbortGuard {
 
 /// Convert a unix-nanosecond timestamp to a UTC datetime, falling back to
 /// "now" when absent or out of range.
+// TODO(delete on harmont-cloud >=0.3): band-aid for an untyped SDK field. This
+// exists only because the cloud client hands us a raw `i64` nanosecond count.
+// WHEN the SDK types the field as `DateTime<Utc>` (OpenAPI `format: date-time`
+// on a chrono-enabled generator) and the dep is bumped, this helper is dead.
+// HOW: delete it and use the already-typed value directly. Do NOT hoist to
+// hm-common — it is an SDK adapter, not a reusable utility. See `parse_rfc3339`.
 pub(crate) fn ts_or_now(ts_unix_ns: Option<i64>) -> DateTime<Utc> {
     ts_unix_ns.map_or_else(Utc::now, DateTime::<Utc>::from_timestamp_nanos)
 }
@@ -59,6 +65,13 @@ fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> u64 
 /// Parse an optional RFC 3339 timestamp string (the form the v1 API serializes
 /// `started_at` / `finished_at` as) into a UTC datetime, dropping unparseable
 /// or absent values to `None`.
+// TODO(delete on harmont-cloud >=0.3): band-aid for an untyped SDK field.
+// `HarmontJob.started_at`/`finished_at` arrive as `Option<String>` only because
+// the cloud OpenAPI spec omits `format: date-time`. WHEN the SDK is regenerated
+// with typed timestamps and the dep is bumped, this parse (and the
+// `.with_timezone(&Utc)` normalize) is dead. HOW: delete it; callers read
+// `job.started_at` (already `DateTime<Utc>`) directly. Do NOT hoist to
+// hm-common — it is an SDK adapter, not a reusable utility.
 fn parse_rfc3339(ts: Option<&str>) -> Option<DateTime<Utc>> {
     ts.and_then(|s| DateTime::parse_from_rfc3339(s).ok())
         .map(|dt| dt.with_timezone(&Utc))
