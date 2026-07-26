@@ -10,8 +10,7 @@ mod sealed {
 
 /// Adds a compact, stopwatch-style [`Display`] rendering to any duration.
 ///
-/// Implemented for any type convertible into a [`std::time::Duration`] —
-/// including [`Duration`] itself and newtypes like `hm_pipeline_ir::DurationMs`.
+/// Implemented for any type convertible into a [`std::time::Duration`].
 ///
 /// ```
 /// # use hm_common::format::CompactDuration;
