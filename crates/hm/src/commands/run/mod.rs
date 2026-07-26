@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 
 use bstr::ByteSlice as _;
 use hm_common::app_runtime::AppRuntime;
+use hm_common::git::{GitBranch, GitRemote, GitRepo};
 use hm_dsl_engine::{DslEngine, detect};
 use human_units::FormatSize as _;
 
@@ -129,14 +130,18 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         );
     }
 
-    // 7. Assemble the run request. Read branch, commit, and repo name from git
-    // in one borrow of `repo_root` (best-effort; an explicit `--branch` wins,
-    // and missing values fall back to `HEAD` / the zero SHA). The block yields
-    // owned strings so `repo_root` is free to move into the request below.
-    let git = AppRuntime::git();
-    let (branch, commit, repo_name) = {
+    // 7. Assemble the run request. Open the worktree's repo and its `origin`
+    // remote once, and read every git-derived field from that single pair of
+    // handles — all best-effort. An explicit `--branch` wins; a missing branch
+    // or commit falls back to `HEAD` / the zero SHA. The block yields owned
+    // strings so `repo_root` can move into the request, and the cloud paths
+    // below reuse `remote_url` / `default_branch` instead of re-shelling to git.
+    let (branch, commit, repo_name, remote_url, default_branch) = {
+        let git = AppRuntime::git();
         let repo = git.repo(&repo_root).ok();
-        let head = repo.as_ref().and_then(hm_common::git::GitRepo::current_branch);
+        let head = repo.as_ref().and_then(GitRepo::current_branch);
+        let remote = repo.as_ref().and_then(|r| r.remote("origin"));
+
         let branch = args
             .branch
             .clone()
@@ -145,15 +150,25 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             .unwrap_or_else(|| "HEAD".to_string());
         let commit = head
             .as_ref()
-            .and_then(hm_common::git::GitBranch::head_commit)
+            .and_then(GitBranch::head_commit)
             .map(|c| c.to_str_lossy().into_owned())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "0".repeat(40));
-        let repo_name = repo
+        let repo_name = remote
             .as_ref()
-            .and_then(|r| r.remote("origin")?.gh_repo_name())
+            .and_then(GitRemote::gh_repo_name)
             .map(|n| n.to_str_lossy().into_owned());
-        (branch, commit, repo_name)
+        let remote_url = remote
+            .as_ref()
+            .map(|r| r.url().to_str_lossy().into_owned())
+            .filter(|u| !u.is_empty());
+        // `origin/HEAD`; `None` when unset (fresh clones without `set-head`).
+        let default_branch = remote
+            .as_ref()
+            .and_then(GitRemote::default_branch)
+            .map(|b| b.name().to_str_lossy().into_owned());
+
+        (branch, commit, repo_name, remote_url, default_branch)
     };
     let mut req = hm_exec::RunRequest {
         plan,
@@ -183,20 +198,8 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         if let Some(slug) = ctx.config.cloud.pipeline.clone() {
             req.cloud_pipeline_slug = Some(slug);
         } else if req.source.repo_name.is_none() {
-            // Default branch from `origin/HEAD`; falls back to the run's branch
-            // when unset (fresh clones without `git remote set-head`).
-            let default_branch = git
-                .repo(&req.repo_root)
-                .ok()
-                .and_then(|r| {
-                    Some(
-                        r.remote("origin")?
-                            .default_branch()?
-                            .name()
-                            .to_str_lossy()
-                            .into_owned(),
-                    )
-                })
+            let default_branch = default_branch
+                .clone()
                 .unwrap_or_else(|| req.source.branch.clone());
             let slug = register_remoteless_pipeline(
                 client,
@@ -210,32 +213,16 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         }
     }
 
-    // Cloud-only auto-create context. Borrow `req` here (before it's moved into
-    // `start`): the repository URL and default branch come from the worktree's
-    // git remote; the pipeline name is the in-repo source slug.
+    // Cloud-only auto-create context, from the git fields read in step 7: the
+    // `origin` remote URL is the pipeline's `repository`, `default_branch` falls
+    // back to the run's branch, and the pipeline name is the in-repo source slug.
     let autocreate = autocreate_client.map(|(client, org)| AutoCreate {
         client,
         org,
         repo_name: req.source.repo_name.clone(),
-        // The pipeline's `repository`: the worktree's `origin` remote URL.
-        repository: git.repo(&req.repo_root).ok().and_then(|r| {
-            let url = r.remote("origin")?.url().to_str_lossy().into_owned();
-            (!url.is_empty()).then_some(url)
-        }),
+        repository: remote_url,
         name: req.pipeline_slug.clone(),
-        default_branch: git
-            .repo(&req.repo_root)
-            .ok()
-            .and_then(|r| {
-                Some(
-                    r.remote("origin")?
-                        .default_branch()?
-                        .name()
-                        .to_str_lossy()
-                        .into_owned(),
-                )
-            })
-            .unwrap_or_else(|| req.source.branch.clone()),
+        default_branch: default_branch.unwrap_or_else(|| req.source.branch.clone()),
     });
 
     // 8. Start, drive events, own Ctrl-C, await the outcome.
