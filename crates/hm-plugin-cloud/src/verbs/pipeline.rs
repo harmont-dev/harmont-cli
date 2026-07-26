@@ -7,9 +7,14 @@ use harmont_cloud::HarmontClient;
 
 use crate::cli::PipelineCommand;
 use crate::settings;
+use hm_core::app_context::AppContext;
 
-pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: PipelineCommand) -> Result<()> {
-    let (client, ctx) = settings::client()?;
+pub(crate) async fn run(
+    _env: &BTreeMap<String, String>,
+    cmd: PipelineCommand,
+    app: &AppContext,
+) -> Result<()> {
+    let (client, ctx) = settings::client(app)?;
     let org = ctx.org()?;
 
     match cmd {

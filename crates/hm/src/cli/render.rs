@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use hm_core::app_context::AppContext;
 use hm_dsl_engine::{DslEngine, SubprocessPythonEngine, detect};
 
 #[derive(Debug, Clone, Parser)]
@@ -25,14 +26,14 @@ pub struct RenderArgs {
 /// Returns an error if the language can't be detected, the engine can't start,
 /// or the slug is unknown / fails to render (the available slugs are written to
 /// stderr by the DSL runtime).
-pub async fn run(args: RenderArgs) -> Result<()> {
+pub async fn run(args: RenderArgs, app: &AppContext) -> Result<()> {
     let repo_root = match args.dir {
         Some(d) => d,
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
     detect::check_python(&repo_root).context("detecting pipeline language")?;
-    let engine = SubprocessPythonEngine::new();
+    let engine = SubprocessPythonEngine::new(app);
     let json = engine
         .render_pipeline_json(&repo_root, &args.slug)
         .await

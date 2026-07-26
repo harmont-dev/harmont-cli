@@ -1,9 +1,5 @@
-//! Process-wide application context: resolved toolchain, directories, and the
-//! user-scoped config.
-//!
-//! Built once in `main` via [`AppContext::init`] and threaded through the
-//! application by shared reference (typically leaked to `&'static` so it can be
-//! held across `await` points).
+//! Process-wide application context: resolved toolchain, directories, and user
+//! config.
 
 use std::path::{Path, PathBuf};
 
@@ -32,11 +28,7 @@ pub enum InitError {
     UserConfig(#[source] ConfigLoadingError),
 }
 
-/// Resolved toolchain, platform directories, and the user config, captured once
-/// at startup.
-///
-/// Accessed by shared reference; not a global. A missing user config is not an
-/// error — [`AppContext::user_config`] returns `None`.
+/// Resolved toolchain, platform directories, and the user config.
 #[derive(Debug)]
 pub struct AppContext {
     git: PathBuf,
@@ -59,7 +51,7 @@ impl AppContext {
         let python3 = pathbin("python3")?;
         let cwd = std::env::current_dir().map_err(InitError::Cwd)?;
         let dirs = DirProvider::new().ok_or(InitError::Dirs)?;
-        let user_config = Self::load_user_config(&Self::user_config_path(&dirs))
+        let user_config = Self::load_user_config(&Self::user_config_file(&dirs))
             .await
             .map_err(InitError::UserConfig)?;
 
@@ -73,8 +65,9 @@ impl AppContext {
     }
 
     /// The user config path (`~/.hm/config.toml`).
-    fn user_config_path(dirs: &DirProvider) -> PathBuf {
-        dirs.home().join(".hm").join("config.toml")
+    #[must_use]
+    pub fn user_config_path(&self) -> PathBuf {
+        Self::user_config_file(&self.dirs)
     }
 
     /// Read the user config, treating a missing file as [`None`].
@@ -121,6 +114,11 @@ impl AppContext {
     #[must_use]
     pub fn python(&self) -> Python<'_> {
         Python::new(&self.python3)
+    }
+
+    /// The user config path (`~/.hm/config.toml`) under `dirs`.
+    fn user_config_file(dirs: &DirProvider) -> PathBuf {
+        dirs.home().join(".hm").join("config.toml")
     }
 }
 

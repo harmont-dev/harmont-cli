@@ -17,7 +17,7 @@ mod verbs;
 ///
 /// Returns an error if the browser cannot be opened, the login times
 /// out, or the token cannot be persisted.
-pub async fn login_interactive() -> anyhow::Result<()> {
+pub async fn login_interactive(app: &hm_core::app_context::AppContext) -> anyhow::Result<()> {
     let env: std::collections::BTreeMap<String, String> = std::env::vars().collect();
-    auth::login::run(&env, false).await
+    auth::login::run(&env, false, app).await
 }

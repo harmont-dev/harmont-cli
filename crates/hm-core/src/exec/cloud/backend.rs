@@ -37,7 +37,7 @@ pub struct CloudBackend {
     api_base: String,
     /// Dashboard (SPA) base used to build the human-clickable watch URL. This
     /// is the `app.` host, NOT `api.` — a link built from `api_base` lands on
-    /// raw JSON. Resolved via [`crate::config::app_url`] at the call site.
+    /// raw JSON. Derived from the configured domain's `app_url` at the call site.
     app_base: String,
     org: String,
 }
@@ -319,7 +319,7 @@ mod tests {
 
     #[rstest]
     fn watch_url_uses_app_host_and_pipelines_path() {
-        // Mirrors crate::config::app_url(DEFAULT_API_URL) -> https://app.harmont.dev.
+        // Mirrors BackendDomain::default().app_url() -> https://app.harmont.dev.
         assert_eq!(
             dashboard_build_url("https://app.harmont.dev", "acme", "web", 42),
             "https://app.harmont.dev/acme/pipelines/web/builds/42"

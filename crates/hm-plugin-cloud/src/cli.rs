@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use clap::Subcommand;
+use hm_core::app_context::AppContext;
 
 use crate::{auth, verbs};
 
@@ -158,17 +159,21 @@ pub enum BillingCommand {
 ///
 /// Returns an error only if dispatch itself fails; a verb's own runtime
 /// failure is logged and mapped to a non-zero exit code.
-pub async fn dispatch_command(command: CloudCommand, env: BTreeMap<String, String>) -> Result<i32> {
+pub async fn dispatch_command(
+    command: CloudCommand,
+    env: BTreeMap<String, String>,
+    app: &AppContext,
+) -> Result<i32> {
     let result = match command {
-        CloudCommand::Login { paste } => auth::login::run(&env, paste).await,
-        CloudCommand::Logout => auth::logout::run(&env).await,
-        CloudCommand::Whoami => auth::whoami::run(&env).await,
-        CloudCommand::Org(cmd) => verbs::org::run(&env, cmd).await,
-        CloudCommand::Pipeline(cmd) => verbs::pipeline::run(&env, cmd).await,
-        CloudCommand::Build(cmd) => verbs::build::run(&env, cmd).await,
-        CloudCommand::Job(cmd) => verbs::job::run(&env, cmd).await,
-        CloudCommand::Billing(cmd) => verbs::billing::run(&env, cmd).await,
-        CloudCommand::Run(args) => verbs::run::run(&env, args).await,
+        CloudCommand::Login { paste } => auth::login::run(&env, paste, app).await,
+        CloudCommand::Logout => auth::logout::run(&env, app).await,
+        CloudCommand::Whoami => auth::whoami::run(&env, app).await,
+        CloudCommand::Org(cmd) => verbs::org::run(&env, cmd, app).await,
+        CloudCommand::Pipeline(cmd) => verbs::pipeline::run(&env, cmd, app).await,
+        CloudCommand::Build(cmd) => verbs::build::run(&env, cmd, app).await,
+        CloudCommand::Job(cmd) => verbs::job::run(&env, cmd, app).await,
+        CloudCommand::Billing(cmd) => verbs::billing::run(&env, cmd, app).await,
+        CloudCommand::Run(args) => verbs::run::run(&env, args, app).await,
     };
     match result {
         Ok(()) => Ok(ExitCode::Success.into()),

@@ -1,8 +1,7 @@
 //! Resolving the user and project config layers into one effective view.
 //!
-//! [`UserConfig`] and [`ProjectConfig`] are sparse, all-optional layers loaded
-//! from their respective files. [`ResolvedProjectConfig`] is what the rest of
-//! the CLI reads: the two layers merged, project over user, with defaults
+//! [`UserConfig`] and [`ProjectConfig`] are sparse file layers;
+//! [`ResolvedProjectConfig`] is the two merged — project over user, defaults
 //! applied.
 
 pub mod creds;

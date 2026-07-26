@@ -3,11 +3,12 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
+use hm_core::app_context::AppContext;
 
 use crate::settings;
 
-pub(crate) async fn run(_env: &BTreeMap<String, String>) -> Result<()> {
-    let (client, _ctx) = settings::client()?;
+pub(crate) async fn run(_env: &BTreeMap<String, String>, app: &AppContext) -> Result<()> {
+    let (client, _ctx) = settings::client(app)?;
     let me = client
         .raw()
         .get_current_user()

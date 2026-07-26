@@ -3,19 +3,26 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
+use hm_core::app_context::AppContext;
+use hm_core::config::domain::BackendConfig;
+use hm_core::config::user::UserCloudConfig;
 
 use crate::cli::OrgCommand;
 use crate::settings;
 
-pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: OrgCommand) -> Result<()> {
-    let (client, _ctx) = settings::client()?;
+pub(crate) async fn run(
+    _env: &BTreeMap<String, String>,
+    cmd: OrgCommand,
+    app: &AppContext,
+) -> Result<()> {
+    let (client, _ctx) = settings::client(app)?;
 
     match cmd {
-        OrgCommand::Switch { slug } => switch(&client, &slug).await,
+        OrgCommand::Switch { slug } => switch(&client, &slug, app).await,
     }
 }
 
-async fn switch(client: &harmont_cloud::HarmontClient, slug: &str) -> Result<()> {
+async fn switch(client: &harmont_cloud::HarmontClient, slug: &str, app: &AppContext) -> Result<()> {
     let orgs = client
         .raw()
         .list_organizations(None, None)
@@ -27,9 +34,21 @@ async fn switch(client: &harmont_cloud::HarmontClient, slug: &str) -> Result<()>
         .iter()
         .find(|o| o.slug == slug)
         .ok_or_else(|| anyhow::anyhow!("no organization with slug '{slug}'"))?;
-    let mut cfg = hm_core::config::Config::load(None)?;
-    cfg.cloud.org = Some(found.slug.clone());
-    cfg.save_user().await.context("saving config")?;
+
+    // Set the org on the user config's cloud backend, preserving the domain.
+    let mut user = app.user_config().cloned().unwrap_or_default();
+    let cloud = match user.backend {
+        Some(BackendConfig::Cloud(cloud)) => cloud,
+        _ => UserCloudConfig::default(),
+    };
+    user.backend = Some(BackendConfig::Cloud(UserCloudConfig {
+        org: Some(found.slug.clone()),
+        ..cloud
+    }));
+    user.save(&app.user_config_path())
+        .await
+        .context("saving config")?;
+
     tracing::info!("active organization: {} ({})", found.name, found.slug);
     Ok(())
 }

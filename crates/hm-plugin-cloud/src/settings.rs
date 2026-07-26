@@ -1,24 +1,21 @@
 //! Cloud client builders for the `hm cloud` verbs.
 //!
-//! Config and credentials are owned by the shared [`hm_core::config`] module:
-//!
-//! - layered config (user `~/.config/hm/config.toml` + project
-//!   `.hm/config.toml` + `HM_*` env) supplies the API base
-//!   (`cloud.api_url`) and the active org (`cloud.org`);
-//! - bearer tokens live in `hm_core::config::creds`, keyed by API base, with
-//!   `HM_API_TOKEN` taking precedence.
-//!
-//! This module only assembles an SDK client from that config; it does not own
-//! any config or credential storage of its own.
+//! Tokens come from [`hm_core::config::creds`] (`HM_API_TOKEN` wins); the domain
+//! and org come from the user config.
 
 use anyhow::{Context, Result};
 use harmont_cloud::HarmontClient;
+use hm_core::app_context::AppContext;
+use hm_core::config::domain::{BackendConfig, BackendDomain};
+use hm_core::config::user::UserCloudConfig;
 
 /// Resolved cloud context for the `hm cloud` verbs.
 #[derive(Debug, Clone)]
 pub struct ResolvedCtx {
     /// Effective API base URL.
     pub api: String,
+    /// Base Harmont domain the API/dashboard hosts derive from.
+    pub domain: BackendDomain,
     /// Configured organization slug, if set.
     pub org: Option<String>,
 }
@@ -31,41 +28,48 @@ impl ResolvedCtx {
     /// Returns an error if no organization is configured.
     pub fn org(&self) -> Result<String> {
         self.org.clone().context(
-            "no organization — set `[cloud] org = \"…\"` in ~/.config/hm/config.toml (or .hm/config.toml), or run `hm cloud org switch <slug>`")
+            "no organization — run `hm cloud org switch <slug>`, or set one in ~/.hm/config.toml")
     }
 }
 
-/// An authenticated cloud client built from the layered config + stored token.
+/// The user's cloud settings, when the user config selects a cloud backend.
+fn user_cloud(app: &AppContext) -> Option<&UserCloudConfig> {
+    match app.user_config().and_then(|u| u.backend.as_ref()) {
+        Some(BackendConfig::Cloud(cloud)) => Some(cloud),
+        _ => None,
+    }
+}
+
+/// The cloud domain from the user config, or the default.
+#[must_use]
+pub fn domain(app: &AppContext) -> BackendDomain {
+    user_cloud(app)
+        .and_then(|c| c.domain.clone())
+        .unwrap_or_default()
+}
+
+/// An authenticated cloud client built from the user config + stored token.
 ///
 /// Fails fast with a clear message when no token is present.
 ///
 /// # Errors
 ///
-/// Returns an error if config can't be loaded or no token is available.
-pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
-    let cfg = hm_core::config::Config::load(None).context("loading config")?;
-    let api = cfg.cloud.api_url.clone();
+/// Returns an error if no token is available.
+pub fn client(app: &AppContext) -> Result<(HarmontClient, ResolvedCtx)> {
+    let domain = domain(app);
+    let api = domain.api_url();
     let token = hm_core::config::creds::cloud_token(&api)
         .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
     let client = HarmontClient::with_base_url(token, &api);
-    Ok((
-        client,
-        ResolvedCtx {
-            api,
-            org: cfg.cloud.org,
-        },
-    ))
+    let org = user_cloud(app).and_then(|c| c.org.clone());
+    Ok((client, ResolvedCtx { api, domain, org }))
 }
 
-/// An anonymous client (for the login flow) + the resolved API base.
-///
-/// # Errors
-///
-/// Returns an error if config can't be loaded.
-pub fn anon_client() -> Result<(HarmontClient, String)> {
-    let cfg = hm_core::config::Config::load(None).context("loading config")?;
-    let api = cfg.cloud.api_url;
-    Ok((HarmontClient::anonymous(&api), api))
+/// An anonymous client (for the login flow) + the resolved cloud domain.
+#[must_use]
+pub fn anon_client(app: &AppContext) -> (HarmontClient, BackendDomain) {
+    let domain = domain(app);
+    (HarmontClient::anonymous(domain.api_url()), domain)
 }
 
 /// Render preferences for cloud commands that stream through `hm-render`.

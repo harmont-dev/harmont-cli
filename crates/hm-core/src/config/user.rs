@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 
 use super::domain::{BackendConfig, BackendDomain, ConfigLoadingError};
@@ -35,5 +36,16 @@ impl UserConfig {
     pub async fn try_load(path: impl AsRef<Path>) -> Result<Self, ConfigLoadingError> {
         let contents = tokio::fs::read_to_string(path).await?;
         Ok(toml::from_str(&contents)?)
+    }
+
+    /// Serialize to `path`, creating parent directories as needed.
+    ///
+    /// # Errors
+    /// [`anyhow::Error`] if serialization or the write fails.
+    pub async fn save(&self, path: &Path) -> anyhow::Result<()> {
+        let serialized = toml::to_string_pretty(self).context("serializing user config")?;
+        hm_common::fs::write_create_all(path, serialized)
+            .await
+            .with_context(|| format!("writing {}", path.display()))
     }
 }

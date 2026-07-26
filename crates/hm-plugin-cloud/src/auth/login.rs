@@ -15,12 +15,18 @@ use std::time::Duration;
 
 use anyhow::{Result, bail};
 use harmont_cloud::{HarmontClient, HarmontError};
+use hm_core::app_context::AppContext;
 
 use crate::settings;
 
-pub(crate) async fn run(env: &BTreeMap<String, String>, paste: bool) -> Result<()> {
-    let (client, api) = settings::anon_client()?;
-    let app = app_url(&api, env);
+pub(crate) async fn run(
+    env: &BTreeMap<String, String>,
+    paste: bool,
+    app_ctx: &AppContext,
+) -> Result<()> {
+    let (client, domain) = settings::anon_client(app_ctx);
+    let api = domain.api_url();
+    let app = domain.app_url();
 
     let token = if paste {
         login_paste(env, &client, &app).await?
@@ -137,14 +143,6 @@ async fn login_paste(
     Ok(client.redeem_code(&code).await?)
 }
 
-/// Derive the SPA (app) base URL from the API base.
-///
-/// Thin wrapper over the shared [`hm_core::config::app_url`] helper, sourcing the
-/// override from the `HM_APP_URL` env var.
-fn app_url(api: &str, env: &BTreeMap<String, String>) -> String {
-    hm_core::config::app_url(api, env.get("HM_APP_URL").map(String::as_str))
-}
-
 /// A URL-safe random nonce for the loopback handoff.
 fn random_nonce() -> String {
     use base64::Engine;
@@ -157,29 +155,6 @@ fn random_nonce() -> String {
 mod tests {
     use super::*;
     use rstest::rstest;
-
-    fn env(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-        pairs
-            .iter()
-            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
-            .collect()
-    }
-
-    #[rstest]
-    #[case::prod_api_to_app("https://api.harmont.dev", &[], "https://app.harmont.dev")]
-    #[case::env_override_wins(
-        "https://api.harmont.dev",
-        &[("HM_APP_URL", "http://localhost:5173/")],
-        "http://localhost:5173"
-    )]
-    #[case::unmapped_fallback("http://localhost:4000", &[], "http://localhost:4000")]
-    fn app_url_derives_app_host(
-        #[case] api: &str,
-        #[case] env_pairs: &[(&str, &str)],
-        #[case] expected: &str,
-    ) {
-        assert_eq!(app_url(api, &env(env_pairs)), expected);
-    }
 
     #[rstest]
     fn nonces_are_distinct() {

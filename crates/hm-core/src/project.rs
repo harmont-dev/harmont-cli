@@ -1,9 +1,6 @@
 //! A Harmont workspace and its resolved configuration.
 //!
-//! A project is a directory tree rooted at a directory containing `.hm/`. A
-//! [`ProjectContext`] wraps that root, exposes its `.hm/` paths, and holds the
-//! [`ResolvedProjectConfig`] merged from the user and project layers at
-//! construction.
+//! A project is a directory tree rooted at a directory containing `.hm/`.
 
 use std::path::{Path, PathBuf};
 
@@ -32,7 +29,7 @@ impl ProjectContext {
         start: &Path,
         user: Option<&UserConfig>,
     ) -> Result<Option<Self>, ConfigLoadingError> {
-        match find_project_root(start) {
+        match Self::find_root(start) {
             Some(root) => Ok(Some(Self::at(root, user).await?)),
             None => Ok(None),
         }
@@ -45,7 +42,7 @@ impl ProjectContext {
     /// [`ConfigLoadingError`] if the project config file is present but
     /// unreadable or malformed.
     pub async fn at(path: PathBuf, user: Option<&UserConfig>) -> Result<Self, ConfigLoadingError> {
-        let project = load_project_config(&config_path_for(&path)).await?;
+        let project = Self::load_config(&Self::config_file(&path)).await?;
         let user = user.cloned().unwrap_or_default();
         let config = ResolvedProjectConfig::from_user_project(&user, &project);
         Ok(Self { path, config })
@@ -70,7 +67,7 @@ impl ProjectContext {
     /// The project config file path (`.hm/config.toml`).
     #[must_use]
     pub fn config_path(&self) -> PathBuf {
-        config_path_for(&self.path)
+        Self::config_file(&self.path)
     }
 
     /// The resolved configuration for this workspace.
@@ -78,36 +75,33 @@ impl ProjectContext {
     pub const fn config(&self) -> &ResolvedProjectConfig {
         &self.config
     }
-}
 
-/// The project config file path for a workspace root.
-fn config_path_for(root: &Path) -> PathBuf {
-    root.join(".hm").join("config.toml")
-}
-
-/// Walk up from `start` to the first directory containing `.hm/`.
-///
-/// Returns the directory *containing* `.hm/`, or `None` at the filesystem root.
-#[must_use]
-pub fn find_project_root(start: &Path) -> Option<PathBuf> {
-    let mut current = start;
-    loop {
-        if current.join(".hm").is_dir() {
-            return Some(current.to_path_buf());
-        }
-        current = current.parent()?;
+    /// The project config file path for a workspace root.
+    fn config_file(root: &Path) -> PathBuf {
+        root.join(".hm").join("config.toml")
     }
-}
 
-/// Read a project config, treating a missing file as defaults.
-///
-/// # Errors
-/// [`ConfigLoadingError`] if the file is present but unreadable or malformed.
-async fn load_project_config(path: &Path) -> Result<ProjectConfig, ConfigLoadingError> {
-    match tokio::fs::read_to_string(path).await {
-        Ok(contents) => Ok(toml::from_str(&contents)?),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(ProjectConfig::default()),
-        Err(e) => Err(e.into()),
+    /// Walk up from `start` to the first directory containing `.hm/`.
+    ///
+    /// Returns the directory *containing* `.hm/`, or `None` at the filesystem
+    /// root.
+    fn find_root(start: &Path) -> Option<PathBuf> {
+        let mut current = start;
+        loop {
+            if current.join(".hm").is_dir() {
+                return Some(current.to_path_buf());
+            }
+            current = current.parent()?;
+        }
+    }
+
+    /// Read a project config, treating a missing file as defaults.
+    async fn load_config(path: &Path) -> Result<ProjectConfig, ConfigLoadingError> {
+        match tokio::fs::read_to_string(path).await {
+            Ok(contents) => Ok(toml::from_str(&contents)?),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(ProjectConfig::default()),
+            Err(e) => Err(e.into()),
+        }
     }
 }
 
@@ -123,13 +117,16 @@ mod tests {
         std::fs::create_dir(tmp.path().join(".hm")).unwrap();
         let nested = tmp.path().join("src").join("deep");
         std::fs::create_dir_all(&nested).unwrap();
-        assert_eq!(find_project_root(&nested), Some(tmp.path().to_path_buf()));
+        assert_eq!(
+            ProjectContext::find_root(&nested),
+            Some(tmp.path().to_path_buf())
+        );
     }
 
     #[rstest]
     fn find_project_root_none_when_absent() {
         let tmp = tempfile::tempdir().unwrap();
-        assert_eq!(find_project_root(tmp.path()), None);
+        assert_eq!(ProjectContext::find_root(tmp.path()), None);
     }
 
     #[rstest]
