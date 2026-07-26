@@ -1132,7 +1132,6 @@ dependencies = [
  "hm-plugin-cloud",
  "hm-plugin-protocol",
  "hm-render",
- "hm-util",
  "hm-vm",
  "human-units",
  "indicatif",
@@ -1259,6 +1258,7 @@ dependencies = [
  "bstr",
  "chrono",
  "derive_more",
+ "dirs",
  "include_dir",
  "num-traits",
  "proptest",
@@ -1272,6 +1272,7 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width",
  "which",
+ "windows",
 ]
 
 [[package]]
@@ -1281,7 +1282,7 @@ dependencies = [
  "anyhow",
  "derive_more",
  "figment",
- "hm-util",
+ "hm-common",
  "rstest",
  "serde",
  "tempfile",
@@ -1321,7 +1322,6 @@ dependencies = [
  "hm-common",
  "hm-pipeline-ir",
  "hm-plugin-protocol",
- "hm-util",
  "hm-vm",
  "human-units",
  "ignore",
@@ -1405,19 +1405,6 @@ dependencies = [
  "tracing-indicatif",
  "unicode-width",
  "uuid",
-]
-
-[[package]]
-name = "hm-util"
-version = "0.0.0-dev"
-dependencies = [
- "anyhow",
- "dirs",
- "rstest",
- "tempfile",
- "tokio",
- "tracing",
- "windows",
 ]
 
 [[package]]

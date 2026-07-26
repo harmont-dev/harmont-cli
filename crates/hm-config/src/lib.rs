@@ -119,7 +119,7 @@ impl Config {
     ///
     /// Returns an error if the platform config directory cannot be determined.
     pub fn user_config_path() -> Result<PathBuf> {
-        let dir = hm_util::dirs::hm_config_dir().context("could not determine config directory")?;
+        let dir = hm_common::dirs::hm_config_dir().context("could not determine config directory")?;
         Ok(dir.join("config.toml"))
     }
 
@@ -179,11 +179,10 @@ impl Config {
     /// Returns an error if TOML serialization fails or the atomic write fails.
     pub fn save_to(&self, path: &Path) -> Result<()> {
         let serialized = toml::to_string_pretty(self).context("serializing config")?;
-        hm_util::os::fs::blocking::write_atomic_restricted(
+        hm_common::fs::blocking::write_atomic(
             path,
             serialized.as_bytes(),
-            hm_util::os::fs::FileMode(0o644),
-            hm_util::os::fs::DirMode(0o700),
+            hm_common::fs::Privacy::Public,
         )
         .with_context(|| format!("writing {}", path.display()))
     }

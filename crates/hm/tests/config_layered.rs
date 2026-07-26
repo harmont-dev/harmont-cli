@@ -85,7 +85,7 @@ fn load_resolves_project_root() {
     )
     .unwrap();
 
-    let found = hm_util::dirs::find_project_root(project_dir.path());
+    let found = hm_common::dirs::find_project_root(project_dir.path());
     assert_eq!(found, Some(project_dir.path().to_path_buf()));
 
     let config_path = harmont_cli::config::Config::project_config_path(project_dir.path());

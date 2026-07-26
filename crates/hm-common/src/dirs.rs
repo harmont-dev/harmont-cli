@@ -4,7 +4,7 @@
 //! under an XDG-correct root: configuration in `~/.config/hm/`, regenerable
 //! cache in `~/.cache/hm/`. Raw platform primitives (`home_dir`, `config_dir`,
 //! `cache_dir`) live in `os::dirs` and are **not** re-exported — callers
-//! outside `hm-util` should never need them.
+//! outside `hm-common` should never need them.
 
 #![allow(clippy::must_use_candidate)]
 

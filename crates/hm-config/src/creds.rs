@@ -1,8 +1,7 @@
 //! File-backed credential store at `~/.config/hm/credentials.toml`.
 //!
-//! The file is written with mode 0o600 (parent dir 0o700) via
-//! [`hm_util::os::fs::blocking::write_atomic_restricted`], keyed by
-//! `(service, account)`.
+//! The file is written with [`Privacy::Private`] (0o600, parent dir 0o700)
+//! via [`hm_common::fs::blocking::write_atomic`], keyed by `(service, account)`.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -16,7 +15,7 @@ struct CredentialFile {
 }
 
 fn path() -> Result<PathBuf> {
-    let dir = hm_util::dirs::hm_config_dir().context("could not determine config directory")?;
+    let dir = hm_common::dirs::hm_config_dir().context("could not determine config directory")?;
     Ok(dir.join("credentials.toml"))
 }
 
@@ -33,11 +32,10 @@ fn load() -> CredentialFile {
 fn save(file: &CredentialFile) -> Result<()> {
     let p = path()?;
     let serialized = toml::to_string_pretty(file).context("serializing credentials")?;
-    hm_util::os::fs::blocking::write_atomic_restricted(
+    hm_common::fs::blocking::write_atomic(
         &p,
         serialized.as_bytes(),
-        hm_util::os::fs::FileMode(0o600),
-        hm_util::os::fs::DirMode(0o700),
+        hm_common::fs::Privacy::Private,
     )
     .with_context(|| format!("writing {}", p.display()))?;
     Ok(())

@@ -7,7 +7,7 @@ repository.workspace = true
 description = "Layered (project/user/env) configuration + credential storage for the hm CLI."
 
 [dependencies]
-hm-util = { workspace = true }
+hm-common = { workspace = true }
 derive_more = { workspace = true }
 figment = { workspace = true }
 serde = { workspace = true }

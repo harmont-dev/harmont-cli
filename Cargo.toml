@@ -6,7 +6,6 @@ members = [
     "crates/hm-config",
     "crates/hm-plugin-protocol",
     "crates/hm-pipeline-ir",
-    "crates/hm-util",
     "crates/hm-plugin-cloud",
     "crates/hm-dsl-engine",
     "crates/hm-render",
@@ -19,7 +18,6 @@ default-members = [
     "crates/hm-config",
     "crates/hm-plugin-protocol",
     "crates/hm-pipeline-ir",
-    "crates/hm-util",
     "crates/hm-plugin-cloud",
     "crates/hm-dsl-engine",
     "crates/hm-render",
@@ -37,7 +35,6 @@ hm-exec           = { path = "crates/hm-exec",            version = "0.0.0-dev" 
 hm-plugin-protocol = { path = "crates/hm-plugin-protocol", version = "0.0.0-dev" }
 hm-plugin-cloud    = { path = "crates/hm-plugin-cloud",    version = "0.0.0-dev" }
 hm-pipeline-ir     = { path = "crates/hm-pipeline-ir",     version = "0.0.0-dev" }
-hm-util            = { path = "crates/hm-util",            version = "0.0.0-dev" }
 hm-config          = { path = "crates/hm-config",          version = "0.0.0-dev" }
 hm-dsl-engine      = { path = "crates/hm-dsl-engine",     version = "0.0.0-dev" }
 hm-render          = { path = "crates/hm-render",          version = "0.0.0-dev" }
