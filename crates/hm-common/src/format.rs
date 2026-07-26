@@ -5,11 +5,13 @@ use core::time::Duration;
 
 mod sealed {
     pub trait Sealed {}
-    impl Sealed for core::time::Duration {}
+    impl<T: Into<core::time::Duration>> Sealed for T {}
 }
 
-/// Extension trait adding a compact, stopwatch-style [`Display`] rendering to
-/// [`std::time::Duration`].
+/// Adds a compact, stopwatch-style [`Display`] rendering to any duration.
+///
+/// Implemented for any type convertible into a [`std::time::Duration`] —
+/// including [`Duration`] itself and newtypes like `hm_pipeline_ir::DurationMs`.
 ///
 /// ```
 /// # use hm_common::format::CompactDuration;
@@ -21,10 +23,11 @@ pub trait CompactDuration: sealed::Sealed {
     fn compact(self) -> StopwatchDurationDisplay;
 }
 
-impl CompactDuration for Duration {
+impl<T: Into<Duration>> CompactDuration for T {
     fn compact(self) -> StopwatchDurationDisplay {
+        let d: Duration = self.into();
         StopwatchDurationDisplay {
-            total_ms: u64::try_from(self.as_millis()).unwrap_or(u64::MAX),
+            total_ms: u64::try_from(d.as_millis()).unwrap_or(u64::MAX),
         }
     }
 }

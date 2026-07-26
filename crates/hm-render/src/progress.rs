@@ -10,7 +10,6 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
-use std::time::Duration;
 
 use hm_plugin_protocol::ir::DurationMs;
 
@@ -156,7 +155,7 @@ impl<W: Write> ProgressRenderer<W> {
                 Some(StepOutcome::Succeeded { duration_ms }) => (
                     styled("✓", Style::new().green(), self.color),
                     styled(
-                        &Duration::from(*duration_ms).compact().to_string(),
+                        &duration_ms.compact().to_string(),
                         Style::new().dimmed(),
                         self.color,
                     ),
@@ -169,7 +168,7 @@ impl<W: Write> ProgressRenderer<W> {
                     styled(
                         &format!(
                             "{}  exit {exit_code}",
-                            Duration::from(*duration_ms).compact()
+                            duration_ms.compact()
                         ),
                         Style::new().red(),
                         self.color,
@@ -180,7 +179,7 @@ impl<W: Write> ProgressRenderer<W> {
                     styled(
                         &format!(
                             "{}  cancelled",
-                            Duration::from(*duration_ms).compact()
+                            duration_ms.compact()
                         ),
                         Style::new().dimmed(),
                         self.color,
@@ -306,7 +305,7 @@ where
                     }
                 } else if let Some(span) = self.step_spans.get(step_id) {
                     let name = self.step_names.get(step_id).map_or("?", String::as_str);
-                    let dur = Duration::from(*duration_ms).compact();
+                    let dur = duration_ms.compact();
                     span.pb_set_style(&completed_style(self.color));
                     span.pb_set_message(&format!("{name}  ({dur})"));
                 }
@@ -351,7 +350,7 @@ where
 
                 if *exit_code != 0 {
                     self.print_failure_report();
-                    let dur = Duration::from(*duration_ms).compact();
+                    let dur = duration_ms.compact();
                     let msg = format!("✗ Build failed in {dur}");
                     let _ = writeln!(
                         self.out,
@@ -359,7 +358,7 @@ where
                         styled(&msg, Style::new().red().bold(), self.color)
                     );
                 } else {
-                    let dur = Duration::from(*duration_ms).compact();
+                    let dur = duration_ms.compact();
                     let msg = format!("✓ Build succeeded in {dur}");
                     let _ = writeln!(
                         self.out,
