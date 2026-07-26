@@ -35,10 +35,6 @@ use crate::error::{ErrorCategory, HmError};
 /// unreachable, the local daemon is down, or the pipeline fails to render.
 #[allow(clippy::too_many_lines)] // thin top-level driver: linear, no good split point
 pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
-    // `hm run` needs the build toolchain (git + python3). Resolve it once up
-    // front, failing fast with a clear error when anything is missing.
-    AppRuntime::init().context("resolving the build toolchain")?;
-
     // 1. Resolve the backend name: explicit --backend > legacy --cloud alias >
     //    config.backend (figment-layered default "docker").
     let backend_name = args
