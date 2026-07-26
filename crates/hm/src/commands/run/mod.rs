@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 
 use bstr::ByteSlice as _;
 use hm_common::app_runtime::AppRuntime;
-use hm_common::git::Git;
 use hm_dsl_engine::{DslEngine, detect};
 use human_units::FormatSize as _;
 
@@ -130,10 +129,32 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         );
     }
 
-    // 7. Assemble the run request.
+    // 7. Assemble the run request. Read branch, commit, and repo name from git
+    // in one borrow of `repo_root` (best-effort; an explicit `--branch` wins,
+    // and missing values fall back to `HEAD` / the zero SHA). The block yields
+    // owned strings so `repo_root` is free to move into the request below.
     let git = AppRuntime::git();
-    let (branch, commit) = git_metadata(git, &repo_root, args.branch.clone());
-    let repo_name = git_remote_repo_name(git, &repo_root);
+    let (branch, commit, repo_name) = {
+        let repo = git.repo(&repo_root).ok();
+        let head = repo.as_ref().and_then(hm_common::git::GitRepo::current_branch);
+        let branch = args
+            .branch
+            .clone()
+            .or_else(|| head.as_ref().map(|b| b.name().to_str_lossy().into_owned()))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "HEAD".to_string());
+        let commit = head
+            .as_ref()
+            .and_then(hm_common::git::GitBranch::head_commit)
+            .map(|c| c.to_str_lossy().into_owned())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "0".repeat(40));
+        let repo_name = repo
+            .as_ref()
+            .and_then(|r| r.remote("origin")?.gh_repo_name())
+            .map(|n| n.to_str_lossy().into_owned());
+        (branch, commit, repo_name)
+    };
     let mut req = hm_exec::RunRequest {
         plan,
         repo_root,
@@ -162,7 +183,20 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         if let Some(slug) = ctx.config.cloud.pipeline.clone() {
             req.cloud_pipeline_slug = Some(slug);
         } else if req.source.repo_name.is_none() {
-            let default_branch = git_default_branch(git, &req.repo_root)
+            // Default branch from `origin/HEAD`; falls back to the run's branch
+            // when unset (fresh clones without `git remote set-head`).
+            let default_branch = git
+                .repo(&req.repo_root)
+                .ok()
+                .and_then(|r| {
+                    Some(
+                        r.remote("origin")?
+                            .default_branch()?
+                            .name()
+                            .to_str_lossy()
+                            .into_owned(),
+                    )
+                })
                 .unwrap_or_else(|| req.source.branch.clone());
             let slug = register_remoteless_pipeline(
                 client,
@@ -183,9 +217,24 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         client,
         org,
         repo_name: req.source.repo_name.clone(),
-        repository: git_remote_url(git, &req.repo_root),
+        // The pipeline's `repository`: the worktree's `origin` remote URL.
+        repository: git.repo(&req.repo_root).ok().and_then(|r| {
+            let url = r.remote("origin")?.url().to_str_lossy().into_owned();
+            (!url.is_empty()).then_some(url)
+        }),
         name: req.pipeline_slug.clone(),
-        default_branch: git_default_branch(git, &req.repo_root)
+        default_branch: git
+            .repo(&req.repo_root)
+            .ok()
+            .and_then(|r| {
+                Some(
+                    r.remote("origin")?
+                        .default_branch()?
+                        .name()
+                        .to_str_lossy()
+                        .into_owned(),
+                )
+            })
             .unwrap_or_else(|| req.source.branch.clone()),
     });
 
@@ -240,50 +289,6 @@ fn parse_env(pairs: &[String]) -> HashMap<String, String> {
                 .map(|(k, v)| (k.to_string(), v.to_string()))
         })
         .collect()
-}
-
-/// Resolve `(branch, commit)` from git at `root`, best-effort. An explicit
-/// `branch_override` wins; missing values fall back to `HEAD` / the zero SHA.
-fn git_metadata(
-    git: Git<'_>,
-    root: &std::path::Path,
-    branch_override: Option<String>,
-) -> (String, String) {
-    let repo = git.repo(root).ok();
-    let head = repo.as_ref().and_then(|r| r.current_branch());
-    let branch = branch_override
-        .or_else(|| head.as_ref().map(|b| b.name().to_str_lossy().into_owned()))
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "HEAD".to_string());
-    let commit = head
-        .as_ref()
-        .and_then(|b| b.head_commit())
-        .map(|c| c.to_str_lossy().into_owned())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "0".repeat(40));
-    (branch, commit)
-}
-
-/// The worktree's `origin` remote URL (the pipeline's `repository`).
-fn git_remote_url(git: Git<'_>, root: &std::path::Path) -> Option<String> {
-    let repo = git.repo(root).ok()?;
-    let url = repo.remote("origin")?.url().to_str_lossy().into_owned();
-    (!url.is_empty()).then_some(url)
-}
-
-/// The repo's default branch, from `origin/HEAD`. `None` when `origin/HEAD`
-/// isn't set (common on fresh clones without `git remote set-head`).
-fn git_default_branch(git: Git<'_>, root: &std::path::Path) -> Option<String> {
-    let repo = git.repo(root).ok()?;
-    let branch = repo.remote("origin")?.default_branch()?;
-    Some(branch.name().to_str_lossy().into_owned())
-}
-
-/// Best-effort `owner/repo` from the worktree's `origin` remote.
-fn git_remote_repo_name(git: Git<'_>, root: &std::path::Path) -> Option<String> {
-    let repo = git.repo(root).ok()?;
-    let name = repo.remote("origin")?.gh_repo_name()?;
-    Some(name.to_str_lossy().into_owned())
 }
 
 /// Resolve repo root, detect the DSL, select the pipeline slug, and render
@@ -701,14 +706,6 @@ mod tests {
         assert_eq!(m.get("A").unwrap(), "1");
         assert_eq!(m.get("B").unwrap(), "x=y");
         assert!(!m.contains_key("bad"));
-    }
-
-    #[rstest]
-    fn git_metadata_falls_back_outside_repo() {
-        let git = Git::new(std::path::Path::new("git"));
-        let (b, c) = git_metadata(git, std::path::Path::new("/"), None);
-        assert!(!b.is_empty() && !c.is_empty());
-        assert_eq!(c.len(), 40); // zero-sha fallback
     }
 
     #[rstest]
