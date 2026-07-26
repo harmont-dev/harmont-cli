@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use hm_common::app_runtime::AppRuntime;
+use hm_common::sys_runtime::SysRuntime;
 use hm_common::process::CapturedStreams as _;
 use tracing::debug;
 
@@ -63,8 +63,8 @@ print(json.dumps(match['definition']))
 pub struct SubprocessPythonEngine;
 
 impl SubprocessPythonEngine {
-    /// Create the engine. It runs `python3` through [`AppRuntime::python`], so
-    /// [`AppRuntime::init`] must have been called first.
+    /// Create the engine. It runs `python3` through [`SysRuntime::python`], so
+    /// [`SysRuntime::init`] must have been called first.
     #[must_use]
     pub const fn new() -> Self {
         Self
@@ -80,7 +80,7 @@ impl SubprocessPythonEngine {
         let harmont_pkg = tmp.path().join("harmont");
         bundled_sources::extract_to(&bundled_sources::HARMONT_PY, &harmont_pkg)?;
 
-        let mut py = AppRuntime::python().program(script);
+        let mut py = SysRuntime::python().program(script);
         py.args(extra_args).current_dir(project_dir);
         py.pythonpath(tmp.path());
 

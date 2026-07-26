@@ -1,7 +1,7 @@
 //! Harmont common utilities shared across the `hm` workspace.
 
-#[cfg(feature = "app-runtime")]
-pub mod app_runtime;
+#[cfg(feature = "sys-runtime")]
+pub mod sys_runtime;
 pub mod dir_provider;
 pub mod dirs;
 pub mod format;

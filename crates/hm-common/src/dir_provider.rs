@@ -1,22 +1,19 @@
-//! Platform user directories, resolved once and read as borrowed paths.
+//! Platform user directories.
 //!
-//! [`DirProvider`] resolves the operating system's per-user directory roots a
-//! single time at construction and hands them out as `&Path`, so consumers
-//! neither re-resolve the platform roots per call nor allocate to read one. It
-//! is deliberately application-agnostic: it knows nothing of Harmont's own
-//! `hm/` subdirectory — callers join that (and any file name) onto these roots.
+//! Exposes the operating system's per-user directory roots. Application-
+//! agnostic: it knows nothing of Harmont's own `hm/` subdirectory — callers
+//! join that (and any file name) onto these roots.
 //!
-//! On non-Windows we intentionally hardcode `~/.config` and `~/.cache` rather
-//! than honoring `$XDG_CONFIG_HOME` / `$XDG_CACHE_HOME`: it keeps our paths
-//! predictable and the two roots consistent. Revisit only if honoring the XDG
-//! env vars becomes a real need.
+//! On non-Windows the roots are `~/.config` and `~/.cache`; the `$XDG_*` env
+//! vars are intentionally not honored, keeping paths predictable.
 
 use std::path::{Path, PathBuf};
 
-/// The platform per-user directory roots, resolved once at construction.
+/// The platform per-user directory roots, resolved once at construction and
+/// read as borrowed paths.
 ///
 /// Build with [`DirProvider::new`], then read the `&Path` accessors. Attach a
-/// process-wide instance to the app runtime and reach it via its `dirs()`
+/// process-wide instance to the system runtime and reach it via its `dirs()`
 /// accessor instead of reconstructing one per call.
 #[derive(Debug, Clone)]
 pub struct DirProvider {
@@ -27,9 +24,8 @@ pub struct DirProvider {
 impl DirProvider {
     /// Resolve the platform directory roots, once.
     ///
-    /// On non-Windows the roots are `~/.config` and `~/.cache` (the `$XDG_*`
-    /// env vars are intentionally ignored). Returns `None` if a root cannot be
-    /// determined — e.g. there is no home directory.
+    /// Returns `None` if a root cannot be determined — e.g. there is no home
+    /// directory.
     #[must_use]
     pub fn new() -> Option<Self> {
         #[cfg(windows)]

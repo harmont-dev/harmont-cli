@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 
 use bstr::ByteSlice as _;
-use hm_common::app_runtime::AppRuntime;
+use hm_common::sys_runtime::SysRuntime;
 use hm_common::git::{GitBranch, GitRemote, GitRepo};
 use hm_dsl_engine::{DslEngine, detect};
 use human_units::FormatSize as _;
@@ -137,7 +137,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // strings so `repo_root` can move into the request, and the cloud paths
     // below reuse `remote_url` / `default_branch` instead of re-shelling to git.
     let (branch, commit, repo_name, remote_url, default_branch) = {
-        let git = AppRuntime::git();
+        let git = SysRuntime::git();
         let repo = git.repo(&repo_root).ok();
         let head = repo.as_ref().and_then(GitRepo::current_branch);
         let remote = repo.as_ref().and_then(|r| r.remote("origin"));
@@ -296,7 +296,7 @@ async fn render_pipeline(
 ) -> Result<(std::path::PathBuf, String, String)> {
     let repo_root = match args.dir.clone() {
         Some(p) => p,
-        None => AppRuntime::cwd().to_path_buf(),
+        None => SysRuntime::cwd().to_path_buf(),
     };
 
     detect::check_python(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;

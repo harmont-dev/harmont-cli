@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 path = "src/lib.rs"
 
 [features]
-app-runtime = []
+sys-runtime = []
 
 [dependencies]
 anyhow      = { workspace = true }
