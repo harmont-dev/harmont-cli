@@ -58,6 +58,7 @@ uuid        = { version = "1", features = ["serde", "v4"] }
 chrono      = { version = "0.4", features = ["serde"] }
 thiserror   = "2"
 human-units = "0.5.4"
+num-traits  = "0.2"
 derive_more = { version = "1", default-features = false, features = ["full"] }
 smart-default = "0.7"
 tokio       = { version = "1", features = ["full"] }

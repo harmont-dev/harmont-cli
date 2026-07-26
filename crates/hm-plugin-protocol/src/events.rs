@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::executor::SnapshotRef;
+use crate::ir::DurationMs;
 
 #[derive(
     Debug,
@@ -73,7 +74,7 @@ pub enum BuildEvent {
     StepEnd {
         step_id: Uuid,
         exit_code: i32,
-        duration_ms: u64,
+        duration_ms: DurationMs,
         snapshot: Option<SnapshotRef>,
     },
     /// Emitted when any step in a chain returns non-zero. Carries the
@@ -90,7 +91,7 @@ pub enum BuildEvent {
     },
     BuildEnd {
         exit_code: i32,
-        duration_ms: u64,
+        duration_ms: DurationMs,
     },
 }
 

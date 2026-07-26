@@ -1257,8 +1257,10 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "derive_more",
  "include_dir",
+ "num-traits",
  "proptest",
  "rstest",
  "serde",
@@ -1340,6 +1342,7 @@ name = "hm-pipeline-ir"
 version = "0.0.0-dev"
 dependencies = [
  "daggy",
+ "derive_more",
  "insta",
  "rstest",
  "schemars 0.8.22",
@@ -1426,6 +1429,7 @@ dependencies = [
  "bollard",
  "derive_more",
  "futures",
+ "hm-common",
  "rstest",
  "rusqlite",
  "tar",

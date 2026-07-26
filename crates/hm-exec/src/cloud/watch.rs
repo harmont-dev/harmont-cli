@@ -18,6 +18,8 @@ use harmont_cloud::{
     logs::{LogEvent, StreamKind},
     models::{HarmontJob, OpenJobState, build_is_terminal, job_is_terminal},
 };
+use hm_common::time::DateTimeExt as _;
+use hm_pipeline_ir::DurationMs;
 use hm_plugin_protocol::events::{BuildEvent, PlanSummary, StdStream};
 use uuid::Uuid;
 
@@ -43,22 +45,26 @@ impl Drop for AbortGuard {
 
 /// Convert a unix-nanosecond timestamp to a UTC datetime, falling back to
 /// "now" when absent or out of range.
+// TODO(delete on harmont-cloud >=0.3): band-aid for an untyped SDK field. This
+// exists only because the cloud client hands us a raw `i64` nanosecond count.
+// WHEN the SDK types the field as `DateTime<Utc>` (OpenAPI `format: date-time`
+// on a chrono-enabled generator) and the dep is bumped, this helper is dead.
+// HOW: delete it and use the already-typed value directly. Do NOT hoist to
+// hm-common — it is an SDK adapter, not a reusable utility. See `parse_rfc3339`.
 pub(crate) fn ts_or_now(ts_unix_ns: Option<i64>) -> DateTime<Utc> {
     ts_unix_ns.map_or_else(Utc::now, DateTime::<Utc>::from_timestamp_nanos)
-}
-
-/// Duration between two optional timestamps, in milliseconds (0 if either is
-/// missing or the interval is negative).
-fn duration_ms(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> u64 {
-    match (start, end) {
-        (Some(s), Some(e)) => (e - s).num_milliseconds().max(0).cast_unsigned(),
-        _ => 0,
-    }
 }
 
 /// Parse an optional RFC 3339 timestamp string (the form the v1 API serializes
 /// `started_at` / `finished_at` as) into a UTC datetime, dropping unparseable
 /// or absent values to `None`.
+// TODO(delete on harmont-cloud >=0.3): band-aid for an untyped SDK field.
+// `HarmontJob.started_at`/`finished_at` arrive as `Option<String>` only because
+// the cloud OpenAPI spec omits `format: date-time`. WHEN the SDK is regenerated
+// with typed timestamps and the dep is bumped, this parse (and the
+// `.with_timezone(&Utc)` normalize) is dead. HOW: delete it; callers read
+// `job.started_at` (already `DateTime<Utc>`) directly. Do NOT hoist to
+// hm-common — it is an SDK adapter, not a reusable utility.
 fn parse_rfc3339(ts: Option<&str>) -> Option<DateTime<Utc>> {
     ts.and_then(|s| DateTime::parse_from_rfc3339(s).ok())
         .map(|dt| dt.with_timezone(&Utc))
@@ -206,7 +212,7 @@ pub async fn watch_build(
                 // late-starting) stream begins. A re-mint failure is
                 // non-fatal: fall back to the existing token and let
                 // `stream_one` surface a notice if the server rejects it.
-                if log_token.expires_at - Utc::now() < TOKEN_REFRESH_MARGIN {
+                if log_token.expires_at.time_from_now() < TOKEN_REFRESH_MARGIN {
                     match client.log_token(org, pipeline, number).await {
                         Ok(fresh) => log_token = fresh,
                         Err(e) => tracing::warn!("log-token refresh failed: {e}"),
@@ -260,8 +266,7 @@ pub async fn watch_build(
     let _ = tx
         .send(BuildEvent::BuildEnd {
             exit_code: code,
-            // Saturate at u64::MAX (~584 million years) rather than panic.
-            duration_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            duration_ms: DurationMs::from(started.elapsed()),
         })
         .await;
     Ok(code)
@@ -276,13 +281,19 @@ fn step_end(job: &HarmontJob, step_id: Uuid) -> BuildEvent {
         .exit_code
         // Saturate exit codes outside [i32::MIN, i32::MAX] rather than panic.
         .map_or_else(|| i32::from(!passed), |c| i32::try_from(c).unwrap_or(1));
+    // Duration between the job's recorded start/finish timestamps, in
+    // milliseconds (0 if either is missing or the interval is negative).
+    // finished − started, clamped to zero for a negative or partial interval.
+    // `TimeDelta::to_std` errors on a negative delta, so `.ok()` drops those;
+    // `DurationMs::from` is the single Duration→ms conversion.
+    let duration_ms = parse_rfc3339(job.started_at.as_deref())
+        .zip(parse_rfc3339(job.finished_at.as_deref()))
+        .and_then(|(s, e)| (e - s).to_std().ok())
+        .map_or(DurationMs(0), DurationMs::from);
     BuildEvent::StepEnd {
         step_id,
         exit_code,
-        duration_ms: duration_ms(
-            parse_rfc3339(job.started_at.as_deref()),
-            parse_rfc3339(job.finished_at.as_deref()),
-        ),
+        duration_ms,
         snapshot: None,
     }
 }

@@ -10,7 +10,8 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
-use std::time::Duration;
+
+use hm_plugin_protocol::ir::DurationMs;
 
 use hm_common::format::CompactDuration as _;
 use hm_common::string::{AlignExt as _, Alignment, EscapeNonPrintablePosixExt as _, Measure};
@@ -77,9 +78,16 @@ fn failed_style(color: bool) -> ProgressStyle {
 /// `Vec<u8>` while production code writes to `std::io::Stderr`.
 #[derive(Debug)]
 pub(crate) enum StepOutcome {
-    Succeeded { duration_ms: u64 },
-    Failed { duration_ms: u64, exit_code: i32 },
-    Cancelled { duration_ms: u64 },
+    Succeeded {
+        duration_ms: DurationMs,
+    },
+    Failed {
+        duration_ms: DurationMs,
+        exit_code: i32,
+    },
+    Cancelled {
+        duration_ms: DurationMs,
+    },
     Cached,
 }
 
@@ -160,7 +168,7 @@ impl<W: Write> ProgressRenderer<W> {
                 Some(StepOutcome::Succeeded { duration_ms }) => (
                     styled("✓", Style::new().green(), self.color),
                     styled(
-                        &Duration::from_millis(*duration_ms).compact().to_string(),
+                        &duration_ms.compact().to_string(),
                         Style::new().dimmed(),
                         self.color,
                     ),
@@ -171,10 +179,7 @@ impl<W: Write> ProgressRenderer<W> {
                 }) => (
                     styled("✗", Style::new().red(), self.color),
                     styled(
-                        &format!(
-                            "{}  exit {exit_code}",
-                            Duration::from_millis(*duration_ms).compact()
-                        ),
+                        &format!("{}  exit {exit_code}", duration_ms.compact()),
                         Style::new().red(),
                         self.color,
                     ),
@@ -182,10 +187,7 @@ impl<W: Write> ProgressRenderer<W> {
                 Some(StepOutcome::Cancelled { duration_ms }) => (
                     styled("-", Style::new().dimmed(), self.color),
                     styled(
-                        &format!(
-                            "{}  cancelled",
-                            Duration::from_millis(*duration_ms).compact()
-                        ),
+                        &format!("{}  cancelled", duration_ms.compact()),
                         Style::new().dimmed(),
                         self.color,
                     ),
@@ -311,7 +313,7 @@ where
                     }
                 } else if let Some(span) = self.step_spans.get(step_id) {
                     let name = self.step_names.get(step_id).map_or("?", String::as_str);
-                    let dur = Duration::from_millis(*duration_ms).compact();
+                    let dur = duration_ms.compact();
                     span.pb_set_style(&completed_style(self.color));
                     span.pb_set_message(&format!("{name}  ({dur})"));
                 }
@@ -356,7 +358,7 @@ where
 
                 if *exit_code != 0 {
                     self.print_failure_report();
-                    let dur = Duration::from_millis(*duration_ms).compact();
+                    let dur = duration_ms.compact();
                     let msg = format!("✗ Build failed in {dur}");
                     let _ = writeln!(
                         self.out,
@@ -364,7 +366,7 @@ where
                         styled(&msg, Style::new().red().bold(), self.color)
                     );
                 } else {
-                    let dur = Duration::from_millis(*duration_ms).compact();
+                    let dur = duration_ms.compact();
                     let msg = format!("✓ Build succeeded in {dur}");
                     let _ = writeln!(
                         self.out,
@@ -459,13 +461,13 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id,
             exit_code: 1,
-            duration_ms: 500,
+            duration_ms: DurationMs(500),
             snapshot: None,
         });
 
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 1,
-            duration_ms: 600,
+            duration_ms: DurationMs(600),
         });
 
         let s = output(&r);
@@ -499,12 +501,12 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id,
             exit_code: 1,
-            duration_ms: 10,
+            duration_ms: DurationMs(10),
             snapshot: None,
         });
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 1,
-            duration_ms: 20,
+            duration_ms: DurationMs(20),
         });
 
         let s = output(&r);
@@ -538,13 +540,13 @@ mod tests {
             r.on_event(&BuildEvent::StepEnd {
                 step_id: id,
                 exit_code: 0,
-                duration_ms: 1,
+                duration_ms: DurationMs(1),
                 snapshot: None,
             });
         }
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 5,
+            duration_ms: DurationMs(5),
         });
 
         // The narrow "ab" (2 cols) is padded to the 4-col width of "世界", so it
@@ -593,13 +595,13 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id,
             exit_code: 0,
-            duration_ms: 200,
+            duration_ms: DurationMs(200),
             snapshot: None,
         });
 
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 250,
+            duration_ms: DurationMs(250),
         });
 
         assert!(
@@ -676,7 +678,7 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id,
             exit_code: 1,
-            duration_ms: 500,
+            duration_ms: DurationMs(500),
             snapshot: None,
         });
 
@@ -714,7 +716,7 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id: s1,
             exit_code: 0,
-            duration_ms: 200,
+            duration_ms: DurationMs(200),
             snapshot: None,
         });
         r.on_event(&BuildEvent::StepQueued {
@@ -727,12 +729,12 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id: s2,
             exit_code: 1,
-            duration_ms: 300,
+            duration_ms: DurationMs(300),
             snapshot: None,
         });
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 1,
-            duration_ms: 600,
+            duration_ms: DurationMs(600),
         });
 
         let s = output(&r);
@@ -771,12 +773,12 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id: s1,
             exit_code: 0,
-            duration_ms: 100,
+            duration_ms: DurationMs(100),
             snapshot: None,
         });
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 150,
+            duration_ms: DurationMs(150),
         });
 
         let s = output(&r);

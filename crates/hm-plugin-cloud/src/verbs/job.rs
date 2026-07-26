@@ -6,6 +6,7 @@ use anyhow::Result;
 use chrono::Utc;
 use harmont_cloud::HarmontClient;
 use hm_plugin_protocol::events::{BuildEvent, PlanSummary};
+use hm_plugin_protocol::ir::DurationMs;
 use uuid::Uuid;
 
 use crate::cli::JobCommand;
@@ -117,14 +118,14 @@ async fn log_cmd(
         .send(BuildEvent::StepEnd {
             step_id: job_id,
             exit_code: 0,
-            duration_ms: 0,
+            duration_ms: DurationMs(0),
             snapshot: None,
         })
         .await;
     let _ = tx
         .send(BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 0,
+            duration_ms: DurationMs(0),
         })
         .await;
     let _ = driver.await;

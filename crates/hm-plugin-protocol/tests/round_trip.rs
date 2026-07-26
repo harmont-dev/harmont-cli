@@ -11,6 +11,7 @@
     reason = "serde round-trip tests: helpers unwrap and assert on JSON"
 )]
 
+use hm_plugin_protocol::ir::DurationMs;
 use hm_plugin_protocol::*;
 use rstest::rstest;
 use uuid::Uuid;
@@ -86,7 +87,7 @@ fn executor_input_round_trip() {
 #[case::step_end(BuildEvent::StepEnd {
     step_id: Uuid::nil(),
     exit_code: 0,
-    duration_ms: 1,
+    duration_ms: DurationMs(1),
     snapshot: None,
 })]
 #[case::chain_failed(BuildEvent::ChainFailed {
@@ -99,7 +100,7 @@ fn executor_input_round_trip() {
 })]
 #[case::build_end(BuildEvent::BuildEnd {
     exit_code: 0,
-    duration_ms: 2,
+    duration_ms: DurationMs(2),
 })]
 fn build_event_round_trips(#[case] event: BuildEvent) {
     rt(&event);
