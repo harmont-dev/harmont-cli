@@ -1,14 +1,26 @@
 //! A wire-friendly duration scalar.
 
-use std::fmt;
 use std::time::Duration;
 
 use schemars::JsonSchema as DeriveJsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A duration in whole milliseconds, carried on the wire as a bare JSON number.
+///
+/// `Display` renders the bare millisecond count (no unit suffix), matching the
+/// wire form.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, DeriveJsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    DeriveJsonSchema,
+    derive_more::Display,
 )]
 #[serde(transparent)]
 pub struct DurationMs(pub u64);
@@ -18,12 +30,6 @@ impl DurationMs {
     #[must_use]
     pub const fn get(self) -> u64 {
         self.0
-    }
-
-    /// Rebuild a [`Duration`] for computation or display.
-    #[must_use]
-    pub const fn as_duration(self) -> Duration {
-        Duration::from_millis(self.0)
     }
 }
 
@@ -36,10 +42,10 @@ impl From<Duration> for DurationMs {
     }
 }
 
-impl fmt::Display for DurationMs {
-    /// The bare millisecond count (no unit suffix), matching the wire form.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+impl From<DurationMs> for Duration {
+    /// Exact: a millisecond count always widens losslessly into a [`Duration`].
+    fn from(d: DurationMs) -> Self {
+        Self::from_millis(d.0)
     }
 }
 
@@ -66,9 +72,9 @@ mod tests {
     }
 
     #[rstest]
-    fn as_duration_round_trips() {
+    fn converts_to_duration_losslessly() {
         let d = DurationMs(1_234);
-        assert_eq!(d.as_duration(), Duration::from_millis(1_234));
+        assert_eq!(Duration::from(d), Duration::from_millis(1_234));
     }
 
     #[rstest]
