@@ -90,11 +90,17 @@ impl CredsProvider {
         (!stored.is_empty()).then(|| SecretString::from(stored.to_owned()))
     }
 
-    /// Remove the stored token.
+    /// Remove the stored token. A missing token is a no-op.
     ///
-    /// Best-effort: a missing file or a removal failure is ignored.
-    pub async fn clear(&self) {
-        let _ = tokio::fs::remove_file(self.token_file()).await;
+    /// # Errors
+    /// The underlying [`std::io::Error`] if the token file exists but cannot be
+    /// removed.
+    pub async fn clear(&self) -> std::io::Result<()> {
+        match tokio::fs::remove_file(self.token_file()).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -114,7 +120,9 @@ mod tests {
         assert!(creds.get().await.is_none());
         creds.set("hunter2").await;
         assert_eq!(creds.get().await.unwrap().expose_secret(), "hunter2");
-        creds.clear().await;
+        creds.clear().await.unwrap();
         assert!(creds.get().await.is_none());
+        // Clearing an already-absent token is a no-op, not an error.
+        creds.clear().await.unwrap();
     }
 }
