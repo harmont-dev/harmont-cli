@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use hm_common::process::{CapturedStreams as _, pathbin};
-use hm_common::python::Python;
+use hm_common::app_runtime::AppRuntime;
+use hm_common::process::CapturedStreams as _;
 use tracing::debug;
 
 use crate::bundled_sources;
@@ -59,20 +59,15 @@ if match is None:
 print(json.dumps(match['definition']))
 ";
 
-#[derive(Debug)]
-pub struct SubprocessPythonEngine {
-    python_bin: PathBuf,
-}
+#[derive(Debug, Default)]
+pub struct SubprocessPythonEngine;
 
 impl SubprocessPythonEngine {
-    /// Create engine, verifying `python3` is available on PATH.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `python3` is not found on `PATH`.
-    pub fn new() -> Result<Self> {
-        let python_bin = pathbin("python3").context("install Python 3.11+")?;
-        Ok(Self { python_bin })
+    /// Create the engine. It runs `python3` through [`AppRuntime::python`], so
+    /// [`AppRuntime::init`] must have been called first.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
     }
 
     async fn run_script(
@@ -85,7 +80,7 @@ impl SubprocessPythonEngine {
         let harmont_pkg = tmp.path().join("harmont");
         bundled_sources::extract_to(&bundled_sources::HARMONT_PY, &harmont_pkg)?;
 
-        let mut py = Python::new(&self.python_bin).program(script);
+        let mut py = AppRuntime::python().program(script);
         py.args(extra_args).current_dir(project_dir);
         py.pythonpath(tmp.path());
 
@@ -121,13 +116,9 @@ impl DslEngine for SubprocessPythonEngine {
     }
 }
 
-/// Instanciates a python engine.
-/// Shorthand for [`SubprocessPythonEngine`].
-///
-/// # Errors
-///
-/// Returns an error if `python3` is not found on `PATH`.
+/// Instantiates a python engine. Shorthand for [`SubprocessPythonEngine::new`].
 #[inline]
-pub fn engine() -> Result<SubprocessPythonEngine> {
+#[must_use]
+pub const fn engine() -> SubprocessPythonEngine {
     SubprocessPythonEngine::new()
 }

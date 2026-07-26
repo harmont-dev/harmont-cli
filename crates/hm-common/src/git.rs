@@ -21,7 +21,7 @@ pub struct Git<'bin> {
 }
 
 impl<'bin> Git<'bin> {
-    /// Wrap a `git` executable, typically `AppRuntime::bins().git()`.
+    /// Wrap a `git` executable, typically via `AppRuntime::git()`.
     #[must_use]
     pub const fn new(bin: &'bin Path) -> Self {
         Self { bin }

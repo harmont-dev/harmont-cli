@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use crate::git::Git;
-use crate::process::{ExecutableNotFound, SystemBins};
+use crate::process::{ExecutableNotFound, pathbin};
 use crate::python::Python;
 
 /// Failure to initialize the [`AppRuntime`].
@@ -18,13 +18,18 @@ pub enum InitError {
     Cwd(#[source] std::io::Error),
 }
 
+// TODO: This is a process-wide singleton (a global `OnceLock`), which is
+// convenient but couples every caller to hidden global state. Consider
+// threading an explicit `AppRuntime` handle through the application instead,
+// so dependencies are visible in signatures and tests can inject their own.
 /// Process-wide runtime context, resolved once at startup.
 ///
 /// Install it with [`init`](Self::init), then read it from anywhere through the
 /// associated accessors — no threading required.
 #[derive(Debug)]
 pub struct AppRuntime {
-    bins: SystemBins,
+    git: PathBuf,
+    python3: PathBuf,
     cwd: PathBuf,
 }
 
@@ -46,7 +51,8 @@ impl AppRuntime {
 
     fn resolve() -> Result<Self, InitError> {
         Ok(Self {
-            bins: SystemBins::resolve()?,
+            git: pathbin("git")?,
+            python3: pathbin("python3")?,
             cwd: std::env::current_dir().map_err(InitError::Cwd)?,
         })
     }
@@ -59,15 +65,6 @@ impl AppRuntime {
         RUNTIME
             .get()
             .expect("AppRuntime::init must be called before the runtime is accessed")
-    }
-
-    /// The resolved system executables.
-    ///
-    /// # Panics
-    /// If [`init`](Self::init) has not been called.
-    #[must_use]
-    pub fn bins() -> &'static SystemBins {
-        &Self::get().bins
     }
 
     /// The absolute working directory captured at initialization.
@@ -85,7 +82,7 @@ impl AppRuntime {
     /// If [`init`](Self::init) has not been called.
     #[must_use]
     pub fn git() -> Git<'static> {
-        Git::new(Self::bins().git())
+        Git::new(&Self::get().git)
     }
 
     /// The system `python3`, bound to a [`Python`] handle.
@@ -94,7 +91,7 @@ impl AppRuntime {
     /// If [`init`](Self::init) has not been called.
     #[must_use]
     pub fn python() -> Python<'static> {
-        Python::new(Self::bins().python3())
+        Python::new(&Self::get().python3)
     }
 }
 
@@ -106,7 +103,6 @@ impl AppRuntime {
 )]
 mod tests {
     use super::*;
-    use crate::process::pathbin;
     use rstest::rstest;
 
     #[rstest]
@@ -134,7 +130,6 @@ mod tests {
         }
         AppRuntime::init().unwrap();
         assert!(AppRuntime::cwd().is_absolute());
-        assert!(AppRuntime::bins().git().is_absolute());
         // git() binds the resolved git; a fresh temp dir is not a repo.
         let dir = tempfile::tempdir().unwrap();
         assert!(AppRuntime::git().repo(dir.path()).is_err());

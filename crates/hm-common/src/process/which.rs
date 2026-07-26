@@ -1,7 +1,7 @@
 //! Locating executables on `PATH`.
 
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The requested program was not found on `PATH`.
 #[derive(Debug, thiserror::Error)]
@@ -19,35 +19,6 @@ pub fn pathbin(program: impl AsRef<OsStr>) -> Result<PathBuf, ExecutableNotFound
     which::which(program).map_err(|_| ExecutableNotFound {
         program: program.to_string_lossy().into_owned(),
     })
-}
-
-/// The external executables Harmont shells out to, resolved from `PATH`.
-#[derive(Debug, Clone)]
-pub struct SystemBins {
-    python3: PathBuf,
-    git: PathBuf,
-}
-
-impl SystemBins {
-    /// Resolve the toolchain from `PATH`.
-    pub fn resolve() -> Result<Self, ExecutableNotFound> {
-        Ok(Self {
-            python3: pathbin("python3")?,
-            git: pathbin("git")?,
-        })
-    }
-
-    /// Path to `python3`.
-    #[must_use]
-    pub fn python3(&self) -> &Path {
-        &self.python3
-    }
-
-    /// Path to `git`.
-    #[must_use]
-    pub fn git(&self) -> &Path {
-        &self.git
-    }
 }
 
 #[cfg(test)]
@@ -76,23 +47,5 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("hm-common-no-such-binary-xyz"), "program: {msg}");
         assert!(msg.contains("not found on PATH"), "phrasing: {msg}");
-    }
-
-    #[rstest]
-    fn resolve_succeeds_when_python3_and_git_present() {
-        assert_eq!(
-            SystemBins::resolve().is_ok(),
-            pathbin("python3").is_ok() && pathbin("git").is_ok()
-        );
-    }
-
-    #[rstest]
-    fn system_bins_exposes_paths() {
-        let bins = SystemBins {
-            python3: PathBuf::from("/opt/python3"),
-            git: PathBuf::from("/opt/git"),
-        };
-        assert_eq!(bins.python3(), Path::new("/opt/python3"));
-        assert_eq!(bins.git(), Path::new("/opt/git"));
     }
 }

@@ -39,7 +39,7 @@ pub async fn run(args: PipelinesArgs) -> Result<()> {
     }
 
     detect::check_python(&repo_root).context("detecting pipeline language")?;
-    let engine = python_engine().context("initializing DSL engine")?;
+    let engine = python_engine();
     let json = engine
         .registry_json(&repo_root)
         .await
