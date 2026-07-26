@@ -10,6 +10,7 @@ description = "Local VM/container backends (Docker) that run hm pipeline steps o
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
+hm-common = { workspace = true }
 tracing = { workspace = true }
 derive_more = { workspace = true }
 

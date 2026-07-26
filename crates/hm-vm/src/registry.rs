@@ -7,11 +7,12 @@
 
 use std::num::NonZeroU64;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use std::sync::Mutex;
 
 use anyhow::Result;
+use hm_common::time::DurationExt as _;
 use rusqlite::Connection;
 
 use crate::types::SnapshotId;
@@ -30,16 +31,6 @@ pub struct ImageRegistry {
     #[debug(skip)]
     conn: Mutex<Connection>,
     capacity: NonZeroU64,
-}
-
-/// Returns the current Unix epoch in seconds.
-fn epoch_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        .try_into()
-        .unwrap_or(i64::MAX)
 }
 
 impl ImageRegistry {
@@ -84,7 +75,7 @@ impl ImageRegistry {
     /// Returns `None` if no entry exists for `key`.
     #[must_use]
     pub fn get(&self, key: &str) -> Option<SnapshotId> {
-        let now = epoch_secs();
+        let now = Duration::now_epoch_secs_i64();
         let conn = self.conn.lock().ok()?;
 
         let snapshot: Option<String> = conn
@@ -112,7 +103,7 @@ impl ImageRegistry {
     /// within its configured capacity. The caller is responsible for cleaning
     /// up the backend resources associated with evicted snapshots.
     pub fn put(&self, key: &str, snapshot: &SnapshotId) -> Vec<SnapshotId> {
-        let now = epoch_secs();
+        let now = Duration::now_epoch_secs_i64();
 
         let Ok(conn) = self.conn.lock() else {
             return Vec::new();
