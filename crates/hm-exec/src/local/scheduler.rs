@@ -391,9 +391,6 @@ async fn execute_step(
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
-        // Cap the command at 40 display columns, eliding the tail with `…`.
-        // `ellipsize` measures display width (double-width glyphs count as two)
-        // and cuts on grapheme boundaries, so no byte-boundary panics.
         step_wire
             .cmd
             .trim()
