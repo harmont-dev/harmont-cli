@@ -58,15 +58,14 @@ impl ResolvedProjectConfig {
                 repo: proj.repo.clone(),
                 default_pipeline: proj.default_pipeline.clone(),
             }),
-            None => match user_cloud {
-                None => BackendConfig::Docker,
-                Some(cloud) => BackendConfig::Cloud(ResolvedCloudConfig {
+            None => user_cloud.map_or(BackendConfig::Docker, |cloud| {
+                BackendConfig::Cloud(ResolvedCloudConfig {
                     domain: cloud.domain.clone().unwrap_or_default(),
                     org: cloud.org.clone(),
                     repo: None,
                     default_pipeline: None,
-                }),
-            },
+                })
+            }),
         };
 
         Self { backend }

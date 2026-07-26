@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 /// accessor instead of reconstructing one per call.
 #[derive(Debug, Clone)]
 pub struct DirProvider {
+    home: PathBuf,
     config: PathBuf,
     cache: PathBuf,
 }
@@ -28,15 +29,23 @@ impl DirProvider {
     /// directory.
     #[must_use]
     pub fn new() -> Option<Self> {
+        let home = dirs::home_dir()?;
         #[cfg(windows)]
         let (config, cache) = (dirs::config_dir()?, dirs::cache_dir()?);
         #[cfg(not(windows))]
-        let (config, cache) = {
-            let home = dirs::home_dir()?;
-            (home.join(".config"), home.join(".cache"))
-        };
+        let (config, cache) = (home.join(".config"), home.join(".cache"));
 
-        Some(Self { config, cache })
+        Some(Self {
+            home,
+            config,
+            cache,
+        })
+    }
+
+    /// The user home directory.
+    #[must_use]
+    pub fn home(&self) -> &Path {
+        &self.home
     }
 
     /// The user configuration root (`~/.config` on non-Windows).
