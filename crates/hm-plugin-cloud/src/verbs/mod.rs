@@ -1,6 +1,5 @@
 //! Verb implementations for `hm cloud <subcommand>`. Each module
-//! exposes a `run(env, cmd)` entry point that `cli::dispatch` calls
-//! after argv has been parsed.
+//! exposes a `run(env, cmd)` entry point.
 
 pub(crate) mod billing;
 pub(crate) mod build;

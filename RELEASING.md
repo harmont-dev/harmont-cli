@@ -51,7 +51,7 @@ hm-util → hm-pipeline-ir → hm-config → hm-plugin-protocol → hm-render
 
 `harmont-cli` (the `hm` binary) depends on every other crate, so they
 must all reach crates.io first — including `hm-vm`, which carries the
-local Docker backend. `hm-fixtures` is test-only and not published.
+local Docker backend.
 
 ### Prerequisites (one-time)
 

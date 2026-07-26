@@ -1,6 +1,5 @@
 //! End-to-end: a failing pipeline step routes through `BuildEvent::ChainFailed`
-//! and both output plugins render it. See plan task B5 in
-//! docs/superpowers/plans/2026-05-19-pr22-followups.md.
+//! and both output renderers render it.
 
 #![allow(
     clippy::unwrap_used,
@@ -38,7 +37,7 @@ fn human_format_renders_chain_failure_to_stderr() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    // The human plugin renders ChainFailed via:
+    // The human renderer renders ChainFailed via:
     //   "chain {chain_idx}: FAILED at step '{failed_step_key}' (exit={exit_code}): {message}\n"
     // The step's `key` is the slugified label, so `label="oops"` => key="oops".
     assert!(

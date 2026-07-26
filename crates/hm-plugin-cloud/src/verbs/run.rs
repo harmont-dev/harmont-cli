@@ -4,8 +4,8 @@
 //! This is the minimal, file-based path: the caller supplies a pre-rendered v0
 //! IR plan via `--plan-file` (or `plan.json` by convention) and **no source
 //! archive** is uploaded. The full local-worktree flow — rendering the DSL and
-//! archiving the working tree — is implemented by `hm run --cloud` (plan task
-//! E2), which lives in the `hm` crate where the renderer and archiver are.
+//! archiving the working tree — is implemented by `hm run --cloud`, which
+//! lives in the `hm` crate where the renderer and archiver are.
 
 use std::collections::BTreeMap;
 
@@ -59,7 +59,7 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, args: RunArgs) -> Result
             commit: args.commit.clone(),
             message: args.message.clone(),
             pipeline_ir,
-            // Full worktree archiving lands in `hm run --cloud` (task E2).
+            // Full worktree archiving lands in `hm run --cloud`.
             source_tgz: Vec::new(),
             env: env
                 .iter()

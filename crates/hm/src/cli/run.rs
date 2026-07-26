@@ -42,8 +42,7 @@ pub struct RunArgs {
     #[arg(short = 'k', long)]
     pub keep_going: bool,
 
-    /// Output formatter (matches an installed output-formatter plugin
-    /// `name`). Built-ins: `human`, `json`. Default: `human`.
+    /// Output format. One of `human` or `json`. Default: `human`.
     #[arg(long, value_name = "NAME", default_value = "human", global = false)]
     pub format: String,
 

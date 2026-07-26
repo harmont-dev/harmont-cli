@@ -8,10 +8,9 @@ use hm_render::OutputMode;
 
 /// Runtime context that bundles resolved config and output preferences.
 ///
-/// After the plan-4 cloud-plugin cutover this is intentionally thin:
-/// API client, credential store, and active-org resolution moved into
-/// `hm-plugin-cloud`. The host context retains the config file (for
-/// future use) and the output mode.
+/// Deliberately thin: the API client, credential store, and active-org
+/// resolution live in `hm-plugin-cloud`. This context carries only the
+/// resolved config and output mode.
 #[derive(Debug)]
 pub struct RunContext {
     pub config: Config,

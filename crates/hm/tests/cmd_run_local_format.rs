@@ -1,5 +1,5 @@
 //! End-to-end: `hm run --local --format <name>` exercises both
-//! output plugins against a real Docker daemon.
+//! output renderers against a real Docker daemon.
 
 #![allow(
     clippy::unwrap_used,

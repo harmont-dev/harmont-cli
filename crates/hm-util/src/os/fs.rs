@@ -2,8 +2,7 @@
 //!
 //! The main entry point is [`write_atomic_restricted`]. A synchronous
 //! wrapper is available at [`blocking::write_atomic_restricted`] for
-//! callers that run inside a tokio runtime but cannot use async
-//! (e.g. extism `host_fn` callbacks).
+//! callers that run inside a tokio runtime but cannot use async.
 //!
 //! Both guarantee that readers observe either the full old contents or
 //! the full new contents — never a truncated file — and that Unix
@@ -202,7 +201,7 @@ async fn write_file_with_mode(path: &Path, contents: &[u8], mode: u32) -> io::Re
 
 /// Synchronous wrappers that shell out to the async API via
 /// `tokio::task::block_in_place`. Safe to call from sync contexts
-/// that run inside a tokio runtime (e.g. extism `host_fn` callbacks).
+/// that run inside a tokio runtime.
 pub mod blocking {
     use super::{DirMode, FileMode};
     use std::io;

@@ -1,6 +1,5 @@
-//! JSON-lines [`OutputRenderer`] — replaces the former
-//! `hm-plugin-output-json` WASM plugin. Serialises each
-//! [`BuildEvent`] as a single JSON line.
+//! JSON-lines [`OutputRenderer`]: serialises each [`BuildEvent`] as a
+//! single JSON line.
 
 use std::fmt;
 use std::io::Write;

@@ -57,7 +57,7 @@ jobs:
           sed -i "s|hm-render          = { path = \"crates/hm-render\",          version = \"0.0.0-dev\" }|hm-render          = { path = \"crates/hm-render\",          version = \"$VERSION\" }|" Cargo.toml
           sed -i "s|hm-vm              = { path = \"crates/hm-vm\",              version = \"0.0.0-dev\" }|hm-vm              = { path = \"crates/hm-vm\",              version = \"$VERSION\" }|" Cargo.toml
 
-          cargo check --workspace --exclude hm-fixtures
+          cargo check --workspace
 
       - name: Publishability guard (dry-run package the whole graph)
         # Fail fast before any real `cargo publish` if the dependency graph
@@ -68,7 +68,7 @@ jobs:
         # would fail), so it catches exactly the publish=false / unpublished-dep
         # class of regression. `--no-verify` skips the per-crate rebuild;
         # `cargo check --workspace` above already proved it compiles.
-        run: cargo package --workspace --exclude hm-fixtures --allow-dirty --no-verify
+        run: cargo package --workspace --allow-dirty --no-verify
 
       - name: Publish hm-util
         run: |

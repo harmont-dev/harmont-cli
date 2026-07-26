@@ -1,6 +1,5 @@
-//! Human-readable [`OutputRenderer`] — replaces the former
-//! `hm-plugin-output-human` WASM plugin with a plain struct that
-//! writes formatted lines to any [`std::io::Write`] target.
+//! Human-readable [`OutputRenderer`]: writes formatted lines to any
+//! [`std::io::Write`] target.
 
 use std::collections::HashMap;
 use std::fmt;

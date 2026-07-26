@@ -70,14 +70,14 @@ expression: schema
       ]
     },
     "runner": {
-      "description": "Step-executor plugin name. `None` falls back to the default runner (Docker in the shipped configuration).",
+      "description": "Step-executor (runner) name. `None` falls back to the default runner (Docker in the shipped configuration).",
       "type": [
         "string",
         "null"
       ]
     },
     "runner_args": {
-      "description": "Plugin-specific extra fields passed verbatim to the runner."
+      "description": "Runner-specific extra fields passed verbatim to the runner."
     }
   },
   "definitions": {

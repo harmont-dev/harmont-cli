@@ -8,6 +8,15 @@ use harmont_cloud::HarmontClient;
 use crate::cli::BillingCommand;
 use crate::settings;
 
+/// Convert an integer cent amount to dollars for display.
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "display-only; cent magnitudes stay far below the f64 mantissa limit"
+)]
+fn cents_to_dollars(cents: i64) -> f64 {
+    cents as f64 / 100.0
+}
+
 pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: BillingCommand) -> Result<()> {
     let (client, ctx) = settings::client()?;
     let org = ctx.org()?;
@@ -33,7 +42,7 @@ async fn balance(client: &HarmontClient, org: &str) -> Result<()> {
         .await
         .map_err(settings::map_raw)?
         .into_inner();
-    let dollars = b.balance_cents as f64 / 100.0;
+    let dollars = cents_to_dollars(b.balance_cents);
     tracing::info!("${dollars:.2}");
     Ok(())
 }
@@ -84,7 +93,7 @@ async fn usage(
         u.cpu_seconds,
         u.memory_gb_seconds,
         u.disk_gb_seconds,
-        u.total_cents as f64 / 100.0
+        cents_to_dollars(u.total_cents)
     );
     Ok(())
 }
@@ -122,7 +131,7 @@ async fn redeem(client: &HarmontClient, org: &str, code: &str) -> Result<()> {
         .await
         .map_err(settings::map_raw)?
         .into_inner();
-    let dollars = r.credit_cents as f64 / 100.0;
+    let dollars = cents_to_dollars(r.credit_cents);
     tracing::info!("credited ${dollars:.2}");
     Ok(())
 }

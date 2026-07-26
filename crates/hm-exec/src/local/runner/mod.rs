@@ -1,8 +1,7 @@
 //! Static runner interface.
 //!
-//! This module replaces the old WASM plugin system with a static DI
-//! approach. Step executors implement [`StepRunner`]. A [`RunnerRegistry`]
-//! maps runner names to concrete implementations at startup.
+//! Step executors implement [`StepRunner`]; a [`RunnerRegistry`] maps
+//! runner names to concrete implementations at startup.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -21,9 +20,7 @@ pub mod vm;
 
 /// Shared context threaded into every runner invocation.
 ///
-/// Replaces the monolithic `OrchestratorState` that the old plugin
-/// system passed as opaque host memory. All fields are cheaply
-/// cloneable (`Arc` / `CancellationToken`).
+/// All fields are cheaply cloneable (`Arc` / `CancellationToken`).
 #[derive(Clone, Debug)]
 pub struct StepContext {
     pub event_bus: Arc<EventBus>,

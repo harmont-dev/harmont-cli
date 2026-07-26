@@ -1,25 +1,12 @@
-//! Build-time events. Produced by the orchestrator (host) and fanned
-//! out to output formatters, lifecycle hooks, and (via the host
-//! re-broadcast of `hm_emit_step_log`) any subscriber.
+//! Build-time events produced by the orchestrator and consumed by renderers.
 
 use chrono::{DateTime, Utc};
-use schemars::JsonSchema as DeriveJsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::executor::SnapshotRef;
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    DeriveJsonSchema,
-    derive_more::IsVariant,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StdStream {
     Stdout,
@@ -27,7 +14,7 @@ pub enum StdStream {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant,
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::IsVariant,
 )]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
@@ -37,8 +24,8 @@ pub enum BuildEvent {
         plan: PlanSummary,
         started_at: DateTime<Utc>,
     },
-    /// Emitted once, early, when the build has an identity. Replaces the
-    /// ad-hoc "Build #N submitted" log line. `watch_url` is `Some` for cloud.
+    /// Emitted once, early, when the build first has an identity.
+    /// `watch_url` is `Some` for cloud builds.
     BuildAccepted {
         build: BuildRef,
         watch_url: Option<String>,
@@ -77,7 +64,7 @@ pub enum BuildEvent {
         snapshot: Option<SnapshotRef>,
     },
     /// Emitted when any step in a chain returns non-zero. Carries the
-    /// failing step's identity so output plugins can render a precise
+    /// failing step's identity so renderers can show a precise
     /// diagnostic. Distinct from `StepEnd` (per-step) and `BuildEnd`
     /// (per-run).
     ChainFailed {
@@ -96,7 +83,7 @@ pub enum BuildEvent {
 
 /// Stable identity for a build, shared by `BuildAccepted` and `hm_exec::BuildOutcome`.
 /// Local builds have a `run_id` only; cloud builds also have `number`/`org`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildRef {
     pub run_id: Uuid,
     pub number: Option<i64>,
@@ -105,8 +92,8 @@ pub struct BuildRef {
 }
 
 /// Compact summary of the resolved IR included in `BuildStart`. Lets
-/// output formatters print a header without needing the full pipeline.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+/// renderers print a header without needing the full pipeline.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanSummary {
     pub step_count: usize,
     pub chain_count: usize,

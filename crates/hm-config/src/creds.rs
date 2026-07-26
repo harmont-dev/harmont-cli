@@ -1,8 +1,8 @@
 //! File-backed credential store at `~/.config/hm/credentials.toml`.
 //!
-//! Replaces the OS keyring as the sole backend. The file is written with
-//! mode 0o600 (parent dir 0o700) via [`hm_util::os::fs::blocking::write_atomic_restricted`].
-//! Keyed by `(service, account)` to match the host-fn ABI plugins use.
+//! The file is written with mode 0o600 (parent dir 0o700) via
+//! [`hm_util::os::fs::blocking::write_atomic_restricted`], keyed by
+//! `(service, account)`.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -50,8 +50,7 @@ pub fn get(service: &str, account: &str) -> Option<String> {
     load().entries.get(service)?.get(account).cloned()
 }
 
-/// Write a credential. Silently no-ops on I/O failure so plugin callers
-/// match the prior keyring-backed best-effort semantics.
+/// Write a credential. Silently no-ops on I/O failure (best-effort).
 pub fn set(service: &str, account: &str, secret: &str) {
     let mut f = load();
     f.entries

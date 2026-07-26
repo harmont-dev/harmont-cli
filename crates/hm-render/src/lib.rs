@@ -1,4 +1,4 @@
-//! Build-event renderers shared by the `hm` CLI and the cloud plugin.
+//! Build-event renderers shared by the `hm` CLI and `hm-plugin-cloud`.
 //!
 //! This crate owns the output layer: the [`OutputRenderer`] trait, the
 //! [`OutputMode`] selection enum, and the concrete renderers
@@ -14,8 +14,8 @@ use hm_plugin_protocol::BuildEvent;
 /// Whether ANSI color should be used: honors an explicit no-color flag,
 /// the `NO_COLOR` env convention, and whether stderr is a TTY.
 ///
-/// Single source of truth for the color rule, shared by the `hm` host
-/// context and the cloud plugin's render preferences.
+/// Single source of truth for the color rule, shared by the `hm` run
+/// context and `hm-plugin-cloud`'s render preferences.
 #[must_use]
 pub fn color_enabled(no_color_flag: bool) -> bool {
     !no_color_flag && std::env::var_os("NO_COLOR").is_none() && std::io::stderr().is_terminal()

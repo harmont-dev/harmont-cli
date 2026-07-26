@@ -1,15 +1,14 @@
-//! Wire types passed to and returned by step-executor plugins.
+//! Wire types passed to and returned by the step executor.
 
 use std::collections::BTreeMap;
 
-use schemars::JsonSchema as DeriveJsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::ir::CommandStep;
 
-/// Opaque archive handle. The plugin streams bytes via
-/// `hm_archive_read(id, offset, max)`.
+/// Opaque handle to a registered workspace archive. The holder reads the
+/// bytes back by id; the contents are never inspected through this handle.
 #[derive(
     Debug,
     Clone,
@@ -19,17 +18,14 @@ use crate::ir::CommandStep;
     Hash,
     Serialize,
     Deserialize,
-    DeriveJsonSchema,
     derive_more::From,
-    derive_more::Deref,
     derive_more::Display,
 )]
 #[serde(transparent)]
 pub struct ArchiveId(pub Uuid);
 
-/// Opaque snapshot reference. For the docker plugin this is an image
-/// tag; other plugins are free to encode their own format. The host
-/// never inspects the contents.
+/// Snapshot reference whose format is chosen by the runner (for the
+/// Docker runner, an image tag).
 #[derive(
     Debug,
     Clone,
@@ -38,15 +34,13 @@ pub struct ArchiveId(pub Uuid);
     Hash,
     Serialize,
     Deserialize,
-    DeriveJsonSchema,
     derive_more::From,
-    derive_more::Deref,
     derive_more::Display,
 )]
 #[serde(transparent)]
 pub struct SnapshotRef(pub String);
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactRef {
     pub key: String,
     pub mime: String,
@@ -55,9 +49,7 @@ pub struct ArtifactRef {
 
 /// Host-decided cache outcome. The executor honours this; it does
 /// not re-decide.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema, derive_more::IsVariant,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CacheDecision {
     /// Boot from `tag`; skip running `cmd`.
@@ -69,7 +61,7 @@ pub enum CacheDecision {
     MissNoCommit,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutorInput {
     pub step: CommandStep,
@@ -91,7 +83,7 @@ pub struct ExecutorInput {
     pub parent_snapshot: Option<SnapshotRef>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StepResult {
     pub exit_code: i32,
     /// `Some(tag)` when the executor wrote a snapshot for this step

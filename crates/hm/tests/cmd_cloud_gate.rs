@@ -1,5 +1,5 @@
-//! Integration tests proving that `hm cloud` is wired to the real plugin
-//! (the old waitlist gate has been removed).
+//! Integration tests: any authenticated `hm cloud` verb fails fast with
+//! an auth-required error when no token is present.
 
 #![allow(clippy::unwrap_used, reason = "test setup and assertions")]
 
@@ -9,9 +9,8 @@ use predicates::str::contains;
 use rstest::rstest;
 
 /// Any authenticated verb must fail fast with an auth-required error when
-/// no token is present.  The command must NOT succeed (proving the gate is
-/// gone and the plugin is reached), and the error message must tell the
-/// user exactly how to fix it.
+/// no token is present. The command must NOT succeed, and the error
+/// message must tell the user exactly how to fix it.
 ///
 /// Hermetic: `HOME` is overridden to a fresh temp dir (no
 /// `~/.config/hm/credentials.toml`) and `HM_API_TOKEN` is explicitly

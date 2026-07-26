@@ -43,7 +43,7 @@ impl ResolvedCtx {
 ///
 /// Returns an error if config can't be loaded or no token is available.
 pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?; // user + env layering
+    let cfg = hm_config::Config::load(None).context("loading config")?;
     let api = cfg.cloud.api_url.clone();
     let token = hm_config::creds::cloud_token(&api)
         .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
@@ -64,7 +64,7 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
 /// Returns an error if config can't be loaded.
 pub fn anon_client() -> Result<(HarmontClient, String)> {
     let cfg = hm_config::Config::load(None).context("loading config")?;
-    let api = cfg.cloud.api_url.clone();
+    let api = cfg.cloud.api_url;
     Ok((HarmontClient::anonymous(&api), api))
 }
 
@@ -75,10 +75,6 @@ pub fn anon_client() -> Result<(HarmontClient, String)> {
 #[derive(Debug, Clone, Copy)]
 pub struct RenderPrefs {
     /// ANSI enabled when `NO_COLOR` is unset and stderr is a TTY.
-    ///
-    /// The plugin verbs have no `--no-color` flag, so we pass `false` for the
-    /// flag; the `--no-color` asymmetry vs. the host `hm run` path is explicit
-    /// here at the call site.
     pub color: bool,
     /// Force the streaming `HumanRenderer` over the live `ProgressRenderer`.
     ///
@@ -88,11 +84,7 @@ pub struct RenderPrefs {
 }
 
 impl RenderPrefs {
-    /// Detect render preferences from the live environment via `hm-render`'s
-    /// shared TTY/color helpers — the single source of truth, also used by
-    /// `hm/src/context.rs`. This inspects `NO_COLOR` and the stdout/stderr
-    /// TTY state at call time, so it is a deliberate observation of the
-    /// environment rather than a constant default.
+    /// Detect render preferences from the current `NO_COLOR` and TTY state.
     #[must_use]
     pub fn detect() -> Self {
         Self {
@@ -102,10 +94,14 @@ impl RenderPrefs {
     }
 }
 
-/// Map a raw generated-client error into an `anyhow` error with a readable
-/// message. The raw `Error<E>` renders the server's error body (status,
-/// headers, decoded value) via its `Display` impl, which holds for any
-/// `E: Debug` — true of the generated `types::Error` body.
+/// Map a raw generated-client error into a readable `anyhow` error.
+///
+/// The server's error body (status, headers, decoded value) is rendered
+/// via the raw `Error<E>`'s `Display` impl.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "by-value signature lets this be used directly as `.map_err(map_raw)`"
+)]
 pub fn map_raw<E: std::fmt::Debug>(e: harmont_cloud_raw::Error<E>) -> anyhow::Error {
     anyhow::anyhow!("{e}")
 }

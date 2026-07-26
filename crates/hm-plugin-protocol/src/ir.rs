@@ -1,5 +1,4 @@
-//! Re-exports from `hm_pipeline_ir`. The canonical definitions now
-//! live in the `hm-pipeline-ir` crate; this module keeps the
-//! `hm_plugin_protocol::ir::*` import path working.
+//! Pipeline IR types re-exported from `hm_pipeline_ir`, so the wire types
+//! in this crate and their consumers share a single definition.
 
 pub use hm_pipeline_ir::{Cache, CommandStep};

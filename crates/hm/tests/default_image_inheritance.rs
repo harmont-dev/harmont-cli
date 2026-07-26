@@ -1,5 +1,5 @@
 //! Regression test: root steps with no per-step `image` must inherit
-//! the pipeline's `default_image`. Without this, the docker plugin's
+//! the pipeline's `default_image`. Without this, the docker runner's
 //! `resolve_image` falls back to `alpine:latest` and any apt-get
 //! command in a ubuntu-targeted example dies with
 //! `sh: apt-get: not found`.

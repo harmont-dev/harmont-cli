@@ -3,21 +3,16 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::Subcommand;
 
 use crate::{auth, verbs};
 
 /// Process exit status for the cloud subcommands.
-///
-/// Centralizes the otherwise-magic 0/1/2 integers so each status is
-/// self-documenting and the mapping lives in exactly one place.
 enum ExitCode {
     /// The command completed successfully.
     Success,
     /// The command ran but failed at runtime.
     RuntimeError,
-    /// The arguments could not be parsed.
-    UsageError,
 }
 
 impl From<ExitCode> for i32 {
@@ -25,20 +20,8 @@ impl From<ExitCode> for i32 {
         match code {
             ExitCode::Success => 0,
             ExitCode::RuntimeError => 1,
-            ExitCode::UsageError => 2,
         }
     }
-}
-
-#[derive(Debug, Parser)]
-#[command(
-    name = "hm cloud",
-    about = "Talk to the Harmont cloud API",
-    disable_help_subcommand = true
-)]
-struct CloudCli {
-    #[command(subcommand)]
-    command: CloudCommand,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -169,40 +152,12 @@ pub enum BillingCommand {
     Redeem { code: String },
 }
 
-/// Dispatch from raw argv (used if calling from an external-subcommand
-/// pattern). Returns an exit code.
-pub async fn dispatch(argv: Vec<String>, env: BTreeMap<String, String>) -> Result<i32> {
-    let mut full: Vec<String> = vec!["hm cloud".to_string()];
-    full.extend(argv.into_iter().skip(1));
-    let parsed = match CloudCli::try_parse_from(&full) {
-        Ok(p) => p,
-        Err(e) => {
-            use clap::error::ErrorKind;
-            let msg = e.to_string();
-            return match e.kind() {
-                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
-                    #[allow(clippy::print_stdout)]
-                    {
-                        use std::io::Write;
-                        std::io::stdout().write_all(msg.as_bytes()).ok();
-                    }
-                    Ok(ExitCode::Success.into())
-                }
-                _ => {
-                    #[allow(clippy::print_stderr)]
-                    {
-                        use std::io::Write;
-                        std::io::stderr().write_all(msg.as_bytes()).ok();
-                    }
-                    Ok(ExitCode::UsageError.into())
-                }
-            };
-        }
-    };
-    dispatch_command(parsed.command, env).await
-}
-
-/// Dispatch from a pre-parsed `CloudCommand`. Returns an exit code.
+/// Dispatch a parsed `CloudCommand`, returning its process exit code.
+///
+/// # Errors
+///
+/// Returns an error only if dispatch itself fails; a verb's own runtime
+/// failure is logged and mapped to a non-zero exit code.
 pub async fn dispatch_command(command: CloudCommand, env: BTreeMap<String, String>) -> Result<i32> {
     let result = match command {
         CloudCommand::Login { paste } => auth::login::run(&env, paste).await,

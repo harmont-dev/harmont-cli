@@ -83,7 +83,7 @@ async fn login_loopback(client: &HarmontClient, app: &str) -> Result<String> {
         }
     };
     // Give the browser up to 3 minutes to complete sign-in and redirect.
-    let _ = tokio::time::timeout(Duration::from_secs(180), accept).await;
+    let _ = tokio::time::timeout(Duration::from_mins(3), accept).await;
 
     // Poll the claim endpoint. The SPA parks the token under our nonce; until
     // then the endpoint returns 400 `cli_code_invalid`, which we retry.
@@ -92,7 +92,7 @@ async fn login_loopback(client: &HarmontClient, app: &str) -> Result<String> {
 
 /// Poll `claim_token` until the token is parked or the ~60s window elapses.
 async fn poll_claim(client: &HarmontClient, nonce: &str) -> Result<String> {
-    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    let deadline = std::time::Instant::now() + Duration::from_mins(1);
     loop {
         match client.claim_token(nonce).await {
             Ok(token) => return Ok(token),

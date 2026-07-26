@@ -1,9 +1,7 @@
 //! Build-event broadcast channel.
 //!
-//! Subscribers (output formatter plugin, lifecycle hook plugins,
-//! the human-readable progress sink) all subscribe to the same
-//! channel; the host's `emit_event` / `emit_step_log` host fns
-//! publish into it.
+//! Subscribers (the output renderers and progress sink) subscribe to the
+//! same channel; runners and the scheduler publish [`BuildEvent`]s into it.
 
 // `new()` returning `Arc<Self>` is intentional (the bus is always
 // shared); `subscribe()` returns a tokio receiver that callers must
@@ -39,7 +37,7 @@ impl EventBus {
     /// received it. A return of 0 is normal (no subscribers yet).
     pub fn emit(&self, event: BuildEvent) {
         // We intentionally drop the error: zero-subscriber sends are
-        // not interesting and we don't want host_fn impls to fail
+        // not interesting and we don't want publishers to fail
         // because nobody is listening.
         let _ = self.tx.send(event);
     }

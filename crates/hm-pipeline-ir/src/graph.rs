@@ -36,11 +36,11 @@ pub struct CommandStep {
     /// Cache configuration for this step's committed snapshot.
     #[serde(default)]
     pub cache: Option<Cache>,
-    /// Step-executor plugin name. `None` falls back to the default
+    /// Step-executor (runner) name. `None` falls back to the default
     /// runner (Docker in the shipped configuration).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
-    /// Plugin-specific extra fields passed verbatim to the runner.
+    /// Runner-specific extra fields passed verbatim to the runner.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runner_args: Option<serde_json::Value>,
 }

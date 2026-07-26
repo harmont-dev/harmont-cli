@@ -2,10 +2,10 @@
 //!
 //! On build start the orchestrator tar.gzs the user's working
 //! directory once (via [`crate::local::build_archive_bytes`])
-//! and registers the bytes under an opaque `ArchiveId`. Step-executor
-//! plugins receive that ID in their `ExecutorInput` and pull bytes
-//! via `hm_archive_read`. The host caches archives in memory keyed
-//! by ID for the duration of a single `local::run` invocation.
+//! and registers the bytes under an opaque `ArchiveId`. Runners receive
+//! that ID in their `ExecutorInput` and read the bytes back from this
+//! store. Archives are cached in memory keyed by ID for the duration of
+//! a single `local::run` invocation.
 
 use std::collections::HashMap;
 use std::sync::Mutex;

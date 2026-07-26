@@ -1,5 +1,5 @@
 //! End-to-end: `hm run --local` against a real Docker daemon, driving
-//! the new orchestrator + embedded docker plugin.
+//! the orchestrator and the docker VM runner.
 //!
 //! Gated `#[ignore]` because it shells out to a real Docker daemon —
 //! opt-in with `cargo test -p harmont-cli --test cmd_run_local_orchestrated -- --ignored`.
@@ -17,12 +17,6 @@ use rstest::rstest;
 
 /// A trivial one-step pipeline that doesn't need any user source — just
 /// runs a single `echo` in an alpine container.
-///
-/// Note: the plan's pseudocode used a `hm.command(...)` API that does
-/// not exist on the cidsl/py public surface. The real entry point is
-/// `hm.sh(cmd, image="...")` (== `scratch().sh(...)`), wrapped in the
-/// `@hm.pipeline(slug)` decorator (mirrors the existing
-/// `tests/fixtures/pipelines/scratch.py`).
 const PIPELINE_PY: &str = r#"
 import harmont as hm
 
@@ -34,7 +28,7 @@ def orchestrated() -> hm.Step:
 
 /// Chain-lineage regression: a 2-step chain (`b.builds_in = a`) must
 /// inherit `a`'s filesystem mutations into `b`'s container. Pre-fix,
-/// the docker plugin booted a fresh container per step, losing
+/// the docker runner booted a fresh container per step, losing
 /// `/tmp/a`.
 const CHAIN_PIPELINE_PY: &str = r#"
 import harmont as hm

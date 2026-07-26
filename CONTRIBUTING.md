@@ -181,7 +181,7 @@ cargo insta review
 | `crates/hm-pipeline-ir` | The pipeline IR wire-format schema. |
 | `crates/hm-config` | Layered configuration and credential storage. |
 | `crates/hm-plugin-cloud` | Cloud client library. |
-| `crates/hm-plugin-protocol` | Wire types shared between `hm` and plugins. |
+| `crates/hm-plugin-protocol` | Wire types shared between `hm` crate internals. |
 | `crates/hm-util` | Shared OS and filesystem utilities. |
 
 A useful mental model: the DSL engine evaluates your `.hm/*.py` pipeline
