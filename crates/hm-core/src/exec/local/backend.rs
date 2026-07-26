@@ -14,7 +14,9 @@ use tokio_util::sync::CancellationToken;
 use hm_vm::{HmVm, ImageRegistry, VmBackend, VmConfig};
 
 use crate::exec::local::{RunnerRegistry, VmRunner};
-use crate::exec::{BackendError, BackendHandle, Capabilities, ExecutionBackend, Result, RunRequest};
+use crate::exec::{
+    BackendError, BackendHandle, Capabilities, ExecutionBackend, Result, RunRequest,
+};
 
 /// Number of cached snapshots the image registry retains before evicting
 /// least-recently-used entries.
@@ -53,9 +55,11 @@ impl LocalBackend {
         let dirs = hm_common::dir_provider::DirProvider::new().ok_or_else(|| {
             BackendError::Local("cannot resolve the Harmont cache directory".into())
         })?;
-        let registry =
-            ImageRegistry::open(&dirs.cache().join("hm").join("registry.db"), REGISTRY_CAPACITY)
-            .map_err(|e| BackendError::Local(format!("opening snapshot registry: {e:#}")))?;
+        let registry = ImageRegistry::open(
+            &dirs.cache().join("hm").join("registry.db"),
+            REGISTRY_CAPACITY,
+        )
+        .map_err(|e| BackendError::Local(format!("opening snapshot registry: {e:#}")))?;
 
         let config = VmConfig {
             memory_mib: Some(8192),

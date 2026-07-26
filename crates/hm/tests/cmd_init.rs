@@ -221,8 +221,8 @@ fn init_python_templates_roundtrip_render(#[case] slug: &str) {
         .stdout
         .clone();
 
-    let v: serde_json::Value =
-        serde_json::from_slice(&out).unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
+    let v: serde_json::Value = serde_json::from_slice(&out)
+        .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
     assert_eq!(v["version"], "0", "template {slug}: expected v0 IR");
     assert!(
         v["graph"].is_object(),
@@ -278,10 +278,7 @@ fn skill_content_is_well_formed(#[case] content: &str, #[case] extras: &[&str]) 
         "skill must have 'Procedure' section"
     );
     for needle in extras {
-        assert!(
-            content.contains(needle),
-            "skill must reference `{needle}`"
-        );
+        assert!(content.contains(needle), "skill must reference `{needle}`");
     }
 }
 

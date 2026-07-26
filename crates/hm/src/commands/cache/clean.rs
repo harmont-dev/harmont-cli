@@ -112,4 +112,3 @@ fn dir_size(path: &std::path::Path) -> u64 {
     }
     walk(path)
 }
-

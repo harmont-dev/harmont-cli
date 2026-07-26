@@ -7,8 +7,8 @@ use hm_common::git::{GitBranch, GitRemote, GitRepo};
 use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::BackendConfig;
 use hm_dsl_engine::{DslEngine, detect};
-use secrecy::ExposeSecret as _;
 use human_units::FormatSize as _;
+use secrecy::ExposeSecret as _;
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
@@ -37,7 +37,10 @@ use crate::error::{ErrorCategory, HmError};
 /// the backend rejects the build, authentication fails, the network is
 /// unreachable, the local daemon is down, or the pipeline fails to render.
 #[allow(clippy::too_many_lines)] // thin top-level driver: linear, no good split point
-#[allow(clippy::similar_names, reason = "api_url and app_url are distinct hosts")]
+#[allow(
+    clippy::similar_names,
+    reason = "api_url and app_url are distinct hosts"
+)]
 pub async fn handle(args: RunArgs, ctx: RunContext<'_>) -> Result<i32> {
     let app = ctx.app;
 
@@ -119,7 +122,9 @@ pub async fn handle(args: RunArgs, ctx: RunContext<'_>) -> Result<i32> {
                 &api_url,
             );
             autocreate_client = Some((client.clone(), org.clone()));
-            Box::new(hm_core::exec::CloudBackend::new(client, api_url, app_url, org))
+            Box::new(hm_core::exec::CloudBackend::new(
+                client, api_url, app_url, org,
+            ))
         } else {
             // Local execution on a hm-vm VmBackend (docker).
             let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = std::sync::Arc::new(
@@ -838,7 +843,9 @@ mod tests {
             std::fs::write(dir.path().join(".hm/config.toml"), content).unwrap();
         }
 
-        persist_project_pipeline(dir.path(), "acme", slug).await.unwrap();
+        persist_project_pipeline(dir.path(), "acme", slug)
+            .await
+            .unwrap();
 
         let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
         let cfg: ProjectConfig = toml::from_str(&raw).unwrap();

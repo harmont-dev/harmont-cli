@@ -57,7 +57,10 @@ mod tests {
     #[case::one(1, 1)]
     #[case::typical(1_500, 1_500)]
     fn from_duration_preserves_millis(#[case] millis: u64, #[case] expected: u64) {
-        assert_eq!(DurationMs::from(Duration::from_millis(millis)).get(), expected);
+        assert_eq!(
+            DurationMs::from(Duration::from_millis(millis)).get(),
+            expected
+        );
     }
 
     #[rstest]

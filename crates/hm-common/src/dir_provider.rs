@@ -72,7 +72,11 @@ mod tests {
         let dirs = DirProvider::new().unwrap();
         assert!(dirs.config().is_absolute(), "got {:?}", dirs.config());
         #[cfg(not(windows))]
-        assert!(dirs.config().ends_with(".config"), "got {:?}", dirs.config());
+        assert!(
+            dirs.config().ends_with(".config"),
+            "got {:?}",
+            dirs.config()
+        );
     }
 
     #[rstest]

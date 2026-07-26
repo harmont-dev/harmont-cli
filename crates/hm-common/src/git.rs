@@ -206,7 +206,11 @@ mod tests {
     #[case::wrong_prefix("refs/heads/main", "origin", None)]
     #[case::trailing_slash("refs/remotes/origin/", "origin", None)]
     #[case::empty("", "origin", None)]
-    fn parses_default_branch(#[case] line: &str, #[case] remote: &str, #[case] expected: Option<&str>) {
+    fn parses_default_branch(
+        #[case] line: &str,
+        #[case] remote: &str,
+        #[case] expected: Option<&str>,
+    ) {
         let got = parse_default_branch(line.into(), remote);
         assert_eq!(got, expected.map(BString::from));
     }
@@ -263,7 +267,11 @@ mod tests {
         Command::new("git")
             .arg("-C")
             .arg(dir.path())
-            .args(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"])
+            .args([
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ])
             .captured()
             .unwrap()
             .success()

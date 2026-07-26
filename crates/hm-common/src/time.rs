@@ -73,8 +73,14 @@ mod tests {
     fn now_is_after_2020_and_before_2100() {
         let now = Duration::now_epoch_secs_saturating::<i64>();
         // 1_577_836_800 = 2020-01-01, 4_102_444_800 = 2100-01-01.
-        assert!(now > 1_577_836_800, "epoch secs {now} implausibly small (< 2020)");
-        assert!(now < 4_102_444_800, "epoch secs {now} implausibly large (> 2100)");
+        assert!(
+            now > 1_577_836_800,
+            "epoch secs {now} implausibly small (< 2020)"
+        );
+        assert!(
+            now < 4_102_444_800,
+            "epoch secs {now} implausibly large (> 2100)"
+        );
     }
 
     #[rstest]

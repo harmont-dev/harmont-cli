@@ -45,7 +45,10 @@ mod tests {
     fn error_names_the_missing_program() {
         let err = pathbin("hm-common-no-such-binary-xyz").unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("hm-common-no-such-binary-xyz"), "program: {msg}");
+        assert!(
+            msg.contains("hm-common-no-such-binary-xyz"),
+            "program: {msg}"
+        );
         assert!(msg.contains("not found on PATH"), "phrasing: {msg}");
     }
 }

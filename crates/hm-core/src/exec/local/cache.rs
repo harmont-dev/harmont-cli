@@ -80,10 +80,7 @@ mod tests {
         Some(Cache { policy: "none".into(), key: Some("abc".into()) }),
         None
     )]
-    fn stable_cache_tag_derivation(
-        #[case] cache: Option<Cache>,
-        #[case] expected: Option<String>,
-    ) {
+    fn stable_cache_tag_derivation(#[case] cache: Option<Cache>, #[case] expected: Option<String>) {
         let s = step(cache);
         assert_eq!(stable_cache_tag(&s), expected);
     }

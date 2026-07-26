@@ -4,6 +4,16 @@ use std::path::{Path, PathBuf};
 
 use secrecy::SecretString;
 
+// Credential files are hardened to owner-only via Unix mode bits in
+// `CredsProvider::new`. Windows needs an equivalent ACL-based path (restrict the
+// DACL to the current user) before this is safe to ship there. Fail the build
+// until that lands, rather than silently storing tokens with inherited ACLs.
+#[cfg(windows)]
+compile_error!(
+    "CredsProvider does not yet harden credential permissions on Windows; \
+     implement an ACL-based owner-only path in CredsProvider::new first"
+);
+
 /// The `HM_API_TOKEN` env var, which overrides the stored token.
 const TOKEN_ENV: &str = "HM_API_TOKEN";
 
@@ -47,9 +57,12 @@ impl CredsProvider {
             let mut entries = tokio::fs::read_dir(&creds_path).await.map_err(err)?;
             while let Some(entry) = entries.next_entry().await.map_err(err)? {
                 if entry.path().is_file() {
-                    tokio::fs::set_permissions(entry.path(), std::fs::Permissions::from_mode(0o600))
-                        .await
-                        .map_err(err)?;
+                    tokio::fs::set_permissions(
+                        entry.path(),
+                        std::fs::Permissions::from_mode(0o600),
+                    )
+                    .await
+                    .map_err(err)?;
                 }
             }
         }

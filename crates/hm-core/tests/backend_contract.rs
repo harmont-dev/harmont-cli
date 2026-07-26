@@ -8,10 +8,10 @@
 )]
 
 use futures::StreamExt;
-use rstest::rstest;
 use hm_core::exec::*;
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
 use hm_plugin_protocol::ir::DurationMs;
+use rstest::rstest;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]

@@ -29,7 +29,8 @@ impl ResolvedCtx {
     /// Returns an error if no organization is configured.
     pub fn org(&self) -> Result<String> {
         self.org.clone().context(
-            "no organization — run `hm cloud org switch <slug>`, or set one in ~/.hm/config.toml")
+            "no organization — run `hm cloud org switch <slug>`, or set one in ~/.hm/config.toml",
+        )
     }
 }
 

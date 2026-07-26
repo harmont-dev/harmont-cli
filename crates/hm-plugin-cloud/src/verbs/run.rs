@@ -41,11 +41,7 @@ pub struct RunArgs {
     pub no_watch: bool,
 }
 
-pub(crate) async fn run(
-    env: &BTreeMap<String, String>,
-    args: RunArgs,
-    app: &AppCtx,
-) -> Result<()> {
+pub(crate) async fn run(env: &BTreeMap<String, String>, args: RunArgs, app: &AppCtx) -> Result<()> {
     let (client, ctx) = settings::client(app).await?;
     let org = ctx.org()?;
 

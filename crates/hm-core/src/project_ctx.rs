@@ -153,6 +153,9 @@ mod tests {
             .unwrap();
         assert_eq!(ctx.path(), tmp.path());
         assert_eq!(ctx.hm_dir(), tmp.path().join(".hm"));
-        assert_eq!(ctx.config_path(), tmp.path().join(".hm").join("config.toml"));
+        assert_eq!(
+            ctx.config_path(),
+            tmp.path().join(".hm").join("config.toml")
+        );
     }
 }

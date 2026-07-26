@@ -74,7 +74,11 @@ fn render_capture_error(c: &Captured) -> String {
     if !stderr.is_empty() {
         const MAX: usize = 2000;
         let snippet: String = stderr.chars().take(MAX).collect();
-        let ellipsis = if snippet.len() < stderr.len() { "…" } else { "" };
+        let ellipsis = if snippet.len() < stderr.len() {
+            "…"
+        } else {
+            ""
+        };
         let _ = write!(msg, ": {snippet}{ellipsis}");
     }
     msg
@@ -114,23 +118,35 @@ pub trait CapturedStreams: sealed::Sealed {
     }
 
     /// stdout as `&str`, **panicking** if not valid UTF-8.
-    #[allow(clippy::expect_used, reason = "callers opt into panic-on-invalid by calling _unwrap")]
+    #[allow(
+        clippy::expect_used,
+        reason = "callers opt into panic-on-invalid by calling _unwrap"
+    )]
     fn stdout_str_unwrap(&self) -> &str {
         self.stdout_str().expect("stdout was not valid UTF-8")
     }
     /// stderr as `&str`, **panicking** if not valid UTF-8.
-    #[allow(clippy::expect_used, reason = "callers opt into panic-on-invalid by calling _unwrap")]
+    #[allow(
+        clippy::expect_used,
+        reason = "callers opt into panic-on-invalid by calling _unwrap"
+    )]
     fn stderr_str_unwrap(&self) -> &str {
         self.stderr_str().expect("stderr was not valid UTF-8")
     }
 
     /// stdout as an owned `String`, **panicking** if not valid UTF-8.
-    #[allow(clippy::expect_used, reason = "callers opt into panic-on-invalid by calling _unwrap")]
+    #[allow(
+        clippy::expect_used,
+        reason = "callers opt into panic-on-invalid by calling _unwrap"
+    )]
     fn stdout_string_unwrap(&self) -> String {
         self.stdout_string().expect("stdout was not valid UTF-8")
     }
     /// stderr as an owned `String`, **panicking** if not valid UTF-8.
-    #[allow(clippy::expect_used, reason = "callers opt into panic-on-invalid by calling _unwrap")]
+    #[allow(
+        clippy::expect_used,
+        reason = "callers opt into panic-on-invalid by calling _unwrap"
+    )]
     fn stderr_string_unwrap(&self) -> String {
         self.stderr_string().expect("stderr was not valid UTF-8")
     }
