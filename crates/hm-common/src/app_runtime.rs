@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+use crate::git::Git;
 use crate::process::{ExecutableNotFound, SystemBins};
 
 /// Failure to initialize the [`AppRuntime`].
@@ -76,6 +77,15 @@ impl AppRuntime {
     pub fn cwd() -> &'static Path {
         &Self::get().cwd
     }
+
+    /// The system `git`, bound to a [`Git`] handle.
+    ///
+    /// # Panics
+    /// If [`init`](Self::init) has not been called.
+    #[must_use]
+    pub fn git() -> Git<'static> {
+        Git::new(Self::bins().git())
+    }
 }
 
 #[cfg(test)]
@@ -115,6 +125,9 @@ mod tests {
         AppRuntime::init().unwrap();
         assert!(AppRuntime::cwd().is_absolute());
         assert!(AppRuntime::bins().git().is_absolute());
+        // git() binds the resolved git; a fresh temp dir is not a repo.
+        let dir = tempfile::tempdir().unwrap();
+        assert!(AppRuntime::git().repo(dir.path()).is_err());
     }
 
     #[rstest]

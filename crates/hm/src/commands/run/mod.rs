@@ -131,7 +131,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     }
 
     // 7. Assemble the run request.
-    let git = Git::new(AppRuntime::bins().git());
+    let git = AppRuntime::git();
     let (branch, commit) = git_metadata(git, &repo_root, args.branch.clone());
     let repo_name = git_remote_repo_name(git, &repo_root);
     let mut req = hm_exec::RunRequest {
