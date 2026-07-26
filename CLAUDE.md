@@ -18,6 +18,16 @@ When writing or running any Rust test, follow the
 functions and hand-rolled loops, `proptest` for domain-wide properties. Run with
 plain `cargo test -p <crate>` (no nextest/just wrapper).
 
+## Documentation
+
+When writing or editing any docblock, doc comment, or module header (`///`,
+`//!`) — including on code you just changed — follow the
+[`writing-interface-docblocks`](.claude/skills/writing-interface-docblocks/SKILL.md)
+skill: a docblock is a contract, not a changelog. Terse, present-tense, no
+prompt or diff leakage (`rather than`, `now returns`, `as requested`); document
+the *when* of errors/panics, not the *why*; module docs name the domain, not the
+one item currently inside them.
+
 ## DSL
 
 The `harmont` Python package (pipeline DSL) lives inside `crates/hm-dsl-engine/harmont-py/` so it ships with the crate.
