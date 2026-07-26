@@ -18,6 +18,7 @@ use harmont_cloud::{
     logs::{LogEvent, StreamKind},
     models::{HarmontJob, OpenJobState, build_is_terminal, job_is_terminal},
 };
+use hm_common::time::DateTimeExt as _;
 use hm_pipeline_ir::DurationMs;
 use hm_plugin_protocol::events::{BuildEvent, PlanSummary, StdStream};
 use uuid::Uuid;
@@ -211,7 +212,7 @@ pub async fn watch_build(
                 // late-starting) stream begins. A re-mint failure is
                 // non-fatal: fall back to the existing token and let
                 // `stream_one` surface a notice if the server rejects it.
-                if log_token.expires_at - Utc::now() < TOKEN_REFRESH_MARGIN {
+                if log_token.expires_at.time_from_now() < TOKEN_REFRESH_MARGIN {
                     match client.log_token(org, pipeline, number).await {
                         Ok(fresh) => log_token = fresh,
                         Err(e) => tracing::warn!("log-token refresh failed: {e}"),
@@ -282,13 +283,13 @@ fn step_end(job: &HarmontJob, step_id: Uuid) -> BuildEvent {
         .map_or_else(|| i32::from(!passed), |c| i32::try_from(c).unwrap_or(1));
     // Duration between the job's recorded start/finish timestamps, in
     // milliseconds (0 if either is missing or the interval is negative).
-    let duration_ms = match (
-        parse_rfc3339(job.started_at.as_deref()),
-        parse_rfc3339(job.finished_at.as_deref()),
-    ) {
-        (Some(s), Some(e)) => DurationMs((e - s).num_milliseconds().max(0).cast_unsigned()),
-        _ => DurationMs(0),
-    };
+    // finished − started, clamped to zero for a negative or partial interval.
+    // `TimeDelta::to_std` errors on a negative delta, so `.ok()` drops those;
+    // `DurationMs::from` is the single Duration→ms conversion.
+    let duration_ms = parse_rfc3339(job.started_at.as_deref())
+        .zip(parse_rfc3339(job.finished_at.as_deref()))
+        .and_then(|(s, e)| (e - s).to_std().ok())
+        .map_or(DurationMs(0), DurationMs::from);
     BuildEvent::StepEnd {
         step_id,
         exit_code,

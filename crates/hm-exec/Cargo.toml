@@ -8,6 +8,7 @@ description = "Pluggable CI execution backends (local VM + cloud) for the hm CLI
 
 [dependencies]
 hm-plugin-protocol = { workspace = true }
+hm-common = { workspace = true }
 hm-pipeline-ir = { workspace = true }
 hm-util = { workspace = true }
 hm-vm = { workspace = true, features = ["docker-backend"] }
