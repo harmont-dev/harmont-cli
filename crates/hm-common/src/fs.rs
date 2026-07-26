@@ -1,35 +1,14 @@
 //! Filesystem helpers.
-//!
-//! Every writer here is `async` — there is no blocking variant. Two families
-//! live here:
-//!
-//! * [`write_create_all`] — a convenience wrapper that scaffolds parent
-//!   directories before a plain write, with no permission guarantees.
-//! * [`write_atomic`] — an atomic writer that also controls who may read the
-//!   result via [`Privacy`]. Readers observe either the full old contents or
-//!   the full new contents, never a truncated file.
-//!
-//! ## Privacy on Windows
-//!
-//! [`Privacy`] maps to Unix permission bits. On Windows it is currently a
-//! **no-op** — Windows ACLs are not yet enforced, so a `Private` file is no
-//! more restricted than a `Public` one. The intent is still recorded in the
-//! type, so a real ACL implementation can drop in behind `#[cfg(windows)]`
-//! without touching any call site.
 
 use std::io;
 use std::path::Path;
 
 /// Who may read a file (or directory) that hm writes.
 ///
-/// Carries intent rather than raw mode bits: the file- and directory-mode
-/// mapping is applied internally, so a secrets file can never accidentally
-/// land with a directory's permissions. See the [module docs](self) for the
-/// Windows caveat.
+/// On Windows this is not enforced nor respected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Privacy {
-    /// Owner-only. Unix file `0o600`, directory `0o700`. Use for secrets
-    /// (e.g. credentials).
+    /// Owner-only. Unix file `0o600`, directory `0o700`. Use for secrets (e.g. credentials).
     Private,
     /// World-readable, owner-writable. Unix file `0o644`, directory `0o755`.
     Public,
@@ -57,16 +36,12 @@ impl Privacy {
 
 /// Write `contents` to `path`, creating any missing parent directories first.
 ///
-/// Joins [`std::fs::create_dir_all`] on the parent and [`std::fs::write`] into
-/// one call, so callers scaffolding a file into a not-yet-existing directory
-/// don't repeat the parent-creation dance. An existing file is overwritten.
-///
-/// This makes no permission guarantees — reach for [`write_atomic`] when the
-/// result must be owner-only or written atomically.
+/// This makes no permission guarantees — reach for [`write_atomic`] when the result must be
+/// owner-only or written atomically.
 ///
 /// # Errors
-/// Returns the underlying [`io::Error`] if a parent directory cannot be created
-/// or the file cannot be written.
+/// Returns the underlying [`io::Error`] if a parent directory cannot be created or the file cannot
+/// be written.
 pub async fn write_create_all(
     path: impl AsRef<Path>,
     contents: impl AsRef<[u8]>,
@@ -78,19 +53,11 @@ pub async fn write_create_all(
     tokio::fs::write(path, contents).await
 }
 
-/// Atomically write `contents` to `path` at the given [`Privacy`], ensuring the
-/// parent directory exists.
+/// Atomically write `contents` to `path` at the given [`Privacy`], ensuring the parent directory
+/// exists at that same privacy.
 ///
-/// The parent directory is always created owner-only (`0o700` on Unix); only
-/// the file's readability is controlled by `file`. The write goes to a
-/// tempfile in the same directory and is `rename`d over `path`, so a reader
-/// never sees a partial file.
-///
-/// # Errors
-///
-/// Returns an error if `path` has no parent or no file-name component, the
-/// parent directory cannot be created or chmod'd, the tempfile cannot be
-/// opened or written, or the final `rename` over `path` fails.
+/// The parent directory is created (and, if it already exists, chmod'd) to match `file`: `0o700`
+/// for [`Privacy::Private`], `0o755` for [`Privacy::Public`] on Unix.
 pub async fn write_atomic(
     path: impl AsRef<Path>,
     contents: impl AsRef<[u8]>,
@@ -109,7 +76,7 @@ pub async fn write_atomic(
         })?
         .to_owned();
 
-    create_dir_private(&parent).await?;
+    create_dir_at(&parent, file).await?;
 
     let file_name = path
         .file_name()
@@ -134,16 +101,6 @@ pub async fn write_atomic(
 }
 
 /// Atomically replace `to` with `from`.
-///
-/// On Unix this delegates to [`tokio::fs::rename`] (`rename(2)` — atomic
-/// by POSIX guarantee). On Windows this uses `ReplaceFileW` (preserves
-/// ACLs and alternate data streams) when the target exists, falling back
-/// to `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING` for first-write.
-///
-/// # Errors
-///
-/// Returns an error if the rename fails (permission denied, cross-device,
-/// source missing, etc.).
 pub async fn atomic_rename_over(from: impl AsRef<Path>, to: impl AsRef<Path>) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -194,11 +151,6 @@ pub async fn atomic_rename_over(from: impl AsRef<Path>, to: impl AsRef<Path>) ->
 }
 
 /// Remove a file if it exists; silently return `Ok(())` if it does not.
-///
-/// # Errors
-///
-/// Returns an error if `remove_file` fails for any reason other than
-/// `NotFound`.
 pub async fn remove_file_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
     match tokio::fs::remove_file(path).await {
         Ok(()) => Ok(()),
@@ -207,16 +159,12 @@ pub async fn remove_file_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
     }
 }
 
-/// Create `dir` (and any missing parents) owner-only.
-///
-/// On Unix the directory is created at, or chmod'd to, `0o700`. On Windows
-/// this is a plain recursive create (see the [module docs](self) on Windows
-/// privacy).
-async fn create_dir_private(dir: &Path) -> io::Result<()> {
+/// Create `dir` (and any missing parents) at `privacy`'s directory mode.
+async fn create_dir_at(dir: &Path, privacy: Privacy) -> io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = Privacy::Private.dir_mode();
+        let mode = privacy.dir_mode();
         match tokio::fs::metadata(dir).await {
             Ok(meta) => {
                 let current = meta.permissions().mode() & 0o777;
@@ -236,15 +184,12 @@ async fn create_dir_private(dir: &Path) -> io::Result<()> {
 
     #[cfg(windows)]
     {
+        let _ = privacy;
         tokio::fs::create_dir_all(dir).await
     }
 }
 
 /// Write `contents` to `path` at the file mode implied by `privacy`.
-///
-/// On Unix the file is opened with the exact mode so the bytes never exist at
-/// a laxer permission. On Windows the privacy is a no-op (see [module
-/// docs](self)).
 async fn write_file_private(path: &Path, contents: &[u8], privacy: Privacy) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -339,9 +284,9 @@ mod unix_privacy_tests {
         assert_eq!(mode_of(&dir), 0o700, "dir mode must be 0o700");
     }
 
-    /// A `Public` file lands at 0o644, still in a 0o700 dir.
+    /// A `Public` file lands at 0o644, in a matching 0o755 dir.
     #[tokio::test]
-    async fn public_file_is_0644_in_dir_0700() {
+    async fn public_file_is_0644_in_dir_0755() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("hm");
         let file = dir.join("config.toml");
@@ -351,7 +296,7 @@ mod unix_privacy_tests {
             .unwrap();
 
         assert_eq!(mode_of(&file), 0o644, "file mode must be 0o644");
-        assert_eq!(mode_of(&dir), 0o700, "dir mode must be 0o700");
+        assert_eq!(mode_of(&dir), 0o755, "dir mode must be 0o755");
     }
 
     /// Overwriting a secret must preserve 0o600 (guards the tempfile +

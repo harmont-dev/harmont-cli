@@ -1,31 +1,12 @@
-//! Harmont-specific directory resolution.
+//! Project-directory discovery.
 //!
-//! Every directory accessor in this module returns an `hm`-namespaced path
-//! under an XDG-correct root: configuration in `~/.config/hm/`, regenerable
-//! cache in `~/.cache/hm/`. Raw platform primitives (`home_dir`, `config_dir`,
-//! `cache_dir`) live in `os::dirs` and are **not** re-exported — callers
-//! outside `hm-common` should never need them.
+//! The `hm`-namespaced directory *roots* (config, cache, …) live in
+//! [`crate::dir_provider`]. This module handles the orthogonal problem of
+//! locating the current project by walking up from a starting path.
 
 #![allow(clippy::must_use_candidate)]
 
 use std::path::PathBuf;
-
-use crate::os::dirs as platform;
-
-/// `~/.config/hm/` — user config root (`config.toml`, `credentials.toml`).
-pub fn hm_config_dir() -> Option<PathBuf> {
-    platform::config_dir().map(|c| c.join("hm"))
-}
-
-/// `~/.cache/hm/` — local build cache root (regenerable).
-pub fn hm_cache_dir() -> Option<PathBuf> {
-    platform::cache_dir().map(|c| c.join("hm"))
-}
-
-/// `~/.cache/hm/workspaces/` — COW workspace cache root.
-pub fn hm_workspace_cache_dir() -> Option<PathBuf> {
-    hm_cache_dir().map(|c| c.join("workspaces"))
-}
 
 /// Walk up from `start` looking for a directory containing `.hm/`.
 /// Returns the project root (the directory *containing* `.hm/`),
@@ -46,29 +27,6 @@ mod tests {
     use rstest::rstest;
 
     use super::*;
-
-    #[rstest]
-    fn hm_config_dir_under_config() {
-        let p = hm_config_dir().unwrap();
-        assert!(p.ends_with("hm"), "expected path ending in 'hm', got {p:?}");
-        let parent = p.parent().unwrap();
-        assert!(
-            parent.ends_with(".config") || parent.ends_with("AppData/Roaming"),
-            "unexpected parent: {parent:?}"
-        );
-    }
-
-    #[rstest]
-    fn hm_cache_dir_under_cache() {
-        let p = hm_cache_dir().unwrap();
-        assert!(p.ends_with("hm"), "expected path ending in 'hm', got {p:?}");
-    }
-
-    #[rstest]
-    fn hm_workspace_cache_dir_resolves() {
-        let p = hm_workspace_cache_dir().unwrap();
-        assert!(p.ends_with("hm/workspaces"), "got {p:?}");
-    }
 
     #[rstest]
     fn find_project_root_at_current_dir() {

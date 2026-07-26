@@ -119,8 +119,8 @@ impl Config {
     ///
     /// Returns an error if the platform config directory cannot be determined.
     pub fn user_config_path() -> Result<PathBuf> {
-        let dir = hm_common::dirs::hm_config_dir().context("could not determine config directory")?;
-        Ok(dir.join("config.toml"))
+        let dirs = hm_common::DirProvider::new().context("could not determine config directory")?;
+        Ok(dirs.config().join("hm").join("config.toml"))
     }
 
     /// Project-level config path: `<root>/.hm/config.toml`.

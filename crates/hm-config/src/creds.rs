@@ -15,8 +15,8 @@ struct CredentialFile {
 }
 
 fn path() -> Result<PathBuf> {
-    let dir = hm_common::dirs::hm_config_dir().context("could not determine config directory")?;
-    Ok(dir.join("credentials.toml"))
+    let dirs = hm_common::DirProvider::new().context("could not determine config directory")?;
+    Ok(dirs.config().join("hm").join("credentials.toml"))
 }
 
 fn load() -> CredentialFile {

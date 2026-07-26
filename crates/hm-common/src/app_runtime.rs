@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+use crate::dir_provider::DirProvider;
 use crate::git::Git;
 use crate::process::{ExecutableNotFound, pathbin};
 use crate::python::Python;
@@ -16,6 +17,9 @@ pub enum InitError {
     /// The current directory could not be read.
     #[error("reading the current directory")]
     Cwd(#[source] std::io::Error),
+    /// The Harmont directory layout could not be resolved (no home directory?).
+    #[error("could not resolve the Harmont directory layout")]
+    Dirs,
 }
 
 // TODO: This is a process-wide singleton (a global `OnceLock`), which is
@@ -31,6 +35,7 @@ pub struct AppRuntime {
     git: PathBuf,
     python3: PathBuf,
     cwd: PathBuf,
+    dirs: DirProvider,
 }
 
 static RUNTIME: OnceLock<AppRuntime> = OnceLock::new();
@@ -54,6 +59,7 @@ impl AppRuntime {
             git: pathbin("git")?,
             python3: pathbin("python3")?,
             cwd: std::env::current_dir().map_err(InitError::Cwd)?,
+            dirs: DirProvider::new().ok_or(InitError::Dirs)?,
         })
     }
 
@@ -74,6 +80,16 @@ impl AppRuntime {
     #[must_use]
     pub fn cwd() -> &'static Path {
         &Self::get().cwd
+    }
+
+    /// The `hm`-namespaced directory layout (config, cache, …), resolved once
+    /// at initialization.
+    ///
+    /// # Panics
+    /// If [`init`](Self::init) has not been called.
+    #[must_use]
+    pub fn dirs() -> &'static DirProvider {
+        &Self::get().dirs
     }
 
     /// The system `git`, bound to a [`Git`] handle.
