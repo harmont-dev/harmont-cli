@@ -1338,6 +1338,7 @@ name = "hm-pipeline-ir"
 version = "0.0.0-dev"
 dependencies = [
  "daggy",
+ "derive_more",
  "insta",
  "rstest",
  "schemars 0.8.22",
