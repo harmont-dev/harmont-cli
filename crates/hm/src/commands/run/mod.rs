@@ -382,7 +382,7 @@ fn build_create_pipeline_request(
 /// `.hm/config.toml`, preserving any other keys already in the file. Creates
 /// the file (and `.hm/`) when absent. Used after registering a remoteless
 /// directory so later runs submit by the persisted slug without prompting.
-fn persist_project_pipeline(dir: &std::path::Path, org: &str, slug: &str) -> Result<()> {
+async fn persist_project_pipeline(dir: &std::path::Path, org: &str, slug: &str) -> Result<()> {
     let path = dir.join(".hm/config.toml");
     let mut doc: toml::Table = std::fs::read_to_string(&path)
         .ok()
@@ -398,6 +398,7 @@ fn persist_project_pipeline(dir: &std::path::Path, org: &str, slug: &str) -> Res
     }
     let serialized = toml::to_string_pretty(&doc).context("serializing .hm/config.toml")?;
     hm_common::fs::write_create_all(&path, serialized)
+        .await
         .with_context(|| format!("writing {}", path.display()))?;
     Ok(())
 }
@@ -467,7 +468,9 @@ async fn register_remoteless_pipeline(
         }
     };
 
-    persist_project_pipeline(dir, org, &slug).context("saving .hm/config.toml")?;
+    persist_project_pipeline(dir, org, &slug)
+        .await
+        .context("saving .hm/config.toml")?;
     tracing::info!("registered pipeline '{slug}' — submitting build");
     Ok(slug)
 }
@@ -798,7 +801,8 @@ mod tests {
         "web",
         Some("https://example.test")
     )]
-    fn persist_project_pipeline_writes_config(
+    #[tokio::test]
+    async fn persist_project_pipeline_writes_config(
         #[case] preexisting: Option<&str>,
         #[case] slug: &str,
         #[case] expected_api_url: Option<&str>,
@@ -809,7 +813,7 @@ mod tests {
             std::fs::write(dir.path().join(".hm/config.toml"), content).unwrap();
         }
 
-        persist_project_pipeline(dir.path(), "acme", slug).unwrap();
+        persist_project_pipeline(dir.path(), "acme", slug).await.unwrap();
 
         let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
         let doc: toml::Table = toml::from_str(&raw).unwrap();

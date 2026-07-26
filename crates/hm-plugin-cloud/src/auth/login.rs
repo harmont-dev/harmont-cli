@@ -28,7 +28,7 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, paste: bool) -> Result<(
         login_loopback(&client, &app).await?
     };
 
-    hm_config::creds::set_cloud_token(&api, &token);
+    hm_config::creds::set_cloud_token(&api, &token).await;
 
     // Confirm by reading back the authenticated user.
     let authed = HarmontClient::with_base_url(token, &api);

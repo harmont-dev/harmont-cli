@@ -1,13 +1,13 @@
 //! Filesystem helpers.
 //!
-//! Two families live here:
+//! Every writer here is `async` — there is no blocking variant. Two families
+//! live here:
 //!
 //! * [`write_create_all`] — a convenience wrapper that scaffolds parent
 //!   directories before a plain write, with no permission guarantees.
-//! * [`write_atomic`] (and its [`blocking`] counterpart) — an atomic writer
-//!   that also controls who may read the result via [`Privacy`]. Readers
-//!   observe either the full old contents or the full new contents, never a
-//!   truncated file.
+//! * [`write_atomic`] — an atomic writer that also controls who may read the
+//!   result via [`Privacy`]. Readers observe either the full old contents or
+//!   the full new contents, never a truncated file.
 //!
 //! ## Privacy on Windows
 //!
@@ -67,12 +67,15 @@ impl Privacy {
 /// # Errors
 /// Returns the underlying [`io::Error`] if a parent directory cannot be created
 /// or the file cannot be written.
-pub fn write_create_all(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> io::Result<()> {
+pub async fn write_create_all(
+    path: impl AsRef<Path>,
+    contents: impl AsRef<[u8]>,
+) -> io::Result<()> {
     let path = path.as_ref();
     if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
-    std::fs::write(path, contents)
+    tokio::fs::write(path, contents).await
 }
 
 /// Atomically write `contents` to `path` at the given [`Privacy`], ensuring the
@@ -265,46 +268,6 @@ async fn write_file_private(path: &Path, contents: &[u8], privacy: Privacy) -> i
     Ok(())
 }
 
-/// Synchronous wrappers that shell out to the async API via
-/// `tokio::task::block_in_place`. Safe to call from sync contexts
-/// that run inside a tokio runtime.
-pub mod blocking {
-    use super::Privacy;
-    use std::io;
-    use std::path::Path;
-
-    fn block_on<F: std::future::Future<Output = io::Result<()>>>(f: F) -> io::Result<()> {
-        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(f))
-    }
-
-    /// Blocking counterpart of [`super::write_atomic`].
-    ///
-    /// See the [module-level documentation](super) for semantics.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `path` has no parent or no file-name component,
-    /// the parent directory cannot be created or chmod'd, the tempfile cannot
-    /// be opened or written, or the final `rename` over `path` fails.
-    pub fn write_atomic(
-        path: impl AsRef<Path>,
-        contents: impl AsRef<[u8]>,
-        file: Privacy,
-    ) -> io::Result<()> {
-        block_on(super::write_atomic(path, contents, file))
-    }
-
-    /// Blocking counterpart of [`super::remove_file_if_exists`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `remove_file` fails for any reason other than
-    /// `NotFound`.
-    pub fn remove_if_exists(path: impl AsRef<Path>) -> io::Result<()> {
-        block_on(super::remove_file_if_exists(path))
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, reason = "test setup and assertions")]
 mod tests {
@@ -315,28 +278,31 @@ mod tests {
     #[case::flat("file.txt")]
     #[case::one_level("sub/file.txt")]
     #[case::deeply_nested("a/b/c/file.txt")]
-    fn writes_file_creating_missing_parents(#[case] rel: &str) {
+    #[tokio::test]
+    async fn writes_file_creating_missing_parents(#[case] rel: &str) {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join(rel);
 
-        write_create_all(&path, b"hello").unwrap();
+        write_create_all(&path, b"hello").await.unwrap();
 
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello");
     }
 
     #[rstest]
-    fn overwrites_an_existing_file() {
+    #[tokio::test]
+    async fn overwrites_an_existing_file() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("file.txt");
 
-        write_create_all(&path, b"first").unwrap();
-        write_create_all(&path, b"second").unwrap();
+        write_create_all(&path, b"first").await.unwrap();
+        write_create_all(&path, b"second").await.unwrap();
 
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "second");
     }
 
     #[rstest]
-    fn propagates_io_error_when_parent_is_a_file() {
+    #[tokio::test]
+    async fn propagates_io_error_when_parent_is_a_file() {
         let tmp = tempfile::tempdir().unwrap();
         // A *file* sits where the target's parent directory would go, so
         // creating the parent must fail with an OS error.
@@ -344,7 +310,7 @@ mod tests {
         std::fs::write(&blocker, b"x").unwrap();
         let target = blocker.join("child.txt");
 
-        assert!(write_create_all(&target, b"data").is_err());
+        assert!(write_create_all(&target, b"data").await.is_err());
     }
 }
 

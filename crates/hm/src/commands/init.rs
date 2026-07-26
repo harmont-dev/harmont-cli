@@ -168,7 +168,7 @@ fn write_cloud_project_config(dir: &std::path::Path, org_slug: &str) -> Result<(
     Ok(())
 }
 
-fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
+async fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     let harmont_dir = dir.join(".hm");
     let already_has_pipeline = detect::has_pipeline_files(dir);
 
@@ -187,13 +187,14 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     // pipeline.py and deploy.py). `std::fs::write` clobbers just the target.
     let dest = harmont_dir.join(tmpl.filename);
     hm_common::fs::write_create_all(&dest, tmpl.content)
+        .await
         .with_context(|| format!("writing {}", dest.display()))?;
     ensure_gitignore_entry(&harmont_dir, "node_modules/")?;
     ensure_gitignore_entry(&harmont_dir, "__pycache__/")?;
     Ok(true)
 }
 
-fn write_skills(dir: &Path, force: bool) -> Result<()> {
+async fn write_skills(dir: &Path, force: bool) -> Result<()> {
     let skills: &[(&str, &str)] = &[
         ("validate-ci", SKILL_VALIDATE_CI),
         ("write-pipeline", SKILL_WRITE_PIPELINE),
@@ -220,6 +221,7 @@ fn write_skills(dir: &Path, force: bool) -> Result<()> {
 
         let updated = dest.exists();
         hm_common::fs::write_create_all(&dest, content)
+            .await
             .with_context(|| format!("writing {}", dest.display()))?;
         if updated {
             tracing::info!("overwrote Claude Code skill: .claude/skills/{slug}/SKILL.md");
@@ -287,7 +289,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
             pick_interactive()?
         };
         let tmpl = kind.meta();
-        let wrote_pipeline = write_template(&args.dir, &tmpl, args.force)?;
+        let wrote_pipeline = write_template(&args.dir, &tmpl, args.force).await?;
         if wrote_pipeline {
             let dsl = match kind {
                 TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
@@ -314,7 +316,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
     // Skills are offered whenever a terminal is present, independent of
     // whether a template flag was passed.
     if tty && prompt_skills()? {
-        write_skills(&args.dir, args.force)?;
+        write_skills(&args.dir, args.force).await?;
     }
 
     let project_config = hm_config::Config::project_config_path(&args.dir);
@@ -352,7 +354,8 @@ mod tests {
     #[case::customized_no_force(Some("# my local edits"), false, "# my local edits")]
     #[case::customized_force(Some("# my local edits"), true, SKILL_VALIDATE_CI)]
     #[case::unchanged_idempotent(Some(SKILL_VALIDATE_CI), false, SKILL_VALIDATE_CI)]
-    fn write_skills_behaves(
+    #[tokio::test]
+    async fn write_skills_behaves(
         #[case] preexisting: Option<&str>,
         #[case] force: bool,
         #[case] expected: &str,
@@ -364,15 +367,16 @@ mod tests {
             std::fs::write(&dest, content).unwrap();
         }
 
-        write_skills(dir.path(), force).unwrap();
+        write_skills(dir.path(), force).await.unwrap();
 
         assert_eq!(std::fs::read_to_string(&dest).unwrap(), expected);
     }
 
     #[rstest]
-    fn write_skills_installs_sibling_skills_when_absent() {
+    #[tokio::test]
+    async fn write_skills_installs_sibling_skills_when_absent() {
         let dir = tempfile::tempdir().unwrap();
-        write_skills(dir.path(), false).unwrap();
+        write_skills(dir.path(), false).await.unwrap();
 
         // Skills other than the one under test are installed too.
         assert!(skill_path(dir.path(), "write-pipeline").exists());

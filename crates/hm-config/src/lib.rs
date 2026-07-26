@@ -177,14 +177,11 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if TOML serialization fails or the atomic write fails.
-    pub fn save_to(&self, path: &Path) -> Result<()> {
+    pub async fn save_to(&self, path: &Path) -> Result<()> {
         let serialized = toml::to_string_pretty(self).context("serializing config")?;
-        hm_common::fs::blocking::write_atomic(
-            path,
-            serialized.as_bytes(),
-            hm_common::fs::Privacy::Public,
-        )
-        .with_context(|| format!("writing {}", path.display()))
+        hm_common::fs::write_atomic(path, serialized.as_bytes(), hm_common::fs::Privacy::Public)
+            .await
+            .with_context(|| format!("writing {}", path.display()))
     }
 
     /// Save to user-level config path (`~/.config/hm/config.toml`).
@@ -192,8 +189,8 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the path cannot be determined or the write fails.
-    pub fn save_user(&self) -> Result<()> {
-        self.save_to(&Self::user_config_path()?)
+    pub async fn save_user(&self) -> Result<()> {
+        self.save_to(&Self::user_config_path()?).await
     }
 }
 
@@ -389,7 +386,7 @@ org = "project-org"
             },
             ..Config::default()
         };
-        cfg.save_to(&path).unwrap();
+        cfg.save_to(&path).await.unwrap();
 
         let loaded = Config::load_from_paths(Some(&path), None).unwrap();
         assert_eq!(loaded.cloud.org.as_deref(), Some("saved-org"));
