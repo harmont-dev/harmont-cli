@@ -26,15 +26,15 @@ pub trait DurationExt: sealed::SealedDuration {
     /// ```
     /// # use hm_common::time::DurationExt;
     /// # use std::time::Duration;
-    /// let now = Duration::now_epoch_secs::<i64>();
+    /// let now = Duration::now_epoch_secs_saturating::<i64>();
     /// assert!(now > 0);
     /// ```
     #[must_use]
-    fn now_epoch_secs<T: TryFrom<u64> + Bounded>() -> T;
+    fn now_epoch_secs_saturating<T: TryFrom<u64> + Bounded>() -> T;
 }
 
 impl DurationExt for Duration {
-    fn now_epoch_secs<T: TryFrom<u64> + Bounded>() -> T {
+    fn now_epoch_secs_saturating<T: TryFrom<u64> + Bounded>() -> T {
         let secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -71,7 +71,7 @@ mod tests {
 
     #[rstest]
     fn now_is_after_2020_and_before_2100() {
-        let now = Duration::now_epoch_secs::<i64>();
+        let now = Duration::now_epoch_secs_saturating::<i64>();
         // 1_577_836_800 = 2020-01-01, 4_102_444_800 = 2100-01-01.
         assert!(now > 1_577_836_800, "epoch secs {now} implausibly small (< 2020)");
         assert!(now < 4_102_444_800, "epoch secs {now} implausibly large (> 2100)");
@@ -79,8 +79,8 @@ mod tests {
 
     #[rstest]
     fn successive_reads_are_nondecreasing() {
-        let a = Duration::now_epoch_secs::<i64>();
-        let b = Duration::now_epoch_secs::<i64>();
+        let a = Duration::now_epoch_secs_saturating::<i64>();
+        let b = Duration::now_epoch_secs_saturating::<i64>();
         assert!(b >= a, "clock went backwards: {a} then {b}");
     }
 
@@ -89,9 +89,9 @@ mod tests {
         // Current epoch seconds (~1.7e9) far exceed the range of a narrow type,
         // so this deterministically exercises the saturating-overflow branch
         // that the `i64` version could never reach.
-        assert_eq!(Duration::now_epoch_secs::<i8>(), i8::MAX);
-        assert_eq!(Duration::now_epoch_secs::<u8>(), u8::MAX);
-        assert_eq!(Duration::now_epoch_secs::<u16>(), u16::MAX);
+        assert_eq!(Duration::now_epoch_secs_saturating::<i8>(), i8::MAX);
+        assert_eq!(Duration::now_epoch_secs_saturating::<u8>(), u8::MAX);
+        assert_eq!(Duration::now_epoch_secs_saturating::<u16>(), u16::MAX);
     }
 
     #[rstest]
