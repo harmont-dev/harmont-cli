@@ -133,8 +133,7 @@ hm run --help                          # full flag reference
 ## Cloud
 
 `hm cloud <verb>` talks to the hosted Harmont API at `api.harmont.dev`.
-Every cloud verb is delivered by the embedded `hm-plugin-cloud` crate
-(no separate install step):
+Every cloud verb is built into the `hm` binary (no separate install step):
 
 ```sh
 hm cloud login                  # browser-loopback OAuth (or --paste to

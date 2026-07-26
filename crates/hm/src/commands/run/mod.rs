@@ -485,12 +485,12 @@ async fn register_remoteless_pipeline(
                 .raw()
                 .create_pipeline(org, &body)
                 .await
-                .map_err(hm_plugin_cloud::settings::map_raw)
+                .map_err(crate::commands::cloud::settings::map_raw)
                 .with_context(|| format!("registering pipeline '{pipeline_name}' in org {org}"))?;
             created.into_inner().slug
         }
         Err(e) => {
-            return Err(hm_plugin_cloud::settings::map_raw(e))
+            return Err(crate::commands::cloud::settings::map_raw(e))
                 .with_context(|| format!("looking up pipeline '{pipeline_name}' in org {org}"));
         }
     };
@@ -554,7 +554,7 @@ async fn resolve_or_create_cloud_pipeline(
         Ok(p) => return Ok(Some(p.into_inner().slug)),
         Err(e) if e.status().is_some_and(|s| s.as_u16() == 404) => {} // truly absent → create
         Err(e) => {
-            return Err(hm_plugin_cloud::settings::map_raw(e))
+            return Err(crate::commands::cloud::settings::map_raw(e))
                 .with_context(|| format!("looking up pipeline '{}' in org {}", ac.name, ac.org));
         }
     }
@@ -586,7 +586,7 @@ async fn resolve_or_create_cloud_pipeline(
         .raw()
         .create_pipeline(&ac.org, &body)
         .await
-        .map_err(hm_plugin_cloud::settings::map_raw)
+        .map_err(crate::commands::cloud::settings::map_raw)
         .with_context(|| format!("creating pipeline '{}' in org {}", ac.name, ac.org))?;
     let slug = created.into_inner().slug;
     tracing::info!("created pipeline '{slug}' — submitting build");

@@ -114,10 +114,10 @@ async fn prompt_cloud_registration(
             return Ok(());
         }
 
-        hm_plugin_cloud::login_interactive(app).await?;
+        crate::commands::cloud::login_interactive(app).await?;
     }
 
-    let (client, _ctx) = hm_plugin_cloud::settings::client(app)
+    let (client, _ctx) = crate::commands::cloud::settings::client(app)
         .await
         .context("could not build authenticated cloud client")?;
 
@@ -125,7 +125,7 @@ async fn prompt_cloud_registration(
         .raw()
         .list_organizations(None, None)
         .await
-        .map_err(hm_plugin_cloud::settings::map_raw)
+        .map_err(crate::commands::cloud::settings::map_raw)
         .context("fetching organizations")?
         .into_inner();
 

@@ -17,7 +17,7 @@ use anyhow::{Result, bail};
 use harmont_cloud::{HarmontClient, HarmontError};
 use hm_core::app_ctx::AppCtx;
 
-use crate::settings;
+use crate::commands::cloud::settings;
 
 pub(crate) async fn run(
     env: &BTreeMap<String, String>,

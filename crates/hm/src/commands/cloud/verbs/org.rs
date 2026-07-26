@@ -7,8 +7,8 @@ use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::BackendConfig;
 use hm_core::config::user::UserCloudConfig;
 
-use crate::cli::OrgCommand;
-use crate::settings;
+use crate::commands::cloud::cli::OrgCommand;
+use crate::commands::cloud::settings;
 
 pub(crate) async fn run(
     _env: &BTreeMap<String, String>,

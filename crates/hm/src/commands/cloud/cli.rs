@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Subcommand;
 use hm_core::app_ctx::AppCtx;
 
-use crate::{auth, verbs};
+use crate::commands::cloud::{auth, verbs};
 
 /// Process exit status for the cloud subcommands.
 enum ExitCode {

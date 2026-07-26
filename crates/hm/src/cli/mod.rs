@@ -70,7 +70,7 @@ pub enum Command {
 
     /// Interact with the Harmont cloud API.
     #[command(subcommand)]
-    Cloud(hm_plugin_cloud::cli::CloudCommand),
+    Cloud(crate::commands::cloud::cli::CloudCommand),
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -116,7 +116,7 @@ pub async fn dispatch(command: Command, ctx: RunContext<'_>) -> Result<i32> {
         Command::Plugin(cmd) => plugin::run(cmd).await.map(|()| 0),
         Command::Cloud(cmd) => {
             let env = std::env::vars().collect();
-            hm_plugin_cloud::cli::dispatch_command(cmd, env, app).await
+            crate::commands::cloud::cli::dispatch_command(cmd, env, app).await
         }
     }
 }

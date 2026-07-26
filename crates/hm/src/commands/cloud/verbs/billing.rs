@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use harmont_cloud::HarmontClient;
 
-use crate::cli::BillingCommand;
-use crate::settings;
+use crate::commands::cloud::cli::BillingCommand;
+use crate::commands::cloud::settings;
 use hm_core::app_ctx::AppCtx;
 
 /// Convert an integer cent amount to dollars for display.

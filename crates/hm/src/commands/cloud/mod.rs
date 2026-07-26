@@ -1,6 +1,4 @@
-//! Cloud client library for the hm CLI.
-//!
-//! Implements `hm cloud {login,logout,whoami,org,pipeline,build,job,billing,run}`.
+//! `hm cloud {login,logout,whoami,org,pipeline,build,job,billing,run}`.
 
 pub mod cli;
 pub mod settings;

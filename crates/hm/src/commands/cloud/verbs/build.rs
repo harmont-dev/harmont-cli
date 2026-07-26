@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use harmont_cloud::HarmontClient;
 
-use crate::cli::BuildCommand;
-use crate::settings;
+use crate::commands::cloud::cli::BuildCommand;
+use crate::commands::cloud::settings;
 use hm_core::app_ctx::AppCtx;
 use hm_core::exec::cloud::watch::watch_build;
 
@@ -61,7 +61,7 @@ async fn watch(client: &HarmontClient, org: &str, pipe: &str, number: i64) -> Re
     // Render the live build through the shared `hm-render` renderers (the same
     // ones a local `hm run` uses), driven by the `BuildEvent`s `watch_build`
     // emits over an mpsc channel.
-    let prefs = crate::settings::RenderPrefs::detect();
+    let prefs = crate::commands::cloud::settings::RenderPrefs::detect();
     let renderer = hm_render::renderer_for("human", prefs.color, prefs.logs)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1024);
     let driver = tokio::spawn(hm_render::drive(renderer, rx));

@@ -14,7 +14,7 @@ use clap::Parser;
 use harmont_cloud::builds::NewBuild;
 use hm_core::app_ctx::AppCtx;
 
-use crate::settings;
+use crate::commands::cloud::settings;
 
 #[derive(Debug, Clone, Parser)]
 pub struct RunArgs {
@@ -74,9 +74,9 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, args: RunArgs, app: &App
     if args.no_watch {
         return Ok(());
     }
-    crate::verbs::build::run(
+    crate::commands::cloud::verbs::build::run(
         env,
-        crate::cli::BuildCommand::Watch {
+        crate::commands::cloud::cli::BuildCommand::Watch {
             pipeline: args.pipeline.clone(),
             number: build.number,
         },

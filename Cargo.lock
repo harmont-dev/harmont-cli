@@ -1123,12 +1123,12 @@ dependencies = [
  "futures",
  "futures-util",
  "harmont-cloud",
+ "harmont-cloud-raw",
  "hex",
  "hm-common",
  "hm-core",
  "hm-dsl-engine",
  "hm-pipeline-ir",
- "hm-plugin-cloud",
  "hm-plugin-protocol",
  "hm-render",
  "hm-vm",
@@ -1340,29 +1340,6 @@ dependencies = [
  "schemars 0.8.22",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "hm-plugin-cloud"
-version = "0.0.0-dev"
-dependencies = [
- "anyhow",
- "base64",
- "chrono",
- "clap",
- "dialoguer",
- "harmont-cloud",
- "harmont-cloud-raw",
- "hm-core",
- "hm-plugin-protocol",
- "hm-render",
- "rstest",
- "secrecy",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
- "webbrowser",
 ]
 
 [[package]]

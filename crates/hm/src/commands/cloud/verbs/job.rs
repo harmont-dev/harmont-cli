@@ -9,8 +9,8 @@ use hm_plugin_protocol::events::{BuildEvent, PlanSummary};
 use hm_plugin_protocol::ir::DurationMs;
 use uuid::Uuid;
 
-use crate::cli::JobCommand;
-use crate::settings;
+use crate::commands::cloud::cli::JobCommand;
+use crate::commands::cloud::settings;
 use hm_core::app_ctx::AppCtx;
 use hm_core::exec::cloud::watch::stream_job_logs_as_events;
 

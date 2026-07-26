@@ -62,8 +62,8 @@ hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 hm-common = { workspace = true }
 hm-core = { workspace = true }
-hm-plugin-cloud = { workspace = true }
-harmont-cloud   = { workspace = true }
+harmont-cloud     = { workspace = true }
+harmont-cloud-raw = { workspace = true }
 hm-vm           = { workspace = true, features = ["docker-backend"] }
 hm-dsl-engine   = { workspace = true }
 hm-render       = { workspace = true }

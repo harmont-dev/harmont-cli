@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use harmont_cloud::HarmontClient;
 
-use crate::cli::PipelineCommand;
-use crate::settings;
+use crate::commands::cloud::cli::PipelineCommand;
+use crate::commands::cloud::settings;
 use hm_core::app_ctx::AppCtx;
 
 pub(crate) async fn run(
