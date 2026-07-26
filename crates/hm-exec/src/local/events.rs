@@ -56,7 +56,7 @@ mod tests {
         let mut rx = bus.subscribe();
         bus.emit(BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 1,
+            duration_ms: hm_pipeline_ir::DurationMs(1),
         });
         let ev = rx.recv().await.unwrap();
         matches!(ev, BuildEvent::BuildEnd { exit_code: 0, .. });
@@ -67,7 +67,7 @@ mod tests {
         let bus = EventBus::new();
         bus.emit(BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 0,
+            duration_ms: hm_pipeline_ir::DurationMs(0),
         });
         // Should not panic.
     }

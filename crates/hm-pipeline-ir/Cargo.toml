@@ -8,6 +8,7 @@ description = "Pipeline IR — the v0 wire-format schema consumed by hm."
 
 [dependencies]
 daggy      = { workspace = true }
+derive_more = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 schemars   = { workspace = true }

@@ -7,3 +7,5 @@ pub mod fs;
 pub mod git;
 pub mod process;
 pub mod python;
+pub mod string;
+pub mod time;

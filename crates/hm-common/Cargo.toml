@@ -17,15 +17,19 @@ app-runtime = []
 [dependencies]
 anyhow      = { workspace = true }
 async-trait = { workspace = true }
+chrono      = { workspace = true }
 derive_more = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 thiserror   = { workspace = true }
 bstr        = "1"
 include_dir = "0.7"
+num-traits  = { workspace = true }
 tempfile    = "3"
 tokio       = { version = "1", features = ["process", "fs"] }
 tracing     = "0.1"
+unicode-width        = { workspace = true }
+unicode-segmentation = { workspace = true }
 which       = "7"
 
 [dev-dependencies]

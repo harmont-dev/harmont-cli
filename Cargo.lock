@@ -1258,8 +1258,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bstr",
+ "chrono",
  "derive_more",
  "include_dir",
+ "num-traits",
  "proptest",
  "rstest",
  "serde",
@@ -1268,6 +1270,8 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "unicode-segmentation",
+ "unicode-width",
  "which",
 ]
 
@@ -1315,6 +1319,7 @@ dependencies = [
  "futures",
  "futures-util",
  "harmont-cloud",
+ "hm-common",
  "hm-pipeline-ir",
  "hm-plugin-protocol",
  "hm-util",
@@ -1339,6 +1344,7 @@ name = "hm-pipeline-ir"
 version = "0.0.0-dev"
 dependencies = [
  "daggy",
+ "derive_more",
  "insta",
  "rstest",
  "schemars 0.8.22",
@@ -1399,6 +1405,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-indicatif",
+ "unicode-width",
  "uuid",
 ]
 
@@ -1424,6 +1431,7 @@ dependencies = [
  "bollard",
  "derive_more",
  "futures",
+ "hm-common",
  "rstest",
  "rusqlite",
  "tar",

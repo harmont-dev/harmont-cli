@@ -33,13 +33,14 @@ use daggy::{Dag, NodeIndex, Walker};
 use futures::future::{BoxFuture, FutureExt, join_all};
 
 use anyhow::Context as _;
+use hm_common::string::{EllipsizeExt as _, Indicator, Measure, Pos};
 use hm_plugin_protocol::events::BuildRef;
 use hm_plugin_protocol::{
     ArchiveId, BuildEvent, CacheDecision, ExecutorInput, PlanSummary, SnapshotRef, StepResult,
 };
 use uuid::Uuid;
 
-use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
+use hm_pipeline_ir::{DurationMs, EdgeKind, PipelineGraph, Transition};
 
 use crate::local::runner::{RunnerRegistry, StepContext};
 use crate::local::source::build_archive_bytes;
@@ -211,7 +212,7 @@ pub(crate) async fn run(
                         key: node_key,
                         status,
                         exit_code: None,
-                        duration_ms: 0,
+                        duration_ms: DurationMs(0),
                     }),
                     failed_or_skipped: true,
                 };
@@ -258,7 +259,7 @@ pub(crate) async fn run(
                             key: node_key,
                             status: StepStatus::Failed,
                             exit_code: Some(1),
-                            duration_ms: 0,
+                            duration_ms: DurationMs(0),
                         }),
                         failed_or_skipped: true,
                     }
@@ -334,7 +335,7 @@ pub(crate) async fn run(
 
     let steps: Vec<StepResultSummary> = outcomes.iter().filter_map(|o| o.summary.clone()).collect();
 
-    let dur = started_total.elapsed().as_millis() as u64;
+    let dur = DurationMs::from(started_total.elapsed());
 
     bus.emit(BuildEvent::BuildEnd {
         exit_code: status.exit_code(),
@@ -390,15 +391,11 @@ async fn execute_step(
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
-        let cmd = step_wire.cmd.trim();
-        if cmd.chars().count() <= 40 {
-            cmd.to_owned()
-        } else {
-            // Truncate on a char boundary, not a byte offset: `&cmd[..39]`
-            // panics if byte 39 falls inside a multibyte UTF-8 sequence.
-            let truncated: String = cmd.chars().take(39).collect();
-            format!("{truncated}…")
-        }
+        step_wire
+            .cmd
+            .trim()
+            .ellipsize(Measure::Columns(40), Pos::End, Indicator::UNICODE)
+            .to_string()
     });
     let env_map = transition.env;
     let step_id = Uuid::new_v4();
@@ -479,7 +476,7 @@ async fn execute_step(
                     // Per-step wall-clock budget exceeded. Emit a step-end with the
                     // conventional timeout exit code (124), fail the chain, and
                     // cancel siblings — same shape as a non-zero exit below.
-                    let dur_ms = started.elapsed().as_millis() as u64;
+                    let dur_ms = DurationMs::from(started.elapsed());
                     bus.emit(BuildEvent::StepEnd {
                         step_id,
                         exit_code: 124,
@@ -515,7 +512,7 @@ async fn execute_step(
         _ => exec.await,
     };
 
-    let dur_ms = started.elapsed().as_millis() as u64;
+    let dur_ms = DurationMs::from(started.elapsed());
     match result {
         Ok(sr) => {
             bus.emit(BuildEvent::StepEnd {

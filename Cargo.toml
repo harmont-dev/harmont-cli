@@ -58,6 +58,7 @@ uuid        = { version = "1", features = ["serde", "v4"] }
 chrono      = { version = "0.4", features = ["serde"] }
 thiserror   = "2"
 human-units = "0.5.4"
+num-traits  = "0.2"
 derive_more = { version = "1", default-features = false, features = ["full"] }
 smart-default = "0.7"
 tokio       = { version = "1", features = ["full"] }
@@ -66,6 +67,8 @@ tracing     = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry"] }
 rstest      = "0.23"
 proptest    = "1"
+unicode-width = "0.2"
+unicode-segmentation = "1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
