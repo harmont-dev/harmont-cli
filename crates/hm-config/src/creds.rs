@@ -1,7 +1,7 @@
 //! File-backed credential store at `~/.config/hm/credentials.toml`.
 //!
 //! The file is written with [`Privacy::Private`] (0o600, parent dir 0o700)
-//! via [`hm_common::fs::blocking::write_atomic`], keyed by `(service, account)`.
+//! via [`hm_common::fs::write_atomic`], keyed by `(service, account)`.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ struct CredentialFile {
 }
 
 fn path() -> Result<PathBuf> {
-    let dirs = hm_common::DirProvider::new().context("could not determine config directory")?;
+    let dirs = hm_common::dir_provider::DirProvider::new().context("could not determine config directory")?;
     Ok(dirs.config().join("hm").join("credentials.toml"))
 }
 

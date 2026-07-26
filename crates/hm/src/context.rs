@@ -28,7 +28,7 @@ impl RunContext {
     /// Returns an error if the config file is unreadable or malformed.
     pub fn from_cli(cli: &Cli) -> Result<Self> {
         let start_dir = std::env::current_dir().context("cannot determine current directory")?;
-        let project_root = hm_common::dirs::find_project_root(&start_dir);
+        let project_root = crate::project::find_project_root(&start_dir);
         let config = Config::load(project_root.as_deref())?;
 
         let output = OutputMode::Human {

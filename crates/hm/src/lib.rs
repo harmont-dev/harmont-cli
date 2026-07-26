@@ -3,10 +3,9 @@
     reason = "transitive dependency version conflicts in rand/windows-sys/thiserror chains; not fixable without upstream updates"
 )]
 // The `dirs` crate must NOT be added as a direct dependency of this
-// crate. All directory resolution goes through `hm_common::dirs`, which
-// owns the `dirs` dependency and provides both platform primitives and
-// Harmont-specific discovery. Adding `dirs` here would bypass that
-// single source of truth.
+// crate. Platform-directory resolution goes through
+// `hm_common::DirProvider`, which owns the `dirs` dependency. Adding
+// `dirs` here would bypass that single source of truth.
 
 #[allow(
     clippy::print_stdout,
@@ -24,5 +23,6 @@ pub use hm_config as config;
 /// `harmont_cli::creds_store` path.
 pub use hm_config::creds as creds_store;
 pub mod context;
+pub mod project;
 pub mod error;
 pub(crate) mod signal;

@@ -1,8 +1,7 @@
-//! Project-directory discovery.
+//! The current Harmont project on disk.
 //!
-//! The `hm`-namespaced directory *roots* (config, cache, …) live in
-//! [`crate::dir_provider`]. This module handles the orthogonal problem of
-//! locating the current project by walking up from a starting path.
+//! A project is any directory tree rooted at a directory that contains `.hm/`;
+//! this module locates that root.
 
 #![allow(clippy::must_use_candidate)]
 
