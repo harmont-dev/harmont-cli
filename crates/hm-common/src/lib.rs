@@ -4,4 +4,5 @@
 pub mod app_runtime;
 pub mod format;
 pub mod fs;
+pub mod git;
 pub mod process;

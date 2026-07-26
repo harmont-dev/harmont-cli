@@ -176,6 +176,7 @@ pub trait CommandExt: sealed::Sealed {
 }
 
 impl CommandExt for std::process::Command {
+    #[tracing::instrument(skip(self), fields(program = %self.get_program().to_string_lossy()))]
     fn captured(&mut self) -> io::Result<Captured> {
         let program = self.get_program().to_string_lossy().into_owned();
         let out = self.output()?;
@@ -195,6 +196,7 @@ pub trait AsyncCommandExt: sealed::Sealed {
 }
 
 impl AsyncCommandExt for tokio::process::Command {
+    #[tracing::instrument(skip(self), fields(program = %self.as_std().get_program().to_string_lossy()))]
     async fn captured(&mut self) -> io::Result<Captured> {
         let program = self.as_std().get_program().to_string_lossy().into_owned();
         let out = self.output().await?;

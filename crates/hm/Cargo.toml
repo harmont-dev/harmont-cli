@@ -53,6 +53,7 @@ webbrowser = "1"
 rand = "0.8"
 uuid = { version = "1", features = ["serde"] }
 bytes = "1"
+bstr = "1"
 human-units = { workspace = true }
 futures = "0.3"
 futures-util = "0.3"

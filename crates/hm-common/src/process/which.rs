@@ -13,6 +13,7 @@ pub struct ExecutableNotFound {
 /// Resolve `program` to its absolute path on `PATH`.
 ///
 /// For a presence check, call `pathbin(program).is_ok()`.
+#[tracing::instrument(skip_all, fields(program = %program.as_ref().to_string_lossy()))]
 pub fn pathbin(program: impl AsRef<OsStr>) -> Result<PathBuf, ExecutableNotFound> {
     let program = program.as_ref();
     which::which(program).map_err(|_| ExecutableNotFound {

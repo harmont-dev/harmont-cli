@@ -1112,6 +1112,7 @@ dependencies = [
  "axum",
  "backon",
  "base64",
+ "bstr",
  "bytes",
  "chrono",
  "clap",
@@ -1256,6 +1257,7 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bstr",
  "derive_more",
  "include_dir",
  "proptest",
