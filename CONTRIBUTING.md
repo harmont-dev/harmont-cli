@@ -174,12 +174,11 @@ cargo insta review
 | Crate | What it is |
 |---|---|
 | `crates/hm` | The `hm` binary (package `harmont-cli`) — command-line client for the Harmont CI platform. |
-| `crates/hm-exec` | Pluggable CI execution backends: local and cloud. |
+| `crates/hm-core` | Shared core: layered configuration/credential storage, the pluggable CI execution backends (local and cloud), and the process-wide system runtime. |
 | `crates/hm-vm` | Local Docker backends that run pipeline steps on your machine. |
 | `crates/hm-render` | Build-event renderers (human, with progress bars, and JSON). |
 | `crates/hm-dsl-engine` | Evaluates Python pipeline definitions; contains the `harmont` Python package (`harmont-py/`). |
 | `crates/hm-pipeline-ir` | The pipeline IR wire-format schema. |
-| `crates/hm-config` | Layered configuration and credential storage. |
 | `crates/hm-plugin-cloud` | Cloud client library. |
 | `crates/hm-plugin-protocol` | Wire types shared between `hm` crate internals. |
 | `crates/hm-util` | Shared OS and filesystem utilities. |
@@ -201,7 +200,7 @@ from; a maintainer will regenerate the published docs during review.
 
 Every `hm` command accepts `-v`/`--verbose` for debug-level logging. For
 finer control, set `RUST_LOG` with standard tracing filter directives
-(for example `RUST_LOG=hm_exec=trace`); when set, it takes precedence over
+(for example `RUST_LOG=hm_core::exec=trace`); when set, it takes precedence over
 the flag. To see the raw `BuildEvent` stream that the renderers consume,
 run with `hm run --format json`.
 

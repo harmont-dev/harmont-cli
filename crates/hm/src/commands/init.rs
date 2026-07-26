@@ -97,9 +97,9 @@ fn prompt_skills() -> Result<bool> {
 ///
 /// Silently returns `Ok(())` on any user-cancellation (Esc, Ctrl-C on a prompt).
 async fn prompt_cloud_registration(dir: &std::path::Path) -> Result<()> {
-    let cfg = hm_config::Config::load(None).unwrap_or_default();
+    let cfg = hm_core::config::Config::load(None).unwrap_or_default();
     let api_url = &cfg.cloud.api_url;
-    let is_logged_in = hm_config::creds::cloud_token(api_url).is_some();
+    let is_logged_in = hm_core::config::creds::cloud_token(api_url).is_some();
 
     if !is_logged_in {
         let want_login = dialoguer::Confirm::new()
@@ -319,15 +319,15 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         write_skills(&args.dir, args.force).await?;
     }
 
-    let project_config = hm_config::Config::project_config_path(&args.dir);
+    let project_config = hm_core::config::Config::project_config_path(&args.dir);
     if project_config.exists() {
         let cfg =
-            hm_config::Config::load_from_paths(None, Some(&project_config)).unwrap_or_default();
+            hm_core::config::Config::load_from_paths(None, Some(&project_config)).unwrap_or_default();
         match cfg.backend {
-            hm_config::Backend::Cloud => {
+            hm_core::config::Backend::Cloud => {
                 tracing::info!("next step: run `hm run` to execute your pipeline on Harmont Cloud");
             }
-            hm_config::Backend::Docker => {
+            hm_core::config::Backend::Docker => {
                 tracing::info!("next step: run `hm run` to execute your pipeline locally");
             }
         }

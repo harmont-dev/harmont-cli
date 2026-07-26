@@ -24,11 +24,11 @@ impl Plan {
     /// Parse verbatim IR JSON into a typed plan, retaining the original string.
     ///
     /// # Errors
-    /// Returns [`crate::BackendError::Rejected`] when `ir_json` is not valid
+    /// Returns [`crate::exec::BackendError::Rejected`] when `ir_json` is not valid
     /// pipeline IR JSON.
-    pub fn parse(ir_json: String) -> crate::Result<Self> {
+    pub fn parse(ir_json: String) -> crate::exec::Result<Self> {
         let graph: PipelineGraph = serde_json::from_slice(ir_json.as_bytes()).map_err(|e| {
-            crate::BackendError::Rejected {
+            crate::exec::BackendError::Rejected {
                 code: "invalid_ir".into(),
                 message: format!("could not parse pipeline IR: {e}"),
             }
@@ -52,7 +52,7 @@ impl Plan {
 fn summarize(graph: &PipelineGraph) -> PlanSummary {
     PlanSummary {
         step_count: graph.node_count(),
-        chain_count: crate::local::chain_count(graph.dag()),
+        chain_count: crate::exec::local::chain_count(graph.dag()),
         default_runner: "docker".to_string(),
     }
 }
@@ -82,7 +82,7 @@ pub struct RunOptions {
     pub keep_going: bool,
 }
 
-/// All inputs needed to start a build on any [`crate::ExecutionBackend`].
+/// All inputs needed to start a build on any [`crate::exec::ExecutionBackend`].
 #[derive(Debug, Clone)]
 pub struct RunRequest {
     pub plan: Plan,
@@ -163,7 +163,7 @@ mod tests {
     #[rstest]
     fn invalid_ir_returns_rejected_error() {
         let err = Plan::parse("not json at all".to_string()).unwrap_err();
-        assert!(matches!(err, crate::BackendError::Rejected { .. }));
+        assert!(matches!(err, crate::exec::BackendError::Rejected { .. }));
         let msg = err.to_string();
         assert!(msg.contains("invalid_ir"));
     }

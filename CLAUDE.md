@@ -1,7 +1,7 @@
 The `cli/` directory is a Cargo workspace.
 
 - `crates/hm/` — the `hm` binary (today's CLI body).
-- `crates/hm-exec/` — the `ExecutionBackend` trait + `LocalDockerBackend` (in-process Docker DAG scheduler) + `CloudBackend` (submit+watch over the SDK). The `hm` binary renders the emitted `BuildEvent` stream (via `hm-render`) and owns Ctrl-C; auth is injected (the crate takes a built `HarmontClient`).
+- `crates/hm-core/` — the shared core: `config` (layered project/user/env config + credential storage), `exec` (the `ExecutionBackend` trait + `LocalBackend` in-process Docker DAG scheduler + `CloudBackend` submit+watch over the SDK), and `sys_runtime` (the process-wide git/python/dirs/cwd runtime). The `hm` binary renders the emitted `BuildEvent` stream (via `hm-render`) and owns Ctrl-C; auth is injected (the backends take a built `HarmontClient`).
 - `crates/hm-render/` — `drive_stream`: consumes an `EventStream` and writes terminal/JSON output. No I/O beyond stdout.
 - `crates/hm-pipeline-ir/` — pipeline IR schema (serde structs only, no runtime).
 - `crates/hm-common/` — shared utilities (OS/filesystem, formatting, and other cross-crate helpers). This is the source of truth for common code; prefer adding shared helpers here.

@@ -1,7 +1,7 @@
 //! Per-run source archive store.
 //!
 //! On build start the orchestrator tar.gzs the user's working
-//! directory once (via [`crate::local::build_archive_bytes`])
+//! directory once (via [`crate::exec::local::build_archive_bytes`])
 //! and registers the bytes under an opaque `ArchiveId`. Runners receive
 //! that ID in their `ExecutorInput` and read the bytes back from this
 //! store. Archives are cached in memory keyed by ID for the duration of

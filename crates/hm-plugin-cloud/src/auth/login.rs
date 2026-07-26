@@ -28,7 +28,7 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, paste: bool) -> Result<(
         login_loopback(&client, &app).await?
     };
 
-    hm_config::creds::set_cloud_token(&api, &token).await;
+    hm_core::config::creds::set_cloud_token(&api, &token).await;
 
     // Confirm by reading back the authenticated user.
     let authed = HarmontClient::with_base_url(token, &api);
@@ -139,10 +139,10 @@ async fn login_paste(
 
 /// Derive the SPA (app) base URL from the API base.
 ///
-/// Thin wrapper over the shared [`hm_config::app_url`] helper, sourcing the
+/// Thin wrapper over the shared [`hm_core::config::app_url`] helper, sourcing the
 /// override from the `HM_APP_URL` env var.
 fn app_url(api: &str, env: &BTreeMap<String, String>) -> String {
-    hm_config::app_url(api, env.get("HM_APP_URL").map(String::as_str))
+    hm_core::config::app_url(api, env.get("HM_APP_URL").map(String::as_str))
 }
 
 /// A URL-safe random nonce for the loopback handoff.

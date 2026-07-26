@@ -13,8 +13,8 @@ mod scheduler;
 mod source;
 
 pub use backend::LocalBackend;
-pub(crate) use runner::RunnerRegistry; // intra-crate: local/backend.rs via crate::local::
-pub(crate) use runner::vm::VmRunner; // intra-crate: local/backend.rs via crate::local::
+pub(crate) use runner::RunnerRegistry; // intra-crate: local/backend.rs via crate::exec::local::
+pub(crate) use runner::vm::VmRunner; // intra-crate: local/backend.rs via crate::exec::local::
 pub(crate) use scheduler::chain_count;
 pub(crate) use scheduler::run;
-pub(crate) use source::{build_archive_bytes, top_level_sizes}; // intra-crate: cloud/backend.rs via crate::local::
+pub(crate) use source::{build_archive_bytes, top_level_sizes}; // intra-crate: cloud/backend.rs via crate::exec::local::

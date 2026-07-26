@@ -1,6 +1,6 @@
-## Execution backends (`hm-exec`)
+## Execution backends (`hm-core::exec`)
 
-Local and cloud execution both go through `crates/hm-exec/` — the
+Local and cloud execution both go through `crates/hm-core/src/exec/` — the
 `ExecutionBackend` trait + two impls:
 
 - `LocalBackend` — runs the whole build in-process via a DAG scheduler,
@@ -22,10 +22,10 @@ BackendHandle`, splits the handle via `into_parts()` into an
 (Ctrl-C + `wait()`). Auth is injected: this crate takes a pre-built
 `HarmontClient`; it never reads credentials from disk.
 
-### Per-step mechanism (`hm-exec`'s `local` module + `hm-vm`)
+### Per-step mechanism (`hm-core::exec`'s `local` module + `hm-vm`)
 
 The whole-build `ExecutionBackend` and the per-step `hm_vm::VmBackend`
-are two separate traits. Inside `LocalBackend`, `crates/hm-exec/src/local/`:
+are two separate traits. Inside `LocalBackend`, `crates/hm-core/src/exec/local/`:
 - Builds the source archive once into memory (`source.rs` + `archive.rs`).
 - Walks the DAG in `scheduler.rs`, resolving each step's `runner` field
   against a `RunnerRegistry` (default: `VmRunner`).

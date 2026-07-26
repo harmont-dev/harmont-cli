@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::cli::JobCommand;
 use crate::settings;
-use hm_exec::cloud::watch::stream_job_logs_as_events;
+use hm_core::exec::cloud::watch::stream_job_logs_as_events;
 
 pub(crate) async fn run(_env: &BTreeMap<String, String>, cmd: JobCommand) -> Result<()> {
     let (client, ctx) = settings::client()?;

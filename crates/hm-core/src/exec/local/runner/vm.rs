@@ -18,7 +18,7 @@ use hm_vm::{Action, CachingPolicy, HmVm, ImageSource, SnapshotId};
 use uuid::Uuid;
 
 use super::{StepContext, StepRunner};
-use crate::local::events::EventBus;
+use crate::exec::local::events::EventBus;
 
 /// Step runner that executes pipeline steps inside lightweight VMs
 /// via the [`HmVm`] orchestrator.

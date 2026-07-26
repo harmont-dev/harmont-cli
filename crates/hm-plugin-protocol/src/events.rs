@@ -82,7 +82,7 @@ pub enum BuildEvent {
     },
 }
 
-/// Stable identity for a build, shared by `BuildAccepted` and `hm_exec::BuildOutcome`.
+/// Stable identity for a build, shared by `BuildAccepted` and `hm_core::exec::BuildOutcome`.
 /// Local builds have a `run_id` only; cloud builds also have `number`/`org`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildRef {

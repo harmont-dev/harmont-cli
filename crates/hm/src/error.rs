@@ -56,7 +56,7 @@ pub enum HmError {
     #[error("no default step executor is registered")]
     NoDefaultExecutor,
 
-    /// A failure surfaced across the `hm_exec::ExecutionBackend` boundary,
+    /// A failure surfaced across the `hm_core::exec::ExecutionBackend` boundary,
     /// already rendered in the project's error doctrine. Carries its own
     /// [`ErrorCategory`] so the process exit code is preserved (the doctrine
     /// message lives in `0`; the category drives `exit_code()`).

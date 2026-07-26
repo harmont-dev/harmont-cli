@@ -27,7 +27,7 @@ async fn switch(client: &harmont_cloud::HarmontClient, slug: &str) -> Result<()>
         .iter()
         .find(|o| o.slug == slug)
         .ok_or_else(|| anyhow::anyhow!("no organization with slug '{slug}'"))?;
-    let mut cfg = hm_config::Config::load(None)?;
+    let mut cfg = hm_core::config::Config::load(None)?;
     cfg.cloud.org = Some(found.slug.clone());
     cfg.save_user().await.context("saving config")?;
     tracing::info!("active organization: {} ({})", found.name, found.slug);

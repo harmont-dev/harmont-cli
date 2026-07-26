@@ -13,8 +13,8 @@ use anyhow::Result;
 use hm_plugin_protocol::{ExecutorInput, SnapshotRef, StepResult};
 use tokio_util::sync::CancellationToken;
 
-use crate::local::archive::ArchiveStore;
-use crate::local::events::EventBus;
+use crate::exec::local::archive::ArchiveStore;
+use crate::exec::local::events::EventBus;
 
 pub mod vm;
 

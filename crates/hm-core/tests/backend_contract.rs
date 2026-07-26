@@ -9,7 +9,7 @@
 
 use futures::StreamExt;
 use rstest::rstest;
-use hm_exec::*;
+use hm_core::exec::*;
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
 use hm_plugin_protocol::ir::DurationMs;
 use tokio_util::sync::CancellationToken;
@@ -102,7 +102,7 @@ impl hm_vm::VmBackend for NoopVmBackend {
 #[rstest]
 #[tokio::test]
 async fn local_backend_reports_capabilities() {
-    let b = hm_exec::LocalBackend::new(
+    let b = hm_core::exec::LocalBackend::new(
         std::num::NonZeroUsize::new(4).unwrap(),
         std::sync::Arc::new(NoopVmBackend),
     );
@@ -115,7 +115,7 @@ async fn local_backend_reports_capabilities() {
 #[rstest]
 fn cloud_backend_capabilities() {
     // `with_base_url` does no network IO, so this is safe with a dummy token.
-    let c = hm_exec::CloudBackend::new(
+    let c = hm_core::exec::CloudBackend::new(
         harmont_cloud::HarmontClient::with_base_url("t", "http://localhost"),
         "http://localhost".into(),
         "http://localhost".into(),

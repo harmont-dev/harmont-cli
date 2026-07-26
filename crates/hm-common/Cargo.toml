@@ -11,9 +11,6 @@ categories = ["command-line-utilities"]
 [lib]
 path = "src/lib.rs"
 
-[features]
-sys-runtime = []
-
 [dependencies]
 anyhow      = { workspace = true }
 async-trait = { workspace = true }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 
 use bstr::ByteSlice as _;
-use hm_common::sys_runtime::SysRuntime;
+use hm_core::sys_runtime::SysRuntime;
 use hm_common::git::{GitBranch, GitRemote, GitRepo};
 use hm_dsl_engine::{DslEngine, detect};
 use human_units::FormatSize as _;
@@ -23,8 +23,8 @@ use crate::error::{ErrorCategory, HmError};
 /// - `--cloud`          → `cloud` (deprecated alias)
 /// - neither            → `ctx.config.backend` (figment-layered, default `docker`)
 ///
-/// This is a THIN driver over the `hm-exec` backends: it builds an
-/// [`hm_exec::ExecutionBackend`], renders the pipeline to v0 IR once, starts
+/// This is a THIN driver over the `hm-core::exec` backends: it builds an
+/// [`hm_core::exec::ExecutionBackend`], renders the pipeline to v0 IR once, starts
 /// the build, drives its event stream through an `hm_render` renderer, owns
 /// Ctrl-C, and returns the build's process exit code. Cloud authentication is
 /// resolved BEFORE the (local) render work so a missing token fails fast.
@@ -58,7 +58,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     //    instead of a daemon-connection error.
     let cloud_creds = if backend_name == "cloud" {
         let api_url = ctx.config.cloud.api_url.clone();
-        let token = hm_config::creds::cloud_token(&api_url).context(
+        let token = hm_core::config::creds::cloud_token(&api_url).context(
             "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HM_API_TOKEN",
         )?;
         let org = args
@@ -77,7 +77,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     //    the pipeline argument — unknown slug, or zero/many declared pipelines
     //    — before we connect to any daemon.
     let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;
-    let plan = hm_exec::Plan::parse(ir_json).map_err(|e| backend_anyhow(&e))?;
+    let plan = hm_core::exec::Plan::parse(ir_json).map_err(|e| backend_anyhow(&e))?;
 
     // 4. Pick the renderer — this validates `--format` — before any daemon
     //    connection, so an unknown format fails fast without a running Docker.
@@ -90,20 +90,20 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // For cloud runs, keep a cloned client + org so a `pipeline_not_found` on
     // the first submit can create the pipeline and retry. `None` for local.
     let mut autocreate_client: Option<(harmont_cloud::HarmontClient, String)> = None;
-    let backend: Box<dyn hm_exec::ExecutionBackend> =
+    let backend: Box<dyn hm_core::exec::ExecutionBackend> =
         if let Some((api_url, token, org)) = cloud_creds {
             let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
             autocreate_client = Some((client.clone(), org.clone()));
             // The watch link must point at the dashboard (app.) host, not the
             // API host — a link built from `api_url` lands on raw JSON.
-            let app_url = hm_config::app_url(&api_url, std::env::var("HM_APP_URL").ok().as_deref());
-            Box::new(hm_exec::CloudBackend::new(client, api_url, app_url, org))
+            let app_url = hm_core::config::app_url(&api_url, std::env::var("HM_APP_URL").ok().as_deref());
+            Box::new(hm_core::exec::CloudBackend::new(client, api_url, app_url, org))
         } else {
             // Local execution on a hm-vm VmBackend (docker).
             let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = std::sync::Arc::new(
                 hm_vm::docker::DockerBackend::connect().map_err(|e| anyhow::anyhow!("{e:#}"))?,
             );
-            Box::new(hm_exec::LocalBackend::new(
+            Box::new(hm_core::exec::LocalBackend::new(
                 resolve_parallelism(&args),
                 vm_backend,
             ))
@@ -170,18 +170,18 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
 
         (branch, commit, repo_name, remote_url, default_branch)
     };
-    let mut req = hm_exec::RunRequest {
+    let mut req = hm_core::exec::RunRequest {
         plan,
         repo_root,
         pipeline_slug: slug,
         env: parse_env(&args.env).into_iter().collect(),
-        source: hm_exec::SourceMeta {
+        source: hm_core::exec::SourceMeta {
             branch,
             commit,
             message: args.message.clone(),
             repo_name,
         },
-        options: hm_exec::RunOptions {
+        options: hm_core::exec::RunOptions {
             no_cache: false,
             timeout: None,
             watch: !args.no_watch,
@@ -283,7 +283,7 @@ fn parse_env(pairs: &[String]) -> HashMap<String, String> {
 ///
 /// Returns `(repo_root, slug, ir_json_string)`. The JSON is returned as a
 /// string so a backend (e.g. cloud) can ship it verbatim; the driver parses
-/// it into an [`hm_exec::Plan`] once.
+/// it into an [`hm_core::exec::Plan`] once.
 ///
 /// # Errors
 ///
@@ -331,13 +331,13 @@ async fn render_pipeline(
     Ok((repo_root, slug, json_str))
 }
 
-/// Convert an [`hm_exec::BackendError`] into an [`anyhow::Error`] that carries
+/// Convert an [`hm_core::exec::BackendError`] into an [`anyhow::Error`] that carries
 /// BOTH the doctrine message ([`explain`]) AND the right process exit code.
 ///
 /// The exit code is preserved by wrapping in [`HmError::Backend`], whose
 /// [`HmError::category`] returns the embedded [`ErrorCategory`]; `main`'s
 /// `handle_error` downcasts to `HmError` and reads `exit_code()`.
-fn backend_anyhow(err: &hm_exec::BackendError) -> anyhow::Error {
+fn backend_anyhow(err: &hm_core::exec::BackendError) -> anyhow::Error {
     HmError::Backend(explain(err), exit_category(err)).into()
 }
 
@@ -350,8 +350,8 @@ const PIPELINE_NOT_FOUND_CODE: &str = "pipeline_not_found";
 /// submit path surfaces this as a structured `Rejected { code }` (current SDK);
 /// we also accept an opaque `NotFound` body carrying the code, for robustness
 /// against older servers that took the un-structured 404 path.
-fn is_missing_pipeline(err: &hm_exec::BackendError) -> bool {
-    use hm_exec::BackendError as E;
+fn is_missing_pipeline(err: &hm_core::exec::BackendError) -> bool {
+    use hm_core::exec::BackendError as E;
     match err {
         E::Rejected { code, .. } => code == PIPELINE_NOT_FOUND_CODE,
         E::NotFound(body) => body.contains(PIPELINE_NOT_FOUND_CODE),
@@ -505,7 +505,7 @@ struct AutoCreate {
 /// identified, or the user declined (caller then surfaces the original error).
 /// Returns `Err` only when a lookup or create request itself failed.
 async fn resolve_or_create_cloud_pipeline(
-    err: &hm_exec::BackendError,
+    err: &hm_core::exec::BackendError,
     ac: Option<&AutoCreate>,
 ) -> Result<Option<String>> {
     use std::io::IsTerminal;
@@ -566,15 +566,15 @@ async fn resolve_or_create_cloud_pipeline(
     Ok(Some(slug))
 }
 
-/// Map a [`hm_exec::BackendError`] to the process exit-code category.
+/// Map a [`hm_core::exec::BackendError`] to the process exit-code category.
 ///
 /// Note: the old taxonomy distinguished a downed Docker daemon
 /// (`EXIT_NETWORK`) from an unknown-runner pipeline error
 /// (`EXIT_PIPELINE_INVALID`). Both now arrive as
-/// [`hm_exec::BackendError::Local`], so they collapse to a single category
+/// [`hm_core::exec::BackendError::Local`], so they collapse to a single category
 /// (`Network`) here — an acceptable loss of resolution.
-const fn exit_category(err: &hm_exec::BackendError) -> ErrorCategory {
-    use hm_exec::BackendError as E;
+const fn exit_category(err: &hm_core::exec::BackendError) -> ErrorCategory {
+    use hm_core::exec::BackendError as E;
     match err {
         // A plan/IR rejection is a pipeline-config problem.
         E::Rejected { .. } => ErrorCategory::PipelineInvalid,
@@ -593,12 +593,12 @@ const fn exit_category(err: &hm_exec::BackendError) -> ErrorCategory {
     }
 }
 
-/// Render a [`hm_exec::BackendError`] in the project's error doctrine: point
+/// Render a [`hm_core::exec::BackendError`] in the project's error doctrine: point
 /// precisely, say what was observed, say the fix, give a stable code + doc URL.
 ///
 /// Adapted from the legacy `executor/cloud.rs::explain(&HarmontError)`.
-fn explain(err: &hm_exec::BackendError) -> String {
-    use hm_exec::BackendError as E;
+fn explain(err: &hm_core::exec::BackendError) -> String {
+    use hm_core::exec::BackendError as E;
     match err {
         E::Unauthorized => "\
 error[auth_required]: not authenticated
@@ -660,7 +660,7 @@ error[source_too_large]: worktree archive is {observed} (cap {cap})
     reason = "test setup and assertions"
 )]
 mod tests {
-    use hm_exec::BackendError as E;
+    use hm_core::exec::BackendError as E;
     use rstest::rstest;
 
     use super::*;

@@ -14,9 +14,8 @@ path = "src/lib.rs"
 [dependencies]
 harmont-cloud      = { workspace = true }
 harmont-cloud-raw  = { workspace = true }
-hm-exec            = { workspace = true }
+hm-core            = { workspace = true }
 hm-render          = { workspace = true }
-hm-config          = { workspace = true }
 hm-plugin-protocol = { workspace = true }
 serde_json         = { workspace = true }
 chrono             = { workspace = true }

@@ -152,7 +152,7 @@ pub async fn drive(
 /// Drive a renderer from a [`Stream`] of events until it ends or a
 /// `BuildEnd` is seen.
 ///
-/// The `hm-exec` backend handle yields events as a
+/// The `hm-core::exec` backend handle yields events as a
 /// `BoxStream<'static, BuildEvent>`; this function is the counterpart to
 /// [`drive`] for that case.
 ///

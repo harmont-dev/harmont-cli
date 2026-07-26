@@ -100,7 +100,7 @@ const fn job_logs_available(state: &OpenJobState) -> bool {
 
 /// Map a terminal build state to the process exit code the renderer and the
 /// `hm run` driver use. `passed` → 0, `canceled` → 130 (SIGINT-cancel, mirrors
-/// [`crate::BuildStatus::Canceled`]), everything else (`failed`, and any
+/// [`crate::exec::BuildStatus::Canceled`]), everything else (`failed`, and any
 /// unexpected state) → 1. Kept in lockstep with the backend's state→status map
 /// so a server-side cancel is never reported as a failure.
 pub(crate) fn exit_code_for_state(state: &str) -> i32 {

@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 use std::path::Path;
 
-use crate::{
+use crate::exec::{
     BackendError, BackendHandle, BuildOutcome, BuildStatus, Capabilities, ExecutionBackend, Result,
     RunRequest,
 };
@@ -37,7 +37,7 @@ pub struct CloudBackend {
     api_base: String,
     /// Dashboard (SPA) base used to build the human-clickable watch URL. This
     /// is the `app.` host, NOT `api.` — a link built from `api_base` lands on
-    /// raw JSON. Resolved via [`hm_config::app_url`] at the call site.
+    /// raw JSON. Resolved via [`crate::config::app_url`] at the call site.
     app_base: String,
     org: String,
 }
@@ -84,7 +84,7 @@ impl ExecutionBackend for CloudBackend {
     #[allow(clippy::too_many_lines)]
     async fn start(&self, req: RunRequest) -> Result<BackendHandle> {
         // Archive the worktree (fail fast as a setup error).
-        let source_tgz = crate::local::build_archive_bytes(&req.repo_root)
+        let source_tgz = crate::exec::local::build_archive_bytes(&req.repo_root)
             .map_err(|e| BackendError::Local(format!("archiving worktree: {e}")))?;
 
         // Guard the upload size BEFORE the POST: warn when large, fail fast over
@@ -208,7 +208,7 @@ impl ExecutionBackend for CloudBackend {
                         watch_url,
                     });
                 }
-                r = crate::cloud::watch::watch_build(&client, &api_base, &org, &pipeline, number, tx) => {
+                r = crate::exec::cloud::watch::watch_build(&client, &api_base, &org, &pipeline, number, tx) => {
                     r.map_err(|e| BackendError::LogStream(e.to_string()))?
                 }
             };
@@ -277,7 +277,7 @@ fn guard_archive_size(archive_len: usize, repo_root: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let largest = crate::local::top_level_sizes(repo_root);
+    let largest = crate::exec::local::top_level_sizes(repo_root);
     let offenders: Vec<(String, u64)> = largest.into_iter().take(3).collect();
 
     if bytes > ARCHIVE_CAP_BYTES {
@@ -319,7 +319,7 @@ mod tests {
 
     #[rstest]
     fn watch_url_uses_app_host_and_pipelines_path() {
-        // Mirrors hm_config::app_url(DEFAULT_API_URL) -> https://app.harmont.dev.
+        // Mirrors crate::config::app_url(DEFAULT_API_URL) -> https://app.harmont.dev.
         assert_eq!(
             dashboard_build_url("https://app.harmont.dev", "acme", "web", 42),
             "https://app.harmont.dev/acme/pipelines/web/builds/42"

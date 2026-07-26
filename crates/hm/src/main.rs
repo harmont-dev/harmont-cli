@@ -5,7 +5,7 @@
 
 use anyhow::Context as _;
 use clap::Parser;
-use hm_common::sys_runtime::SysRuntime;
+use hm_core::sys_runtime::SysRuntime;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;

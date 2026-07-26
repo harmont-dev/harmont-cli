@@ -8,7 +8,7 @@ use crate::settings;
 
 pub(crate) async fn run(_env: &BTreeMap<String, String>) -> Result<()> {
     let (_client, api) = settings::anon_client()?;
-    hm_config::creds::forget_cloud_token(&api).await;
+    hm_core::config::creds::forget_cloud_token(&api).await;
     tracing::info!("logged out of {api}");
     Ok(())
 }

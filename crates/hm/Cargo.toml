@@ -59,14 +59,13 @@ futures = "0.3"
 futures-util = "0.3"
 hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
-hm-common = { workspace = true, features = ["sys-runtime"] }
-hm-config = { workspace = true }
+hm-common = { workspace = true }
+hm-core = { workspace = true }
 hm-plugin-cloud = { workspace = true }
 harmont-cloud   = { workspace = true }
 hm-vm           = { workspace = true, features = ["docker-backend"] }
 hm-dsl-engine   = { workspace = true }
 hm-render       = { workspace = true }
-hm-exec         = { workspace = true }
 async-trait     = { workspace = true }
 semver = { workspace = true }
 smart-default = { workspace = true }

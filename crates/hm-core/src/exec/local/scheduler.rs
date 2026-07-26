@@ -42,9 +42,9 @@ use uuid::Uuid;
 
 use hm_pipeline_ir::{DurationMs, EdgeKind, PipelineGraph, Transition};
 
-use crate::local::runner::{RunnerRegistry, StepContext};
-use crate::local::source::build_archive_bytes;
-use crate::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};
+use crate::exec::local::runner::{RunnerRegistry, StepContext};
+use crate::exec::local::source::build_archive_bytes;
+use crate::exec::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};
 
 use super::archive::ArchiveStore;
 use super::cache;
@@ -95,7 +95,7 @@ pub(crate) async fn run(
     tx: tokio::sync::mpsc::Sender<BuildEvent>,
     cancel: CancellationToken,
     keep_going: bool,
-) -> crate::Result<BuildOutcome> {
+) -> crate::exec::Result<BuildOutcome> {
     // Set up per-run state.
     let bus = EventBus::new();
     let archives = Arc::new(ArchiveStore::new());
@@ -132,7 +132,7 @@ pub(crate) async fn run(
     // Build the source archive once.
     let archive_bytes = build_archive_bytes(&repo_root)
         .context("build source archive")
-        .map_err(|e| crate::BackendError::Local(format!("{e:#}")))?;
+        .map_err(|e| crate::exec::BackendError::Local(format!("{e:#}")))?;
     let archive_id = archives.register(archive_bytes);
 
     let run_ctx = StepContext {
@@ -148,7 +148,7 @@ pub(crate) async fn run(
     let chain_info = compute_chain_info(dag);
 
     let order = toposort(dag.graph(), None).map_err(|c| {
-        crate::BackendError::Local(format!("pipeline graph has a cycle at {:?}", c.node_id()))
+        crate::exec::BackendError::Local(format!("pipeline graph has a cycle at {:?}", c.node_id()))
     })?;
 
     let started_at = chrono::Utc::now();
@@ -577,7 +577,7 @@ struct ChainInfo {
 /// Return the number of linear `BuildsIn` chains in the pipeline DAG.
 ///
 /// This is the authoritative implementation shared by the scheduler and the
-/// [`crate::request`] plan-summarizer. See [`compute_chain_info`] for the
+/// [`crate::exec::request`] plan-summarizer. See [`compute_chain_info`] for the
 /// full per-node mapping used during a live run.
 pub(crate) fn chain_count(dag: &Dag<Transition, EdgeKind>) -> usize {
     compute_chain_info(dag).chain_count

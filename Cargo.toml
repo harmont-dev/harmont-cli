@@ -3,25 +3,23 @@ resolver = "2"
 members = [
     "crates/hm",
     "crates/hm-common",
-    "crates/hm-config",
+    "crates/hm-core",
     "crates/hm-plugin-protocol",
     "crates/hm-pipeline-ir",
     "crates/hm-plugin-cloud",
     "crates/hm-dsl-engine",
     "crates/hm-render",
-    "crates/hm-exec",
     "crates/hm-vm",
 ]
 default-members = [
     "crates/hm",
     "crates/hm-common",
-    "crates/hm-config",
+    "crates/hm-core",
     "crates/hm-plugin-protocol",
     "crates/hm-pipeline-ir",
     "crates/hm-plugin-cloud",
     "crates/hm-dsl-engine",
     "crates/hm-render",
-    "crates/hm-exec",
     "crates/hm-vm",
 ]
 
@@ -31,11 +29,10 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/harmont-dev/harmont-cli"
 
 [workspace.dependencies]
-hm-exec           = { path = "crates/hm-exec",            version = "0.0.0-dev" }
+hm-core            = { path = "crates/hm-core",           version = "0.0.0-dev" }
 hm-plugin-protocol = { path = "crates/hm-plugin-protocol", version = "0.0.0-dev" }
 hm-plugin-cloud    = { path = "crates/hm-plugin-cloud",    version = "0.0.0-dev" }
 hm-pipeline-ir     = { path = "crates/hm-pipeline-ir",     version = "0.0.0-dev" }
-hm-config          = { path = "crates/hm-config",          version = "0.0.0-dev" }
 hm-dsl-engine      = { path = "crates/hm-dsl-engine",     version = "0.0.0-dev" }
 hm-render          = { path = "crates/hm-render",          version = "0.0.0-dev" }
 hm-vm              = { path = "crates/hm-vm",              version = "0.0.0-dev" }

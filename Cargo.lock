@@ -1125,9 +1125,8 @@ dependencies = [
  "harmont-cloud",
  "hex",
  "hm-common",
- "hm-config",
+ "hm-core",
  "hm-dsl-engine",
- "hm-exec",
  "hm-pipeline-ir",
  "hm-plugin-cloud",
  "hm-plugin-protocol",
@@ -1276,45 +1275,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "hm-config"
-version = "0.0.0-dev"
-dependencies = [
- "anyhow",
- "derive_more",
- "figment",
- "hm-common",
- "rstest",
- "serde",
- "tempfile",
- "tokio",
- "toml",
-]
-
-[[package]]
-name = "hm-dsl-engine"
-version = "0.0.0-dev"
-dependencies = [
- "anyhow",
- "async-trait",
- "derive_more",
- "hm-common",
- "include_dir",
- "rstest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "hm-exec"
+name = "hm-core"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
  "daggy",
+ "derive_more",
+ "figment",
  "flate2",
  "futures",
  "futures-util",
@@ -1334,8 +1303,28 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "toml",
  "tracing",
+ "url",
  "uuid",
+]
+
+[[package]]
+name = "hm-dsl-engine"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "derive_more",
+ "hm-common",
+ "hm-core",
+ "include_dir",
+ "rstest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1362,8 +1351,7 @@ dependencies = [
  "dialoguer",
  "harmont-cloud",
  "harmont-cloud-raw",
- "hm-config",
- "hm-exec",
+ "hm-core",
  "hm-plugin-protocol",
  "hm-render",
  "rstest",

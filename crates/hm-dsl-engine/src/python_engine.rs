@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use hm_common::sys_runtime::SysRuntime;
+use hm_core::sys_runtime::SysRuntime;
 use hm_common::process::CapturedStreams as _;
 use tracing::debug;
 

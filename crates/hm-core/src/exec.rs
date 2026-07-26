@@ -22,9 +22,8 @@
 //!
 //! # Auth
 //!
-//! This crate never reads credentials from disk. The caller constructs a
+//! These backends never read credentials from disk. The caller constructs a
 //! `HarmontClient` and injects it; `hm` owns credential loading.
-#![forbid(unsafe_code)]
 
 mod error;
 pub use error::{BackendError, Result};

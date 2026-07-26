@@ -3,10 +3,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use crate::dir_provider::DirProvider;
-use crate::git::Git;
-use crate::process::{ExecutableNotFound, pathbin};
-use crate::python::Python;
+use hm_common::dir_provider::DirProvider;
+use hm_common::git::Git;
+use hm_common::process::{ExecutableNotFound, pathbin};
+use hm_common::python::Python;
 
 /// Failure to initialize the [`SysRuntime`].
 #[derive(Debug, thiserror::Error)]

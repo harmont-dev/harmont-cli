@@ -1,11 +1,11 @@
 //! Cloud client builders for the `hm cloud` verbs.
 //!
-//! Config and credentials are owned by the shared [`hm_config`] crate:
+//! Config and credentials are owned by the shared [`hm_core::config`] module:
 //!
 //! - layered config (user `~/.config/hm/config.toml` + project
 //!   `.hm/config.toml` + `HM_*` env) supplies the API base
 //!   (`cloud.api_url`) and the active org (`cloud.org`);
-//! - bearer tokens live in `hm_config::creds`, keyed by API base, with
+//! - bearer tokens live in `hm_core::config::creds`, keyed by API base, with
 //!   `HM_API_TOKEN` taking precedence.
 //!
 //! This module only assembles an SDK client from that config; it does not own
@@ -43,9 +43,9 @@ impl ResolvedCtx {
 ///
 /// Returns an error if config can't be loaded or no token is available.
 pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?;
+    let cfg = hm_core::config::Config::load(None).context("loading config")?;
     let api = cfg.cloud.api_url.clone();
-    let token = hm_config::creds::cloud_token(&api)
+    let token = hm_core::config::creds::cloud_token(&api)
         .context("not logged in — run `hm cloud login` or set HM_API_TOKEN")?;
     let client = HarmontClient::with_base_url(token, &api);
     Ok((
@@ -63,7 +63,7 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
 ///
 /// Returns an error if config can't be loaded.
 pub fn anon_client() -> Result<(HarmontClient, String)> {
-    let cfg = hm_config::Config::load(None).context("loading config")?;
+    let cfg = hm_core::config::Config::load(None).context("loading config")?;
     let api = cfg.cloud.api_url;
     Ok((HarmontClient::anonymous(&api), api))
 }
