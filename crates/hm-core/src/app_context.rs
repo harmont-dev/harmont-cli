@@ -84,12 +84,8 @@ impl AppContext {
 
     /// The absolute working directory captured at initialization.
     #[must_use]
-    #[allow(
-        clippy::missing_const_for_fn,
-        reason = "returns &Path via non-const deref coercion from PathBuf"
-    )]
     pub fn cwd(&self) -> &Path {
-        &self.cwd
+        self.cwd.as_path()
     }
 
     /// The platform user directory roots.

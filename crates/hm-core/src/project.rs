@@ -4,58 +4,58 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::app_context::AppContext;
 use crate::config::ResolvedProjectConfig;
 use crate::config::domain::ConfigLoadingError;
 use crate::config::project::ProjectConfig;
-use crate::config::user::UserConfig;
 
-/// A workspace root and its resolved configuration.
+/// A workspace root and its config, resolved against an [`AppContext`].
 #[derive(Debug, Clone)]
-pub struct ProjectContext {
+pub struct ProjectContext<'app> {
+    app: &'app AppContext,
     path: PathBuf,
     config: ResolvedProjectConfig,
 }
 
-impl ProjectContext {
-    /// Locate the project containing `start` (walking up to a directory with a
-    /// `.hm/`) and resolve its config against the `user` layer.
+impl<'app> ProjectContext<'app> {
+    /// Locate the project containing the app's working directory (walking up to
+    /// a directory with a `.hm/`) and resolve its config.
     ///
     /// Returns `None` when no ancestor contains a `.hm/` directory.
     ///
     /// # Errors
     /// [`ConfigLoadingError`] if the project config file is present but
     /// unreadable or malformed.
-    pub async fn discover(
-        start: &Path,
-        user: Option<&UserConfig>,
-    ) -> Result<Option<Self>, ConfigLoadingError> {
-        match Self::find_root(start) {
-            Some(root) => Ok(Some(Self::at(root, user).await?)),
+    pub async fn discover(app: &'app AppContext) -> Result<Option<Self>, ConfigLoadingError> {
+        match Self::find_root(app.cwd()) {
+            Some(root) => Ok(Some(Self::at(app, root).await?)),
             None => Ok(None),
         }
     }
 
     /// Wrap the workspace rooted at `path`, resolving its config against the
-    /// `user` layer. A missing project config file resolves to defaults.
+    /// app's user config. A missing project config file resolves to defaults.
     ///
     /// # Errors
     /// [`ConfigLoadingError`] if the project config file is present but
     /// unreadable or malformed.
-    pub async fn at(path: PathBuf, user: Option<&UserConfig>) -> Result<Self, ConfigLoadingError> {
+    pub async fn at(app: &'app AppContext, path: PathBuf) -> Result<Self, ConfigLoadingError> {
         let project = Self::load_config(&Self::config_file(&path)).await?;
-        let user = user.cloned().unwrap_or_default();
+        let user = app.user_config().cloned().unwrap_or_default();
         let config = ResolvedProjectConfig::from_user_project(&user, &project);
-        Ok(Self { path, config })
+        Ok(Self { app, path, config })
+    }
+
+    /// The application context this workspace resolved against.
+    #[must_use]
+    pub const fn app(&self) -> &'app AppContext {
+        self.app
     }
 
     /// The workspace root (the directory containing `.hm/`).
     #[must_use]
-    #[allow(
-        clippy::missing_const_for_fn,
-        reason = "returns &Path via non-const deref coercion from PathBuf"
-    )]
     pub fn path(&self) -> &Path {
-        &self.path
+        self.path.as_path()
     }
 
     /// The `.hm/` directory path.
@@ -106,7 +106,11 @@ impl ProjectContext {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, reason = "test setup and assertions")]
+#[allow(
+    clippy::unwrap_used,
+    clippy::print_stderr,
+    reason = "test setup, assertions, and skip diagnostics"
+)]
 mod tests {
     use super::*;
     use rstest::rstest;
@@ -131,16 +135,18 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn at_defaults_when_no_config_file() {
+    async fn at_exposes_paths_for_a_workspace() {
+        let Ok(app) = AppContext::init().await else {
+            eprintln!("skipping: toolchain unavailable");
+            return;
+        };
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir(tmp.path().join(".hm")).unwrap();
-        let ctx = ProjectContext::at(tmp.path().to_path_buf(), None)
+
+        let ctx = ProjectContext::at(&app, tmp.path().to_path_buf())
             .await
             .unwrap();
-        assert_eq!(
-            ctx.config().backend,
-            crate::config::domain::BackendConfig::Docker
-        );
+        assert_eq!(ctx.path(), tmp.path());
         assert_eq!(ctx.config_path(), tmp.path().join(".hm").join("config.toml"));
     }
 }

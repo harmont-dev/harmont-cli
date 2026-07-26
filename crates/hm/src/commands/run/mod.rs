@@ -44,8 +44,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let repo_root = args.dir.clone().unwrap_or_else(|| app.cwd().to_path_buf());
 
     // Resolve the effective config (user + project layers merged).
-    let project =
-        hm_core::project::ProjectContext::at(repo_root.clone(), app.user_config()).await?;
+    let project = hm_core::project::ProjectContext::at(app, repo_root.clone()).await?;
     let resolved_backend = project.config().backend.clone();
 
     // Project-persisted cloud pipeline slug, if any (consulted at submit time).

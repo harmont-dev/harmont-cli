@@ -322,7 +322,7 @@ pub async fn handle(args: InitArgs, app: &hm_core::app_context::AppContext) -> R
         write_skills(&args.dir, args.force).await?;
     }
 
-    let backend = hm_core::project::ProjectContext::at(args.dir.clone(), app.user_config())
+    let backend = hm_core::project::ProjectContext::at(app, args.dir.clone())
         .await
         .map_or(BackendConfig::Docker, |p| p.config().backend.clone());
     match backend {
