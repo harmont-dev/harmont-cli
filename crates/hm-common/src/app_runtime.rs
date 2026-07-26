@@ -5,6 +5,7 @@ use std::sync::OnceLock;
 
 use crate::git::Git;
 use crate::process::{ExecutableNotFound, SystemBins};
+use crate::python::Python;
 
 /// Failure to initialize the [`AppRuntime`].
 #[derive(Debug, thiserror::Error)]
@@ -85,6 +86,15 @@ impl AppRuntime {
     #[must_use]
     pub fn git() -> Git<'static> {
         Git::new(Self::bins().git())
+    }
+
+    /// The system `python3`, bound to a [`Python`] handle.
+    ///
+    /// # Panics
+    /// If [`init`](Self::init) has not been called.
+    #[must_use]
+    pub fn python() -> Python<'static> {
+        Python::new(Self::bins().python3())
     }
 }
 

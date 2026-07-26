@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use hm_common::process::{AsyncCommandExt as _, CapturedStreams as _, pathbin};
+use hm_common::process::{CapturedStreams as _, pathbin};
+use hm_common::python::Python;
 use tracing::debug;
 
 use crate::bundled_sources;
@@ -60,7 +61,7 @@ print(json.dumps(match['definition']))
 
 #[derive(Debug)]
 pub struct SubprocessPythonEngine {
-    python_bin: std::path::PathBuf,
+    python_bin: PathBuf,
 }
 
 impl SubprocessPythonEngine {
@@ -84,21 +85,13 @@ impl SubprocessPythonEngine {
         let harmont_pkg = tmp.path().join("harmont");
         bundled_sources::extract_to(&bundled_sources::HARMONT_PY, &harmont_pkg)?;
 
-        let mut cmd = tokio::process::Command::new(&self.python_bin);
-        cmd.arg("-c")
-            .arg(script)
-            .args(extra_args)
-            .current_dir(project_dir)
-            .env("PYTHONPATH", tmp.path())
-            .env("PYTHONDONTWRITEBYTECODE", "1");
+        let mut py = Python::new(&self.python_bin).program(script);
+        py.args(extra_args).current_dir(project_dir);
+        py.pythonpath(tmp.path());
 
-        debug!(?cmd, "running python3 subprocess");
+        debug!(?py, "running python3 subprocess");
 
-        // `.captured()` pipes stdout/stderr and nulls stdin; `.success()`
-        // surfaces a non-zero exit (with stderr) as an error via `?`.
-        let ok = cmd.captured().await.context("spawning python3")?.success()?;
-        ok.stdout_string()
-            .context("python3 stdout is not valid UTF-8")
+        Ok(py.run().await?.stdout_string()?)
     }
 }
 
