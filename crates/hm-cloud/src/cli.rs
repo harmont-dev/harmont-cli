@@ -27,11 +27,7 @@ pub enum CloudCommand {
 #[derive(Debug, Clone, Subcommand)]
 pub enum AuthCommand {
     /// Authenticate this CLI against the Harmont API.
-    Login {
-        /// Skip the loopback flow and prompt for a paste-in code.
-        #[arg(long)]
-        paste: bool,
-    },
+    Login,
     /// Remove stored credentials.
     Logout,
     /// Show the authenticated user.

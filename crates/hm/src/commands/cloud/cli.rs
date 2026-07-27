@@ -38,7 +38,7 @@ pub async fn dispatch_command(
 ) -> Result<i32> {
     let result = match command {
         CloudCommand::Auth(cmd) => match cmd {
-            AuthCommand::Login { paste } => auth::login::run(&env, paste, app).await,
+            AuthCommand::Login => auth::login::run(app).await,
             AuthCommand::Logout => auth::logout::run(&env, app).await,
             AuthCommand::Whoami => auth::whoami::run(&env, app).await,
         },

@@ -13,6 +13,15 @@ path = "src/lib.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+dialoguer = "0.11"
+harmont-cloud = { workspace = true }
+hm-common = { workspace = true }
+hm-core = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+url = "2"
+webbrowser = "1"
 
 [lints]
 workspace = true

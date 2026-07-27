@@ -52,25 +52,37 @@ impl BackendDomain {
     /// The API base URL (`https://api.<domain>`), without a trailing slash.
     #[must_use]
     pub fn api_url(&self) -> String {
-        self.subdomain_url("api")
+        trim_slash(&self.subdomain("api"))
     }
 
     /// The dashboard base URL (`https://app.<domain>`), without a trailing slash.
     #[must_use]
     pub fn app_url(&self) -> String {
-        self.subdomain_url("app")
+        trim_slash(&self.app())
     }
 
-    fn subdomain_url(&self, sub: &str) -> String {
+    /// The dashboard base URL (`https://app.<domain>`), for extending with a
+    /// path and query pairs.
+    #[must_use]
+    pub fn app(&self) -> Url {
+        self.subdomain("app")
+    }
+
+    fn subdomain(&self, sub: &str) -> Url {
         match self.0.host_str() {
             Some(host) if host.contains('.') && host.parse::<std::net::IpAddr>().is_err() => {
                 let mut url = self.0.clone();
                 let _ = url.set_host(Some(&format!("{sub}.{host}")));
-                url.as_str().trim_end_matches('/').to_owned()
+                url
             }
-            _ => self.0.as_str().trim_end_matches('/').to_owned(),
+            _ => self.0.clone(),
         }
     }
+}
+
+/// A URL rendered without its trailing slash.
+fn trim_slash(url: &Url) -> String {
+    url.as_str().trim_end_matches('/').to_owned()
 }
 
 impl Default for BackendDomain {
