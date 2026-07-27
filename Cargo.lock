@@ -1266,6 +1266,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "dirs",
+ "hex",
  "include_dir",
  "num-traits",
  "proptest",
