@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/hm",
+    "crates/hm-cloud",
     "crates/hm-common",
     "crates/hm-core",
     "crates/hm-plugin-protocol",
@@ -12,6 +13,7 @@ members = [
 ]
 default-members = [
     "crates/hm",
+    "crates/hm-cloud",
     "crates/hm-common",
     "crates/hm-core",
     "crates/hm-plugin-protocol",
@@ -28,6 +30,7 @@ repository = "https://github.com/harmont-dev/harmont-cli"
 
 [workspace.dependencies]
 hm-core            = { path = "crates/hm-core",           version = "0.0.0-dev" }
+hm-cloud           = { path = "crates/hm-cloud",          version = "0.0.0-dev" }
 hm-plugin-protocol = { path = "crates/hm-plugin-protocol", version = "0.0.0-dev" }
 hm-pipeline-ir     = { path = "crates/hm-pipeline-ir",     version = "0.0.0-dev" }
 hm-dsl-engine      = { path = "crates/hm-dsl-engine",     version = "0.0.0-dev" }
