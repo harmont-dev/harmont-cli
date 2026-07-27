@@ -20,13 +20,17 @@ dirs        = "6"
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 thiserror   = { workspace = true }
+base64      = "0.22"
 bstr        = "1"
 hex         = "0.4"
 include_dir = "0.7"
 num-traits  = { workspace = true }
+rand        = "0.8"
+subtle      = "2"
 tempfile    = "3"
 tokio       = { version = "1", features = ["process", "fs", "rt", "rt-multi-thread", "io-util"] }
 tracing     = "0.1"
+zeroize     = { version = "1", features = ["derive"] }
 unicode-width        = { workspace = true }
 unicode-segmentation = { workspace = true }
 which       = "7"
