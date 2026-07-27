@@ -104,7 +104,7 @@ impl ExecutionBackend for CloudBackend {
                     org: self.org.clone(),
                     pipeline: slug,
                     branch: req.source.branch.clone(),
-                    commit: req.source.commit.clone(),
+                    commit: req.source.commit.to_string(),
                     message: req.source.message.clone(),
                     pipeline_ir: req.plan.ir_json.clone(), // verbatim
                     source_tgz,
@@ -126,7 +126,7 @@ impl ExecutionBackend for CloudBackend {
                     repo_name,
                     source_slug: req.pipeline_slug.clone(),
                     branch: req.source.branch.clone(),
-                    commit: req.source.commit.clone(),
+                    commit: req.source.commit.to_string(),
                     message: req.source.message.clone(),
                     pipeline_ir: req.plan.ir_json.clone(), // verbatim
                     source_tgz,

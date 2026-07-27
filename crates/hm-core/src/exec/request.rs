@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use hm_common::git::GitSha;
 use hm_pipeline_ir::PipelineGraph;
 use hm_plugin_protocol::events::PlanSummary;
 
@@ -61,7 +62,7 @@ fn summarize(graph: &PipelineGraph) -> PlanSummary {
 #[derive(Debug, Clone)]
 pub struct SourceMeta {
     pub branch: String,
-    pub commit: String,
+    pub commit: GitSha,
     pub message: Option<String>,
     /// `owner/repo` from the worktree's git remote, when one exists. `None` for
     /// a remoteless worktree; the cloud backend requires it to resolve the

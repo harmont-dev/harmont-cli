@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 
 use bstr::ByteSlice as _;
-use hm_common::git::{GitBranch, GitRemote, GitRepo};
+use hm_common::git::{GitBranch, GitRemote, GitRepo, GitSha};
 use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::BackendConfig;
 use hm_dsl_engine::{DslEngine, detect};
@@ -178,9 +178,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext<'_>) -> Result<i32> {
         let commit = head
             .as_ref()
             .and_then(GitBranch::head_commit)
-            .map(|c| c.to_str_lossy().into_owned())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "0".repeat(40));
+            .unwrap_or_else(GitSha::zero);
         let repo_name = remote
             .as_ref()
             .and_then(GitRemote::gh_repo_name)

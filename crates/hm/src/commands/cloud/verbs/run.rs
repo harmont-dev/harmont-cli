@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use clap::Parser;
 use harmont_cloud::builds::NewBuild;
+use hm_common::git::GitSha;
 use hm_core::app_ctx::AppCtx;
 
 use crate::commands::cloud::settings;
@@ -24,12 +25,8 @@ pub struct RunArgs {
     #[arg(short, long, default_value = "main")]
     pub branch: String,
     /// Commit SHA to record on the build.
-    #[arg(
-        short,
-        long,
-        default_value = "0000000000000000000000000000000000000000"
-    )]
-    pub commit: String,
+    #[arg(short, long, default_value_t = GitSha::zero())]
+    pub commit: GitSha,
     /// Build message.
     #[arg(short, long)]
     pub message: Option<String>,
@@ -57,7 +54,7 @@ pub(crate) async fn run(env: &BTreeMap<String, String>, args: RunArgs, app: &App
             org: org.clone(),
             pipeline: args.pipeline.clone(),
             branch: args.branch.clone(),
-            commit: args.commit.clone(),
+            commit: args.commit.to_string(),
             message: args.message.clone(),
             pipeline_ir,
             // Full worktree archiving lands in `hm run --cloud`.

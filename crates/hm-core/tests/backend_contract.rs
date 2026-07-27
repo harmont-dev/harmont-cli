@@ -8,6 +8,7 @@
 )]
 
 use futures::StreamExt;
+use hm_common::git::GitSha;
 use hm_core::exec::*;
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
 use hm_plugin_protocol::ir::DurationMs;
@@ -136,7 +137,7 @@ fn fake_request() -> RunRequest {
         env: Default::default(),
         source: SourceMeta {
             branch: "main".into(),
-            commit: "0".repeat(40),
+            commit: GitSha::zero(),
             message: None,
             repo_name: None,
         },
