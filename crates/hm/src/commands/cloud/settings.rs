@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use harmont_cloud::HarmontClient;
 use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::{BackendConfig, BackendDomain};
+use hm_core::term::Term;
 use hm_core::config::user::UserCloudConfig;
 use secrecy::ExposeSecret as _;
 
@@ -114,12 +115,12 @@ pub struct RenderPrefs {
 }
 
 impl RenderPrefs {
-    /// Detect render preferences from the current `NO_COLOR` and TTY state.
+    /// Derive render preferences from the terminal state and `NO_COLOR`.
     #[must_use]
-    pub fn detect() -> Self {
+    pub fn detect(term: Term) -> Self {
         Self {
-            color: hm_render::color_enabled(false),
-            logs: hm_render::stdout_piped(),
+            color: hm_render::color_enabled(false, term.stderr_is_tty()),
+            logs: !term.stdout_is_tty(),
         }
     }
 }

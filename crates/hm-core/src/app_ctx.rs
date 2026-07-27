@@ -11,6 +11,7 @@ use hm_common::python::Python;
 use crate::config::domain::ConfigLoadingError;
 use crate::config::user::UserConfig;
 use crate::creds::{CredsInitError, CredsProvider};
+use crate::term::Term;
 
 /// Failure to initialize the [`AppCtx`].
 #[derive(Debug, thiserror::Error)]
@@ -41,6 +42,7 @@ pub struct AppCtx {
     dirs: DirProvider,
     user_config: Option<UserConfig>,
     creds: CredsProvider,
+    term: Term,
 }
 
 impl AppCtx {
@@ -75,6 +77,7 @@ impl AppCtx {
             dirs,
             user_config,
             creds,
+            term: Term::detect(),
         })
     }
 
@@ -106,6 +109,12 @@ impl AppCtx {
     #[must_use]
     pub const fn dirs(&self) -> &DirProvider {
         &self.dirs
+    }
+
+    /// The terminal environment captured at initialization.
+    #[must_use]
+    pub const fn term(&self) -> Term {
+        self.term
     }
 
     /// The user config, or `None` when no user config file is present.

@@ -9,6 +9,7 @@ use hm_cloud::cli::BuildCommand;
 use crate::commands::cloud::settings;
 use hm_core::app_ctx::AppCtx;
 use hm_core::exec::cloud::watch::watch_build;
+use hm_core::term::Term;
 
 pub(crate) async fn run(
     _env: &BTreeMap<String, String>,
@@ -33,7 +34,7 @@ pub(crate) async fn run(
         }
         BuildCommand::Watch { pipeline, number } => {
             let pipe = settings::resolve_pipeline(app, pipeline).await?;
-            watch(&client, &org, &pipe, number).await
+            watch(&client, &org, &pipe, number, app.term()).await
         }
     }
 }
@@ -69,11 +70,11 @@ async fn cancel(client: &HarmontClient, org: &str, pipe: &str, number: i64) -> R
     Ok(())
 }
 
-async fn watch(client: &HarmontClient, org: &str, pipe: &str, number: i64) -> Result<()> {
+async fn watch(client: &HarmontClient, org: &str, pipe: &str, number: i64, term: Term) -> Result<()> {
     // Render the live build through the shared `hm-render` renderers (the same
     // ones a local `hm run` uses), driven by the `BuildEvent`s `watch_build`
     // emits over an mpsc channel.
-    let prefs = crate::commands::cloud::settings::RenderPrefs::detect();
+    let prefs = crate::commands::cloud::settings::RenderPrefs::detect(term);
     let renderer = hm_render::renderer_for("human", prefs.color, prefs.logs)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1024);
     let driver = tokio::spawn(hm_render::drive(renderer, rx));

@@ -7,30 +7,15 @@
 //! on `hm` internals (no `RunContext`, no Docker types).
 
 use std::fmt;
-use std::io::IsTerminal;
 
 use hm_plugin_protocol::BuildEvent;
 
-/// Whether ANSI color should be used: honors an explicit no-color flag,
-/// the `NO_COLOR` env convention, and whether stderr is a TTY.
-///
-/// Single source of truth for the color rule, shared by the `hm` run
-/// context and the cloud commands' render preferences.
+/// Whether ANSI color should be used, given an explicit no-color flag and
+/// whether stderr is a TTY: enabled when the flag is unset, `NO_COLOR` is
+/// unset, and stderr is a terminal.
 #[must_use]
-pub fn color_enabled(no_color_flag: bool) -> bool {
-    !no_color_flag && std::env::var_os("NO_COLOR").is_none() && std::io::stderr().is_terminal()
-}
-
-/// Whether stderr is an interactive terminal (drives the progress view).
-#[must_use]
-pub fn stderr_interactive() -> bool {
-    std::io::stderr().is_terminal()
-}
-
-/// Whether stdout is NOT a TTY (i.e. piped) — used to force the streaming log view.
-#[must_use]
-pub fn stdout_piped() -> bool {
-    !std::io::stdout().is_terminal()
+pub fn color_enabled(no_color_flag: bool, stderr_is_tty: bool) -> bool {
+    !no_color_flag && std::env::var_os("NO_COLOR").is_none() && stderr_is_tty
 }
 
 pub mod human;

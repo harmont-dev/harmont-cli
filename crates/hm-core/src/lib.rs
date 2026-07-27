@@ -11,3 +11,4 @@ pub mod config;
 pub mod creds;
 pub mod exec;
 pub mod project_ctx;
+pub mod term;

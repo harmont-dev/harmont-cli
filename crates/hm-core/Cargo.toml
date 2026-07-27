@@ -8,6 +8,7 @@ description = "Core of the hm CLI: layered config/credentials + pluggable CI exe
 
 [dependencies]
 hm-common = { workspace = true }
+is_ci = "1.2.0"
 hm-plugin-protocol = { workspace = true }
 hm-pipeline-ir = { workspace = true }
 hm-vm = { workspace = true, features = ["docker-backend"] }

@@ -13,6 +13,7 @@ use hm_cloud::cli::JobCommand;
 use crate::commands::cloud::settings;
 use hm_core::app_ctx::AppCtx;
 use hm_core::exec::cloud::watch::stream_job_logs_as_events;
+use hm_core::term::Term;
 
 pub(crate) async fn run(
     _env: &BTreeMap<String, String>,
@@ -41,7 +42,7 @@ pub(crate) async fn run(
             job_id,
         } => {
             let pipe = settings::resolve_pipeline(app, pipeline).await?;
-            log_cmd(&client, &org, &pipe, build, &job_id).await
+            log_cmd(&client, &org, &pipe, build, &job_id, app.term()).await
         }
     }
 }
@@ -76,6 +77,7 @@ async fn log_cmd(
     pipe: &str,
     build: i64,
     jid: &str,
+    term: Term,
 ) -> Result<()> {
     let job_id = Uuid::parse_str(jid)
         .map_err(|e| anyhow::anyhow!("job id '{jid}' is not a valid UUID: {e}"))?;
@@ -84,7 +86,7 @@ async fn log_cmd(
     let token = client.log_token(org, pipe, build).await?;
     let log_base = client.base_url().to_string();
 
-    let prefs = settings::RenderPrefs::detect();
+    let prefs = settings::RenderPrefs::detect(term);
     // A single-job tail is always a flat log stream, so force the streaming
     // HumanRenderer (logs = true) regardless of TTY.
     let renderer = hm_render::renderer_for("human", prefs.color, true)?;

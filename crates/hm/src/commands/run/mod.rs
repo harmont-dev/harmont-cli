@@ -106,9 +106,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext<'_>) -> Result<i32> {
 
     // 4. Pick the renderer — this validates `--format` — before any daemon
     //    connection, so an unknown format fails fast without a running Docker.
-    let use_logs = args.logs
-        || std::env::var_os("CI").is_some_and(|v| !v.is_empty())
-        || !hm_render::stderr_interactive();
+    let use_logs = args.logs || app.term().is_ci() || !app.term().stderr_is_tty();
     let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
 
     // 5. Build the backend. For local runs this is where we connect to Docker.

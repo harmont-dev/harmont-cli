@@ -1,5 +1,3 @@
-use std::io::IsTerminal;
-
 use hm_core::app_ctx::AppCtx;
 use hm_render::OutputMode;
 
@@ -17,11 +15,12 @@ impl<'app> RunContext<'app> {
     /// Build a [`RunContext`] from the app context and parsed CLI args.
     #[must_use]
     pub fn from_cli(app: &'app AppCtx, cli: &Cli) -> Self {
+        let term = app.term();
         let output = OutputMode::Human {
             // Single source of truth for the color/TTY rule (still honors --no-color).
-            color: hm_render::color_enabled(cli.no_color),
+            color: hm_render::color_enabled(cli.no_color, term.stderr_is_tty()),
             // Interactive prompts/spinners key off stdout being a TTY.
-            interactive: std::io::stdout().is_terminal(),
+            interactive: term.stdout_is_tty(),
         };
 
         Self { app, output }
