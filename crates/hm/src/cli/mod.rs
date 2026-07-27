@@ -70,7 +70,7 @@ pub enum Command {
 
     /// Interact with the Harmont cloud API.
     #[command(subcommand)]
-    Cloud(crate::commands::cloud::cli::CloudCommand),
+    Cloud(hm_cloud::cli::CloudCommand),
 }
 
 #[derive(Debug, Clone, Subcommand)]

@@ -7,7 +7,7 @@ use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::BackendConfig;
 use hm_core::config::user::UserCloudConfig;
 
-use crate::commands::cloud::cli::OrgCommand;
+use hm_cloud::cli::OrgCommand;
 use crate::commands::cloud::settings;
 
 pub(crate) async fn run(

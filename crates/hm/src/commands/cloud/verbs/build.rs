@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use harmont_cloud::HarmontClient;
 
-use crate::commands::cloud::cli::BuildCommand;
+use hm_cloud::cli::BuildCommand;
 use crate::commands::cloud::settings;
 use hm_core::app_ctx::AppCtx;
 use hm_core::exec::cloud::watch::watch_build;
@@ -19,10 +19,22 @@ pub(crate) async fn run(
     let org = ctx.org()?;
 
     match cmd {
-        BuildCommand::List { pipeline } => list(&client, &org, &pipeline).await,
-        BuildCommand::Show { pipeline, number } => show(&client, &org, &pipeline, number).await,
-        BuildCommand::Cancel { pipeline, number } => cancel(&client, &org, &pipeline, number).await,
-        BuildCommand::Watch { pipeline, number } => watch(&client, &org, &pipeline, number).await,
+        BuildCommand::List { pipeline } => {
+            let pipe = settings::resolve_pipeline(app, pipeline).await?;
+            list(&client, &org, &pipe).await
+        }
+        BuildCommand::Show { pipeline, number } => {
+            let pipe = settings::resolve_pipeline(app, pipeline).await?;
+            show(&client, &org, &pipe, number).await
+        }
+        BuildCommand::Cancel { pipeline, number } => {
+            let pipe = settings::resolve_pipeline(app, pipeline).await?;
+            cancel(&client, &org, &pipe, number).await
+        }
+        BuildCommand::Watch { pipeline, number } => {
+            let pipe = settings::resolve_pipeline(app, pipeline).await?;
+            watch(&client, &org, &pipe, number).await
+        }
     }
 }
 

@@ -6,4 +6,3 @@ pub(crate) mod build;
 pub(crate) mod job;
 pub(crate) mod org;
 pub(crate) mod pipeline;
-pub(crate) mod run;

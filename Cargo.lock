@@ -1125,6 +1125,7 @@ dependencies = [
  "harmont-cloud",
  "harmont-cloud-raw",
  "hex",
+ "hm-cloud",
  "hm-common",
  "hm-core",
  "hm-dsl-engine",

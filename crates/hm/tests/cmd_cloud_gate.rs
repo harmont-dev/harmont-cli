@@ -42,8 +42,20 @@ fn cloud_help_lists_real_subcommands_without_waitlist_text() {
         .args(["cloud", "--help"])
         .assert()
         .success()
-        .stdout(contains("login"))
-        .stdout(contains("whoami"))
+        .stdout(contains("auth"))
         .stdout(contains("build"))
         .stdout(predicates::str::contains("not yet available").not());
+}
+
+/// `hm cloud auth --help` lists the session verbs grouped under `auth`.
+#[rstest]
+fn cloud_auth_help_lists_session_verbs() {
+    Command::cargo_bin("hm")
+        .unwrap()
+        .args(["cloud", "auth", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("login"))
+        .stdout(contains("logout"))
+        .stdout(contains("whoami"));
 }

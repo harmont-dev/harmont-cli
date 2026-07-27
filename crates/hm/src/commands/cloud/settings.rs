@@ -70,6 +70,27 @@ pub async fn client(app: &AppCtx) -> Result<(HarmontClient, ResolvedCtx)> {
     Ok((client, ResolvedCtx { api, domain, org }))
 }
 
+/// Resolve the pipeline slug for a verb: the explicit `--pipeline`, else the
+/// project's configured `default_pipeline`.
+///
+/// # Errors
+///
+/// Returns an error if neither is set, or the project config cannot be loaded.
+pub async fn resolve_pipeline(app: &AppCtx, explicit: Option<String>) -> Result<String> {
+    if let Some(slug) = explicit {
+        return Ok(slug);
+    }
+    let project = hm_core::project_ctx::ProjectCtx::at(app, app.cwd().to_path_buf()).await?;
+    let default = match &project.config().backend {
+        BackendConfig::Cloud(cloud) => cloud.default_pipeline.clone(),
+        BackendConfig::Docker => None,
+    };
+    default.context(
+        "no pipeline given and no default configured — pass --pipeline <slug>, or set a \
+         default_pipeline in .hm/config.toml",
+    )
+}
+
 /// An anonymous client (for the login flow) + the resolved cloud domain.
 #[must_use]
 pub fn anon_client(app: &AppCtx) -> (HarmontClient, BackendDomain) {
