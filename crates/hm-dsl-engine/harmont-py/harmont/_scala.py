@@ -12,7 +12,7 @@ import re, shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self, overload
 
-from hm._toolchain import advance_install, make_install_chain
+from ._toolchain import advance_install, make_install_chain
 from .cache import CacheForever, CacheOnChange
 
 if TYPE_CHECKING:
