@@ -40,11 +40,11 @@ from ._pipeline import pipeline as _pipeline_factory
 from ._pipeline import pipeline_to_json
 from ._python import python
 from ._rust import RustProject, rust
+from ._scala import ScalaProject, scala
 from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
 from ._toolchain import apt_base
 from ._typing import BaseImage, Target
-from ._scala import scala
 from ._zig import zig
 from .cache import (
     CacheCompose,
@@ -310,6 +310,7 @@ __all__ = [
     "JsProject",
     "Pipeline",
     "RustProject",
+    "ScalaProject",
     "Step",
     "Target",
     "apt_base",

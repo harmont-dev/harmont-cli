@@ -43,6 +43,32 @@ fn init_rust_creates_pipeline_py() {
 }
 
 #[test]
+fn init_scala_creates_pipeline_py() {
+    let dir = tempfile::tempdir().unwrap();
+    hm().args(["init", "--template", "scala", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let pipeline = dir.path().join(".hm/pipeline.py");
+    assert!(pipeline.exists(), "expected {}", pipeline.display());
+
+    let content = std::fs::read_to_string(&pipeline).unwrap();
+    assert!(
+        content.contains("@hm.pipeline"),
+        "expected pipeline decorator"
+    );
+    assert!(
+        content.contains("hm.scala.project("),
+        "expected scala.project() entrypoint, got:\n{content}"
+    );
+    assert!(
+        content.contains(".ci()"),
+        "expected the one-call .ci() DAG, got:\n{content}"
+    );
+}
+
+#[test]
 fn init_existing_hm_dir_no_pipeline_succeeds() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join(".hm")).unwrap();

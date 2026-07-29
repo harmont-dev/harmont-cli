@@ -9,6 +9,7 @@ pub enum TemplateKind {
     Nextjs,
     Js,
     Rust,
+    Scala,
     Zig,
     Python,
 }
