@@ -1259,6 +1259,7 @@ dependencies = [
  "harmont-cloud",
  "hm-common",
  "hm-core",
+ "secrecy",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

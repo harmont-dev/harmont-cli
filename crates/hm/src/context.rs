@@ -18,7 +18,7 @@ impl<'app> RunContext<'app> {
         let term = app.term();
         let output = OutputMode::Human {
             // Single source of truth for the color/TTY rule (still honors --no-color).
-            color: hm_render::color_enabled(cli.no_color, term.stderr_is_tty()),
+            color: !cli.no_color && term.wants_color(),
             // Interactive prompts/spinners key off stdout being a TTY.
             interactive: term.stdout_is_tty(),
         };

@@ -1,25 +1,14 @@
-//! `hm cloud whoami` — print the user the stored token belongs to.
-
-use std::collections::BTreeMap;
+//! `hm cloud auth whoami` — print the signed-in user.
 
 use anyhow::Result;
 use hm_core::app_ctx::AppCtx;
 
 use crate::commands::cloud::settings;
 
-pub(crate) async fn run(_env: &BTreeMap<String, String>, app: &AppCtx) -> Result<()> {
-    let (client, _ctx) = settings::client(app).await?;
-    let me = client
-        .raw()
-        .get_current_user()
+pub(crate) async fn run(app: &AppCtx) -> Result<()> {
+    let config = settings::auth_config(app);
+    hm_cloud::auth::AuthProvider::new(app, &config)
+        .whoami()
         .await
-        .map_err(settings::map_raw)?
-        .into_inner();
-    tracing::info!(
-        "{} <{}> (id {})",
-        me.name.clone().unwrap_or_else(|| me.email.clone()),
-        me.email,
-        me.id,
-    );
-    Ok(())
+        .map_err(anyhow::Error::from)
 }

@@ -6,6 +6,7 @@
 use anyhow::{Context, Result};
 use harmont_cloud::HarmontClient;
 use hm_core::app_ctx::AppCtx;
+use hm_core::config::ResolvedCloudConfig;
 use hm_core::config::domain::{BackendConfig, BackendDomain};
 use hm_core::term::Term;
 use hm_core::config::user::UserCloudConfig;
@@ -49,6 +50,18 @@ pub fn domain(app: &AppCtx) -> BackendDomain {
     user_cloud(app)
         .and_then(|c| c.domain.clone())
         .unwrap_or_default()
+}
+
+/// A minimal resolved cloud config for the auth flows, which only need the
+/// domain; org/repo/pipeline are irrelevant to authentication.
+#[must_use]
+pub fn auth_config(app: &AppCtx) -> ResolvedCloudConfig {
+    ResolvedCloudConfig {
+        domain: domain(app),
+        org: None,
+        repo: None,
+        default_pipeline: None,
+    }
 }
 
 /// An authenticated cloud client built from the user config + stored token.
@@ -117,9 +130,9 @@ pub struct RenderPrefs {
 impl RenderPrefs {
     /// Derive render preferences from the terminal state and `NO_COLOR`.
     #[must_use]
-    pub fn detect(term: Term) -> Self {
+    pub const fn detect(term: Term) -> Self {
         Self {
-            color: hm_render::color_enabled(false, term.stderr_is_tty()),
+            color: term.wants_color(),
             logs: !term.stdout_is_tty(),
         }
     }

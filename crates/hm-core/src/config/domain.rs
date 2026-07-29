@@ -52,13 +52,13 @@ impl BackendDomain {
     /// The API base URL (`https://api.<domain>`), without a trailing slash.
     #[must_use]
     pub fn api_url(&self) -> String {
-        trim_slash(&self.subdomain("api"))
+        self.subdomain("api").as_str().trim_end_matches('/').to_owned()
     }
 
     /// The dashboard base URL (`https://app.<domain>`), without a trailing slash.
     #[must_use]
     pub fn app_url(&self) -> String {
-        trim_slash(&self.app())
+        self.app().as_str().trim_end_matches('/').to_owned()
     }
 
     /// The dashboard base URL (`https://app.<domain>`), for extending with a
@@ -78,11 +78,6 @@ impl BackendDomain {
             _ => self.0.clone(),
         }
     }
-}
-
-/// A URL rendered without its trailing slash.
-fn trim_slash(url: &Url) -> String {
-    url.as_str().trim_end_matches('/').to_owned()
 }
 
 impl Default for BackendDomain {

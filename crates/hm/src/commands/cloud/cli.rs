@@ -39,8 +39,8 @@ pub async fn dispatch_command(
     let result = match command {
         CloudCommand::Auth(cmd) => match cmd {
             AuthCommand::Login => auth::login::run(app).await,
-            AuthCommand::Logout => auth::logout::run(&env, app).await,
-            AuthCommand::Whoami => auth::whoami::run(&env, app).await,
+            AuthCommand::Logout => auth::logout::run(app).await,
+            AuthCommand::Whoami => auth::whoami::run(app).await,
         },
         CloudCommand::Org(cmd) => verbs::org::run(&env, cmd, app).await,
         CloudCommand::Pipeline(cmd) => verbs::pipeline::run(&env, cmd, app).await,

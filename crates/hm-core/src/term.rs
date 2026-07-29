@@ -16,6 +16,7 @@ pub struct Term {
     ci: bool,
     ssh: bool,
     display: bool,
+    no_color: bool,
 }
 
 impl Term {
@@ -32,6 +33,7 @@ impl Term {
                 || env_present("SSH_TTY")
                 || env_present("SSH_CLIENT"),
             display: env_present("DISPLAY") || env_present("WAYLAND_DISPLAY"),
+            no_color: std::env::var_os("NO_COLOR").is_some(),
         }
     }
 
@@ -40,6 +42,13 @@ impl Term {
     #[must_use]
     pub const fn is_interactive(&self) -> bool {
         self.stdin && self.stdout && !self.ci
+    }
+
+    /// Whether the environment permits ANSI color: `NO_COLOR` is unset and
+    /// stderr is a terminal.
+    #[must_use]
+    pub const fn wants_color(&self) -> bool {
+        !self.no_color && self.stderr
     }
 
     /// Whether stdin is a terminal.

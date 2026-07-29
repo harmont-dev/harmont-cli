@@ -17,6 +17,7 @@ dialoguer = "0.11"
 harmont-cloud = { workspace = true }
 hm-common = { workspace = true }
 hm-core = { workspace = true }
+secrecy = "0.10"
 tokio = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

@@ -4,12 +4,11 @@ use std::time::{Duration, Instant};
 use harmont_cloud::{HarmontClient, HarmontError};
 use hm_common::url_nonce::UrlNonce;
 use hm_core::{app_ctx::AppCtx, config::ResolvedCloudConfig};
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpListener, task::JoinHandle, time::error::Elapsed};
+use secrecy::ExposeSecret as _;
+use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpListener};
 use thiserror::Error;
 use tracing::{info, instrument, warn};
 use url::Url;
-
-const LOGIN_TIMEOUT: Duration = Duration::from_mins(3);
 
 /// How long to poll for the token before giving up.
 const CLAIM_TIMEOUT: Duration = Duration::from_mins(3);
@@ -26,17 +25,14 @@ pub enum BrowserAuthError {
     CouldNotDeduceAddress(std::io::Error),
 }
 
-/// The code-path taken to open the browser and allow the user to click a button to log in.
-#[derive(Debug)]
-struct BrowserAuth {
-    accept: JoinHandle<()>,
-}
+/// The code-path that opens the browser and serves the loopback redirect.
+struct BrowserAuth;
 
 impl BrowserAuth {
     /// Bind the loopback listener, open the browser to the login page, and
     /// spawn the task that serves the redirect.
     #[instrument]
-    async fn new(app: Url, nonce: &UrlNonce) -> Result<Self, BrowserAuthError> {
+    async fn open(app: Url, nonce: &UrlNonce) -> Result<(), BrowserAuthError> {
         let listener = TcpListener::bind("127.0.0.1:0").await
             .map_err(BrowserAuthError::CouldNotCreateListener)?;
         let port = listener.local_addr()
@@ -53,9 +49,8 @@ impl BrowserAuth {
             warn!("couldn't open a browser automatically. open this URL manually:\n  {url}");
         }
 
-        let accept = tokio::spawn(Self::accept(listener));
-
-        Ok(Self { accept })
+        tokio::spawn(Self::accept(listener));
+        Ok(())
     }
 
     async fn accept(listener: TcpListener) {
@@ -82,11 +77,6 @@ impl BrowserAuth {
 
         writer.write_all(response.as_bytes()).await.ok();
         writer.shutdown().await.ok();
-    }
-
-    /// Wait for the login from the user.
-    async fn login(&mut self) -> Result<(), Elapsed> {
-        tokio::time::timeout(LOGIN_TIMEOUT, &mut self.accept).await.map(|_| ())
     }
 }
 
@@ -205,61 +195,116 @@ pub enum LoginError {
     Paste(#[from] PasteAuthError),
 }
 
+/// A failure while reading the current user.
+#[derive(Debug, Error)]
+pub enum WhoamiError {
+    /// No credentials are stored.
+    #[error("not logged in — run `hm cloud auth login`")]
+    NotLoggedIn,
+    /// The user profile could not be read.
+    #[error("could not read user profile: {0}")]
+    Fetch(String),
+}
+
 #[derive(Debug)]
-pub struct AuthProvider<'app, 'client, 'config> {
+pub struct AuthProvider<'app, 'config> {
     app_ctx: &'app AppCtx,
-    harmont_client: &'client HarmontClient,
     config: &'config ResolvedCloudConfig,
 }
 
-impl<'app, 'client, 'config> AuthProvider<'app, 'client, 'config> {
+impl<'app, 'config> AuthProvider<'app, 'config> {
     /// Create a new authentication provider.
     #[must_use]
-    pub const fn new(
-        app_ctx: &'app AppCtx,
-        client: &'client HarmontClient,
-        config: &'config ResolvedCloudConfig,
-    ) -> Self {
-        Self { app_ctx, harmont_client: client, config }
+    pub const fn new(app_ctx: &'app AppCtx, config: &'config ResolvedCloudConfig) -> Self {
+        Self { app_ctx, config }
     }
 
     /// Log in — browser-loopback when a GUI is available, otherwise the
-    /// paste-in flow — persisting and returning the resulting token.
+    /// paste-in flow — persisting the token and confirming the signed-in user.
     ///
     /// # Errors
     ///
     /// [`LoginError::Unsupported`] when there is neither a browser nor an
     /// interactive terminal; [`LoginError::Browser`], [`LoginError::Claim`],
     /// or [`LoginError::Paste`] when the chosen flow fails.
-    pub async fn try_login(&self) -> Result<String, LoginError> {
-        let token = if self.app_ctx.term().has_gui() {
-            self.login_browser().await?
-        } else if self.app_ctx.term().is_interactive() {
-            self.login_paste().await?
+    pub async fn try_login(&self) -> Result<(), LoginError> {
+        let client = HarmontClient::anonymous(self.config.domain.api_url());
+        let term = self.app_ctx.term();
+        let token = if term.has_gui() && !term.is_ci() {
+            self.login_browser(&client).await?
+        } else if term.is_interactive() {
+            self.login_paste(&client).await?
         } else {
             return Err(LoginError::Unsupported);
         };
-
         self.app_ctx.creds().set(&token).await;
-        Ok(token)
+
+        // Confirm by reading the user back — best-effort, the token is valid.
+        match self.fetch_user(&token).await {
+            Ok((name, email, _)) => info!("logged in as {name} ({email})"),
+            Err(e) => warn!("logged in, but could not read user profile: {e}"),
+        }
+        Ok(())
     }
 
-    /// Open the browser, wait for its redirect, then claim the parked token.
-    async fn login_browser(&self) -> Result<String, LoginError> {
+    /// Clear the stored credentials.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the credential store cannot be cleared.
+    pub async fn logout(&self) -> std::io::Result<()> {
+        self.app_ctx.creds().clear().await?;
+        info!("logged out");
+        Ok(())
+    }
+
+    /// Print the user the stored token belongs to.
+    ///
+    /// # Errors
+    ///
+    /// [`WhoamiError::NotLoggedIn`] when no token is stored;
+    /// [`WhoamiError::Fetch`] when the profile cannot be read.
+    pub async fn whoami(&self) -> Result<(), WhoamiError> {
+        let token = self
+            .app_ctx
+            .creds()
+            .get()
+            .await
+            .ok_or(WhoamiError::NotLoggedIn)?;
+        let (name, email, id) = self
+            .fetch_user(token.expose_secret())
+            .await
+            .map_err(WhoamiError::Fetch)?;
+        info!("{name} <{email}> (id {id})");
+        Ok(())
+    }
+
+    /// The display name, email, and id of the user `token` authenticates as.
+    async fn fetch_user(&self, token: &str) -> Result<(String, String, String), String> {
+        let client = HarmontClient::with_base_url(token.to_owned(), self.config.domain.api_url());
+        let me = client
+            .raw()
+            .get_current_user()
+            .await
+            .map_err(|e| e.to_string())?
+            .into_inner();
+        let name = me.name.clone().unwrap_or_else(|| me.email.clone());
+        Ok((name, me.email.clone(), me.id.to_string()))
+    }
+
+    /// Open the browser, then claim the token the SPA parks under the nonce.
+    async fn login_browser(&self, client: &HarmontClient) -> Result<String, LoginError> {
         let nonce = UrlNonce::random();
-        let mut browser = BrowserAuth::new(self.config.domain.app(), &nonce).await?;
+        BrowserAuth::open(self.config.domain.app(), &nonce).await?;
 
-        // Wait for the redirect so the tab can show "done", but claim by nonce
-        // regardless — a lost or slow redirect doesn't mean the login failed.
-        if let Err(elapsed) = browser.login().await {
-            warn!(%elapsed, "no browser redirect yet; claiming the token anyway");
-        }
-
-        Ok(ClaimPoller::new(self.harmont_client, nonce).poll().await?)
+        // The token comes from polling; the spawned listener serves the browser
+        // redirect concurrently, so a lost or slow redirect never blocks us —
+        // the poll's retry loop is the wait.
+        Ok(ClaimPoller::new(client, nonce).poll().await?)
     }
 
     /// Show the paste page and redeem the code the user enters.
-    async fn login_paste(&self) -> Result<String, LoginError> {
-        Ok(PasteTokenAuth::login(self.harmont_client, self.config.domain.app()).await?)
+    async fn login_paste(&self, client: &HarmontClient) -> Result<String, LoginError> {
+        Ok(PasteTokenAuth::login(client, self.config.domain.app()).await?)
     }
 }
