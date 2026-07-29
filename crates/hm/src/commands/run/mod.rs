@@ -2,7 +2,13 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 
+use bstr::ByteSlice as _;
+use hm_common::git::{GitBranch, GitRemote, GitRepo, GitSha};
+use hm_core::app_ctx::AppCtx;
+use hm_core::config::domain::BackendConfig;
 use hm_dsl_engine::{DslEngine, detect};
+use human_units::FormatSize as _;
+use secrecy::ExposeSecret as _;
 
 use crate::cli::RunArgs;
 use crate::context::RunContext;
@@ -19,8 +25,8 @@ use crate::error::{ErrorCategory, HmError};
 /// - `--cloud`          → `cloud` (deprecated alias)
 /// - neither            → `ctx.config.backend` (figment-layered, default `docker`)
 ///
-/// This is a THIN driver over the `hm-exec` backends: it builds an
-/// [`hm_exec::ExecutionBackend`], renders the pipeline to v0 IR once, starts
+/// This is a THIN driver over the `hm-core::exec` backends: it builds an
+/// [`hm_core::exec::ExecutionBackend`], renders the pipeline to v0 IR once, starts
 /// the build, drives its event stream through an `hm_render` renderer, owns
 /// Ctrl-C, and returns the build's process exit code. Cloud authentication is
 /// resolved BEFORE the (local) render work so a missing token fails fast.
@@ -31,38 +37,61 @@ use crate::error::{ErrorCategory, HmError};
 /// the backend rejects the build, authentication fails, the network is
 /// unreachable, the local daemon is down, or the pipeline fails to render.
 #[allow(clippy::too_many_lines)] // thin top-level driver: linear, no good split point
-pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
+#[allow(
+    clippy::similar_names,
+    reason = "api_url and app_url are distinct hosts"
+)]
+pub async fn handle(args: RunArgs, ctx: RunContext<'_>) -> Result<i32> {
+    let app = ctx.app;
+
+    // The workspace root: explicit --dir or the cwd captured at startup.
+    let repo_root = args.dir.clone().unwrap_or_else(|| app.cwd().to_path_buf());
+
+    // Resolve the effective config (user + project layers merged).
+    let project = hm_core::project_ctx::ProjectCtx::at(app, repo_root.clone()).await?;
+    let resolved_backend = project.config().backend.clone();
+
+    // Project-persisted cloud pipeline slug, if any (consulted at submit time).
+    let cloud_default_pipeline = match &resolved_backend {
+        BackendConfig::Cloud(cloud) => cloud.default_pipeline.clone(),
+        BackendConfig::Docker => None,
+    };
+
     // 1. Resolve the backend name: explicit --backend > legacy --cloud alias >
-    //    config.backend (figment-layered default "docker").
+    //    the resolved config's backend (default docker).
     let backend_name = args
         .backend
         .clone()
-        .or_else(|| {
-            if args.cloud {
-                Some("cloud".to_string())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| ctx.config.backend.to_string());
+        .or_else(|| args.cloud.then(|| "cloud".to_string()))
+        .unwrap_or_else(|| match &resolved_backend {
+            BackendConfig::Cloud(_) => "cloud".to_string(),
+            BackendConfig::Docker => "docker".to_string(),
+        });
 
     // 2. Cloud needs auth + org resolution up front — fail fast on a missing
-    //    token before any render work. We resolve the credentials here but
-    //    defer *constructing* the backend (and, for local runs, *connecting* to
-    //    Docker) until after the pipeline renders, so an unknown slug or a
-    //    missing/ambiguous pipeline argument fails with a helpful message
-    //    instead of a daemon-connection error.
+    //    token before any render work. Both the API host and the dashboard
+    //    (app.) host derive from the configured domain.
     let cloud_creds = if backend_name == "cloud" {
-        let api_url = ctx.config.cloud.api_url.clone();
-        let token = hm_config::creds::cloud_token(&api_url).context(
+        let cloud = match &resolved_backend {
+            BackendConfig::Cloud(cloud) => cloud.clone(),
+            BackendConfig::Docker => hm_core::config::ResolvedCloudConfig {
+                domain: hm_core::config::domain::BackendDomain::default(),
+                org: None,
+                repo: None,
+                default_pipeline: None,
+            },
+        };
+        let api_url = cloud.domain.api_url();
+        let app_url = cloud.domain.app_url();
+        let token = app.creds().get().await.context(
             "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HM_API_TOKEN",
         )?;
         let org = args
             .org
             .clone()
-            .or_else(|| ctx.config.cloud.org.clone())
-            .context("no organization — pass --org or set `[cloud] org = \"…\"` in .hm/config.toml or ~/.config/hm/config.toml")?;
-        Some((api_url, token, org))
+            .or_else(|| cloud.org.clone())
+            .context("no organization — pass --org or run `hm cloud org switch <slug>`")?;
+        Some((api_url, app_url, token, org))
     } else if backend_name != "docker" {
         anyhow::bail!("unknown --backend '{backend_name}'\n  available: docker, cloud");
     } else {
@@ -72,34 +101,34 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // 3. Render + parse the plan once (shared by every backend). This validates
     //    the pipeline argument — unknown slug, or zero/many declared pipelines
     //    — before we connect to any daemon.
-    let (repo_root, slug, ir_json) = render_pipeline(&args, &ctx).await?;
-    let plan = hm_exec::Plan::parse(ir_json).map_err(|e| backend_anyhow(&e))?;
+    let (slug, ir_json) = render_pipeline(&args, app, &repo_root).await?;
+    let plan = hm_core::exec::Plan::parse(ir_json).map_err(|e| backend_anyhow(&e))?;
 
     // 4. Pick the renderer — this validates `--format` — before any daemon
     //    connection, so an unknown format fails fast without a running Docker.
-    let use_logs = args.logs
-        || std::env::var_os("CI").is_some_and(|v| !v.is_empty())
-        || !hm_render::stderr_interactive();
+    let use_logs = args.logs || app.term().is_ci() || !app.term().stderr_is_tty();
     let renderer = hm_render::renderer_for(&args.format, ctx.output.color_enabled(), use_logs)?;
 
     // 5. Build the backend. For local runs this is where we connect to Docker.
     // For cloud runs, keep a cloned client + org so a `pipeline_not_found` on
     // the first submit can create the pipeline and retry. `None` for local.
     let mut autocreate_client: Option<(harmont_cloud::HarmontClient, String)> = None;
-    let backend: Box<dyn hm_exec::ExecutionBackend> =
-        if let Some((api_url, token, org)) = cloud_creds {
-            let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
+    let backend: Box<dyn hm_core::exec::ExecutionBackend> =
+        if let Some((api_url, app_url, token, org)) = cloud_creds {
+            let client = harmont_cloud::HarmontClient::with_base_url(
+                token.expose_secret().to_owned(),
+                &api_url,
+            );
             autocreate_client = Some((client.clone(), org.clone()));
-            // The watch link must point at the dashboard (app.) host, not the
-            // API host — a link built from `api_url` lands on raw JSON.
-            let app_url = hm_config::app_url(&api_url, std::env::var("HM_APP_URL").ok().as_deref());
-            Box::new(hm_exec::CloudBackend::new(client, api_url, app_url, org))
+            Box::new(hm_core::exec::CloudBackend::new(
+                client, api_url, app_url, org,
+            ))
         } else {
             // Local execution on a hm-vm VmBackend (docker).
             let vm_backend: std::sync::Arc<dyn hm_vm::VmBackend> = std::sync::Arc::new(
                 hm_vm::docker::DockerBackend::connect().map_err(|e| anyhow::anyhow!("{e:#}"))?,
             );
-            Box::new(hm_exec::LocalBackend::new(
+            Box::new(hm_core::exec::LocalBackend::new(
                 resolve_parallelism(&args),
                 vm_backend,
             ))
@@ -126,21 +155,56 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         );
     }
 
-    // 7. Assemble the run request.
-    let (branch, commit) = git_metadata(&repo_root, args.branch.clone());
-    let repo_name = git_remote_repo_name(&repo_root);
-    let mut req = hm_exec::RunRequest {
+    // 7. Assemble the run request. Open the worktree's repo and its `origin`
+    // remote once, and read every git-derived field from that single pair of
+    // handles — all best-effort. An explicit `--branch` wins; a missing branch
+    // or commit falls back to `HEAD` / the zero SHA. The block yields owned
+    // strings so `repo_root` can move into the request, and the cloud paths
+    // below reuse `remote_url` / `default_branch` instead of re-shelling to git.
+    let (branch, commit, repo_name, remote_url, default_branch) = {
+        let git = app.git();
+        let repo = git.repo(&repo_root).ok();
+        let head = repo.as_ref().and_then(GitRepo::current_branch);
+        let remote = repo.as_ref().and_then(|r| r.remote("origin"));
+
+        let branch = args
+            .branch
+            .clone()
+            .or_else(|| head.as_ref().map(|b| b.name().to_str_lossy().into_owned()))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "HEAD".to_string());
+        let commit = head
+            .as_ref()
+            .and_then(GitBranch::head_commit)
+            .unwrap_or_else(GitSha::zero);
+        let repo_name = remote
+            .as_ref()
+            .and_then(GitRemote::gh_repo_name)
+            .map(|n| n.to_str_lossy().into_owned());
+        let remote_url = remote
+            .as_ref()
+            .map(|r| r.url().to_str_lossy().into_owned())
+            .filter(|u| !u.is_empty());
+        // `origin/HEAD`; `None` when unset (fresh clones without `set-head`).
+        let default_branch = remote
+            .as_ref()
+            .and_then(GitRemote::default_branch)
+            .map(|b| b.name().to_str_lossy().into_owned());
+
+        (branch, commit, repo_name, remote_url, default_branch)
+    };
+    let mut req = hm_core::exec::RunRequest {
         plan,
         repo_root,
         pipeline_slug: slug,
         env: parse_env(&args.env).into_iter().collect(),
-        source: hm_exec::SourceMeta {
+        source: hm_core::exec::SourceMeta {
             branch,
             commit,
             message: args.message.clone(),
             repo_name,
         },
-        options: hm_exec::RunOptions {
+        options: hm_core::exec::RunOptions {
             no_cache: false,
             timeout: None,
             watch: !args.no_watch,
@@ -154,11 +218,12 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     // interactively now and its slug persisted. A worktree WITH a remote falls
     // through to the repo-identity submit + get-or-create fallback below.
     if let Some((client, org)) = autocreate_client.as_ref() {
-        if let Some(slug) = ctx.config.cloud.pipeline.clone() {
+        if let Some(slug) = cloud_default_pipeline.clone() {
             req.cloud_pipeline_slug = Some(slug);
         } else if req.source.repo_name.is_none() {
-            let default_branch =
-                git_default_branch(&req.repo_root).unwrap_or_else(|| req.source.branch.clone());
+            let default_branch = default_branch
+                .clone()
+                .unwrap_or_else(|| req.source.branch.clone());
             let slug = register_remoteless_pipeline(
                 client,
                 org,
@@ -171,17 +236,16 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
         }
     }
 
-    // Cloud-only auto-create context. Borrow `req` here (before it's moved into
-    // `start`): the repository URL and default branch come from the worktree's
-    // git remote; the pipeline name is the in-repo source slug.
+    // Cloud-only auto-create context, from the git fields read in step 7: the
+    // `origin` remote URL is the pipeline's `repository`, `default_branch` falls
+    // back to the run's branch, and the pipeline name is the in-repo source slug.
     let autocreate = autocreate_client.map(|(client, org)| AutoCreate {
         client,
         org,
         repo_name: req.source.repo_name.clone(),
-        repository: git_remote_url(&req.repo_root),
+        repository: remote_url,
         name: req.pipeline_slug.clone(),
-        default_branch: git_default_branch(&req.repo_root)
-            .unwrap_or_else(|| req.source.branch.clone()),
+        default_branch: default_branch.unwrap_or_else(|| req.source.branch.clone()),
     });
 
     // 8. Start, drive events, own Ctrl-C, await the outcome.
@@ -237,99 +301,12 @@ fn parse_env(pairs: &[String]) -> HashMap<String, String> {
         .collect()
 }
 
-/// Resolve `(branch, commit)` from git at `root`, best-effort. An explicit
-/// `branch_override` wins; missing values fall back to `HEAD` / the zero SHA.
-fn git_metadata(root: &std::path::Path, branch_override: Option<String>) -> (String, String) {
-    let run = |a: &[&str]| {
-        std::process::Command::new("git")
-            .arg("-C")
-            .arg(root)
-            .args(a)
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-    };
-    let branch = branch_override
-        .or_else(|| run(&["rev-parse", "--abbrev-ref", "HEAD"]))
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "HEAD".to_string());
-    let commit = run(&["rev-parse", "HEAD"])
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "0".repeat(40));
-    (branch, commit)
-}
-
-/// Parse `owner/repo` from a git remote URL, mirroring the backend's
-/// `Harmont.Pipelines.RepoName`: drop scheme/host and a trailing `.git`, then
-/// take the last two non-empty path segments. `None` when fewer than two
-/// segments remain.
-fn parse_repo_name(url: &str) -> Option<String> {
-    let url = url.trim();
-    let path = if let Some((_, rest)) = url.split_once("://") {
-        // scheme://host/owner/repo  → strip host
-        rest.split_once('/').map_or(rest, |(_, p)| p)
-    } else if url.contains('@') && url.contains(':') {
-        // scp-style git@host:owner/repo → strip "git@host:"
-        let after_at = url.split_once('@').map_or(url, |(_, r)| r);
-        after_at.split_once(':').map_or(after_at, |(_, p)| p)
-    } else {
-        url.split_once('/').map_or(url, |(_, p)| p)
-    };
-    let path = path.trim_end_matches('/');
-    let path = path.strip_suffix(".git").unwrap_or(path);
-    let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if segs.len() < 2 {
-        return None;
-    }
-    Some(segs[segs.len() - 2..].join("/"))
-}
-
-/// Extract the default branch name from a `git symbolic-ref
-/// refs/remotes/origin/HEAD` result (e.g. `refs/remotes/origin/main` → `main`).
-/// `None` when the line is empty or lacks the expected prefix.
-fn parse_default_branch(symbolic_ref: &str) -> Option<String> {
-    let branch = symbolic_ref.trim().strip_prefix("refs/remotes/origin/")?;
-    (!branch.is_empty()).then(|| branch.to_string())
-}
-
-/// The worktree's raw `origin` remote URL (the pipeline's `repository`).
-fn git_remote_url(root: &std::path::Path) -> Option<String> {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["config", "--get", "remote.origin.url"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())?;
-    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    (!url.is_empty()).then_some(url)
-}
-
-/// The repo's default branch, from `origin/HEAD`. `None` when `origin/HEAD`
-/// isn't set (common on fresh clones without `git remote set-head`).
-fn git_default_branch(root: &std::path::Path) -> Option<String> {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())?;
-    parse_default_branch(&String::from_utf8_lossy(&out.stdout))
-}
-
-/// Best-effort `owner/repo` from the worktree's `origin` remote.
-fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
-    parse_repo_name(&git_remote_url(root)?)
-}
-
 /// Resolve repo root, detect the DSL, select the pipeline slug, and render
 /// the v0 IR JSON. Shared by local and cloud runs.
 ///
 /// Returns `(repo_root, slug, ir_json_string)`. The JSON is returned as a
 /// string so a backend (e.g. cloud) can ship it verbatim; the driver parses
-/// it into an [`hm_exec::Plan`] once.
+/// it into an [`hm_core::exec::Plan`] once.
 ///
 /// # Errors
 ///
@@ -338,22 +315,17 @@ fn git_remote_repo_name(root: &std::path::Path) -> Option<String> {
 /// the DSL detection / pipeline-render step fails.
 async fn render_pipeline(
     args: &RunArgs,
-    _ctx: &RunContext,
-) -> Result<(std::path::PathBuf, String, String)> {
-    let repo_root = match args.dir.clone() {
-        Some(p) => p,
-        None => std::env::current_dir().context("cannot determine current directory")?,
-    };
-
-    detect::check_python(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
-    let engine =
-        hm_dsl_engine::python_engine().map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
+    app: &AppCtx,
+    repo_root: &std::path::Path,
+) -> Result<(String, String)> {
+    detect::check_python(repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
+    let engine = hm_dsl_engine::SubprocessPythonEngine::new(app);
 
     let slug = if let Some(s) = &args.pipeline {
         s.clone()
     } else {
         let metas: Vec<hm_dsl_engine::PipelineMeta> = engine
-            .list_pipelines(&repo_root)
+            .list_pipelines(repo_root)
             .await
             .map_err(|e| HmError::PipelineRender(format!("{e:#}")))?;
         let slugs: Vec<String> = metas.into_iter().map(|m| m.slug).collect();
@@ -371,20 +343,20 @@ async fn render_pipeline(
     };
 
     let json_str = engine
-        .render_pipeline_json(&repo_root, &slug)
+        .render_pipeline_json(repo_root, &slug)
         .await
         .map_err(|e| HmError::PipelineRender(format!("{e:#}")))?;
 
-    Ok((repo_root, slug, json_str))
+    Ok((slug, json_str))
 }
 
-/// Convert an [`hm_exec::BackendError`] into an [`anyhow::Error`] that carries
+/// Convert an [`hm_core::exec::BackendError`] into an [`anyhow::Error`] that carries
 /// BOTH the doctrine message ([`explain`]) AND the right process exit code.
 ///
 /// The exit code is preserved by wrapping in [`HmError::Backend`], whose
 /// [`HmError::category`] returns the embedded [`ErrorCategory`]; `main`'s
 /// `handle_error` downcasts to `HmError` and reads `exit_code()`.
-fn backend_anyhow(err: &hm_exec::BackendError) -> anyhow::Error {
+fn backend_anyhow(err: &hm_core::exec::BackendError) -> anyhow::Error {
     HmError::Backend(explain(err), exit_category(err)).into()
 }
 
@@ -397,8 +369,8 @@ const PIPELINE_NOT_FOUND_CODE: &str = "pipeline_not_found";
 /// submit path surfaces this as a structured `Rejected { code }` (current SDK);
 /// we also accept an opaque `NotFound` body carrying the code, for robustness
 /// against older servers that took the un-structured 404 path.
-fn is_missing_pipeline(err: &hm_exec::BackendError) -> bool {
-    use hm_exec::BackendError as E;
+fn is_missing_pipeline(err: &hm_core::exec::BackendError) -> bool {
+    use hm_core::exec::BackendError as E;
     match err {
         E::Rejected { code, .. } => code == PIPELINE_NOT_FOUND_CODE,
         E::NotFound(body) => body.contains(PIPELINE_NOT_FOUND_CODE),
@@ -425,30 +397,32 @@ fn build_create_pipeline_request(
     }
 }
 
-/// Merge `backend = "cloud"` and `[cloud] org/pipeline = …` into the project's
-/// `.hm/config.toml`, preserving any other keys already in the file. Creates
-/// the file (and `.hm/`) when absent. Used after registering a remoteless
-/// directory so later runs submit by the persisted slug without prompting.
-fn persist_project_pipeline(dir: &std::path::Path, org: &str, slug: &str) -> Result<()> {
+/// Persist a cloud backend with `org` + `default_pipeline` to the project's
+/// `.hm/config.toml`, preserving an existing domain. Creates the file (and
+/// `.hm/`) when absent. Used after registering a remoteless directory so later
+/// runs submit by the persisted slug without prompting.
+async fn persist_project_pipeline(dir: &std::path::Path, org: &str, slug: &str) -> Result<()> {
+    use hm_core::config::project::{ProjectCloudConfig, ProjectConfig};
+
     let path = dir.join(".hm/config.toml");
-    let mut doc: toml::Table = std::fs::read_to_string(&path)
+    let existing: ProjectConfig = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| toml::from_str(&s).ok())
         .unwrap_or_default();
-    doc.insert("backend".into(), toml::Value::String("cloud".into()));
-    let cloud = doc
-        .entry("cloud".to_string())
-        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
-    if let Some(t) = cloud.as_table_mut() {
-        t.insert("org".into(), toml::Value::String(org.to_string()));
-        t.insert("pipeline".into(), toml::Value::String(slug.to_string()));
-    }
+    let mut cloud = match existing.backend {
+        Some(BackendConfig::Cloud(cloud)) => cloud,
+        _ => ProjectCloudConfig::default(),
+    };
+    cloud.org = Some(org.to_string());
+    cloud.default_pipeline = Some(slug.to_string());
+
+    let doc = ProjectConfig {
+        backend: Some(BackendConfig::Cloud(cloud)),
+    };
     let serialized = toml::to_string_pretty(&doc).context("serializing .hm/config.toml")?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", parent.display()))?;
-    }
-    std::fs::write(&path, serialized).with_context(|| format!("writing {}", path.display()))?;
+    hm_common::fs::write_create_all(&path, serialized)
+        .await
+        .with_context(|| format!("writing {}", path.display()))?;
     Ok(())
 }
 
@@ -507,17 +481,19 @@ async fn register_remoteless_pipeline(
                 .raw()
                 .create_pipeline(org, &body)
                 .await
-                .map_err(hm_plugin_cloud::settings::map_raw)
+                .map_err(crate::commands::cloud::settings::map_raw)
                 .with_context(|| format!("registering pipeline '{pipeline_name}' in org {org}"))?;
             created.into_inner().slug
         }
         Err(e) => {
-            return Err(hm_plugin_cloud::settings::map_raw(e))
+            return Err(crate::commands::cloud::settings::map_raw(e))
                 .with_context(|| format!("looking up pipeline '{pipeline_name}' in org {org}"));
         }
     };
 
-    persist_project_pipeline(dir, org, &slug).context("saving .hm/config.toml")?;
+    persist_project_pipeline(dir, org, &slug)
+        .await
+        .context("saving .hm/config.toml")?;
     tracing::info!("registered pipeline '{slug}' — submitting build");
     Ok(slug)
 }
@@ -552,7 +528,7 @@ struct AutoCreate {
 /// identified, or the user declined (caller then surfaces the original error).
 /// Returns `Err` only when a lookup or create request itself failed.
 async fn resolve_or_create_cloud_pipeline(
-    err: &hm_exec::BackendError,
+    err: &hm_core::exec::BackendError,
     ac: Option<&AutoCreate>,
 ) -> Result<Option<String>> {
     use std::io::IsTerminal;
@@ -574,7 +550,7 @@ async fn resolve_or_create_cloud_pipeline(
         Ok(p) => return Ok(Some(p.into_inner().slug)),
         Err(e) if e.status().is_some_and(|s| s.as_u16() == 404) => {} // truly absent → create
         Err(e) => {
-            return Err(hm_plugin_cloud::settings::map_raw(e))
+            return Err(crate::commands::cloud::settings::map_raw(e))
                 .with_context(|| format!("looking up pipeline '{}' in org {}", ac.name, ac.org));
         }
     }
@@ -606,22 +582,22 @@ async fn resolve_or_create_cloud_pipeline(
         .raw()
         .create_pipeline(&ac.org, &body)
         .await
-        .map_err(hm_plugin_cloud::settings::map_raw)
+        .map_err(crate::commands::cloud::settings::map_raw)
         .with_context(|| format!("creating pipeline '{}' in org {}", ac.name, ac.org))?;
     let slug = created.into_inner().slug;
     tracing::info!("created pipeline '{slug}' — submitting build");
     Ok(Some(slug))
 }
 
-/// Map a [`hm_exec::BackendError`] to the process exit-code category.
+/// Map a [`hm_core::exec::BackendError`] to the process exit-code category.
 ///
 /// Note: the old taxonomy distinguished a downed Docker daemon
 /// (`EXIT_NETWORK`) from an unknown-runner pipeline error
 /// (`EXIT_PIPELINE_INVALID`). Both now arrive as
-/// [`hm_exec::BackendError::Local`], so they collapse to a single category
+/// [`hm_core::exec::BackendError::Local`], so they collapse to a single category
 /// (`Network`) here — an acceptable loss of resolution.
-const fn exit_category(err: &hm_exec::BackendError) -> ErrorCategory {
-    use hm_exec::BackendError as E;
+const fn exit_category(err: &hm_core::exec::BackendError) -> ErrorCategory {
+    use hm_core::exec::BackendError as E;
     match err {
         // A plan/IR rejection is a pipeline-config problem.
         E::Rejected { .. } => ErrorCategory::PipelineInvalid,
@@ -640,12 +616,12 @@ const fn exit_category(err: &hm_exec::BackendError) -> ErrorCategory {
     }
 }
 
-/// Render a [`hm_exec::BackendError`] in the project's error doctrine: point
+/// Render a [`hm_core::exec::BackendError`] in the project's error doctrine: point
 /// precisely, say what was observed, say the fix, give a stable code + doc URL.
 ///
 /// Adapted from the legacy `executor/cloud.rs::explain(&HarmontError)`.
-fn explain(err: &hm_exec::BackendError) -> String {
-    use hm_exec::BackendError as E;
+fn explain(err: &hm_core::exec::BackendError) -> String {
+    use hm_core::exec::BackendError as E;
     match err {
         E::Unauthorized => "\
 error[auth_required]: not authenticated
@@ -677,14 +653,12 @@ error[log_stream]: live logs interrupted — {m}
             cap_bytes,
             largest_paths,
         } => {
-            #[allow(clippy::cast_precision_loss)] // display-only
-            let mb = |b: u64| format!("{:.1} MB", b as f64 / (1024.0 * 1024.0));
             let biggest = if largest_paths.is_empty() {
                 "  (no large top-level paths identified)".to_string()
             } else {
                 largest_paths
                     .iter()
-                    .map(|(name, sz)| format!("           {name} — {}", mb(*sz)))
+                    .map(|(name, sz)| format!("           {name} — {}", sz.format_size()))
                     .collect::<Vec<_>>()
                     .join("\n")
             };
@@ -693,8 +667,8 @@ error[log_stream]: live logs interrupted — {m}
 error[source_too_large]: worktree archive is {observed} (cap {cap})
   biggest\n{biggest}
   fix    add the offending paths to .gitignore (build output, caches, vendored deps), then re-run `hm run`",
-                observed = mb(*observed_bytes),
-                cap = mb(*cap_bytes),
+                observed = observed_bytes.format_size(),
+                cap = cap_bytes.format_size(),
             )
         }
         other => format!("error[backend]: {other}"),
@@ -702,87 +676,43 @@ error[source_too_large]: worktree archive is {observed} (cap {cap})
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 mod tests {
+    use hm_core::exec::BackendError as E;
+    use rstest::rstest;
+
     use super::*;
 
-    #[test]
-    fn missing_pipeline_detected_from_structured_reject() {
-        let err = hm_exec::BackendError::Rejected {
+    #[rstest]
+    #[case::structured_reject(
+        E::Rejected {
             code: "pipeline_not_found".into(),
             message: "No pipeline with that slug exists in this organization.".into(),
-        };
-        assert!(is_missing_pipeline(&err));
-    }
-
-    #[test]
-    fn other_reject_is_not_missing_pipeline() {
-        let err = hm_exec::BackendError::Rejected {
+        },
+        true
+    )]
+    #[case::other_reject(
+        E::Rejected {
             code: "build_rejected".into(),
             message: "pipeline_ir invalid".into(),
-        };
-        assert!(!is_missing_pipeline(&err));
+        },
+        false
+    )]
+    #[case::opaque_not_found(
+        E::NotFound(r#"{"error":{"code":"pipeline_not_found"}}"#.into()),
+        true
+    )]
+    #[case::transport(E::Transport("connection refused".into()), false)]
+    fn is_missing_pipeline_classifies(#[case] err: E, #[case] expected: bool) {
+        assert_eq!(is_missing_pipeline(&err), expected);
     }
 
-    #[test]
-    fn missing_pipeline_detected_from_opaque_not_found() {
-        let err =
-            hm_exec::BackendError::NotFound(r#"{"error":{"code":"pipeline_not_found"}}"#.into());
-        assert!(is_missing_pipeline(&err));
-    }
-
-    #[test]
-    fn transport_error_is_not_missing_pipeline() {
-        let err = hm_exec::BackendError::Transport("connection refused".into());
-        assert!(!is_missing_pipeline(&err));
-    }
-
-    #[test]
-    fn parse_repo_name_handles_https_ssh_and_scp() {
-        assert_eq!(
-            parse_repo_name("https://github.com/harmont-dev/harmont-cli.git").as_deref(),
-            Some("harmont-dev/harmont-cli")
-        );
-        assert_eq!(
-            parse_repo_name("git@github.com:harmont-dev/harmont-cli.git").as_deref(),
-            Some("harmont-dev/harmont-cli")
-        );
-        assert_eq!(
-            parse_repo_name("ssh://git@github.com/harmont-dev/harmont-cli").as_deref(),
-            Some("harmont-dev/harmont-cli")
-        );
-        assert_eq!(
-            parse_repo_name("https://example.com/a/b/c/repo").as_deref(),
-            Some("c/repo")
-        );
-    }
-
-    #[test]
-    fn parse_repo_name_rejects_unparseable() {
-        assert_eq!(parse_repo_name(""), None);
-        assert_eq!(parse_repo_name("not-a-url"), None);
-    }
-
-    #[test]
-    fn parses_default_branch_from_symbolic_ref() {
-        assert_eq!(
-            parse_default_branch("refs/remotes/origin/main\n").as_deref(),
-            Some("main")
-        );
-        assert_eq!(
-            parse_default_branch("refs/remotes/origin/master").as_deref(),
-            Some("master")
-        );
-    }
-
-    #[test]
-    fn default_branch_none_when_unexpected_or_empty() {
-        assert_eq!(parse_default_branch(""), None);
-        assert_eq!(parse_default_branch("refs/heads/main"), None);
-        assert_eq!(parse_default_branch("refs/remotes/origin/"), None);
-    }
-
-    #[test]
+    #[rstest]
     fn parse_env_splits_pairs() {
         let m = parse_env(&["A=1".into(), "B=x=y".into(), "bad".into()]);
         assert_eq!(m.get("A").unwrap(), "1");
@@ -790,26 +720,42 @@ mod tests {
         assert!(!m.contains_key("bad"));
     }
 
-    #[test]
-    fn git_metadata_falls_back_outside_repo() {
-        let (b, c) = git_metadata(std::path::Path::new("/"), None);
-        assert!(!b.is_empty() && !c.is_empty());
-        assert_eq!(c.len(), 40); // zero-sha fallback
+    #[rstest]
+    #[case::unauthorized(E::Unauthorized, "error[auth_required]")]
+    #[case::not_found(E::NotFound("x".into()), "error[not_found]")]
+    #[case::log_stream(E::LogStream("x".into()), "error[log_stream]")]
+    #[case::transport(E::Transport("x".into()), "error[network]")]
+    #[case::local(E::Local("x".into()), "error[local]")]
+    #[case::rejected(
+        E::Rejected { code: "invalid_ir".into(), message: "bad IR".into() },
+        "error[invalid_ir]"
+    )]
+    #[case::source_too_large(
+        E::SourceTooLarge {
+            observed_bytes: 7 * 1024 * 1024,
+            cap_bytes: 6 * 1024 * 1024,
+            largest_paths: vec![("node_modules".into(), 5 * 1024 * 1024)],
+        },
+        "error[source_too_large]"
+    )]
+    fn explain_carries_stable_codes(#[case] err: E, #[case] code: &str) {
+        let rendered = explain(&err);
+        assert!(rendered.contains(code));
+        // Doc URLs were removed (the pages 404); no error should link to them.
+        assert!(!rendered.contains("docs   https://harmont.dev/docs/errors/"));
     }
 
-    #[test]
-    fn explain_carries_stable_codes() {
-        use hm_exec::BackendError as E;
-        assert!(explain(&E::Unauthorized).contains("error[auth_required]"));
-        assert!(explain(&E::NotFound("x".into())).contains("error[not_found]"));
-        assert!(explain(&E::LogStream("x".into())).contains("error[log_stream]"));
-        assert!(explain(&E::Transport("x".into())).contains("error[network]"));
-        assert!(explain(&E::Local("x".into())).contains("error[local]"));
+    #[rstest]
+    fn explain_rejected_includes_message() {
         let r = explain(&E::Rejected {
             code: "invalid_ir".into(),
             message: "bad IR".into(),
         });
         assert!(r.contains("error[invalid_ir]") && r.contains("bad IR"));
+    }
+
+    #[rstest]
+    fn explain_source_too_large_points_precisely() {
         let big = explain(&E::SourceTooLarge {
             observed_bytes: 7 * 1024 * 1024,
             cap_bytes: 6 * 1024 * 1024,
@@ -817,103 +763,94 @@ mod tests {
         });
         assert!(big.contains("error[source_too_large]"));
         // Points precisely (observed + cap), names the offender, states the fix.
-        assert!(big.contains("7.0 MB") && big.contains("6.0 MB"));
+        assert!(big.contains("7 MiB") && big.contains("6 MiB"));
         assert!(big.contains("node_modules") && big.contains(".gitignore"));
-        // Doc URLs were removed (the pages 404); no error should link to them.
-        for s in [
-            explain(&E::Unauthorized),
-            explain(&E::NotFound("x".into())),
-            explain(&E::Transport("x".into())),
-            explain(&E::Local("x".into())),
-        ] {
-            assert!(!s.contains("docs   https://harmont.dev/docs/errors/"));
-        }
+    }
+
+    #[rstest]
+    fn explain_local_omits_docker_advice() {
         // The Local arm no longer gives misleading Docker advice.
         assert!(!explain(&E::Local("archiving worktree: boom".into())).contains("Docker"));
         assert!(explain(&E::Local("archiving worktree: boom".into())).contains("error[local]"));
     }
 
-    #[test]
-    fn exit_category_preserves_taxonomy() {
-        use hm_exec::BackendError as E;
-        assert_eq!(
-            exit_category(&E::Rejected {
-                code: "invalid_ir".into(),
-                message: String::new()
-            }),
-            ErrorCategory::PipelineInvalid
-        );
-        assert_eq!(exit_category(&E::Unauthorized), ErrorCategory::Auth);
-        assert_eq!(
-            exit_category(&E::Transport("x".into())),
-            ErrorCategory::Network
-        );
-        assert_eq!(exit_category(&E::Local("x".into())), ErrorCategory::Network);
-        assert_eq!(exit_category(&E::NotFound("x".into())), ErrorCategory::Api);
-        assert_eq!(
-            exit_category(&E::SourceTooLarge {
-                observed_bytes: 1,
-                cap_bytes: 0,
-                largest_paths: vec![],
-            }),
-            ErrorCategory::Usage
-        );
+    #[rstest]
+    #[case::rejected(
+        E::Rejected { code: "invalid_ir".into(), message: String::new() },
+        ErrorCategory::PipelineInvalid
+    )]
+    #[case::unauthorized(E::Unauthorized, ErrorCategory::Auth)]
+    #[case::transport(E::Transport("x".into()), ErrorCategory::Network)]
+    #[case::local(E::Local("x".into()), ErrorCategory::Network)]
+    #[case::not_found(E::NotFound("x".into()), ErrorCategory::Api)]
+    #[case::source_too_large(
+        E::SourceTooLarge { observed_bytes: 1, cap_bytes: 0, largest_paths: vec![] },
+        ErrorCategory::Usage
+    )]
+    fn exit_category_preserves_taxonomy(#[case] err: E, #[case] expected: ErrorCategory) {
+        assert_eq!(exit_category(&err), expected);
     }
 
-    #[test]
-    fn create_request_maps_fields_and_sets_repo_name() {
-        let body = build_create_pipeline_request(
-            "web",
-            "main",
-            "git@github.com:acme/my-app.git",
-            Some("acme/my-app"),
-        );
-        assert_eq!(body.name, "web");
-        assert_eq!(body.default_branch, "main");
-        assert_eq!(body.repository, "git@github.com:acme/my-app.git");
-        assert_eq!(body.repo_name.as_deref(), Some("acme/my-app"));
+    #[rstest]
+    #[case::with_repo_name(
+        "web",
+        "main",
+        "git@github.com:acme/my-app.git",
+        Some("acme/my-app"),
+        Some("acme/my-app")
+    )]
+    // The remoteless path passes `None`: no `repo_name`, and `repository`
+    // falls back to the pipeline name itself.
+    #[case::remoteless("my-app-2", "main", "my-app-2", None, None)]
+    fn create_request_maps_fields_and_sets_repo_name(
+        #[case] name: &str,
+        #[case] default_branch: &str,
+        #[case] repository: &str,
+        #[case] repo_name: Option<&str>,
+        #[case] expected_repo_name: Option<&str>,
+    ) {
+        let body = build_create_pipeline_request(name, default_branch, repository, repo_name);
+        assert_eq!(body.name, name);
+        assert_eq!(body.default_branch, default_branch);
+        assert_eq!(body.repository, repository);
+        assert_eq!(body.repo_name.as_deref(), expected_repo_name);
         assert!(body.description.is_none());
-
-        // The remoteless path passes `None`: no `repo_name`, and `repository`
-        // falls back to the pipeline name itself.
-        let body = build_create_pipeline_request("my-app-2", "main", "my-app-2", None);
-        assert!(body.repo_name.is_none());
-        assert_eq!(body.repository, "my-app-2");
-        assert_eq!(body.name, "my-app-2");
     }
 
-    #[test]
-    fn persist_creates_config_when_absent() {
+    #[rstest]
+    #[case::absent(None, "my-app-2", "https://api.harmont.dev")]
+    #[case::preserves_domain(
+        Some("[backend]\ntype = \"cloud\"\ndomain = \"example.test\"\norg = \"old\"\n"),
+        "web",
+        "https://api.example.test"
+    )]
+    #[tokio::test]
+    async fn persist_project_pipeline_writes_config(
+        #[case] preexisting: Option<&str>,
+        #[case] slug: &str,
+        #[case] expected_api_url: &str,
+    ) {
+        use hm_core::config::domain::BackendConfig;
+        use hm_core::config::project::ProjectConfig;
+
         let dir = tempfile::tempdir().unwrap();
-        persist_project_pipeline(dir.path(), "acme", "my-app-2").unwrap();
+        if let Some(content) = preexisting {
+            std::fs::create_dir_all(dir.path().join(".hm")).unwrap();
+            std::fs::write(dir.path().join(".hm/config.toml"), content).unwrap();
+        }
+
+        persist_project_pipeline(dir.path(), "acme", slug)
+            .await
+            .unwrap();
 
         let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
-        let doc: toml::Table = toml::from_str(&raw).unwrap();
-        assert_eq!(doc["backend"].as_str(), Some("cloud"));
-        let cloud = doc["cloud"].as_table().unwrap();
-        assert_eq!(cloud["org"].as_str(), Some("acme"));
-        assert_eq!(cloud["pipeline"].as_str(), Some("my-app-2"));
-    }
-
-    #[test]
-    fn persist_preserves_existing_keys() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(dir.path().join(".hm")).unwrap();
-        std::fs::write(
-            dir.path().join(".hm/config.toml"),
-            "backend = \"docker\"\n[cloud]\norg = \"old\"\napi_url = \"https://example.test\"\n",
-        )
-        .unwrap();
-
-        persist_project_pipeline(dir.path(), "acme", "web").unwrap();
-
-        let raw = std::fs::read_to_string(dir.path().join(".hm/config.toml")).unwrap();
-        let doc: toml::Table = toml::from_str(&raw).unwrap();
-        assert_eq!(doc["backend"].as_str(), Some("cloud"));
-        let cloud = doc["cloud"].as_table().unwrap();
-        assert_eq!(cloud["pipeline"].as_str(), Some("web"));
-        assert_eq!(cloud["org"].as_str(), Some("acme"));
-        // The unrelated key is preserved across the merge.
-        assert_eq!(cloud["api_url"].as_str(), Some("https://example.test"));
+        let cfg: ProjectConfig = toml::from_str(&raw).unwrap();
+        let Some(BackendConfig::Cloud(cloud)) = cfg.backend else {
+            panic!("expected a cloud backend");
+        };
+        assert_eq!(cloud.org.as_deref(), Some("acme"));
+        assert_eq!(cloud.default_pipeline.as_deref(), Some(slug));
+        // A pre-existing domain is preserved; an absent one falls back to default.
+        assert_eq!(cloud.domain.unwrap_or_default().api_url(), expected_api_url);
     }
 }

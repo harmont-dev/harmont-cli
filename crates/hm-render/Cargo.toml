@@ -8,11 +8,13 @@ description = "Build-event renderers (human / progress / JSON) shared by the hm 
 
 [dependencies]
 hm-plugin-protocol = { workspace = true }
+hm-common = { workspace = true }
 anyhow = "1"
 indicatif = "0.18"
 owo-colors = "4"
 tracing-indicatif = "0.3"
 uuid = { workspace = true }
+unicode-width = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tokio = { version = "1", features = ["sync", "rt", "macros"] }
@@ -20,6 +22,7 @@ futures = "0.3"
 
 [dev-dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+rstest = { workspace = true }
 
 [lints]
 workspace = true

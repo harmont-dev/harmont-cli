@@ -1,10 +1,15 @@
 //! End-to-end: a failing pipeline step routes through `BuildEvent::ChainFailed`
-//! and both output plugins render it. See plan task B5 in
-//! docs/superpowers/plans/2026-05-19-pr22-followups.md.
+//! and both output renderers render it.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "integration test setup and assertions"
+)]
 
 use assert_cmd::Command;
+use rstest::rstest;
 
 const FAILING_PIPELINE_PY: &str = r#"
 import harmont as hm
@@ -20,7 +25,7 @@ fn write_failing_pipeline(temp: &tempfile::TempDir) {
     std::fs::write(temp.path().join(".hm/pipeline.py"), FAILING_PIPELINE_PY).unwrap();
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn human_format_renders_chain_failure_to_stderr() {
     let temp = tempfile::tempdir().unwrap();
@@ -32,7 +37,7 @@ fn human_format_renders_chain_failure_to_stderr() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    // The human plugin renders ChainFailed via:
+    // The human renderer renders ChainFailed via:
     //   "chain {chain_idx}: FAILED at step '{failed_step_key}' (exit={exit_code}): {message}\n"
     // The step's `key` is the slugified label, so `label="oops"` => key="oops".
     assert!(
@@ -45,7 +50,7 @@ fn human_format_renders_chain_failure_to_stderr() {
     );
 }
 
-#[test]
+#[rstest]
 #[ignore = "requires Docker daemon"]
 fn json_format_emits_chain_failed_event() {
     let temp = tempfile::tempdir().unwrap();

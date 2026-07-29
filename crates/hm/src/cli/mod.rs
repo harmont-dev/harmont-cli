@@ -70,7 +70,7 @@ pub enum Command {
 
     /// Interact with the Harmont cloud API.
     #[command(subcommand)]
-    Cloud(hm_plugin_cloud::cli::CloudCommand),
+    Cloud(hm_cloud::cli::CloudCommand),
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -100,22 +100,20 @@ pub struct CacheRestoreArgs {
 /// # Errors
 ///
 /// Returns an error if the dispatched handler fails.
-pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
+pub async fn dispatch(command: Command, ctx: RunContext<'_>) -> Result<i32> {
+    let app = ctx.app;
     match command {
-        Command::Init(args) => crate::commands::init::handle(args).await.map(|()| 0),
+        Command::Init(args) => crate::commands::init::handle(args, app).await.map(|()| 0),
         Command::Run(args) => crate::commands::run::handle(args, ctx).await,
-        Command::Pipelines(args) => crate::cli::pipelines::run(args).await.map(|()| 0),
-        Command::Render(args) => crate::cli::render::run(args).await.map(|()| 0),
+        Command::Pipelines(args) => crate::cli::pipelines::run(args, app).await.map(|()| 0),
+        Command::Render(args) => crate::cli::render::run(args, app).await.map(|()| 0),
         Command::Cache(cmd) => match cmd {
             CacheCommand::Save(args) => crate::commands::cache::handle_save(&args.dir).await,
             CacheCommand::Restore(args) => crate::commands::cache::handle_restore(&args.dir).await,
-            CacheCommand::Clean => crate::commands::cache::handle_clean().await,
+            CacheCommand::Clean => crate::commands::cache::handle_clean(app).await,
         },
         Command::Version => version::run().await.map(|()| 0),
         Command::Plugin(cmd) => plugin::run(cmd).await.map(|()| 0),
-        Command::Cloud(cmd) => {
-            let env = std::env::vars().collect();
-            hm_plugin_cloud::cli::dispatch_command(cmd, env).await
-        }
+        Command::Cloud(cmd) => crate::commands::cloud::cli::dispatch_command(cmd, app).await,
     }
 }

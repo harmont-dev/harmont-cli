@@ -1,15 +1,32 @@
 The `cli/` directory is a Cargo workspace.
 
 - `crates/hm/` — the `hm` binary (today's CLI body).
-- `crates/hm-exec/` — the `ExecutionBackend` trait + `LocalDockerBackend` (in-process Docker DAG scheduler) + `CloudBackend` (submit+watch over the SDK). The `hm` binary renders the emitted `BuildEvent` stream (via `hm-render`) and owns Ctrl-C; auth is injected (the crate takes a built `HarmontClient`).
+- `crates/hm-core/` — the shared core: `config` (layered project/user/env config + credential storage), `exec` (the `ExecutionBackend` trait + `LocalBackend` in-process Docker DAG scheduler + `CloudBackend` submit+watch over the SDK), and `sys_runtime` (the process-wide git/python/dirs/cwd runtime). The `hm` binary renders the emitted `BuildEvent` stream (via `hm-render`) and owns Ctrl-C; auth is injected (the backends take a built `HarmontClient`).
 - `crates/hm-render/` — `drive_stream`: consumes an `EventStream` and writes terminal/JSON output. No I/O beyond stdout.
 - `crates/hm-pipeline-ir/` — pipeline IR schema (serde structs only, no runtime).
-- `crates/hm-util/` — shared OS and filesystem utilities.
+- `crates/hm-common/` — shared utilities (OS/filesystem, formatting, and other cross-crate helpers). This is the source of truth for common code; prefer adding shared helpers here.
 - `crates/hm-plugin-protocol/` — wire types (serde structs only).
-- `crates/hm-plugin-sdk/` — authoring SDK for plugin writers.
 Run `cargo build` from the workspace root.
 
 For cross-cutting doctrine see [PRINCIPLES.md](../PRINCIPLES.md).
+
+## Testing
+
+When writing or running any Rust test, follow the
+[`writing-rust-tests`](.claude/skills/writing-rust-tests/SKILL.md) skill:
+`#[rstest]` over bare `#[test]`, parametrized `#[case]` over duplicated test
+functions and hand-rolled loops, `proptest` for domain-wide properties. Run with
+plain `cargo test -p <crate>` (no nextest/just wrapper).
+
+## Documentation
+
+When writing or editing any docblock, doc comment, or module header (`///`,
+`//!`) — including on code you just changed — follow the
+[`writing-interface-docblocks`](.claude/skills/writing-interface-docblocks/SKILL.md)
+skill: a docblock is a contract, not a changelog. Terse, present-tense, no
+prompt or diff leakage (`rather than`, `now returns`, `as requested`); document
+the *when* of errors/panics, not the *why*; module docs name the domain, not the
+one item currently inside them.
 
 ## DSL
 

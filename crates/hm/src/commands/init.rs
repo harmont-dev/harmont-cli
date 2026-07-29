@@ -2,6 +2,7 @@ use std::io::IsTerminal;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
+use hm_core::config::domain::BackendConfig;
 use hm_dsl_engine::detect;
 
 use crate::cli::init::{InitArgs, TemplateKind};
@@ -102,10 +103,11 @@ fn prompt_skills() -> Result<bool> {
 /// - On org selection → write a sparse `.hm/config.toml` with `backend = "cloud"` and the org slug.
 ///
 /// Silently returns `Ok(())` on any user-cancellation (Esc, Ctrl-C on a prompt).
-async fn prompt_cloud_registration(dir: &std::path::Path) -> Result<()> {
-    let cfg = hm_config::Config::load(None).unwrap_or_default();
-    let api_url = &cfg.cloud.api_url;
-    let is_logged_in = hm_config::creds::cloud_token(api_url).is_some();
+async fn prompt_cloud_registration(
+    dir: &std::path::Path,
+    app: &hm_core::app_ctx::AppCtx,
+) -> Result<()> {
+    let is_logged_in = app.creds().get().await.is_some();
 
     if !is_logged_in {
         let want_login = dialoguer::Confirm::new()
@@ -118,17 +120,18 @@ async fn prompt_cloud_registration(dir: &std::path::Path) -> Result<()> {
             return Ok(());
         }
 
-        hm_plugin_cloud::login_interactive().await?;
+        crate::commands::cloud::login_interactive(app).await?;
     }
 
-    let (client, _ctx) = hm_plugin_cloud::settings::client()
+    let (client, _ctx) = crate::commands::cloud::settings::client(app)
+        .await
         .context("could not build authenticated cloud client")?;
 
     let orgs = client
         .raw()
         .list_organizations(None, None)
         .await
-        .map_err(hm_plugin_cloud::settings::map_raw)
+        .map_err(crate::commands::cloud::settings::map_raw)
         .context("fetching organizations")?
         .into_inner();
 
@@ -174,7 +177,7 @@ fn write_cloud_project_config(dir: &std::path::Path, org_slug: &str) -> Result<(
     Ok(())
 }
 
-fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
+async fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     let harmont_dir = dir.join(".hm");
     let already_has_pipeline = detect::has_pipeline_files(dir);
 
@@ -191,16 +194,16 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     // wipe the whole `.hm/` directory: that would also delete config.toml,
     // .gitignore, and any co-resident pipeline (e.g. a repo with both
     // pipeline.py and deploy.py). `std::fs::write` clobbers just the target.
-    std::fs::create_dir_all(&harmont_dir)
-        .with_context(|| format!("creating {}", harmont_dir.display()))?;
     let dest = harmont_dir.join(tmpl.filename);
-    std::fs::write(&dest, tmpl.content).with_context(|| format!("writing {}", dest.display()))?;
+    hm_common::fs::write_create_all(&dest, tmpl.content)
+        .await
+        .with_context(|| format!("writing {}", dest.display()))?;
     ensure_gitignore_entry(&harmont_dir, "node_modules/")?;
     ensure_gitignore_entry(&harmont_dir, "__pycache__/")?;
     Ok(true)
 }
 
-fn write_skills(dir: &Path, force: bool) -> Result<()> {
+async fn write_skills(dir: &Path, force: bool) -> Result<()> {
     let skills: &[(&str, &str)] = &[
         ("validate-ci", SKILL_VALIDATE_CI),
         ("write-pipeline", SKILL_WRITE_PIPELINE),
@@ -226,9 +229,9 @@ fn write_skills(dir: &Path, force: bool) -> Result<()> {
         }
 
         let updated = dest.exists();
-        std::fs::create_dir_all(&skill_dir)
-            .with_context(|| format!("creating {}", skill_dir.display()))?;
-        std::fs::write(&dest, content).with_context(|| format!("writing {}", dest.display()))?;
+        hm_common::fs::write_create_all(&dest, content)
+            .await
+            .with_context(|| format!("writing {}", dest.display()))?;
         if updated {
             tracing::info!("overwrote Claude Code skill: .claude/skills/{slug}/SKILL.md");
         } else {
@@ -271,7 +274,7 @@ fn has_github_workflows(dir: &Path) -> bool {
 ///
 /// Returns an error if the target directory is unwritable, or if no template
 /// can be determined in a non-interactive context.
-pub async fn handle(args: InitArgs) -> Result<()> {
+pub async fn handle(args: InitArgs, app: &hm_core::app_ctx::AppCtx) -> Result<()> {
     let tty = std::io::stdin().is_terminal();
     let has_pipeline = detect::has_pipeline_files(&args.dir);
 
@@ -295,7 +298,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
             pick_interactive()?
         };
         let tmpl = kind.meta();
-        let wrote_pipeline = write_template(&args.dir, &tmpl, args.force)?;
+        let wrote_pipeline = write_template(&args.dir, &tmpl, args.force).await?;
         if wrote_pipeline {
             let dsl = match kind {
                 TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
@@ -308,7 +311,7 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         }
     }
 
-    if tty && let Err(e) = prompt_cloud_registration(&args.dir).await {
+    if tty && let Err(e) = prompt_cloud_registration(&args.dir, app).await {
         tracing::warn!("cloud registration skipped: {e:#}");
     }
 
@@ -322,30 +325,28 @@ pub async fn handle(args: InitArgs) -> Result<()> {
     // Skills are offered whenever a terminal is present, independent of
     // whether a template flag was passed.
     if tty && prompt_skills()? {
-        write_skills(&args.dir, args.force)?;
+        write_skills(&args.dir, args.force).await?;
     }
 
-    let project_config = hm_config::Config::project_config_path(&args.dir);
-    if project_config.exists() {
-        let cfg =
-            hm_config::Config::load_from_paths(None, Some(&project_config)).unwrap_or_default();
-        match cfg.backend {
-            hm_config::Backend::Cloud => {
-                tracing::info!("next step: run `hm run` to execute your pipeline on Harmont Cloud");
-            }
-            hm_config::Backend::Docker => {
-                tracing::info!("next step: run `hm run` to execute your pipeline locally");
-            }
+    let backend = hm_core::project_ctx::ProjectCtx::at(app, args.dir.clone())
+        .await
+        .map_or(BackendConfig::Docker, |p| p.config().backend.clone());
+    match backend {
+        BackendConfig::Cloud(_) => {
+            tracing::info!("next step: run `hm run` to execute your pipeline on Harmont Cloud");
         }
-    } else {
-        tracing::info!("next step: run `hm run` to execute your pipeline locally");
+        BackendConfig::Docker => {
+            tracing::info!("next step: run `hm run` to execute your pipeline locally");
+        }
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used, reason = "test setup and assertions")]
+
+    use rstest::rstest;
 
     use super::*;
 
@@ -353,59 +354,36 @@ mod tests {
         dir.join(format!(".claude/skills/{slug}/SKILL.md"))
     }
 
-    #[test]
-    fn write_skills_installs_when_absent() {
+    #[rstest]
+    #[case::absent(None, false, SKILL_VALIDATE_CI)]
+    #[case::customized_no_force(Some("# my local edits"), false, "# my local edits")]
+    #[case::customized_force(Some("# my local edits"), true, SKILL_VALIDATE_CI)]
+    #[case::unchanged_idempotent(Some(SKILL_VALIDATE_CI), false, SKILL_VALIDATE_CI)]
+    #[tokio::test]
+    async fn write_skills_behaves(
+        #[case] preexisting: Option<&str>,
+        #[case] force: bool,
+        #[case] expected: &str,
+    ) {
         let dir = tempfile::tempdir().unwrap();
-        write_skills(dir.path(), false).unwrap();
-
         let dest = skill_path(dir.path(), "validate-ci");
-        assert!(dest.exists());
-        assert_eq!(std::fs::read_to_string(&dest).unwrap(), SKILL_VALIDATE_CI);
+        if let Some(content) = preexisting {
+            std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+            std::fs::write(&dest, content).unwrap();
+        }
+
+        write_skills(dir.path(), force).await.unwrap();
+
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), expected);
     }
 
-    #[test]
-    fn write_skills_preserves_customized_file_without_force() {
+    #[rstest]
+    #[tokio::test]
+    async fn write_skills_installs_sibling_skills_when_absent() {
         let dir = tempfile::tempdir().unwrap();
-        let dest = skill_path(dir.path(), "validate-ci");
-        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        std::fs::write(&dest, "# my local edits").unwrap();
+        write_skills(dir.path(), false).await.unwrap();
 
-        write_skills(dir.path(), false).unwrap();
-
-        assert_eq!(
-            std::fs::read_to_string(&dest).unwrap(),
-            "# my local edits",
-            "a customized skill must not be clobbered without --force"
-        );
-        // Other skills, which were absent, are still installed.
+        // Skills other than the one under test are installed too.
         assert!(skill_path(dir.path(), "write-pipeline").exists());
-    }
-
-    #[test]
-    fn write_skills_force_overwrites_customized_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let dest = skill_path(dir.path(), "validate-ci");
-        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        std::fs::write(&dest, "# my local edits").unwrap();
-
-        write_skills(dir.path(), true).unwrap();
-
-        assert_eq!(
-            std::fs::read_to_string(&dest).unwrap(),
-            SKILL_VALIDATE_CI,
-            "--force must overwrite a customized skill with the bundled version"
-        );
-    }
-
-    #[test]
-    fn write_skills_skips_unchanged_file_idempotently() {
-        let dir = tempfile::tempdir().unwrap();
-        let dest = skill_path(dir.path(), "validate-ci");
-        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        std::fs::write(&dest, SKILL_VALIDATE_CI).unwrap();
-
-        // Re-running with an identical, bundled file is a silent no-op.
-        write_skills(dir.path(), false).unwrap();
-        assert_eq!(std::fs::read_to_string(&dest).unwrap(), SKILL_VALIDATE_CI);
     }
 }

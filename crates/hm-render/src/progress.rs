@@ -11,10 +11,15 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
 
+use hm_plugin_protocol::ir::DurationMs;
+
+use hm_common::format::CompactDuration as _;
+use hm_common::string::{AlignExt as _, Alignment, EscapeNonPrintablePosixExt as _, Measure};
 use hm_plugin_protocol::BuildEvent;
 use indicatif::ProgressStyle;
 use owo_colors::{OwoColorize, Style};
 use tracing::{Span, info_span};
+use unicode_width::UnicodeWidthStr;
 
 /// Tracing target for TUI progress-bar spans.
 ///
@@ -67,29 +72,22 @@ fn failed_style(color: bool) -> ProgressStyle {
     ProgressStyle::with_template(&tpl).unwrap_or_else(|_| ProgressStyle::default_spinner())
 }
 
-fn format_duration(ms: u64) -> String {
-    if ms < 1000 {
-        format!("{ms}ms")
-    } else if ms < 60_000 {
-        let secs = ms / 1000;
-        let tenths = (ms % 1000) / 100;
-        format!("{secs}.{tenths}s")
-    } else {
-        let mins = ms / 60_000;
-        let secs = (ms % 60_000) / 1000;
-        format!("{mins}m{secs}s")
-    }
-}
-
 /// Progress-bar renderer.
 ///
 /// Generic over `W: Write` so tests can capture text output into a
 /// `Vec<u8>` while production code writes to `std::io::Stderr`.
 #[derive(Debug)]
 pub(crate) enum StepOutcome {
-    Succeeded { duration_ms: u64 },
-    Failed { duration_ms: u64, exit_code: i32 },
-    Cancelled { duration_ms: u64 },
+    Succeeded {
+        duration_ms: DurationMs,
+    },
+    Failed {
+        duration_ms: DurationMs,
+        exit_code: i32,
+    },
+    Cancelled {
+        duration_ms: DurationMs,
+    },
     Cached,
 }
 
@@ -144,18 +142,22 @@ impl<W: Write> ProgressRenderer<W> {
             );
             if let Some(lines) = self.log_buffer.get(step_id) {
                 for line in lines {
-                    let _ = writeln!(self.out, "{line}");
+                    // Buffered log lines are raw subprocess output: escape control
+                    // characters so replaying them can't drive the terminal.
+                    let _ = writeln!(self.out, "{}", line.escape_non_printable());
                 }
             }
         }
     }
 
     fn print_step_summary(&mut self) {
-        let max_name_len = self
+        // Measure the column in display width, not bytes, so a step name with
+        // wide or multibyte glyphs still lines up with its neighbours.
+        let max_name_cols = self
             .step_order
             .iter()
             .filter_map(|id| self.step_names.get(id))
-            .map(String::len)
+            .map(|name| UnicodeWidthStr::width(name.as_str()))
             .max()
             .unwrap_or(0);
 
@@ -166,7 +168,7 @@ impl<W: Write> ProgressRenderer<W> {
                 Some(StepOutcome::Succeeded { duration_ms }) => (
                     styled("✓", Style::new().green(), self.color),
                     styled(
-                        &format_duration(*duration_ms),
+                        &duration_ms.compact().to_string(),
                         Style::new().dimmed(),
                         self.color,
                     ),
@@ -177,7 +179,7 @@ impl<W: Write> ProgressRenderer<W> {
                 }) => (
                     styled("✗", Style::new().red(), self.color),
                     styled(
-                        &format!("{}  exit {exit_code}", format_duration(*duration_ms)),
+                        &format!("{}  exit {exit_code}", duration_ms.compact()),
                         Style::new().red(),
                         self.color,
                     ),
@@ -185,7 +187,7 @@ impl<W: Write> ProgressRenderer<W> {
                 Some(StepOutcome::Cancelled { duration_ms }) => (
                     styled("-", Style::new().dimmed(), self.color),
                     styled(
-                        &format!("{}  cancelled", format_duration(*duration_ms)),
+                        &format!("{}  cancelled", duration_ms.compact()),
                         Style::new().dimmed(),
                         self.color,
                     ),
@@ -199,7 +201,8 @@ impl<W: Write> ProgressRenderer<W> {
                     styled("—", Style::new().dimmed(), self.color),
                 ),
             };
-            let _ = writeln!(self.out, "  {indicator} {name:<max_name_len$}  {timing}");
+            let padded = name.pad_to(Measure::Columns(max_name_cols), Alignment::Start);
+            let _ = writeln!(self.out, "  {indicator} {padded}  {timing}");
         }
     }
 }
@@ -310,7 +313,7 @@ where
                     }
                 } else if let Some(span) = self.step_spans.get(step_id) {
                     let name = self.step_names.get(step_id).map_or("?", String::as_str);
-                    let dur = format_duration(*duration_ms);
+                    let dur = duration_ms.compact();
                     span.pb_set_style(&completed_style(self.color));
                     span.pb_set_message(&format!("{name}  ({dur})"));
                 }
@@ -355,7 +358,7 @@ where
 
                 if *exit_code != 0 {
                     self.print_failure_report();
-                    let dur = format_duration(*duration_ms);
+                    let dur = duration_ms.compact();
                     let msg = format!("✗ Build failed in {dur}");
                     let _ = writeln!(
                         self.out,
@@ -363,7 +366,7 @@ where
                         styled(&msg, Style::new().red().bold(), self.color)
                     );
                 } else {
-                    let dur = format_duration(*duration_ms);
+                    let dur = duration_ms.compact();
                     let msg = format!("✓ Build succeeded in {dur}");
                     let _ = writeln!(
                         self.out,
@@ -379,10 +382,16 @@ where
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
     use hm_plugin_protocol::{PlanSummary, StdStream};
+    use rstest::rstest;
 
     fn renderer() -> ProgressRenderer<Vec<u8>> {
         ProgressRenderer::new(Vec::new(), false)
@@ -392,7 +401,7 @@ mod tests {
         String::from_utf8(r.out.clone()).unwrap()
     }
 
-    #[test]
+    #[rstest]
     fn buffers_logs_silently() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -419,7 +428,7 @@ mod tests {
         assert_eq!(buf[0], "compiling main.rs");
     }
 
-    #[test]
+    #[rstest]
     fn replays_logs_on_failure() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -452,13 +461,13 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id,
             exit_code: 1,
-            duration_ms: 500,
+            duration_ms: DurationMs(500),
             snapshot: None,
         });
 
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 1,
-            duration_ms: 600,
+            duration_ms: DurationMs(600),
         });
 
         let s = output(&r);
@@ -470,7 +479,90 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
+    fn failure_replay_escapes_control_chars() {
+        let mut r = renderer();
+        let step_id = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::StepQueued {
+            step_id,
+            key: "test".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "test".into(),
+        });
+        // A log line that clears the screen if written to a terminal raw.
+        r.on_event(&BuildEvent::StepLog {
+            step_id,
+            stream: StdStream::Stderr,
+            line: "boom\x1b[2J".into(),
+            ts: chrono::Utc::now(),
+        });
+        r.on_event(&BuildEvent::StepEnd {
+            step_id,
+            exit_code: 1,
+            duration_ms: DurationMs(10),
+            snapshot: None,
+        });
+        r.on_event(&BuildEvent::BuildEnd {
+            exit_code: 1,
+            duration_ms: DurationMs(20),
+        });
+
+        let s = output(&r);
+        assert!(
+            s.contains("boom^[[2J"),
+            "control chars must be escaped: {s:?}"
+        );
+        assert!(
+            !s.contains("boom\x1b[2J"),
+            "raw escape sequence must not reach the terminal: {s:?}"
+        );
+    }
+
+    #[rstest]
+    fn summary_aligns_names_by_display_width() {
+        // "世界" is 2 chars / 4 display columns / 6 bytes. Byte-width padding
+        // would misalign it against an ASCII name; column-width padding lines
+        // the trailing timing column up.
+        let mut r = renderer();
+        let wide = Uuid::new_v4();
+        let narrow = Uuid::new_v4();
+
+        for (id, name) in [(wide, "世界"), (narrow, "ab")] {
+            r.on_event(&BuildEvent::StepQueued {
+                step_id: id,
+                key: name.into(),
+                chain_idx: 0,
+                parent_key: None,
+                display_name: name.into(),
+            });
+            r.on_event(&BuildEvent::StepEnd {
+                step_id: id,
+                exit_code: 0,
+                duration_ms: DurationMs(1),
+                snapshot: None,
+            });
+        }
+        r.on_event(&BuildEvent::BuildEnd {
+            exit_code: 0,
+            duration_ms: DurationMs(5),
+        });
+
+        // The narrow "ab" (2 cols) is padded to the 4-col width of "世界", so it
+        // carries two trailing spaces before the timing column; "世界" carries none.
+        let s = output(&r);
+        assert!(
+            s.contains("世界  "),
+            "wide name gets the two-space gap: {s:?}"
+        );
+        assert!(
+            s.contains("ab    "),
+            "narrow name padded to the wide column width + gap: {s:?}"
+        );
+    }
+
+    #[rstest]
     fn no_output_on_success() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -503,13 +595,13 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id,
             exit_code: 0,
-            duration_ms: 200,
+            duration_ms: DurationMs(200),
             snapshot: None,
         });
 
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 250,
+            duration_ms: DurationMs(250),
         });
 
         assert!(
@@ -519,15 +611,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn color_flag_stored() {
-        let r = ProgressRenderer::new(Vec::<u8>::new(), true);
-        assert!(r.color);
-        let r2 = ProgressRenderer::new(Vec::<u8>::new(), false);
-        assert!(!r2.color);
+    #[rstest]
+    #[case::on(true)]
+    #[case::off(false)]
+    fn color_flag_stored(#[case] flag: bool) {
+        let r = ProgressRenderer::new(Vec::<u8>::new(), flag);
+        assert_eq!(r.color, flag);
     }
 
-    #[test]
+    #[rstest]
     fn cache_hit_increments_root() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -562,7 +654,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn step_outcome_tracks_failure() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -586,7 +678,7 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id,
             exit_code: 1,
-            duration_ms: 500,
+            duration_ms: DurationMs(500),
             snapshot: None,
         });
 
@@ -599,7 +691,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn colored_summary_has_indicators() {
         let mut r = ProgressRenderer::new(Vec::new(), true);
         let s1 = Uuid::new_v4();
@@ -624,7 +716,7 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id: s1,
             exit_code: 0,
-            duration_ms: 200,
+            duration_ms: DurationMs(200),
             snapshot: None,
         });
         r.on_event(&BuildEvent::StepQueued {
@@ -637,12 +729,12 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id: s2,
             exit_code: 1,
-            duration_ms: 300,
+            duration_ms: DurationMs(300),
             snapshot: None,
         });
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 1,
-            duration_ms: 600,
+            duration_ms: DurationMs(600),
         });
 
         let s = output(&r);
@@ -657,7 +749,7 @@ mod tests {
         assert!(s.contains("Build failed"), "expected failure banner: {s}");
     }
 
-    #[test]
+    #[rstest]
     fn colored_success_banner() {
         let mut r = ProgressRenderer::new(Vec::new(), true);
         let s1 = Uuid::new_v4();
@@ -681,12 +773,12 @@ mod tests {
         r.on_event(&BuildEvent::StepEnd {
             step_id: s1,
             exit_code: 0,
-            duration_ms: 100,
+            duration_ms: DurationMs(100),
             snapshot: None,
         });
         r.on_event(&BuildEvent::BuildEnd {
             exit_code: 0,
-            duration_ms: 150,
+            duration_ms: DurationMs(150),
         });
 
         let s = output(&r);

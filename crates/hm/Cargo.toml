@@ -23,6 +23,7 @@ name = "hm"
 path = "src/main.rs"
 
 [dependencies]
+secrecy = "0.10"
 clap = { version = "4", features = ["derive", "env", "color", "suggestions", "wrap_help"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { workspace = true }
@@ -53,21 +54,21 @@ webbrowser = "1"
 rand = "0.8"
 uuid = { version = "1", features = ["serde"] }
 bytes = "1"
+bstr = "1"
+human-units = { workspace = true }
 futures = "0.3"
 futures-util = "0.3"
-which = "6"
 hm-pipeline-ir     = { workspace = true }
 hm-plugin-protocol = { workspace = true }
-hm-util = { workspace = true }
-hm-config = { workspace = true }
-hm-plugin-cloud = { workspace = true }
-harmont-cloud   = { workspace = true }
+hm-common = { workspace = true }
+hm-core = { workspace = true }
+hm-cloud          = { workspace = true }
+harmont-cloud     = { workspace = true }
+harmont-cloud-raw = { workspace = true }
 hm-vm           = { workspace = true, features = ["docker-backend"] }
 hm-dsl-engine   = { workspace = true }
 hm-render       = { workspace = true }
-hm-exec         = { workspace = true }
 async-trait     = { workspace = true }
-schemars = { workspace = true }
 semver = { workspace = true }
 smart-default = { workspace = true }
 once_cell = "1"
@@ -85,7 +86,7 @@ assert_cmd = "2"
 predicates = "3"
 assert_fs = "1"
 tempfile = "3"
-which = "6"
+rstest = { workspace = true }
 
 [lints]
 workspace = true

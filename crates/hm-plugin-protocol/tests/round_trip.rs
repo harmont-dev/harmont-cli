@@ -7,10 +7,13 @@
     clippy::default_trait_access,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::panic
+    clippy::panic,
+    reason = "serde round-trip tests: helpers unwrap and assert on JSON"
 )]
 
+use hm_plugin_protocol::ir::DurationMs;
 use hm_plugin_protocol::*;
+use rstest::rstest;
 use uuid::Uuid;
 
 fn rt<T>(v: &T) -> T
@@ -23,7 +26,7 @@ where
     back
 }
 
-#[test]
+#[rstest]
 fn executor_input_round_trip() {
     let inp = ExecutorInput {
         step: CommandStep {
@@ -48,72 +51,69 @@ fn executor_input_round_trip() {
     rt(&inp);
 }
 
-#[test]
-fn build_event_round_trip_all_variants() {
-    let evs = vec![
-        BuildEvent::BuildStart {
-            run_id: Uuid::nil(),
-            plan: PlanSummary {
-                step_count: 3,
-                chain_count: 2,
-                default_runner: "docker".into(),
-            },
-            started_at: chrono::Utc::now(),
-        },
-        BuildEvent::StepQueued {
-            step_id: Uuid::nil(),
-            key: "a".into(),
-            chain_idx: 0,
-            parent_key: None,
-            display_name: "a".into(),
-        },
-        BuildEvent::StepStart {
-            step_id: Uuid::nil(),
-            runner: "docker".into(),
-            image: None,
-        },
-        BuildEvent::StepLog {
-            step_id: Uuid::nil(),
-            stream: StdStream::Stdout,
-            line: "hi".into(),
-            ts: chrono::Utc::now(),
-        },
-        BuildEvent::StepCacheHit {
-            step_id: Uuid::nil(),
-            key: "k".into(),
-            tag: "t".into(),
-        },
-        BuildEvent::StepEnd {
-            step_id: Uuid::nil(),
-            exit_code: 0,
-            duration_ms: 1,
-            snapshot: None,
-        },
-        BuildEvent::ChainFailed {
-            chain_idx: 1,
-            failed_step_id: Uuid::nil(),
-            failed_step_key: "build".into(),
-            exit_code: 2,
-            message: "step exited non-zero".into(),
-            ts: chrono::Utc::now(),
-        },
-        BuildEvent::BuildEnd {
-            exit_code: 0,
-            duration_ms: 2,
-        },
-    ];
-    for e in &evs {
-        rt(e);
-    }
+#[rstest]
+#[case::build_start(BuildEvent::BuildStart {
+    run_id: Uuid::nil(),
+    plan: PlanSummary {
+        step_count: 3,
+        chain_count: 2,
+        default_runner: "docker".into(),
+    },
+    started_at: chrono::Utc::now(),
+})]
+#[case::step_queued(BuildEvent::StepQueued {
+    step_id: Uuid::nil(),
+    key: "a".into(),
+    chain_idx: 0,
+    parent_key: None,
+    display_name: "a".into(),
+})]
+#[case::step_start(BuildEvent::StepStart {
+    step_id: Uuid::nil(),
+    runner: "docker".into(),
+    image: None,
+})]
+#[case::step_log(BuildEvent::StepLog {
+    step_id: Uuid::nil(),
+    stream: StdStream::Stdout,
+    line: "hi".into(),
+    ts: chrono::Utc::now(),
+})]
+#[case::step_cache_hit(BuildEvent::StepCacheHit {
+    step_id: Uuid::nil(),
+    key: "k".into(),
+    tag: "t".into(),
+})]
+#[case::step_end(BuildEvent::StepEnd {
+    step_id: Uuid::nil(),
+    exit_code: 0,
+    duration_ms: DurationMs(1),
+    snapshot: None,
+})]
+#[case::chain_failed(BuildEvent::ChainFailed {
+    chain_idx: 1,
+    failed_step_id: Uuid::nil(),
+    failed_step_key: "build".into(),
+    exit_code: 2,
+    message: "step exited non-zero".into(),
+    ts: chrono::Utc::now(),
+})]
+#[case::build_end(BuildEvent::BuildEnd {
+    exit_code: 0,
+    duration_ms: DurationMs(2),
+})]
+fn build_event_round_trips(#[case] event: BuildEvent) {
+    rt(&event);
 }
 
-#[test]
-fn cache_decision_round_trip_all_variants() {
-    rt(&CacheDecision::Hit {
-        tag: SnapshotRef("img:tag".into()),
-    });
-    rt(&CacheDecision::MissBuildAs {
-        tag: SnapshotRef("img:tag".into()),
-    });
-    rt(&CacheDecision::MissNoCommit);
+#[rstest]
+#[case::hit(CacheDecision::Hit {
+    tag: SnapshotRef("img:tag".into()),
+})]
+#[case::miss_build_as(CacheDecision::MissBuildAs {
+    tag: SnapshotRef("img:tag".into()),
+})]
+#[case::miss_no_commit(CacheDecision::MissNoCommit)]
+fn cache_decision_round_trips(#[case] decision: CacheDecision) {
+    rt(&decision);
 }

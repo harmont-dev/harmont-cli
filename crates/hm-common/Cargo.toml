@@ -1,0 +1,52 @@
+[package]
+name = "hm-common"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Harmont common utilities"
+keywords = ["ci", "harmont"]
+categories = ["command-line-utilities"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow      = { workspace = true }
+async-trait = { workspace = true }
+chrono      = { workspace = true }
+derive_more = { workspace = true }
+dirs        = "6"
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+base64      = "0.22"
+bstr        = "1"
+hex         = "0.4"
+include_dir = "0.7"
+num-traits  = { workspace = true }
+rand        = "0.8"
+subtle      = "2"
+tempfile    = "3"
+tokio       = { version = "1", features = ["process", "fs", "rt", "rt-multi-thread", "io-util"] }
+tracing     = "0.1"
+zeroize     = { version = "1", features = ["derive"] }
+unicode-width        = { workspace = true }
+unicode-segmentation = { workspace = true }
+which       = "7"
+
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.62"
+features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+]
+
+[dev-dependencies]
+tempfile    = "3"
+tokio       = { version = "1", features = ["macros", "rt-multi-thread"] }
+rstest      = { workspace = true }
+proptest    = { workspace = true }
+
+[lints]
+workspace = true

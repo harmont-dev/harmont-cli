@@ -1,11 +1,11 @@
-//! Human-readable [`OutputRenderer`] — replaces the former
-//! `hm-plugin-output-human` WASM plugin with a plain struct that
-//! writes formatted lines to any [`std::io::Write`] target.
+//! Human-readable [`OutputRenderer`]: writes formatted lines to any
+//! [`std::io::Write`] target.
 
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
 
+use hm_common::string::EscapeNonPrintablePosixExt as _;
 use hm_plugin_protocol::BuildEvent;
 use owo_colors::{AnsiColors, OwoColorize};
 use uuid::Uuid;
@@ -103,6 +103,9 @@ where
 
             BuildEvent::StepLog { step_id, line, .. } => {
                 let prefix = fmt_key(self.step_key(step_id), self.color);
+                // `line` is raw subprocess stdout/stderr: escape control chars so
+                // they can't drive the terminal (cursor moves, title changes, …).
+                let line = line.escape_non_printable();
                 format!("{prefix} {line}\n").into_bytes()
             }
 
@@ -160,10 +163,16 @@ where
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
     use hm_plugin_protocol::{PlanSummary, StdStream};
+    use rstest::rstest;
 
     /// Helper: create a renderer backed by an in-memory buffer (no color).
     fn renderer() -> HumanRenderer<Vec<u8>> {
@@ -175,7 +184,7 @@ mod tests {
         String::from_utf8(r.out.clone()).unwrap()
     }
 
-    #[test]
+    #[rstest]
     fn build_start_renders_counts() {
         let mut r = renderer();
         r.on_event(&BuildEvent::BuildStart {
@@ -193,7 +202,7 @@ mod tests {
         assert!(s.contains("3 chain(s)"), "expected chain count: {s}");
     }
 
-    #[test]
+    #[rstest]
     fn step_log_with_key() {
         let mut r = renderer();
         let step_id = Uuid::new_v4();
@@ -218,7 +227,33 @@ mod tests {
         assert_eq!(s, "[build] compiling...\n");
     }
 
-    #[test]
+    #[rstest]
+    #[case::escape_sequence("\x1b[2J", "^[[2J")]
+    #[case::carriage_return("a\rb", "a^Mb")]
+    #[case::nul_byte("a\0b", "a^@b")]
+    #[case::printable_untouched("plain text", "plain text")]
+    fn step_log_escapes_control_chars(#[case] raw: &str, #[case] expected: &str) {
+        let mut r = renderer();
+        let step_id = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::StepQueued {
+            step_id,
+            key: "build".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
+        });
+        r.on_event(&BuildEvent::StepLog {
+            step_id,
+            stream: StdStream::Stdout,
+            line: raw.into(),
+            ts: chrono::Utc::now(),
+        });
+
+        assert_eq!(output(&r), format!("[build] {expected}\n"));
+    }
+
+    #[rstest]
     fn step_log_unknown_key() {
         let mut r = renderer();
 
@@ -234,7 +269,7 @@ mod tests {
         assert!(s.starts_with("[?]"), "expected [?] prefix: {s}");
     }
 
-    #[test]
+    #[rstest]
     fn colored_output_wraps_key_in_ansi() {
         let mut r = HumanRenderer::new(Vec::new(), true);
         let step_id = Uuid::new_v4();

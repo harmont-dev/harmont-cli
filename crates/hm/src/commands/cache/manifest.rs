@@ -56,31 +56,25 @@ pub fn tag_from_tar_name(filename: &str) -> Option<String> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, reason = "unit tests")]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
-    #[test]
-    fn tar_filename_from_tag() {
-        assert_eq!(
-            tar_name_for_tag("harmont-local/base:a1b2c3d4"),
-            "base--a1b2c3d4.tar"
-        );
+    #[rstest]
+    #[case::base("harmont-local/base:a1b2c3d4", "base--a1b2c3d4.tar")]
+    fn tar_name_tag_round_trip(#[case] tag: &str, #[case] filename: &str) {
+        assert_eq!(tar_name_for_tag(tag), filename);
+        assert_eq!(tag_from_tar_name(filename), Some(tag.to_string()));
     }
 
-    #[test]
-    fn tag_from_tar_filename() {
-        assert_eq!(
-            tag_from_tar_name("base--a1b2c3d4.tar"),
-            Some("harmont-local/base:a1b2c3d4".to_string())
-        );
+    #[rstest]
+    #[case::no_separator("random-file.tar")]
+    #[case::no_extension("no-extension")]
+    fn tag_from_bad_filename_returns_none(#[case] filename: &str) {
+        assert_eq!(tag_from_tar_name(filename), None);
     }
 
-    #[test]
-    fn tag_from_bad_filename_returns_none() {
-        assert_eq!(tag_from_tar_name("random-file.tar"), None);
-        assert_eq!(tag_from_tar_name("no-extension"), None);
-    }
-
-    #[test]
+    #[rstest]
     fn manifest_round_trip() {
         let mut m = Manifest::new();
         m.images
@@ -91,7 +85,7 @@ mod tests {
         assert_eq!(m, m2);
     }
 
-    #[test]
+    #[rstest]
     fn manifest_content_hash_is_deterministic() {
         let mut m = Manifest::new();
         m.images.insert(

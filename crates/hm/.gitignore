@@ -1,4 +1,0 @@
-# Pre-built WASM plugins staged by .github/workflows/release.yml
-# before `cargo publish` runs. Generated on every release; never
-# committed.
-embedded/*.wasm

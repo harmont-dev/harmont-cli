@@ -45,13 +45,13 @@ index yet — which `cargo publish --dry-run` would), then publishes the
 crates to crates.io in dependency (topological) order:
 
 ```
-hm-util → hm-pipeline-ir → hm-config → hm-plugin-protocol → hm-render
-→ hm-vm → hm-exec → hm-plugin-cloud → hm-dsl-engine → harmont-cli
+hm-common → hm-pipeline-ir → hm-plugin-protocol → hm-render
+→ hm-vm → hm-core → hm-plugin-cloud → hm-dsl-engine → harmont-cli
 ```
 
 `harmont-cli` (the `hm` binary) depends on every other crate, so they
 must all reach crates.io first — including `hm-vm`, which carries the
-local Docker backend. `hm-fixtures` is test-only and not published.
+local Docker backend.
 
 ### Prerequisites (one-time)
 

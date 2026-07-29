@@ -36,11 +36,11 @@ pub struct CommandStep {
     /// Cache configuration for this step's committed snapshot.
     #[serde(default)]
     pub cache: Option<Cache>,
-    /// Step-executor plugin name. `None` falls back to the default
+    /// Step-executor (runner) name. `None` falls back to the default
     /// runner (Docker in the shipped configuration).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
-    /// Plugin-specific extra fields passed verbatim to the runner.
+    /// Runner-specific extra fields passed verbatim to the runner.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runner_args: Option<serde_json::Value>,
 }
@@ -134,25 +134,34 @@ impl PipelineGraph {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test setup and assertions"
+)]
 mod timeout_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used)]
-
     use std::num::NonZeroU32;
+
+    use rstest::rstest;
 
     use super::PipelineGraph;
 
-    #[test]
-    fn deserializes_pipeline_timeout_seconds() {
-        let json = r#"{
+    #[rstest]
+    #[case::explicit(r#""timeout_seconds": 1800,"#, NonZeroU32::new(1800))]
+    #[case::absent("", None)]
+    fn parses_pipeline_timeout(#[case] timeout_line: &str, #[case] expected: Option<NonZeroU32>) {
+        let json = format!(
+            r#"{{
             "version": "0",
-            "timeout_seconds": 1800,
-            "graph": {"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}
-        }"#;
-        let g: PipelineGraph = serde_json::from_str(json).unwrap();
-        assert_eq!(g.timeout_seconds(), NonZeroU32::new(1800));
+            {timeout_line}
+            "graph": {{"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}}
+        }}"#
+        );
+        let g: PipelineGraph = serde_json::from_str(&json).unwrap();
+        assert_eq!(g.timeout_seconds(), expected);
     }
 
-    #[test]
+    #[rstest]
     fn rejects_zero_pipeline_timeout_seconds() {
         let json = r#"{
             "version": "0",
@@ -160,15 +169,5 @@ mod timeout_tests {
             "graph": {"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}
         }"#;
         assert!(serde_json::from_str::<PipelineGraph>(json).is_err());
-    }
-
-    #[test]
-    fn pipeline_timeout_defaults_to_none() {
-        let json = r#"{
-            "version": "0",
-            "graph": {"nodes": [], "node_holes": [], "edge_property": "directed", "edges": []}
-        }"#;
-        let g: PipelineGraph = serde_json::from_str(json).unwrap();
-        assert_eq!(g.timeout_seconds(), None);
     }
 }

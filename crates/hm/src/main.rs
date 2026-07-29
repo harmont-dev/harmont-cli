@@ -3,7 +3,9 @@
     reason = "transitive dependency version conflicts in rand/windows-sys/thiserror chains; not fixable without upstream updates"
 )]
 
+use anyhow::Context as _;
 use clap::Parser;
+use hm_core::app_ctx::AppCtx;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
@@ -89,8 +91,16 @@ async fn main() {
 }
 
 async fn run(args: Cli) -> Result<i32, anyhow::Error> {
+    // Every command runs against the build toolchain (git + python3) and the
+    // user config; resolve them once up front and fail fast on a missing
+    // toolchain. Owned here for the duration of the command and threaded to the
+    // dispatch by reference.
+    let app = AppCtx::init()
+        .await
+        .context("resolving the build toolchain")?;
+
     let command = args.command.clone();
-    let ctx = RunContext::from_cli(&args)?;
+    let ctx = RunContext::from_cli(&app, &args);
     cli::dispatch(command, ctx).await
 }
 

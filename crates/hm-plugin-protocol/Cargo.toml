@@ -4,16 +4,18 @@ version = "0.0.0-dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Wire-level data types shared between the hm binary and hm plugins."
+description = "Wire-level data types shared between hm crate internals."
 
 [dependencies]
 hm-pipeline-ir = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
-schemars   = { workspace = true }
 uuid       = { workspace = true }
 chrono     = { workspace = true }
 derive_more = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
 
 [lints]
 workspace = true

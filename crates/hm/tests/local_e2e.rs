@@ -1,4 +1,9 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup and assertions"
+)]
 //! End-to-end tests for `harmont run --local`.
 //!
 //! Skipped unless `HM_LOCAL_E2E=1` is set AND a Docker daemon is
@@ -18,6 +23,8 @@
 
 use std::path::PathBuf;
 use std::process::Command;
+
+use rstest::rstest;
 
 /// Returns true when the test should no-op. Either the gate env var is
 /// missing or the Docker daemon is unreachable.
@@ -83,45 +90,26 @@ fn run_local(fixture_name: &str) -> std::process::Output {
         .expect("spawning harmont binary should not fail")
 }
 
-#[test]
-fn scratch_one_step() {
+#[rstest]
+#[case::scratch("scratch.py", &["[a]", "hello"])]
+#[case::chain("chain.py", &["b-saw-a", "c-also-saw-a"])]
+#[case::fork("fork.py", &["c1", "c2"])]
+fn run_fixture_succeeds_with_expected_output(
+    #[case] fixture_name: &str,
+    #[case] expected_stderr: &[&str],
+) {
     if skip_if_no_docker() {
         return;
     }
-    let out = run_local("scratch.py");
+    let out = run_local(fixture_name);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "stderr: {stderr}");
-    assert!(
-        stderr.contains("[a]") && stderr.contains("hello"),
-        "stderr: {stderr}"
-    );
-}
-
-#[test]
-fn chain_inherits_state() {
-    if skip_if_no_docker() {
-        return;
+    for substr in expected_stderr {
+        assert!(stderr.contains(substr), "stderr: {stderr}");
     }
-    let out = run_local("chain.py");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(out.status.success(), "stderr: {stderr}");
-    assert!(stderr.contains("b-saw-a"), "stderr: {stderr}");
-    assert!(stderr.contains("c-also-saw-a"), "stderr: {stderr}");
 }
 
-#[test]
-fn fork_children_share_parent_state() {
-    if skip_if_no_docker() {
-        return;
-    }
-    let out = run_local("fork.py");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(out.status.success(), "stderr: {stderr}");
-    assert!(stderr.contains("c1"), "stderr: {stderr}");
-    assert!(stderr.contains("c2"), "stderr: {stderr}");
-}
-
-#[test]
+#[rstest]
 fn mid_chain_cache_hit_reboots_container() {
     if skip_if_no_docker() {
         return;
@@ -145,7 +133,7 @@ fn mid_chain_cache_hit_reboots_container() {
     );
 }
 
-#[test]
+#[rstest]
 fn ttl_cache_hits_on_second_run() {
     if skip_if_no_docker() {
         return;
@@ -168,7 +156,7 @@ fn ttl_cache_hits_on_second_run() {
     );
 }
 
-#[test]
+#[rstest]
 fn failing_step_stops_execution_and_cleans_up() {
     if skip_if_no_docker() {
         return;
@@ -223,7 +211,7 @@ fn list_harmont_local_containers() -> std::collections::HashSet<String> {
         .collect()
 }
 
-#[test]
+#[rstest]
 fn resolves_pipeline_via_slug() {
     if skip_if_no_docker() {
         return;

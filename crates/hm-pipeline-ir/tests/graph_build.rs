@@ -3,12 +3,14 @@
     clippy::multiple_crate_versions,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::panic
+    clippy::panic,
+    reason = "integration test fixtures and assertions"
 )]
 
 use daggy::Walker;
 use daggy::petgraph::visit::IntoNodeReferences;
 use hm_pipeline_ir::PipelineGraph;
+use rstest::rstest;
 
 fn graph(json: &[u8]) -> PipelineGraph {
     serde_json::from_slice(json).unwrap()
@@ -24,7 +26,7 @@ fn find_by_key<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::Trans
     t
 }
 
-#[test]
+#[rstest]
 fn builds_simple_chain() {
     let g = graph(
         br#"{
@@ -48,7 +50,7 @@ fn builds_simple_chain() {
     assert_eq!(g.default_image(), Some("ubuntu:24.04"));
 }
 
-#[test]
+#[rstest]
 fn root_inherits_default_image() {
     let g = graph(
         br#"{
@@ -67,7 +69,7 @@ fn root_inherits_default_image() {
     assert_eq!(t.step.image.as_deref(), Some("ubuntu:24.04"));
 }
 
-#[test]
+#[rstest]
 fn child_does_not_inherit_default_image() {
     let g = graph(
         br#"{
@@ -89,7 +91,7 @@ fn child_does_not_inherit_default_image() {
     assert!(b.step.image.is_none());
 }
 
-#[test]
+#[rstest]
 fn wait_inserts_implicit_deps() {
     let g = graph(
         br#"{

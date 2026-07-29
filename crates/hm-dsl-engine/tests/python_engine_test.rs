@@ -9,11 +9,11 @@ use hm_dsl_engine::DslEngine;
 
 #[tokio::test]
 async fn python_roundtrip() {
-    // Skip if python3 not available or harmont deps missing
-    if which::which("python3").is_err() {
-        eprintln!("skipping: python3 not on PATH");
+    // Skip if the toolchain (python3 + git) is unavailable.
+    let Ok(app) = hm_core::app_ctx::AppCtx::init().await else {
+        eprintln!("skipping: build toolchain unavailable");
         return;
-    }
+    };
 
     let dir = tempfile::tempdir().unwrap();
     let harmont = dir.path().join(".hm");
@@ -31,7 +31,7 @@ def ci() -> hm.Step:
 
     hm_dsl_engine::detect::check_python(dir.path()).unwrap();
 
-    let engine = hm_dsl_engine::python_engine().unwrap();
+    let engine = hm_dsl_engine::SubprocessPythonEngine::new(&app);
     let metas = engine.list_pipelines(dir.path()).await.unwrap();
     assert_eq!(metas.len(), 1);
     assert_eq!(metas[0].slug, "ci");
@@ -43,10 +43,10 @@ def ci() -> hm.Step:
 
 #[tokio::test]
 async fn python_registry_json_carries_triggers_and_allow_manual() {
-    if which::which("python3").is_err() {
-        eprintln!("skipping: python3 not on PATH");
+    let Ok(app) = hm_core::app_ctx::AppCtx::init().await else {
+        eprintln!("skipping: build toolchain unavailable");
         return;
-    }
+    };
 
     let dir = tempfile::tempdir().unwrap();
     let harmont = dir.path().join(".hm");
@@ -62,7 +62,7 @@ def ci() -> hm.Step:
     )
     .unwrap();
 
-    let engine = hm_dsl_engine::python_engine().unwrap();
+    let engine = hm_dsl_engine::SubprocessPythonEngine::new(&app);
     let json = engine.registry_json(dir.path()).await.unwrap();
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
 

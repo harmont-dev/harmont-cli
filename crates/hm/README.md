@@ -133,8 +133,7 @@ hm run --help                          # full flag reference
 ## Cloud
 
 `hm cloud <verb>` talks to the hosted Harmont API at `api.harmont.dev`.
-Every cloud verb is delivered by the embedded `hm-plugin-cloud` WASM
-plugin (no separate install step):
+Every cloud verb is built into the `hm` binary (no separate install step):
 
 ```sh
 hm cloud login                  # browser-loopback OAuth (or --paste to
@@ -184,36 +183,3 @@ Dual-licensed under either of
 - MIT license ([`LICENSE-MIT`](LICENSE-MIT))
 
 at your option.
-
-## Plugin authoring
-
-`hm` is plugin-driven via [Extism](https://extism.org). To write a plugin:
-
-```bash
-cargo new --lib my-plugin
-cd my-plugin
-cargo add --git https://github.com/harmont-dev/harmont-cli hm-plugin-sdk
-```
-
-Implement one of `StepExecutor`, `SubcommandPlugin`, `LifecycleHook`, or
-`OutputFormatter`, declare a `PluginManifest`, and call
-`register_plugin!(...)`. Build with:
-
-```bash
-cargo build --target wasm32-wasip1 --release
-```
-
-The output `.wasm` can be installed with:
-
-```bash
-hm plugin install ./target/wasm32-wasip1/release/my_plugin.wasm
-```
-
-See `cli/crates/hm-fixtures/src/bin/` for minimal working examples.
-
-### Output formatter
-
-Implement `OutputFormatter::on_event` to render each `BuildEvent`.
-Plugins emit bytes via `host::write_stdout` or `host::write_stderr`.
-Built-in formatters: `human` (default), `json`. Select with
-`hm run --format <name>`.

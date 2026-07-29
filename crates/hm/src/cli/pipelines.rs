@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use hm_dsl_engine::{DslEngine, detect, python_engine};
+use hm_core::app_ctx::AppCtx;
+use hm_dsl_engine::{DslEngine, SubprocessPythonEngine, detect};
 
 #[derive(Debug, Clone, Parser)]
 pub struct PipelinesArgs {
@@ -27,7 +28,7 @@ const EMPTY_ENVELOPE: &str = r#"{"schema_version":"1","pipelines":[]}"#;
 ///
 /// Returns an error if the engine can't start or the DSL runtime fails to
 /// evaluate the pipelines.
-pub async fn run(args: PipelinesArgs) -> Result<()> {
+pub async fn run(args: PipelinesArgs, app: &AppCtx) -> Result<()> {
     let repo_root = match args.dir {
         Some(d) => d,
         None => std::env::current_dir().context("cannot determine current directory")?,
@@ -39,7 +40,7 @@ pub async fn run(args: PipelinesArgs) -> Result<()> {
     }
 
     detect::check_python(&repo_root).context("detecting pipeline language")?;
-    let engine = python_engine().context("initializing DSL engine")?;
+    let engine = SubprocessPythonEngine::new(app);
     let json = engine
         .registry_json(&repo_root)
         .await

@@ -1,4 +1,4 @@
-//! Build-event renderers shared by the `hm` CLI and the cloud plugin.
+//! Build-event renderers shared across the `hm` CLI's local and cloud paths.
 //!
 //! This crate owns the output layer: the [`OutputRenderer`] trait, the
 //! [`OutputMode`] selection enum, and the concrete renderers
@@ -7,31 +7,8 @@
 //! on `hm` internals (no `RunContext`, no Docker types).
 
 use std::fmt;
-use std::io::IsTerminal;
 
 use hm_plugin_protocol::BuildEvent;
-
-/// Whether ANSI color should be used: honors an explicit no-color flag,
-/// the `NO_COLOR` env convention, and whether stderr is a TTY.
-///
-/// Single source of truth for the color rule, shared by the `hm` host
-/// context and the cloud plugin's render preferences.
-#[must_use]
-pub fn color_enabled(no_color_flag: bool) -> bool {
-    !no_color_flag && std::env::var_os("NO_COLOR").is_none() && std::io::stderr().is_terminal()
-}
-
-/// Whether stderr is an interactive terminal (drives the progress view).
-#[must_use]
-pub fn stderr_interactive() -> bool {
-    std::io::stderr().is_terminal()
-}
-
-/// Whether stdout is NOT a TTY (i.e. piped) — used to force the streaming log view.
-#[must_use]
-pub fn stdout_piped() -> bool {
-    !std::io::stdout().is_terminal()
-}
 
 pub mod human;
 pub mod json;
@@ -152,7 +129,7 @@ pub async fn drive(
 /// Drive a renderer from a [`Stream`] of events until it ends or a
 /// `BuildEnd` is seen.
 ///
-/// The `hm-exec` backend handle yields events as a
+/// The `hm-core::exec` backend handle yields events as a
 /// `BoxStream<'static, BuildEvent>`; this function is the counterpart to
 /// [`drive`] for that case.
 ///

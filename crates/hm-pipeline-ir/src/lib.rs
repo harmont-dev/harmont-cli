@@ -7,6 +7,8 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::multiple_crate_versions, clippy::cargo_common_metadata)]
 
+mod duration;
 mod graph;
 
+pub use duration::DurationMs;
 pub use graph::{Cache, CommandStep, EdgeKind, PipelineGraph, Transition};

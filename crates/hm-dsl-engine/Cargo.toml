@@ -12,6 +12,8 @@ categories = ["command-line-utilities"]
 path = "src/lib.rs"
 
 [dependencies]
+hm-common   = { workspace = true }
+hm-core     = { workspace = true }
 anyhow      = { workspace = true }
 async-trait = { workspace = true }
 derive_more = { workspace = true }
@@ -21,12 +23,11 @@ include_dir = "0.7"
 tempfile    = "3"
 tokio       = { version = "1", features = ["process", "fs"] }
 tracing     = "0.1"
-which       = "7"
 
 [dev-dependencies]
+rstest      = { workspace = true }
 tempfile    = "3"
 tokio       = { version = "1", features = ["macros", "rt-multi-thread"] }
-which       = "7"
 
 [lints]
 workspace = true

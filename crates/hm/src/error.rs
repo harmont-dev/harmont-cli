@@ -56,7 +56,7 @@ pub enum HmError {
     #[error("no default step executor is registered")]
     NoDefaultExecutor,
 
-    /// A failure surfaced across the `hm_exec::ExecutionBackend` boundary,
+    /// A failure surfaced across the `hm_core::exec::ExecutionBackend` boundary,
     /// already rendered in the project's error doctrine. Carries its own
     /// [`ErrorCategory`] so the process exit code is preserved (the doctrine
     /// message lives in `0`; the category drives `exit_code()`).
@@ -118,9 +118,11 @@ impl HmError {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::{ErrorCategory, HmError};
 
-    #[test]
+    #[rstest]
     fn pipeline_manual_disabled_renders_section5_shape() {
         let s = format!("{}", HmError::PipelineManualDisabled);
         assert_eq!(
@@ -129,7 +131,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[rstest]
     fn pipeline_manual_disabled_is_api_category() {
         assert_eq!(
             HmError::PipelineManualDisabled.category(),

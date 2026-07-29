@@ -7,11 +7,12 @@
 
 use std::num::NonZeroU64;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use std::sync::Mutex;
 
 use anyhow::Result;
+use hm_common::time::DurationExt as _;
 use rusqlite::Connection;
 
 use crate::types::SnapshotId;
@@ -30,16 +31,6 @@ pub struct ImageRegistry {
     #[debug(skip)]
     conn: Mutex<Connection>,
     capacity: NonZeroU64,
-}
-
-/// Returns the current Unix epoch in seconds.
-fn epoch_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        .try_into()
-        .unwrap_or(i64::MAX)
 }
 
 impl ImageRegistry {
@@ -84,7 +75,7 @@ impl ImageRegistry {
     /// Returns `None` if no entry exists for `key`.
     #[must_use]
     pub fn get(&self, key: &str) -> Option<SnapshotId> {
-        let now = epoch_secs();
+        let now = Duration::now_epoch_secs_saturating::<i64>();
         let conn = self.conn.lock().ok()?;
 
         let snapshot: Option<String> = conn
@@ -112,7 +103,7 @@ impl ImageRegistry {
     /// within its configured capacity. The caller is responsible for cleaning
     /// up the backend resources associated with evicted snapshots.
     pub fn put(&self, key: &str, snapshot: &SnapshotId) -> Vec<SnapshotId> {
-        let now = epoch_secs();
+        let now = Duration::now_epoch_secs_saturating::<i64>();
 
         let Ok(conn) = self.conn.lock() else {
             return Vec::new();
@@ -238,9 +229,14 @@ impl ImageRegistry {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test setup and assertions"
+)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     fn open_temp(capacity: u64) -> (ImageRegistry, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
@@ -250,13 +246,13 @@ mod tests {
         (registry, dir)
     }
 
-    #[test]
+    #[rstest]
     fn get_returns_none_for_unknown_key() {
         let (reg, _dir) = open_temp(10);
         assert!(reg.get("nonexistent").is_none());
     }
 
-    #[test]
+    #[rstest]
     fn put_then_get_returns_snapshot() {
         let (reg, _dir) = open_temp(10);
         let snap = SnapshotId::new("snap-abc");
@@ -267,7 +263,7 @@ mod tests {
         assert_eq!(got, Some(SnapshotId::new("snap-abc")));
     }
 
-    #[test]
+    #[rstest]
     fn get_updates_access_time() {
         let (reg, _dir) = open_temp(2);
 
@@ -297,7 +293,7 @@ mod tests {
         assert!(reg.get("b").is_none());
     }
 
-    #[test]
+    #[rstest]
     fn eviction_returns_overflow_entries() {
         let (reg, _dir) = open_temp(2);
 
@@ -314,7 +310,7 @@ mod tests {
         assert_eq!(reg.len(), 2);
     }
 
-    #[test]
+    #[rstest]
     fn survives_reopen() {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("registry.db");
@@ -334,7 +330,7 @@ mod tests {
         assert_eq!(got, Some(SnapshotId::new("snap-persist")));
     }
 
-    #[test]
+    #[rstest]
     fn all_snapshot_ids_returns_every_entry() {
         let (reg, _dir) = open_temp(10);
         assert!(reg.all_snapshot_ids().is_empty());
@@ -351,7 +347,7 @@ mod tests {
         assert_eq!(ids, vec!["forever-a".to_string(), "forever-b".to_string()]);
     }
 
-    #[test]
+    #[rstest]
     fn invalidate_returns_removed_snapshot() {
         let (reg, _dir) = open_temp(10);
         let snap = SnapshotId::new("snap-rm");

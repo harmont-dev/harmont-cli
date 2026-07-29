@@ -4,14 +4,16 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::print_stderr
+    clippy::print_stderr,
+    reason = "test setup and assertions"
 )]
 
 use assert_cmd::Command;
+use rstest::rstest;
 
-#[test]
+#[rstest]
 fn pipelines_emits_discovery_envelope() {
-    if which::which("python3").is_err() {
+    if hm_common::process::pathbin("python3").is_err() {
         eprintln!("skipping: python3 not on PATH");
         return;
     }
@@ -46,7 +48,7 @@ def ci() -> hm.Step:
     assert_eq!(v["pipelines"][0]["triggers"][0]["event"], "push");
 }
 
-#[test]
+#[rstest]
 fn pipelines_emits_empty_envelope_when_no_harmont_dir() {
     // A repo that declares no pipelines must yield an empty envelope, not an
     // error (the backend fans discovery across every repo in an installation,
