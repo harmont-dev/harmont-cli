@@ -31,9 +31,11 @@ impl Term {
             stdout: std::io::stdout().is_terminal(),
             stderr: std::io::stderr().is_terminal(),
             ci: is_ci::cached(),
-            ssh: env.is_set("SSH_CONNECTION") || env.is_set("SSH_TTY") || env.is_set("SSH_CLIENT"),
-            display: env.is_set("DISPLAY") || env.is_set("WAYLAND_DISPLAY"),
-            no_color: env.is_present("NO_COLOR"),
+            ssh: env.ssh_connection().is_some()
+                || env.ssh_tty().is_some()
+                || env.ssh_client().is_some(),
+            display: env.display().is_some() || env.wayland_display().is_some(),
+            no_color: env.no_color(),
         }
     }
 

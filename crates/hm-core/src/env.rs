@@ -1,55 +1,66 @@
-//! Process environment: a snapshot of the environment variables the CLI reads.
+//! Process environment: the environment variables the CLI reads, captured at
+//! startup.
 
-use std::collections::HashMap;
-
-/// A snapshot of the process environment, captured once at startup so the CLI
-/// reads variables from one place rather than hitting `std::env` ad hoc.
+/// The environment variables the CLI reads, captured once at startup so the
+/// rest of the CLI reads them from here rather than hitting `std::env` inline.
+#[derive(Debug, Clone, Default)]
 pub struct EnvVarProvider {
-    vars: HashMap<String, String>,
+    ssh_connection: Option<String>,
+    ssh_tty: Option<String>,
+    ssh_client: Option<String>,
+    display: Option<String>,
+    wayland_display: Option<String>,
+    no_color: bool,
 }
 
 impl EnvVarProvider {
-    /// Capture the current environment. Variables whose name or value is not
-    /// valid UTF-8 are skipped.
+    /// Capture the current values of the environment variables the CLI reads.
     #[must_use]
     pub fn init() -> Self {
-        let vars = std::env::vars_os()
-            .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)))
-            .collect();
-        Self { vars }
+        Self {
+            ssh_connection: std::env::var("SSH_CONNECTION").ok(),
+            ssh_tty: std::env::var("SSH_TTY").ok(),
+            ssh_client: std::env::var("SSH_CLIENT").ok(),
+            display: std::env::var("DISPLAY").ok(),
+            wayland_display: std::env::var("WAYLAND_DISPLAY").ok(),
+            no_color: std::env::var_os("NO_COLOR").is_some(),
+        }
     }
 
-    /// The value of `name`, if present — which may be an empty string.
+    /// `SSH_CONNECTION` — set for a session opened over SSH.
     #[must_use]
-    pub fn get(&self, name: &str) -> Option<&str> {
-        self.vars.get(name).map(String::as_str)
+    pub fn ssh_connection(&self) -> Option<&str> {
+        self.ssh_connection.as_deref()
     }
 
-    /// Whether `name` is present at all, even set to an empty string.
+    /// `SSH_TTY` — the SSH session's controlling terminal.
     #[must_use]
-    pub fn is_present(&self, name: &str) -> bool {
-        self.vars.contains_key(name)
+    pub fn ssh_tty(&self) -> Option<&str> {
+        self.ssh_tty.as_deref()
     }
 
-    /// Whether `name` is present and non-empty.
+    /// `SSH_CLIENT` — the SSH client's address.
     #[must_use]
-    pub fn is_set(&self, name: &str) -> bool {
-        self.get(name).is_some_and(|value| !value.is_empty())
+    pub fn ssh_client(&self) -> Option<&str> {
+        self.ssh_client.as_deref()
     }
 
-    /// Parse `name`'s value into `T`, if it is present and parses.
+    /// `DISPLAY` — the X11 display, when a graphical session is reachable.
     #[must_use]
-    pub fn parse<T: std::str::FromStr>(&self, name: &str) -> Option<T> {
-        self.get(name)?.parse().ok()
+    pub fn display(&self) -> Option<&str> {
+        self.display.as_deref()
     }
-}
 
-impl std::fmt::Debug for EnvVarProvider {
-    /// Redacted: environment variables can hold secrets, so only the count of
-    /// captured variables is shown.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EnvVarProvider")
-            .field("vars", &format_args!("<{} variables>", self.vars.len()))
-            .finish()
+    /// `WAYLAND_DISPLAY` — the Wayland display, when a graphical session is
+    /// reachable.
+    #[must_use]
+    pub fn wayland_display(&self) -> Option<&str> {
+        self.wayland_display.as_deref()
+    }
+
+    /// Whether `NO_COLOR` is set (to any value), disabling ANSI color.
+    #[must_use]
+    pub const fn no_color(&self) -> bool {
+        self.no_color
     }
 }
