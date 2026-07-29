@@ -71,7 +71,7 @@ async fn log_cmd(
     pipe: &str,
     build: i64,
     jid: &str,
-    term: Term,
+    term: Term<'_>,
 ) -> Result<()> {
     let job_id = Uuid::parse_str(jid)
         .map_err(|e| anyhow::anyhow!("job id '{jid}' is not a valid UUID: {e}"))?;

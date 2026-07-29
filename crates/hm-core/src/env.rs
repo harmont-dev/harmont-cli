@@ -1,8 +1,8 @@
-//! Process environment: the environment variables the CLI reads, captured at
+//! Process environment: the environment facts the CLI reads, captured at
 //! startup.
 
-/// The environment variables the CLI reads, captured once at startup so the
-/// rest of the CLI reads them from here rather than hitting `std::env` inline.
+/// The environment facts the CLI reads, captured once at startup so the rest of
+/// the CLI reads them from here rather than hitting `std::env` inline.
 #[derive(Debug, Clone, Default)]
 pub struct EnvVarProvider {
     ssh_connection: Option<String>,
@@ -10,11 +10,12 @@ pub struct EnvVarProvider {
     ssh_client: Option<String>,
     display: Option<String>,
     wayland_display: Option<String>,
+    ci: bool,
     no_color: bool,
 }
 
 impl EnvVarProvider {
-    /// Capture the current values of the environment variables the CLI reads.
+    /// Capture the current environment facts the CLI reads.
     #[must_use]
     pub fn init() -> Self {
         Self {
@@ -23,39 +24,27 @@ impl EnvVarProvider {
             ssh_client: std::env::var("SSH_CLIENT").ok(),
             display: std::env::var("DISPLAY").ok(),
             wayland_display: std::env::var("WAYLAND_DISPLAY").ok(),
+            ci: is_ci::cached(),
             no_color: std::env::var_os("NO_COLOR").is_some(),
         }
     }
 
-    /// `SSH_CONNECTION` — set for a session opened over SSH.
+    /// Whether a CI runner is detected.
     #[must_use]
-    pub fn ssh_connection(&self) -> Option<&str> {
-        self.ssh_connection.as_deref()
+    pub const fn is_ci(&self) -> bool {
+        self.ci
     }
 
-    /// `SSH_TTY` — the SSH session's controlling terminal.
+    /// Whether the process runs inside an SSH session (any `SSH_*` var set).
     #[must_use]
-    pub fn ssh_tty(&self) -> Option<&str> {
-        self.ssh_tty.as_deref()
+    pub const fn is_ssh(&self) -> bool {
+        self.ssh_connection.is_some() || self.ssh_tty.is_some() || self.ssh_client.is_some()
     }
 
-    /// `SSH_CLIENT` — the SSH client's address.
+    /// Whether a display server is reachable (`DISPLAY` or `WAYLAND_DISPLAY` set).
     #[must_use]
-    pub fn ssh_client(&self) -> Option<&str> {
-        self.ssh_client.as_deref()
-    }
-
-    /// `DISPLAY` — the X11 display, when a graphical session is reachable.
-    #[must_use]
-    pub fn display(&self) -> Option<&str> {
-        self.display.as_deref()
-    }
-
-    /// `WAYLAND_DISPLAY` — the Wayland display, when a graphical session is
-    /// reachable.
-    #[must_use]
-    pub fn wayland_display(&self) -> Option<&str> {
-        self.wayland_display.as_deref()
+    pub const fn has_display(&self) -> bool {
+        self.display.is_some() || self.wayland_display.is_some()
     }
 
     /// Whether `NO_COLOR` is set (to any value), disabling ANSI color.

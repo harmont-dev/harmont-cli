@@ -69,7 +69,7 @@ async fn watch(
     org: &str,
     pipe: &str,
     number: i64,
-    term: Term,
+    term: Term<'_>,
 ) -> Result<()> {
     // Render the live build through the shared `hm-render` renderers (the same
     // ones a local `hm run` uses), driven by the `BuildEvent`s `watch_build`

@@ -1,41 +1,29 @@
-//! The process's runtime environment: terminal, session, and display facts
-//! captured at startup.
+//! The process's runtime environment: terminal, session, and display facts.
 
 use std::io::IsTerminal as _;
 
 use crate::env::EnvVarProvider;
 
-/// The runtime environment facts, captured once at startup.
+/// The terminal state of the standard streams, paired with the environment
+/// facts they are interpreted against.
 #[derive(Debug, Clone, Copy)]
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "independent environment facts, not a packed state machine"
-)]
-pub struct Term {
+pub struct Term<'env> {
     stdin: bool,
     stdout: bool,
     stderr: bool,
-    ci: bool,
-    ssh: bool,
-    display: bool,
-    no_color: bool,
+    env: &'env EnvVarProvider,
 }
 
-impl Term {
-    /// Capture terminal state from the standard streams and CI signals, and the
-    /// session/display facts from `env`.
+impl<'env> Term<'env> {
+    /// Capture terminal state from the standard streams, interpreted against
+    /// `env`.
     #[must_use]
-    pub fn detect(env: &EnvVarProvider) -> Self {
+    pub fn detect(env: &'env EnvVarProvider) -> Self {
         Self {
             stdin: std::io::stdin().is_terminal(),
             stdout: std::io::stdout().is_terminal(),
             stderr: std::io::stderr().is_terminal(),
-            ci: is_ci::cached(),
-            ssh: env.ssh_connection().is_some()
-                || env.ssh_tty().is_some()
-                || env.ssh_client().is_some(),
-            display: env.display().is_some() || env.wayland_display().is_some(),
-            no_color: env.no_color(),
+            env,
         }
     }
 
@@ -43,14 +31,14 @@ impl Term {
     /// both terminals and no CI runner is present.
     #[must_use]
     pub const fn is_interactive(&self) -> bool {
-        self.stdin && self.stdout && !self.ci
+        self.stdin && self.stdout && !self.env.is_ci()
     }
 
     /// Whether the environment permits ANSI color: `NO_COLOR` is unset and
     /// stderr is a terminal.
     #[must_use]
     pub const fn wants_color(&self) -> bool {
-        !self.no_color && self.stderr
+        !self.env.no_color() && self.stderr
     }
 
     /// Whether stdin is a terminal.
@@ -74,22 +62,22 @@ impl Term {
     /// Whether a CI runner is detected.
     #[must_use]
     pub const fn is_ci(&self) -> bool {
-        self.ci
+        self.env.is_ci()
     }
 
     /// Whether the process is running inside an SSH session.
     #[must_use]
     pub const fn is_ssh(&self) -> bool {
-        self.ssh
+        self.env.is_ssh()
     }
 
     /// Whether a graphical browser could plausibly be opened for the user.
     #[must_use]
     pub const fn has_gui(&self) -> bool {
         if cfg!(any(target_os = "macos", target_os = "windows")) {
-            !self.ssh
+            !self.env.is_ssh()
         } else {
-            self.display
+            self.env.has_display()
         }
     }
 }

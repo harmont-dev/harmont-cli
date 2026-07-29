@@ -130,7 +130,7 @@ pub struct RenderPrefs {
 impl RenderPrefs {
     /// Derive render preferences from the terminal state and `NO_COLOR`.
     #[must_use]
-    pub const fn detect(term: Term) -> Self {
+    pub const fn detect(term: Term<'_>) -> Self {
         Self {
             color: term.wants_color(),
             logs: !term.stdout_is_tty(),

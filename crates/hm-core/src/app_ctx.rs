@@ -44,7 +44,6 @@ pub struct AppCtx {
     user_config: Option<UserConfig>,
     creds: CredsProvider,
     env: EnvVarProvider,
-    term: Term,
 }
 
 impl AppCtx {
@@ -73,7 +72,6 @@ impl AppCtx {
         let creds = creds?;
 
         let env = EnvVarProvider::init();
-        let term = Term::detect(&env);
 
         Ok(Self {
             git,
@@ -83,7 +81,6 @@ impl AppCtx {
             user_config,
             creds,
             env,
-            term,
         })
     }
 
@@ -117,10 +114,11 @@ impl AppCtx {
         &self.dirs
     }
 
-    /// The terminal environment captured at initialization.
+    /// The terminal state of the standard streams, interpreted against the
+    /// captured environment.
     #[must_use]
-    pub const fn term(&self) -> Term {
-        self.term
+    pub fn term(&self) -> Term<'_> {
+        Term::detect(&self.env)
     }
 
     /// The environment variables captured at initialization.
