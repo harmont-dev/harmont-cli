@@ -69,8 +69,7 @@ def apt_install_cmd(packages: tuple[str, ...]) -> str:
 def node_install_cmd(version: str) -> str:
     """NodeSource node-install command for a given major Node version.
 
-    Used by both the npm toolchain and the elm toolchain (whose
-    tooling runs under npx).
+    Used by the npm toolchain.
     """
     major = version.removesuffix(".x")
     return (
