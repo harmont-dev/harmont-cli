@@ -11,6 +11,7 @@ use hm_common::python::Python;
 use crate::config::domain::ConfigLoadingError;
 use crate::config::user::UserConfig;
 use crate::creds::{CredsInitError, CredsProvider};
+use crate::env::EnvVarProvider;
 use crate::term::Term;
 
 /// Failure to initialize the [`AppCtx`].
@@ -42,6 +43,7 @@ pub struct AppCtx {
     dirs: DirProvider,
     user_config: Option<UserConfig>,
     creds: CredsProvider,
+    env: EnvVarProvider,
     term: Term,
 }
 
@@ -70,6 +72,9 @@ impl AppCtx {
         let user_config = user_config.map_err(InitError::UserConfig)?;
         let creds = creds?;
 
+        let env = EnvVarProvider::init();
+        let term = Term::detect(&env);
+
         Ok(Self {
             git,
             python3,
@@ -77,7 +82,8 @@ impl AppCtx {
             dirs,
             user_config,
             creds,
-            term: Term::detect(),
+            env,
+            term,
         })
     }
 
@@ -115,6 +121,12 @@ impl AppCtx {
     #[must_use]
     pub const fn term(&self) -> Term {
         self.term
+    }
+
+    /// The environment variables captured at initialization.
+    #[must_use]
+    pub const fn env(&self) -> &EnvVarProvider {
+        &self.env
     }
 
     /// The user config, or `None` when no user config file is present.

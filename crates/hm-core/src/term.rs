@@ -3,6 +3,8 @@
 
 use std::io::IsTerminal as _;
 
+use crate::env::EnvVarProvider;
+
 /// The runtime environment facts, captured once at startup.
 #[derive(Debug, Clone, Copy)]
 #[allow(
@@ -20,20 +22,18 @@ pub struct Term {
 }
 
 impl Term {
-    /// Capture the environment from the standard streams, CI signals, the SSH
-    /// session variables, and the display variables.
+    /// Capture terminal state from the standard streams and CI signals, and the
+    /// session/display facts from `env`.
     #[must_use]
-    pub fn detect() -> Self {
+    pub fn detect(env: &EnvVarProvider) -> Self {
         Self {
             stdin: std::io::stdin().is_terminal(),
             stdout: std::io::stdout().is_terminal(),
             stderr: std::io::stderr().is_terminal(),
             ci: is_ci::cached(),
-            ssh: env_present("SSH_CONNECTION")
-                || env_present("SSH_TTY")
-                || env_present("SSH_CLIENT"),
-            display: env_present("DISPLAY") || env_present("WAYLAND_DISPLAY"),
-            no_color: std::env::var_os("NO_COLOR").is_some(),
+            ssh: env.is_set("SSH_CONNECTION") || env.is_set("SSH_TTY") || env.is_set("SSH_CLIENT"),
+            display: env.is_set("DISPLAY") || env.is_set("WAYLAND_DISPLAY"),
+            no_color: env.is_present("NO_COLOR"),
         }
     }
 
@@ -90,9 +90,4 @@ impl Term {
             self.display
         }
     }
-}
-
-/// Whether an environment variable is set to a non-empty value.
-fn env_present(name: &str) -> bool {
-    std::env::var_os(name).is_some_and(|v| !v.is_empty())
 }

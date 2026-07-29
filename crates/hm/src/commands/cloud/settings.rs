@@ -8,8 +8,8 @@ use harmont_cloud::HarmontClient;
 use hm_core::app_ctx::AppCtx;
 use hm_core::config::ResolvedCloudConfig;
 use hm_core::config::domain::{BackendConfig, BackendDomain};
-use hm_core::term::Term;
 use hm_core::config::user::UserCloudConfig;
+use hm_core::term::Term;
 use secrecy::ExposeSecret as _;
 
 /// Resolved cloud context for the `hm cloud` verbs.

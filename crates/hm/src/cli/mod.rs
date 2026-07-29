@@ -114,9 +114,6 @@ pub async fn dispatch(command: Command, ctx: RunContext<'_>) -> Result<i32> {
         },
         Command::Version => version::run().await.map(|()| 0),
         Command::Plugin(cmd) => plugin::run(cmd).await.map(|()| 0),
-        Command::Cloud(cmd) => {
-            let env = std::env::vars().collect();
-            crate::commands::cloud::cli::dispatch_command(cmd, env, app).await
-        }
+        Command::Cloud(cmd) => crate::commands::cloud::cli::dispatch_command(cmd, app).await,
     }
 }

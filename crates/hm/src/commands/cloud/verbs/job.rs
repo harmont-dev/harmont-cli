@@ -1,7 +1,5 @@
 //! `hm cloud job list|show|log`.
 
-use std::collections::BTreeMap;
-
 use anyhow::Result;
 use chrono::Utc;
 use harmont_cloud::HarmontClient;
@@ -9,17 +7,13 @@ use hm_plugin_protocol::events::{BuildEvent, PlanSummary};
 use hm_plugin_protocol::ir::DurationMs;
 use uuid::Uuid;
 
-use hm_cloud::cli::JobCommand;
 use crate::commands::cloud::settings;
+use hm_cloud::cli::JobCommand;
 use hm_core::app_ctx::AppCtx;
 use hm_core::exec::cloud::watch::stream_job_logs_as_events;
 use hm_core::term::Term;
 
-pub(crate) async fn run(
-    _env: &BTreeMap<String, String>,
-    cmd: JobCommand,
-    app: &AppCtx,
-) -> Result<()> {
+pub(crate) async fn run(cmd: JobCommand, app: &AppCtx) -> Result<()> {
     let (client, ctx) = settings::client(app).await?;
     let org = ctx.org()?;
 

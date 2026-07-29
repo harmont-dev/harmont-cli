@@ -1,20 +1,14 @@
 //! `hm cloud org switch <slug>` — pick the active organization.
 
-use std::collections::BTreeMap;
-
 use anyhow::{Context, Result};
 use hm_core::app_ctx::AppCtx;
 use hm_core::config::domain::BackendConfig;
 use hm_core::config::user::UserCloudConfig;
 
-use hm_cloud::cli::OrgCommand;
 use crate::commands::cloud::settings;
+use hm_cloud::cli::OrgCommand;
 
-pub(crate) async fn run(
-    _env: &BTreeMap<String, String>,
-    cmd: OrgCommand,
-    app: &AppCtx,
-) -> Result<()> {
+pub(crate) async fn run(cmd: OrgCommand, app: &AppCtx) -> Result<()> {
     let (client, _ctx) = settings::client(app).await?;
 
     match cmd {

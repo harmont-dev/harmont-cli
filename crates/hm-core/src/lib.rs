@@ -9,6 +9,7 @@
 pub mod app_ctx;
 pub mod config;
 pub mod creds;
+pub mod env;
 pub mod exec;
 pub mod project_ctx;
 pub mod term;

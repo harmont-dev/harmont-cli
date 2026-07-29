@@ -1,12 +1,10 @@
 //! `hm cloud billing balance|transactions|usage|topup|redeem`.
 
-use std::collections::BTreeMap;
-
 use anyhow::Result;
 use harmont_cloud::HarmontClient;
 
-use hm_cloud::cli::BillingCommand;
 use crate::commands::cloud::settings;
+use hm_cloud::cli::BillingCommand;
 use hm_core::app_ctx::AppCtx;
 
 /// Convert an integer cent amount to dollars for display.
@@ -18,11 +16,7 @@ fn cents_to_dollars(cents: i64) -> f64 {
     cents as f64 / 100.0
 }
 
-pub(crate) async fn run(
-    _env: &BTreeMap<String, String>,
-    cmd: BillingCommand,
-    app: &AppCtx,
-) -> Result<()> {
+pub(crate) async fn run(cmd: BillingCommand, app: &AppCtx) -> Result<()> {
     let (client, ctx) = settings::client(app).await?;
     let org = ctx.org()?;
 

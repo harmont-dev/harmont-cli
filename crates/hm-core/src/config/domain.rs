@@ -56,7 +56,10 @@ impl BackendDomain {
     /// The API base URL (`https://api.<domain>`), without a trailing slash.
     #[must_use]
     pub fn api_url(&self) -> String {
-        self.subdomain("api").as_str().trim_end_matches('/').to_owned()
+        self.subdomain("api")
+            .as_str()
+            .trim_end_matches('/')
+            .to_owned()
     }
 
     /// The dashboard base URL (`https://app.<domain>`), without a trailing slash.

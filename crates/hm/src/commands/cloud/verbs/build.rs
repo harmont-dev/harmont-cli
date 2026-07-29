@@ -1,21 +1,15 @@
 //! `hm cloud build list|show|cancel|watch`.
 
-use std::collections::BTreeMap;
-
 use anyhow::Result;
 use harmont_cloud::HarmontClient;
 
-use hm_cloud::cli::BuildCommand;
 use crate::commands::cloud::settings;
+use hm_cloud::cli::BuildCommand;
 use hm_core::app_ctx::AppCtx;
 use hm_core::exec::cloud::watch::watch_build;
 use hm_core::term::Term;
 
-pub(crate) async fn run(
-    _env: &BTreeMap<String, String>,
-    cmd: BuildCommand,
-    app: &AppCtx,
-) -> Result<()> {
+pub(crate) async fn run(cmd: BuildCommand, app: &AppCtx) -> Result<()> {
     let (client, ctx) = settings::client(app).await?;
     let org = ctx.org()?;
 
@@ -70,7 +64,13 @@ async fn cancel(client: &HarmontClient, org: &str, pipe: &str, number: i64) -> R
     Ok(())
 }
 
-async fn watch(client: &HarmontClient, org: &str, pipe: &str, number: i64, term: Term) -> Result<()> {
+async fn watch(
+    client: &HarmontClient,
+    org: &str,
+    pipe: &str,
+    number: i64,
+    term: Term,
+) -> Result<()> {
     // Render the live build through the shared `hm-render` renderers (the same
     // ones a local `hm run` uses), driven by the `BuildEvent`s `watch_build`
     // emits over an mpsc channel.
