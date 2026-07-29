@@ -4,59 +4,70 @@ use std::io::IsTerminal as _;
 
 use crate::env::EnvVarProvider;
 
-/// The terminal state of the standard streams, paired with the environment
-/// facts they are interpreted against.
+/// The terminal state of the standard streams, probed once at startup.
 #[derive(Debug, Clone, Copy)]
-pub struct Term<'env> {
+pub struct TerminalState {
     stdin: bool,
     stdout: bool,
     stderr: bool,
-    env: &'env EnvVarProvider,
 }
 
-impl<'env> Term<'env> {
-    /// Capture terminal state from the standard streams, interpreted against
-    /// `env`.
+impl TerminalState {
+    /// Probe whether each standard stream is a terminal.
     #[must_use]
-    pub fn detect(env: &'env EnvVarProvider) -> Self {
+    pub fn detect() -> Self {
         Self {
             stdin: std::io::stdin().is_terminal(),
             stdout: std::io::stdout().is_terminal(),
             stderr: std::io::stderr().is_terminal(),
-            env,
         }
     }
 
+    /// Interpret the probed terminal state against the environment facts `env`.
+    #[must_use]
+    pub const fn term<'a>(&'a self, env: &'a EnvVarProvider) -> Term<'a> {
+        Term { term: self, env }
+    }
+}
+
+/// The terminal state interpreted against the environment facts it is bound to.
+#[derive(Debug, Clone, Copy)]
+pub struct Term<'a> {
+    term: &'a TerminalState,
+    env: &'a EnvVarProvider,
+}
+
+impl Term<'_> {
     /// Whether the app can drive an interactive session: stdin and stdout are
     /// both terminals and no CI runner is present.
     #[must_use]
     pub const fn is_interactive(&self) -> bool {
-        self.stdin && self.stdout && !self.env.is_ci()
+        self.term.stdin && self.term.stdout && !self.env.is_ci()
     }
 
     /// Whether the environment permits ANSI color: `NO_COLOR` is unset and
     /// stderr is a terminal.
     #[must_use]
     pub const fn wants_color(&self) -> bool {
-        !self.env.no_color() && self.stderr
+        !self.env.no_color() && self.term.stderr
     }
 
     /// Whether stdin is a terminal.
     #[must_use]
     pub const fn stdin_is_tty(&self) -> bool {
-        self.stdin
+        self.term.stdin
     }
 
     /// Whether stdout is a terminal.
     #[must_use]
     pub const fn stdout_is_tty(&self) -> bool {
-        self.stdout
+        self.term.stdout
     }
 
     /// Whether stderr is a terminal.
     #[must_use]
     pub const fn stderr_is_tty(&self) -> bool {
-        self.stderr
+        self.term.stderr
     }
 
     /// Whether a CI runner is detected.
