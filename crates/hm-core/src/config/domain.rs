@@ -49,6 +49,10 @@ impl BackendDomain {
         Ok(Self(Url::parse(&normalized)?))
     }
 
+    // TODO: return `Url` from api_url()/app_url() once the harmont-cloud client
+    // accepts a URL base instead of string-concatenating (`format!("{base}{path}")`).
+    // Its naive concat is why these must hand back a trailing-slash-trimmed String.
+
     /// The API base URL (`https://api.<domain>`), without a trailing slash.
     #[must_use]
     pub fn api_url(&self) -> String {
