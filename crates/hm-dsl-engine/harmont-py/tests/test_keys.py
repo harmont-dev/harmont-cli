@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from harmont._keys import hash_key, resolve_keys, slugify_label
-from harmont._step import scratch
+from harmont._step import Command, scratch
 
 
 def test_slugify_strips_emoji_shortcodes():
@@ -50,10 +50,10 @@ def test_hash_key_is_deterministic_12_hex_chars():
 
 
 def test_hash_key_changes_with_inputs():
-    a = hash_key("p", "make", 0)
-    b = hash_key("p", "make", 1)
-    c = hash_key("p", "test", 0)
-    d = hash_key("q", "make", 0)
+    a = hash_key("p", Command(cmd="make"), 0)
+    b = hash_key("p", Command(cmd="make"), 1)
+    c = hash_key("p", Command(cmd="test"), 0)
+    d = hash_key("q", Command(cmd="make"), 0)
     assert len({a, b, c, d}) == 4
 
 

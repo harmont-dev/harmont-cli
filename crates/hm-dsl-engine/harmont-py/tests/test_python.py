@@ -9,12 +9,12 @@ from harmont.cache import CacheOnChange
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["action"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("action", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
@@ -84,19 +84,19 @@ def test_python_action_labels_auto_generated():
 def test_python_typecheck_paths_string():
     py = hm.python(path="myapp")
     s = py.typecheck(paths="src")
-    assert "uv run ty check src" in s.cmd
+    assert "uv run ty check src" in s.action.cmd
 
 
 def test_python_typecheck_paths_list():
     py = hm.python(path="myapp")
     s = py.typecheck(paths=["src", "tests"])
-    assert "uv run ty check src tests" in s.cmd
+    assert "uv run ty check src tests" in s.action.cmd
 
 
 def test_python_typecheck_paths_default():
     py = hm.python(path="myapp")
     s = py.typecheck()
-    assert "uv run ty check ." in s.cmd
+    assert "uv run ty check ." in s.action.cmd
 
 
 def test_python_action_label_override():
@@ -142,7 +142,7 @@ def test_python_uv_version_in_install_cmd():
     py = hm.python(path=".", uv_version="0.4.18")
     p = hm.pipeline([py.test()])
     install = _step_by_substring(p, "astral.sh/uv/install.sh")
-    assert "UV_VERSION=0.4.18" in install["cmd"]
+    assert "UV_VERSION=0.4.18" in install["action"]["cmd"]
 
 
 def test_python_invalid_uv_version_rejected():

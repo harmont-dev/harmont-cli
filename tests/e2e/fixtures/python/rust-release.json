@@ -42,12 +42,14 @@
           "TERM": "dumb"
         },
         "step": {
+          "action": {
+            "cmd": "apt-get update && apt-get install -y curl ca-certificates build-essential pkg-config libssl-dev"
+          },
           "cache": {
             "duration_seconds": 86400,
             "env_keys": [],
             "policy": "ttl"
           },
-          "cmd": "apt-get update && apt-get install -y curl ca-certificates build-essential pkg-config libssl-dev",
           "image": "ubuntu:24.04",
           "key": "apt-base",
           "label": ":rust: apt-base"
@@ -60,11 +62,13 @@
           "TERM": "dumb"
         },
         "step": {
+          "action": {
+            "cmd": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --component clippy,rustfmt && . $HOME/.cargo/env && rustc --version && cargo --version"
+          },
           "cache": {
             "env_keys": [],
             "policy": "forever"
           },
-          "cmd": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --component clippy,rustfmt && . $HOME/.cargo/env && rustc --version && cargo --version",
           "key": "rustup",
           "label": ":rust: rustup"
         }
@@ -76,7 +80,9 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo build --locked",
+          "action": {
+            "cmd": ". $HOME/.cargo/env && cd . && cargo build --locked"
+          },
           "key": "build",
           "label": ":rust: build"
         }
@@ -88,7 +94,9 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo test --locked",
+          "action": {
+            "cmd": ". $HOME/.cargo/env && cd . && cargo test --locked"
+          },
           "key": "test",
           "label": ":rust: test"
         }
@@ -100,7 +108,9 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo clippy --all-targets --locked -- -D warnings",
+          "action": {
+            "cmd": ". $HOME/.cargo/env && cd . && cargo clippy --all-targets --locked -- -D warnings"
+          },
           "key": "clippy",
           "label": ":rust: clippy"
         }
@@ -112,7 +122,9 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo fmt --all --check",
+          "action": {
+            "cmd": ". $HOME/.cargo/env && cd . && cargo fmt --all --check"
+          },
           "key": "fmt",
           "label": ":rust: fmt"
         }
@@ -125,7 +137,12 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo doc --no-deps --locked",
+          "action": {
+            "cmd": ". $HOME/.cargo/env && cd . && cargo doc --no-deps --locked",
+            "env": {
+              "RUSTDOCFLAGS": "-D warnings"
+            }
+          },
           "key": "doc",
           "label": ":rust: doc"
         }

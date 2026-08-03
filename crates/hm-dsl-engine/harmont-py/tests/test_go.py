@@ -8,12 +8,12 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["action"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("action", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
@@ -50,7 +50,7 @@ def test_go_version_in_install_cmd():
     go = hm.go(path=".", version="1.23.2")
     p = hm.pipeline([go.build()])
     install = _step_by_substring(p, "go.dev/dl/")
-    assert "go1.23.2" in install["cmd"]
+    assert "go1.23.2" in install["action"]["cmd"]
 
 
 def test_go_invalid_version_rejected():

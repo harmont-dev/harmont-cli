@@ -41,7 +41,7 @@ from ._pipeline import pipeline_to_json
 from ._python import python
 from ._rust import RustProject, rust
 from ._scala import ScalaProject, scala
-from ._step import Step, scratch, wait
+from ._step import Step, StepAction, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
 from ._toolchain import apt_base
 from ._typing import BaseImage, Target
@@ -277,6 +277,46 @@ def sh(
     )
 
 
+def mount(
+    *,
+    from_: str,
+    to: str,
+    label: str = ":ext: dir",
+    image: str | None = None,
+    strict: bool = True,
+) -> Step:
+    """Declare a workspace-directory bind mount.
+
+    Shorthand for ``scratch().mount(from_=from_, to=to, ...)``.
+    All keyword arguments are forwarded to ``Step.mount``.
+
+    Args:
+        from_: Source directory relative to the workspace root.
+        to: Destination directory inside the step container,
+            relative to the workspace root.
+        label: Human-facing label shown in the UI.
+        image: Local-mode Docker base image override for this step.
+        strict: Aditional check which validates if the source file
+            exists during the function's call. Defaults to ``True``.
+            It's not included in the IR.
+
+    Returns:
+        A new root ``Step`` with the mount set.
+
+    Examples:
+        >>> import harmont as hm
+        >>> step = hm.mount(from_=".cache/npm", to="node_modules")
+    """
+    return scratch().mount(
+        from_=from_,
+        to=to,
+        cache=CacheNone(),
+        label=label,
+        image=image,
+        strict=strict,
+    )
+
+
 def group(steps: list[Step] | tuple[Step, ...]) -> tuple[Step, ...]:
     """Collect a list of steps into a tuple for use as a target return value.
 
@@ -312,6 +352,7 @@ __all__ = [
     "RustProject",
     "ScalaProject",
     "Step",
+    "StepAction",
     "Target",
     "apt_base",
     "cmake",
@@ -322,6 +363,7 @@ __all__ = [
     "go",
     "group",
     "js",
+    "mount"
     "on_change",
     "pipeline",
     "pipeline_to_json",

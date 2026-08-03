@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ir::CommandStep;
+use crate::ir::Step;
 
 /// Opaque handle to a registered workspace archive. The holder reads the
 /// bytes back by id; the contents are never inspected through this handle.
@@ -64,7 +64,7 @@ pub enum CacheDecision {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutorInput {
-    pub step: CommandStep,
+    pub step: Step,
     pub workspace_archive_id: ArchiveId,
     pub env: BTreeMap<String, String>,
     pub workdir: String,

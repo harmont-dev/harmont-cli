@@ -26,7 +26,7 @@ def test_target_returns_function_unchanged_in_signature():
     # callable with no args, returns a Step
     result = apt_base()
     assert isinstance(result, hm.Step)
-    assert result.cmd == "apt-get update"
+    assert result.action.cmd == "apt-get update"
 
 
 def test_target_memoizes_within_one_render():
@@ -77,7 +77,7 @@ def test_composition_via_chaining_off_a_target():
     # Both targets chained off the SAME apt-base step (memoized).
     assert v.parent is a.parent
     assert v.parent is not None
-    assert v.parent.cmd == "apt-get update"
+    assert v.parent.action.cmd == "apt-get update"
 
 
 def test_target_with_toolchain_return_passes_through():

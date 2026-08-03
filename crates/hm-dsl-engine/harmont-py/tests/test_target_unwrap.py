@@ -31,23 +31,23 @@ def test_rust_toolchain_unwraps_to_build():
     tc = hm.rust.toolchain(path="cli", version="stable")
     leaves = as_leaves(tc)
     assert len(leaves) == 1
-    assert "cargo build" in leaves[0].cmd
+    assert "cargo build" in leaves[0].action.cmd
 
 
 def test_rust_project_unwraps_to_test_clippy_fmt():
     proj = hm.rust.project(path="cli")
     leaves = as_leaves(proj)
     assert len(leaves) == 3
-    assert "cargo test" in leaves[0].cmd
-    assert "cargo clippy" in leaves[1].cmd
-    assert "cargo fmt" in leaves[2].cmd
+    assert "cargo test" in leaves[0].action.cmd
+    assert "cargo clippy" in leaves[1].action.cmd
+    assert "cargo fmt" in leaves[2].action.cmd
 
 
 def test_js_project_unwraps_to_install():
     proj = hm.js.project(path="app", version="20")
     leaves = as_leaves(proj)
     assert len(leaves) == 1
-    assert "npm ci" in leaves[0].cmd
+    assert "npm ci" in leaves[0].action.cmd
 
 
 def test_nested_tuple_is_flattened():

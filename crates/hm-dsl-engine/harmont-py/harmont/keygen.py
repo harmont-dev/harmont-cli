@@ -11,8 +11,8 @@ Algorithm (pre-image of the outer sha256):
 
 policy_resolution branches:
     none      -> "none"          (no key emitted)
-    forever   -> "forever-"   + sha256(cmd NUL env_subset)
-    ttl       -> "ttl-N-"     + sha256(cmd NUL env_subset)   N = now // duration
+    forever   -> "forever-"   + sha256(action_str NUL env_subset)
+    ttl       -> "ttl-N-"     + sha256(action_str NUL env_subset)   N = now // duration
     on_change -> "sha-"       + sha256(concat(file_hash(p) NUL for p in sorted))
     compose   -> "compose-"   + sha256(concat(resolve(sub) or "none"))
 
@@ -61,10 +61,15 @@ def resolve_pipeline_keys(
         cache = step.get("cache")
         if not cache or cache["policy"] == "none":
             continue
-        cmd = step.get("cmd", "")
+        action_str = ""
+        if "action" in step:
+            if "cmd" in step["action"]:
+                action_str = step["action"]["cmd"]
+            elif "from" in step["action"] and "to" in step["action"]:
+                action_str = step["action"]["from"] + step["action"]["to"]
         parent = parent_key_map.get(step["key"])
         parent_resolved = _lookup_parent(parent, resolved)
-        policy_res = _resolve_policy(cache, cmd, now, base_path, env)
+        policy_res = _resolve_policy(cache, action_str, now, base_path, env)
         key = _sha256_hex(
             pipeline_org
             + NUL
@@ -96,7 +101,7 @@ def _lookup_parent(parent: str | None, resolved: dict[str, str]) -> str:
 
 def _resolve_policy(
     policy: dict[str, Any],
-    cmd: str,
+    action_str: str,
     now: int,
     base_path: Path,
     env: Mapping[str, str],
@@ -106,12 +111,14 @@ def _resolve_policy(
         return "none"
     if kind == "forever":
         env_keys = policy.get("env_keys", [])
-        return "forever-" + _sha256_hex(cmd + NUL + _env_subset(env_keys, env))
+        return "forever-" + _sha256_hex(action_str + NUL + _env_subset(env_keys, env))
     if kind == "ttl":
         duration = policy["duration_seconds"]
         bucket = now // duration
         env_keys = policy.get("env_keys", [])
-        return "ttl-" + str(bucket) + "-" + _sha256_hex(cmd + NUL + _env_subset(env_keys, env))
+        return (
+            "ttl-" + str(bucket) + "-" + _sha256_hex(action_str + NUL + _env_subset(env_keys, env))
+        )
     if kind == "on_change":
         resolved: list[Path] = []
         for p in sorted(policy["paths"]):
@@ -126,7 +133,9 @@ def _resolve_policy(
     if kind == "compose":
         subs = policy["sub_policies"]
         parts = [
-            _resolve_policy(sub, cmd, now, base_path, env) if sub["policy"] != "none" else "none"
+            _resolve_policy(sub, action_str, now, base_path, env)
+            if sub["policy"] != "none"
+            else "none"
             for sub in subs
         ]
         return "compose-" + _sha256_hex("".join(parts))

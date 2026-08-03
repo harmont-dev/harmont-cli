@@ -169,7 +169,7 @@ pub struct GitBranch<'r, 'g, 'bin> {
     name: BString,
 }
 
-impl<'r, 'g, 'bin> GitBranch<'r, 'g, 'bin> {
+impl GitBranch<'_, '_, '_> {
     /// The branch name (e.g. `main`, or `HEAD` when detached).
     #[must_use]
     pub fn name(&self) -> &BStr {
@@ -181,7 +181,12 @@ impl<'r, 'g, 'bin> GitBranch<'r, 'g, 'bin> {
     #[tracing::instrument(skip(self))]
     pub fn head_commit(&self) -> Option<GitSha> {
         let name = self.name.to_str().ok()?;
-        self.repo.run(&["rev-parse", name])?.to_str().ok()?.parse().ok()
+        self.repo
+            .run(&["rev-parse", name])?
+            .to_str()
+            .ok()?
+            .parse()
+            .ok()
     }
 }
 
@@ -279,7 +284,10 @@ mod tests {
     #[case::just_over(41)]
     #[case::sha256_width(64)]
     fn rejects_wrong_length(#[case] len: usize) {
-        assert_eq!("a".repeat(len).parse::<GitSha>(), Err(GitShaError::BadLength(len)));
+        assert_eq!(
+            "a".repeat(len).parse::<GitSha>(),
+            Err(GitShaError::BadLength(len))
+        );
     }
 
     #[rstest]

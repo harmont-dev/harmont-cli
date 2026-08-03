@@ -58,13 +58,15 @@ def test_har_28_example_renders():
     p = out["pipelines"][0]
     nodes = _graph_nodes(p["definition"])
 
-    cmds = [n["step"].get("cmd") for n in nodes]
+    cmds = [n["step"].get("action", {}).get("cmd") for n in nodes]
     assert any("pytest -v" in (c or "") for c in cmds)
     assert any("go build" in (c or "") for c in cmds)
     assert any("npm" in (c or "") for c in cmds)
 
     # apt-base used by the venv chain appears exactly once (memoized).
-    apt_update_nodes = [n for n in nodes if n["step"].get("cmd") == "apt-get update"]
+    apt_update_nodes = [
+        n for n in nodes if n["step"].get("action", {}).get("cmd") == "apt-get update"
+    ]
     assert len(apt_update_nodes) == 1
 
 
@@ -75,5 +77,5 @@ def test_har_28_cwd_kwarg_renders_to_cd_prefix():
 
     out = json.loads(hm.dump_registry_json())
     nodes = _graph_nodes(out["pipelines"][0]["definition"])
-    cmds = [n["step"]["cmd"] for n in nodes]
+    cmds = [n["step"]["action"]["cmd"] for n in nodes]
     assert "cd cidsl/py && pytest -v" in cmds

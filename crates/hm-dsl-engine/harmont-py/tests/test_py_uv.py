@@ -9,12 +9,12 @@ from harmont.cache import CacheOnChange
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["action"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("action", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
@@ -82,17 +82,17 @@ class TestUvActions:
     def test_typecheck_paths_string(self):
         proj = hm.py.uv(path="myapp")
         s = proj.typecheck(paths="src")
-        assert "uv run ty check src" in s.cmd
+        assert "uv run ty check src" in s.action.cmd
 
     def test_typecheck_paths_list(self):
         proj = hm.py.uv(path="myapp")
         s = proj.typecheck(paths=["src", "tests"])
-        assert "uv run ty check src tests" in s.cmd
+        assert "uv run ty check src tests" in s.action.cmd
 
     def test_typecheck_paths_default(self):
         proj = hm.py.uv(path="myapp")
         s = proj.typecheck()
-        assert "uv run ty check ." in s.cmd
+        assert "uv run ty check ." in s.action.cmd
 
     def test_cache_forwarded(self):
         proj = hm.py.uv(path=".")
@@ -166,7 +166,7 @@ class TestUvVersionValidation:
         proj = hm.py.uv(path=".", version="0.4.18")
         p = hm.pipeline([proj.test()])
         install = _step_by_substring(p, "astral.sh/uv/install.sh")
-        assert "UV_VERSION=0.4.18" in install["cmd"]
+        assert "UV_VERSION=0.4.18" in install["action"]["cmd"]
 
     def test_invalid_version_rejected(self):
         with pytest.raises(ValueError, match="invalid version"):

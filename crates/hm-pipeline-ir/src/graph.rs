@@ -3,31 +3,44 @@ use std::num::NonZeroU32;
 
 use daggy::Dag;
 
-use schemars::JsonSchema as DeriveJsonSchema;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// A single build command within a pipeline.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum StepAction {
+    /// A single build command within a pipeline.
+    Command {
+        /// Shell command to execute inside the container.
+        cmd: String,
+        /// Per-step environment variables merged on top of the pipeline env.
+        #[serde(default)]
+        env: Option<BTreeMap<String, String>>,
+    },
+    /// Archive mount from a local path to a workspace path
+    Mount { from: String, to: String },
+}
+
+/// A single build action within a pipeline.
 ///
 /// Serialized as a JSON object inside each graph node's `step` field.
 /// The `key` is the unique identifier used to reference this step in
 /// edges and log output.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
-pub struct CommandStep {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Step {
     /// Unique identifier for this step within the pipeline.
     pub key: String,
+    /// Behavior of the node
+    pub action: StepAction,
     /// Human-readable label shown in build output.
     #[serde(default)]
     pub label: Option<String>,
-    /// Shell command to execute inside the container.
-    pub cmd: String,
     /// Docker image to boot from. Root steps without an image inherit
     /// `PipelineGraph::default_image`; child steps boot from their
     /// parent's committed snapshot.
     #[serde(default)]
     pub image: Option<String>,
     /// Per-step environment variables merged on top of the pipeline env.
-    #[serde(default)]
-    pub env: Option<BTreeMap<String, String>>,
     /// Maximum wall-clock seconds before the step is killed.
     ///
     /// `NonZeroU32`: a `0`-second budget is rejected at the wire boundary.
@@ -46,7 +59,7 @@ pub struct CommandStep {
 }
 
 /// Snapshot cache configuration for a step.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveJsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Cache {
     /// Cache policy name (e.g. `"content-hash"`).
     pub policy: String,
@@ -55,13 +68,13 @@ pub struct Cache {
     pub key: Option<String>,
 }
 
-/// A graph node: a [`CommandStep`] paired with its resolved environment.
+/// A graph node: a [`Step`] paired with its resolved environment.
 ///
 /// The `env` map is the final merged result of pipeline-level defaults
 /// and per-step overrides — ready to hand to the executor as-is.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transition {
-    pub step: CommandStep,
+    pub step: Step,
     pub env: BTreeMap<String, String>,
 }
 

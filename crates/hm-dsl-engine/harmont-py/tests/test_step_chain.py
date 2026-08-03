@@ -11,10 +11,10 @@ from harmont._step import scratch, wait
 from harmont.cache import CacheNone
 
 
-def test_scratch_has_no_parent_no_cmd():
+def test_scratch_has_no_parent_no_action():
     s = scratch()
     assert s.parent is None
-    assert s.cmd is None
+    assert s.action is None
     assert s.is_wait is False
 
 
@@ -22,7 +22,7 @@ def test_sh_links_parent_and_sets_cmd():
     parent = scratch()
     child = parent.sh("echo hi")
     assert child.parent is parent
-    assert child.cmd == "echo hi"
+    assert child.action.cmd == "echo hi"
     assert child.is_wait is False
 
 
@@ -32,14 +32,14 @@ def test_sh_returns_new_instance_parent_unchanged():
     parent.sh("b")
     # parent must be untouched (frozen dataclass)
     assert parent.parent is None
-    assert parent.cmd is None
+    assert parent.action is None
 
 
 def test_fork_makes_branded_passthrough():
     parent = scratch().sh("install")
     branch = parent.fork(label="branch-a")
     assert branch.parent is parent
-    assert branch.cmd is None
+    assert branch.action is None
     assert branch.label == "branch-a"
     assert branch.is_wait is False
 
@@ -68,7 +68,7 @@ def test_sh_kwargs_carried_through():
     )
     assert s.label == "build"
     assert s.cache == CacheNone()
-    assert s.env == {"CI": "true"}
+    assert s.action.env == {"CI": "true"}
     assert s.timeout_seconds == 600
     assert s.key_override == "explicit-key"
 
@@ -76,13 +76,13 @@ def test_sh_kwargs_carried_through():
 def test_step_is_frozen():
     s = scratch()
     with pytest.raises(FrozenInstanceError):
-        s.cmd = "mutated"  # type: ignore[misc]
+        s.action = "mutated"  # type: ignore[misc]
 
 
-def test_wait_has_no_cmd_no_parent_and_is_wait_true():
+def test_wait_has_no_action_no_parent_and_is_wait_true():
     w = wait()
     assert w.parent is None
-    assert w.cmd is None
+    assert w.action is None
     assert w.is_wait is True
 
 

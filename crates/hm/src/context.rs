@@ -13,6 +13,7 @@ pub struct RunContext<'app> {
 
 impl<'app> RunContext<'app> {
     /// Build a [`RunContext`] from the app context and parsed CLI args.
+    #[allow(clippy::missing_const_for_fn)]
     #[must_use]
     pub fn from_cli(app: &'app AppCtx, cli: &Cli) -> Self {
         let term = app.term();

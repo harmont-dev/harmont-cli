@@ -6,7 +6,7 @@
 //! Cache keys are computed by `harmont.keygen` at plan time and ride
 //! along the JSON in `cache.key`.
 
-use hm_plugin_protocol::CommandStep;
+use hm_plugin_protocol::Step;
 
 fn sanitize_for_tag(s: &str) -> String {
     s.chars()
@@ -25,7 +25,7 @@ fn sanitize_for_tag(s: &str) -> String {
 /// Returns `None` when the step has no cache, a `"none"` policy, or no
 /// cache key.
 #[must_use]
-pub(crate) fn stable_cache_tag(step: &CommandStep) -> Option<String> {
+pub(crate) fn stable_cache_tag(step: &Step) -> Option<String> {
     let cache = step.cache.as_ref()?;
     if cache.policy == "none" {
         return None;
@@ -45,16 +45,18 @@ pub(crate) fn stable_cache_tag(step: &CommandStep) -> Option<String> {
 )]
 mod tests {
     use super::*;
-    use hm_plugin_protocol::Cache;
+    use hm_plugin_protocol::{Cache, Step, StepAction};
     use rstest::rstest;
 
-    fn step(cache: Option<Cache>) -> CommandStep {
-        CommandStep {
+    fn step(cache: Option<Cache>) -> Step {
+        Step {
             key: "build".into(),
+            action: StepAction::Command {
+                cmd: "true".into(),
+                env: None,
+            },
             label: None,
-            cmd: "true".into(),
             image: None,
-            env: None,
             timeout_seconds: None,
             cache,
             runner: None,

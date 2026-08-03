@@ -8,7 +8,7 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["action"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +226,7 @@ class TestCMakeVcpkg:
         proj = hm.cmake(path="svc", deps="vcpkg")
         p = hm.pipeline([proj.built])
         nodes = p["graph"]["nodes"]
-        vcpkg_node = next(n for n in nodes if "bootstrap-vcpkg" in n["step"]["cmd"])
+        vcpkg_node = next(n for n in nodes if "bootstrap-vcpkg" in n["step"]["action"]["cmd"])
         assert vcpkg_node["step"]["cache"]["policy"] == "on_change"
 
 

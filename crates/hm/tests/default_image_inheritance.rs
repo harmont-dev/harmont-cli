@@ -21,7 +21,7 @@ fn decode(json: &[u8]) -> PipelineGraph {
     serde_json::from_slice::<PipelineGraph>(json).unwrap()
 }
 
-fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::CommandStep {
+fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::Step {
     let dag = g.dag();
     let (_, t) = dag
         .graph()
@@ -41,7 +41,7 @@ fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::Command
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "apt-base", "cmd": "apt-get update", "image": "ubuntu:24.04"}, "env": {}}
+                {"step": {"key": "apt-base", "action": {"cmd": "apt-get update"}, "image": "ubuntu:24.04"}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": []
@@ -56,7 +56,7 @@ fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::Command
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "rust", "cmd": "cargo build", "image": "rust:1.82"}, "env": {}}
+                {"step": {"key": "rust", "action": {"cmd": "cargo build"}, "image": "rust:1.82"}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": []
@@ -71,8 +71,8 @@ fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::Command
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "parent", "cmd": "echo p", "image": "ubuntu:24.04"}, "env": {}},
-                {"step": {"key": "child",  "cmd": "echo c"}, "env": {}}
+                {"step": {"key": "parent", "action": {"cmd": "echo p"}, "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "child",  "action": {"cmd": "echo c"}}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": [
@@ -88,7 +88,7 @@ fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::Command
         "version": "0",
         "graph": {
             "nodes": [
-                {"step": {"key": "k", "cmd": "true"}, "env": {}}
+                {"step": {"key": "k", "action": {"cmd": "true"}}, "env": {}}
             ],
             "edge_property": "directed",
             "edges": []

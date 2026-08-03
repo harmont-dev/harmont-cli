@@ -17,10 +17,12 @@ import hashlib
 import re
 from typing import TYPE_CHECKING
 
+from ._step import Command, Mount
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from ._step import Step
+    from ._step import Step, StepAction
 
 _EMOJI_SHORTCODE_RE = re.compile(r":[a-z0-9_+-]+:")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
@@ -43,15 +45,21 @@ def slugify_label(label: str) -> str:
     return s.strip("-")
 
 
-def hash_key(parent_key: str, cmd: str, position: int) -> str:
+def hash_key(parent_key: str, action: StepAction | None, position: int) -> str:
     """Stable 12-char SHA-256 prefix over (parent_key, cmd, position).
 
     Used as the fallback key when no usable slug is available."""
     h = hashlib.sha256()
     h.update(parent_key.encode("utf-8"))
     h.update(b"\x00")
-    h.update(cmd.encode("utf-8"))
-    h.update(b"\x00")
+    if isinstance(action, Command):
+        h.update(action.cmd.encode("utf-8"))
+        h.update(b"\x00")
+    elif isinstance(action, Mount):
+        h.update(action.from_.encode("utf-8"))
+        h.update(b"\x00")
+        h.update(action.to.encode("utf-8"))
+        h.update(b"\x00")
     h.update(str(position).encode("utf-8"))
     return h.hexdigest()[:12]
 
@@ -117,5 +125,5 @@ def resolve_keys(steps: Iterable[Step]) -> dict[int, str]:
         parent_key = ""
         if s.parent is not None and id(s.parent) in keys:
             parent_key = keys[id(s.parent)]
-        keys[sid] = hash_key(parent_key, s.cmd or "", position)
+        keys[sid] = hash_key(parent_key, s.action, position)
     return keys

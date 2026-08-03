@@ -24,7 +24,7 @@ def test_zero_param_target_still_works():
         return hm.sh("apt-get update")
 
     s = apt_base()
-    assert s.cmd == "apt-get update"
+    assert s.action.cmd == "apt-get update"
 
 
 def test_target_param_receives_dependency_value():
@@ -38,7 +38,7 @@ def test_target_param_receives_dependency_value():
 
     v = venv()
     assert v.parent is not None
-    assert v.parent.cmd == "apt-get update"
+    assert v.parent.action.cmd == "apt-get update"
 
 
 def test_multi_param_target():
@@ -59,8 +59,8 @@ def test_multi_param_target():
         return (apt_base, node_install)
 
     base, node = project()
-    assert base.cmd == "apt-get update"
-    assert "curl" in node.cmd
+    assert base.action.cmd == "apt-get update"
+    assert "curl" in node.action.cmd
 
 
 def test_param_named_after_unregistered_target_raises():
@@ -104,7 +104,7 @@ def test_default_value_used_when_no_target_registered():
         return hm.sh(f"echo {image_tag}")
 
     s = maybe_extra()
-    assert s.cmd == "echo ubuntu:24.04"
+    assert s.action.cmd == "echo ubuntu:24.04"
 
 
 def test_memoization_still_works_with_params():

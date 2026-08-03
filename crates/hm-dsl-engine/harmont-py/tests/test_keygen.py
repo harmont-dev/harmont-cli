@@ -34,7 +34,7 @@ def test_none_policy_emits_no_key():
     graph = _make_graph(
         [
             {
-                "step": {"key": "a", "cmd": "echo", "cache": {"policy": "none"}},
+                "step": {"key": "a", "action": {"cmd": "echo"}, "cache": {"policy": "none"}},
                 "env": {},
             },
         ]
@@ -56,7 +56,7 @@ def test_forever_policy_key_matches_scheme_formula():
             {
                 "step": {
                     "key": "a",
-                    "cmd": "echo hi",
+                    "action": {"cmd": "echo hi"},
                     "cache": {"policy": "forever", "env_keys": []},
                 },
                 "env": {},
@@ -85,7 +85,7 @@ def test_ttl_policy_key_includes_bucket():
             {
                 "step": {
                     "key": "a",
-                    "cmd": "x",
+                    "action": {"cmd": "x"},
                     "cache": {"policy": "ttl", "duration_seconds": 3600, "env_keys": []},
                 },
                 "env": {},
@@ -117,7 +117,7 @@ def test_on_change_reads_file_contents():
                 {
                     "step": {
                         "key": "a",
-                        "cmd": "make",
+                        "action": {"cmd": "make"},
                         "cache": {"policy": "on_change", "paths": ["file.txt"]},
                     },
                     "env": {},
@@ -158,7 +158,7 @@ def test_on_change_handles_directory_paths():
                 {
                     "step": {
                         "key": "s",
-                        "cmd": "make",
+                        "action": {"cmd": "make"},
                         "cache": {"policy": "on_change", "paths": ["dir/"]},
                     },
                     "env": {},
@@ -181,7 +181,7 @@ def test_on_change_handles_directory_paths():
                 {
                     "step": {
                         "key": "s",
-                        "cmd": "make",
+                        "action": {"cmd": "make"},
                         "cache": {"policy": "on_change", "paths": ["dir/"]},
                     },
                     "env": {},
@@ -205,7 +205,7 @@ def test_on_change_handles_directory_paths():
                 {
                     "step": {
                         "key": "s",
-                        "cmd": "make",
+                        "action": {"cmd": "make"},
                         "cache": {"policy": "on_change", "paths": ["dir/"]},
                     },
                     "env": {},
@@ -230,7 +230,7 @@ def test_on_change_missing_path_skipped():
                 {
                     "step": {
                         "key": "s",
-                        "cmd": "make",
+                        "action": {"cmd": "make"},
                         "cache": {"policy": "on_change", "paths": ["nope/"]},
                     },
                     "env": {},
@@ -254,7 +254,7 @@ def test_env_keys_are_sorted_and_picked_up():
             {
                 "step": {
                     "key": "a",
-                    "cmd": "echo",
+                    "action": {"cmd": "echo"},
                     "cache": {"policy": "forever", "env_keys": ["BAR", "FOO"]},
                 },
                 "env": {},
@@ -284,7 +284,7 @@ def test_parent_key_chains_through_resolved_cache_keys():
             {
                 "step": {
                     "key": "a",
-                    "cmd": "x",
+                    "action": {"cmd": "x"},
                     "cache": {"policy": "forever", "env_keys": []},
                 },
                 "env": {},
@@ -292,7 +292,7 @@ def test_parent_key_chains_through_resolved_cache_keys():
             {
                 "step": {
                     "key": "b",
-                    "cmd": "y",
+                    "action": {"cmd": "y"},
                     "cache": {"policy": "forever", "env_keys": []},
                 },
                 "env": {},
@@ -323,7 +323,7 @@ def test_compose_concatenates_subpolicies():
             {
                 "step": {
                     "key": "a",
-                    "cmd": "z",
+                    "action": {"cmd": "z"},
                     "cache": {
                         "policy": "compose",
                         "sub_policies": [
@@ -359,13 +359,13 @@ def test_parent_without_cache_is_planerror():
     graph = _make_graph(
         [
             {
-                "step": {"key": "a", "cmd": "x"},
+                "step": {"key": "a", "action": {"cmd": "x"}},
                 "env": {},
             },
             {
                 "step": {
                     "key": "b",
-                    "cmd": "y",
+                    "action": {"cmd": "y"},
                     "cache": {"policy": "forever", "env_keys": []},
                 },
                 "env": {},
@@ -395,7 +395,7 @@ def test_golden_hash_cross_sdk_reference_pipeline():
             {
                 "step": {
                     "key": "build",
-                    "cmd": "make build",
+                    "action": {"cmd": "make build"},
                     "cache": {"policy": "forever", "env_keys": []},
                 },
                 "env": {},
@@ -428,7 +428,7 @@ def test_golden_hash_cross_sdk_chained_pipeline():
             {
                 "step": {
                     "key": "setup",
-                    "cmd": "apt-get update && apt-get install -y gcc",
+                    "action": {"cmd": "apt-get update && apt-get install -y gcc"},
                     "cache": {"policy": "forever", "env_keys": []},
                 },
                 "env": {},
@@ -436,7 +436,7 @@ def test_golden_hash_cross_sdk_chained_pipeline():
             {
                 "step": {
                     "key": "compile",
-                    "cmd": "gcc -o main main.c",
+                    "action": {"cmd": "gcc -o main main.c"},
                     "cache": {"policy": "forever", "env_keys": []},
                 },
                 "env": {},

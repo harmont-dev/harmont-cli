@@ -8,12 +8,12 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["action"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("action", {}).get("cmd") or ""):
             return n["step"]
     msg = f"no command step containing {needle!r}"
     raise AssertionError(msg)
@@ -55,8 +55,8 @@ def test_elixir_version_in_install_cmd():
     ex = hm.elixir(elixir_version="1.18.3", otp_version="27.3.3")
     p = hm.pipeline([ex.compile()])
     elixir_step = _step_by_substring(p, "elixir-otp")
-    assert "1.18.3" in elixir_step["cmd"]
-    assert "27" in elixir_step["cmd"]
+    assert "1.18.3" in elixir_step["action"]["cmd"]
+    assert "27" in elixir_step["action"]["cmd"]
 
 
 def test_elixir_invalid_version_rejected():
@@ -93,11 +93,13 @@ def test_elixir_action_labels():
 def test_elixir_plt_cached_on_lock():
     ex = hm.elixir()
     step = ex.plt()
-    assert "mix dialyzer --plt" in (step.cmd or "")
+    assert "mix dialyzer --plt" in (step.action.cmd or "")
     assert step.label == ":ex: plt"
     p = hm.pipeline([step])
     plt_ir = next(
-        n["step"] for n in p["graph"]["nodes"] if "dialyzer --plt" in (n["step"].get("cmd") or "")
+        n["step"]
+        for n in p["graph"]["nodes"]
+        if "dialyzer --plt" in (n["step"].get("action", {}).get("cmd") or "")
     )
     assert plt_ir["cache"]["policy"] == "on_change"
     assert "./mix.lock" in plt_ir["cache"]["paths"]
@@ -123,30 +125,30 @@ def test_elixir_with_base_skips_apt():
 def test_elixir_test_cover_flag():
     ex = hm.elixir()
     step = ex.test(cover=True)
-    assert "--cover" in (step.cmd or "")
+    assert "--cover" in (step.action.cmd or "")
 
 
 def test_elixir_test_partitions_flag():
     ex = hm.elixir()
     step = ex.test(partitions=4)
-    assert "--partitions 4" in (step.cmd or "")
+    assert "--partitions 4" in (step.action.cmd or "")
 
 
 def test_elixir_credo_no_strict():
     ex = hm.elixir()
     step = ex.credo(strict=False)
-    assert "--strict" not in (step.cmd or "")
-    assert "mix credo" in (step.cmd or "")
+    assert "--strict" not in (step.action.cmd or "")
+    assert "mix credo" in (step.action.cmd or "")
 
 
 def test_elixir_release_custom_env():
     ex = hm.elixir()
     step = ex.release(mix_env="staging")
-    assert "MIX_ENV=staging" in (step.cmd or "")
+    assert "MIX_ENV=staging" in (step.action.cmd or "")
 
 
 def test_elixir_mix_escape_hatch():
     ex = hm.elixir()
     step = ex.mix("phx.digest")
-    assert "mix phx.digest" in (step.cmd or "")
+    assert "mix phx.digest" in (step.action.cmd or "")
     assert step.label == ":ex: phx.digest"

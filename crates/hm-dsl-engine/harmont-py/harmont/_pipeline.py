@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from ._duration import parse_duration
 from ._keys import resolve_keys
+from ._step import Command, Mount
 from .cache import (
     CacheCompose,
     CacheForever,
@@ -25,13 +26,26 @@ from .cache import (
 )
 
 if TYPE_CHECKING:
-    from ._step import Step
+    from ._step import Step, StepAction
 
 # Across-the-board default image for imageless root steps. The SDK's
 # toolchains assume an apt-capable base (apt-get), so ubuntu:24.04 is the
 # universal default; child steps boot from their parent's snapshot and
 # stay imageless.
 DEFAULT_IMAGE = "ubuntu:24.04"
+
+
+def _action_to_dict(action: StepAction) -> dict[str, Any]:
+    action_dict = {}
+    if isinstance(action, Command):
+        action_dict["cmd"] = action.cmd
+        if action.env:
+            action_dict["env"] = action.env
+    elif isinstance(action, Mount):
+        action_dict["from"] = action.from_
+        action_dict["to"] = action.to
+
+    return action_dict
 
 
 def pipeline(
@@ -76,7 +90,7 @@ def _lower_to_graph(
     explicit ``depends_on`` edges.
     """
     ordered = _topo_collect(leaves)
-    command_steps = [s for s in ordered if s.cmd is not None and not s.is_wait]
+    command_steps = [s for s in ordered if s.action and not s.is_wait]
     keys = resolve_keys(command_steps)
 
     # Assign integer node indices (dense, in emission order).
@@ -105,18 +119,16 @@ def _lower_to_graph(
             pre_wait_indices = []
             continue
 
-        if s.cmd is None:
+        if not s.action:
             # scratch or fork — passthrough, not emitted.
             continue
 
         node_idx = idx_by_id[id(s)]
         step_key = keys[id(s)]
 
-        # Build the CommandStep dict (no "type" or "builds_in" fields).
-        step_dict: dict[str, Any] = {
-            "key": step_key,
-            "cmd": s.cmd,
-        }
+        # Build the Step dict (no "type" or "builds_in" fields).
+        step_dict: dict[str, Any] = {"key": step_key, "action": _action_to_dict(s.action)}
+
         if s.label is not None:
             step_dict["label"] = s.label
         if s.cache is not None:
@@ -137,8 +149,8 @@ def _lower_to_graph(
         }
         if env:
             merged_env.update(env)
-        if s.env:
-            merged_env.update(s.env)
+        if isinstance(s.action, Command) and s.action.env:
+            merged_env.update(s.action.env)
 
         nodes.append({"step": step_dict, "env": merged_env})
 
@@ -172,12 +184,12 @@ def _lower_to_graph(
 
 def _find_idx_by_key(
     key: str,
-    command_steps: list[Step],
+    steps: list[Step],
     keys: dict[int, str],
     idx_by_id: dict[int, int],
 ) -> int:
     """Return the node index for the step with the given resolved key."""
-    for s in command_steps:
+    for s in steps:
         if keys[id(s)] == key:
             return idx_by_id[id(s)]
     msg = f"BUG: no step with key {key!r}"
@@ -216,7 +228,7 @@ def _resolved_parent_key(s: Step, keys: dict[int, str]) -> str | None:
     """Walk back through scratch/fork nodes to the nearest emitted ancestor."""
     node = s.parent
     while node is not None:
-        if node.cmd is not None and not node.is_wait:
+        if node.action and not node.is_wait:
             return keys[id(node)]
         node = node.parent
     return None

@@ -244,3 +244,34 @@ fn resolves_pipeline_via_slug() {
         "expected scratch fixture output: {stderr}"
     );
 }
+
+#[test]
+fn mount_works_propperly() {
+    if skip_if_no_docker() {
+        return;
+    }
+    let tmp = tempfile::tempdir().expect("mktempdir");
+    let workspace_dir = tmp.path().join("workspace");
+    let harmont_dir = workspace_dir.join(".hm");
+    let pipeline = r#"import harmont as hm
+
+@hm.pipeline('ci', triggers=[hm.push(branch='main')])
+def ci() -> hm.Step:
+    return hm.scratch()
+            .mount(from_="../hommer.txt",to=".", image="alpine:3.20")
+            .sh('cat homer.txt', label='homer')
+"#;
+    let homer = "~(_8^(I)";
+
+    std::fs::create_dir_all(&harmont_dir).unwrap();
+    std::fs::write(tmp.path().join("homer.txt"), homer).unwrap();
+    std::fs::write(harmont_dir.join("pipeline.py"), pipeline).unwrap();
+
+    assert_cmd::Command::cargo_bin("hm")
+        .unwrap()
+        .args(["run", "ci"])
+        .current_dir(workspace_dir)
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("[homer] ~(_8^(I)"));
+}

@@ -168,15 +168,22 @@ impl Drop for DockerVm {
     }
 }
 
-/// Build a tar archive from a host directory.
+/// Build a tar archive from a host path.
 ///
-/// The archive contains all files under `host_path` with paths relative
+/// If the path points to a directory, the archive will contain all files under `host_path` with paths relative
 /// to `host_path` itself (i.e. the directory contents, not the directory).
-fn tar_directory(host_path: &Path) -> Result<Vec<u8>> {
+fn tar_from(host_path: &Path) -> Result<Vec<u8>> {
     let mut archive = tar::Builder::new(Vec::new());
-    archive
-        .append_dir_all(".", host_path)
-        .with_context(|| format!("archiving '{}'", host_path.display()))?;
+    if host_path.is_dir() {
+        archive
+            .append_dir_all(".", host_path)
+            .with_context(|| format!("archiving '{}'", host_path.display()))?;
+    } else if host_path.is_file() {
+        archive
+            .append_path(host_path)
+            .with_context(|| format!("archiving '{}'", host_path.display()))?;
+    }
+
     archive.finish().context("finalizing tar archive")?;
     archive.into_inner().context("extracting tar bytes")
 }
@@ -212,7 +219,7 @@ impl Vm for DockerVm {
             while output.next().await.is_some() {}
         }
 
-        let tar_bytes = tar_directory(host_path)?;
+        let tar_bytes = tar_from(host_path)?;
         let options = UploadToContainerOptions {
             path: guest_path,
             ..Default::default()

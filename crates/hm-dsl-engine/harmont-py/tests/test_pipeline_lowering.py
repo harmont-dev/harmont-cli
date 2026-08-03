@@ -118,7 +118,7 @@ def test_command_omits_optional_fields_when_unset():
     step = graph["nodes"][0]["step"]
     # Required fields present.
     assert "key" in step
-    assert "cmd" in step
+    assert "action" in step
     # No "type" or "builds_in" fields in the new format.
     assert "type" not in step
     assert "builds_in" not in step

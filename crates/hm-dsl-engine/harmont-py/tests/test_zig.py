@@ -8,12 +8,12 @@ import harmont as hm
 
 
 def _cmds(p: dict) -> list[str]:
-    return [n["step"]["cmd"] for n in p["graph"]["nodes"]]
+    return [n["step"]["action"]["cmd"] for n in p["graph"]["nodes"]]
 
 
 def _step_by_substring(p: dict, needle: str) -> dict:
     for n in p["graph"]["nodes"]:
-        if needle in (n["step"].get("cmd") or ""):
+        if needle in (n["step"].get("action", {}).get("cmd") or ""):
             return n["step"]
     raise AssertionError(needle)
 
@@ -39,7 +39,7 @@ def test_zig_version_in_install_cmd():
     z = hm.zig(path=".", version="0.14.1")
     p = hm.pipeline([z.build()])
     install = _step_by_substring(p, "ziglang.org")
-    assert "0.14.1" in install["cmd"]
+    assert "0.14.1" in install["action"]["cmd"]
 
 
 def test_zig_invalid_version_rejected():
@@ -66,7 +66,7 @@ def test_zig_old_version_uses_old_url_format():
     z = hm.zig(path=".", version="0.13.0")
     p = hm.pipeline([z.build()])
     install = _step_by_substring(p, "ziglang.org")
-    assert "zig-linux-x86_64-0.13.0" in install["cmd"]
+    assert "zig-linux-x86_64-0.13.0" in install["action"]["cmd"]
 
 
 def test_zig_new_version_uses_new_url_format():
@@ -74,7 +74,7 @@ def test_zig_new_version_uses_new_url_format():
     z = hm.zig(path=".", version="0.14.1")
     p = hm.pipeline([z.build()])
     install = _step_by_substring(p, "ziglang.org")
-    assert "zig-x86_64-linux-0.14.1" in install["cmd"]
+    assert "zig-x86_64-linux-0.14.1" in install["action"]["cmd"]
 
 
 def test_zig_with_base_skips_apt():

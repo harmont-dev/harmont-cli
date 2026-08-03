@@ -125,8 +125,8 @@ mod tests {
             "default_image": "ubuntu:24.04",
             "graph": {
                 "nodes": [
-                    {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                    {"step": {"key": "b", "cmd": "echo b"}, "env": {}}
+                    {"step": {"key": "a", "action": {"cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                    {"step": {"key": "b", "action": {"cmd": "echo b"}}, "env": {}}
                 ],
                 "node_holes": [],
                 "edge_property": "directed",
@@ -139,8 +139,8 @@ mod tests {
             "version": "0",
             "graph": {
                 "nodes": [
-                    {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                    {"step": {"key": "b", "cmd": "echo b", "image": "ubuntu:24.04"}, "env": {}}
+                    {"step": {"key": "a", "action": {"cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                    {"step": {"key": "b", "action": {"cmd": "echo b"}, "image": "ubuntu:24.04"}, "env": {}}
                 ],
                 "node_holes": [],
                 "edge_property": "directed",

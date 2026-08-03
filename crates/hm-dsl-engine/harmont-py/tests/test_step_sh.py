@@ -11,7 +11,7 @@ def test_sh_links_parent_and_sets_cmd():
     parent = scratch()
     child = parent.sh("echo hi")
     assert child.parent is parent
-    assert child.cmd == "echo hi"
+    assert child.action.cmd == "echo hi"
     assert child.is_wait is False
 
 
@@ -28,19 +28,19 @@ def test_sh_carries_all_kwargs():
     )
     assert s.label == "build"
     assert s.cache == CacheNone()
-    assert s.env == {"CI": "true"}
+    assert s.action.env == {"CI": "true"}
     assert s.timeout_seconds == 600
     assert s.key_override == "explicit-key"
 
 
 def test_sh_cwd_prepends_cd():
     s = scratch().sh("pytest -v", cwd="cidsl/py")
-    assert s.cmd == "cd cidsl/py && pytest -v"
+    assert s.action.cmd == "cd cidsl/py && pytest -v"
 
 
 def test_sh_cwd_none_leaves_cmd_unchanged():
     s = scratch().sh("echo hi", cwd=None)
-    assert s.cmd == "echo hi"
+    assert s.action.cmd == "echo hi"
 
 
 def test_sh_cwd_empty_string_is_rejected():

@@ -5,8 +5,11 @@ use harmont_cloud::{HarmontClient, HarmontError};
 use hm_common::url_nonce::UrlNonce;
 use hm_core::{app_ctx::AppCtx, config::ResolvedCloudConfig};
 use secrecy::ExposeSecret as _;
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpListener};
 use thiserror::Error;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::TcpListener,
+};
 use tracing::{info, instrument, warn};
 use url::Url;
 
@@ -33,10 +36,13 @@ impl BrowserAuth {
     /// spawn the task that serves the redirect.
     #[instrument]
     async fn open(app: Url, nonce: &UrlNonce) -> Result<(), BrowserAuthError> {
-        let listener = TcpListener::bind("127.0.0.1:0").await
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
             .map_err(BrowserAuthError::CouldNotCreateListener)?;
-        let port = listener.local_addr()
-            .map_err(BrowserAuthError::CouldNotDeduceAddress)?.port();
+        let port = listener
+            .local_addr()
+            .map_err(BrowserAuthError::CouldNotDeduceAddress)?
+            .port();
 
         let mut url = app;
         url.set_path("/cli-login");
@@ -117,14 +123,16 @@ impl PasteTokenAuth {
 
     /// Prompt for a login code, re-prompting until a non-empty code is entered.
     async fn read_code() -> Result<String, PasteAuthError> {
-        tokio::task::spawn_blocking(|| loop {
-            let raw = dialoguer::Input::<String>::new()
-                .with_prompt("code")
-                .interact()
-                .map_err(|e| PasteAuthError::Prompt(e.to_string()))?;
-            let code = raw.trim().to_string();
-            if !code.is_empty() {
-                return Ok(code);
+        tokio::task::spawn_blocking(|| {
+            loop {
+                let raw = dialoguer::Input::<String>::new()
+                    .with_prompt("code")
+                    .interact()
+                    .map_err(|e| PasteAuthError::Prompt(e.to_string()))?;
+                let code = raw.trim().to_string();
+                if !code.is_empty() {
+                    return Ok(code);
+                }
             }
         })
         .await
@@ -166,7 +174,9 @@ impl<'client> ClaimPoller<'client> {
         loop {
             match self.client.claim_token(&nonce).await {
                 Ok(token) => return Ok(token),
-                Err(HarmontError::Api { status: 400, code, .. }) if code == "cli_code_invalid" => {
+                Err(HarmontError::Api {
+                    status: 400, code, ..
+                }) if code == "cli_code_invalid" => {
                     if Instant::now() >= deadline {
                         return Err(ClaimError::TimedOut);
                     }

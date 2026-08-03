@@ -4,17 +4,25 @@ expression: schema
 ---
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CommandStep",
-  "description": "A single build command within a pipeline.\n\nSerialized as a JSON object inside each graph node's `step` field. The `key` is the unique identifier used to reference this step in edges and log output.",
+  "title": "Step",
+  "description": "A single build action within a pipeline.\n\nSerialized as a JSON object inside each graph node's `step` field. The `key` is the unique identifier used to reference this step in edges and log output.",
   "type": "object",
   "required": [
-    "cmd",
+    "action",
     "key"
   ],
   "properties": {
     "key": {
       "description": "Unique identifier for this step within the pipeline.",
       "type": "string"
+    },
+    "action": {
+      "description": "Behavior of the node",
+      "allOf": [
+        {
+          "$ref": "#/definitions/StepAction"
+        }
+      ]
     },
     "label": {
       "description": "Human-readable label shown in build output.",
@@ -24,10 +32,6 @@ expression: schema
         "null"
       ]
     },
-    "cmd": {
-      "description": "Shell command to execute inside the container.",
-      "type": "string"
-    },
     "image": {
       "description": "Docker image to boot from. Root steps without an image inherit `PipelineGraph::default_image`; child steps boot from their parent's committed snapshot.",
       "default": null,
@@ -36,19 +40,8 @@ expression: schema
         "null"
       ]
     },
-    "env": {
-      "description": "Per-step environment variables merged on top of the pipeline env.",
-      "default": null,
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": {
-        "type": "string"
-      }
-    },
     "timeout_seconds": {
-      "description": "Maximum wall-clock seconds before the step is killed.\n\n`NonZeroU32`: a `0`-second budget is rejected at the wire boundary.",
+      "description": "Per-step environment variables merged on top of the pipeline env. Maximum wall-clock seconds before the step is killed.\n\n`NonZeroU32`: a `0`-second budget is rejected at the wire boundary.",
       "default": null,
       "type": [
         "integer",
@@ -81,6 +74,50 @@ expression: schema
     }
   },
   "definitions": {
+    "StepAction": {
+      "anyOf": [
+        {
+          "description": "A single build command within a pipeline.",
+          "type": "object",
+          "required": [
+            "cmd"
+          ],
+          "properties": {
+            "cmd": {
+              "description": "Shell command to execute inside the container.",
+              "type": "string"
+            },
+            "env": {
+              "description": "Per-step environment variables merged on top of the pipeline env.",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "description": "Archive mount from a local path to a workspace path",
+          "type": "object",
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
     "Cache": {
       "description": "Snapshot cache configuration for a step.",
       "type": "object",

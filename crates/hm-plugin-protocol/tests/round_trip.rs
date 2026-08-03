@@ -29,12 +29,14 @@ where
 #[rstest]
 fn executor_input_round_trip() {
     let inp = ExecutorInput {
-        step: CommandStep {
+        step: Step {
             key: "build".into(),
+            action: StepAction::Command {
+                cmd: "cargo build".into(),
+                env: None,
+            },
             label: None,
-            cmd: "cargo build".into(),
             image: Some("rust:1.82".into()),
-            env: None,
             timeout_seconds: None,
             cache: None,
             runner: Some("docker".into()),

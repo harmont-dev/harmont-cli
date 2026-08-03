@@ -9,18 +9,20 @@
 
 use std::collections::BTreeMap;
 
-use hm_pipeline_ir::{CommandStep, EdgeKind, Transition};
+use hm_pipeline_ir::{EdgeKind, Step, StepAction, Transition};
 use rstest::rstest;
 
 #[rstest]
 fn transition_round_trips() {
     let nw = Transition {
-        step: CommandStep {
+        step: Step {
             key: "a".into(),
+            action: StepAction::Command {
+                cmd: "echo a".into(),
+                env: None,
+            },
             label: Some("step A".into()),
-            cmd: "echo a".into(),
             image: Some("ubuntu:24.04".into()),
-            env: None,
             timeout_seconds: None,
             cache: None,
             runner: None,
@@ -57,9 +59,9 @@ fn build_test_graph() -> PipelineGraph {
         "default_image": "ubuntu:24.04",
         "graph": {
             "nodes": [
-                {"step": {"key": "a", "cmd": "echo a", "image": "ubuntu:24.04"}, "env": {}},
-                {"step": {"key": "b", "cmd": "echo b"}, "env": {}},
-                {"step": {"key": "c", "cmd": "echo c", "image": "ubuntu:24.04"}, "env": {}}
+                {"step": {"key": "a", "action": {"cmd": "echo a"}, "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "b", "action": {"cmd": "echo b"}}, "env": {}},
+                {"step": {"key": "c", "action": {"cmd": "echo c"}, "image": "ubuntu:24.04"}, "env": {}}
             ],
             "node_holes": [],
             "edge_property": "directed",

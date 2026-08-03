@@ -11,4 +11,4 @@ pub mod ir;
 
 pub use events::{BuildEvent, PlanSummary, StdStream};
 pub use executor::{ArchiveId, ArtifactRef, CacheDecision, ExecutorInput, SnapshotRef, StepResult};
-pub use ir::{Cache, CommandStep};
+pub use ir::{Cache, Step, StepAction};

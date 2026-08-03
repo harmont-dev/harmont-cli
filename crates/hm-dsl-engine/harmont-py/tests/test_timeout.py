@@ -9,7 +9,7 @@ import harmont as hm
 def test_timeout_sets_seconds_on_step():
     step = hm.timeout("30s", hm.sh("echo foo"))
     assert step.timeout_seconds == 30
-    assert step.cmd == "echo foo"
+    assert step.action.cmd == "echo foo"
 
 
 def test_timeout_accepts_int_and_timedelta():

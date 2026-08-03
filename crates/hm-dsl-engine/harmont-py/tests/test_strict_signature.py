@@ -13,7 +13,7 @@ from harmont._deps import (
     resolve_deps,
     validate_target_signature,
 )
-from harmont._step import Step
+from harmont._step import Command, Step
 
 
 @pytest.fixture(autouse=True)
@@ -24,14 +24,14 @@ def _reset():
 
 
 def test_target_marker_resolves_via_registry():
-    register_named_target("apt_base", lambda: Step(cmd="apt-get update"))
+    register_named_target("apt_base", lambda: Step(action=Command(cmd="apt-get update")))
 
     def fn(apt_base: hm.Target[Step]) -> Step:  # type: ignore[empty-body]
         ...
 
     kwargs = resolve_deps(fn)
     assert isinstance(kwargs["apt_base"], Step)
-    assert kwargs["apt_base"].cmd == "apt-get update"
+    assert kwargs["apt_base"].action.cmd == "apt-get update"
 
 
 def test_target_marker_missing_target_raises():
@@ -50,7 +50,7 @@ def test_base_image_marker_injects_scratch_step_with_image():
     base = kwargs["base"]
     assert isinstance(base, Step)
     assert base.parent is None
-    assert base.cmd is None
+    assert base.action is None
     assert base.image == "ubuntu-24.04"
 
 

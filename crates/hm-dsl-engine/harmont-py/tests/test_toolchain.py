@@ -41,11 +41,11 @@ def test_make_install_chain_default_emits_apt_then_tool():
     )
     apt = tool.parent
     assert apt is not None
-    assert "apt-get install -y curl" in (apt.cmd or "")
+    assert "apt-get install -y curl" in (apt.action.cmd or "")
     assert apt.label == ":lang: apt-base"
     assert isinstance(apt.cache, CacheTTL)
     assert apt.cache.duration == APT_TTL
-    assert tool.cmd == "install_tool.sh"
+    assert tool.action.cmd == "install_tool.sh"
     assert tool.label == ":lang: tool"
     assert isinstance(tool.cache, CacheOnChange)
     assert tool.cache.paths == ("lockfile",)
@@ -63,7 +63,7 @@ def test_make_install_chain_with_base_skips_apt():
         base=base,
     )
     assert tool.parent is base
-    assert tool.cmd == "install.sh"
+    assert tool.action.cmd == "install.sh"
     assert tool.label == ":lang: tool"
 
 

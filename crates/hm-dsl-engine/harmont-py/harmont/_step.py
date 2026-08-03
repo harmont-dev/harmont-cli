@@ -8,10 +8,26 @@ outside ``harmont`` should import from it.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Union
 
 if TYPE_CHECKING:
     from .cache import CachePolicy
+
+
+@dataclass(frozen=True)
+class Command:
+    cmd: str
+    env: dict[str, str] | None = None
+
+
+@dataclass(frozen=True)
+class Mount:
+    from_: str
+    to: str
+
+
+StepAction = Union["Command", "Mount"]
 
 
 @dataclass(frozen=True)
@@ -19,11 +35,13 @@ class Step:
     """Immutable chain node — the primitive the DSL is built on.
 
     Steps are constructed via `scratch()` or `wait()` and extended by
-    calling ``.sh()`` or ``.fork()`` on the result. Every mutating method
+    calling ``.sh()``, ``mount()`` or ``.fork()`` on the result. Every mutating method
     returns a new ``Step``; the receiver is unchanged.
     """
 
-    cmd: str | None = None
+    action: StepAction | None = None
+    """Action realized by the Step. Can be either a Mount or a Commmand"""
+
     parent: Step | None = None
     """In-tree pointer used by the lowering pass to walk back to the
     nearest emitted ancestor. Distinct from the wire-format
@@ -33,7 +51,6 @@ class Step:
     continue_on_failure: bool = False
     label: str | None = None
     cache: CachePolicy | None = None
-    env: dict[str, str] | None = None
     timeout_seconds: int | None = None
     image: str | None = None
     """Local-mode Docker base image override for this step. Ignored when
@@ -52,6 +69,86 @@ class Step:
     """Manual key override; surfaces as the `key=` kwarg on `.sh()`.
     The field is renamed so it doesn't shadow the runtime-derived key
     the lowering pass produces in pipeline.py."""
+
+    def mount(
+        self,
+        *,
+        from_: str,
+        to: str,
+        label: str | None = None,
+        cache: CachePolicy | None = None,
+        image: str | None = None,
+        runner: str | None = None,
+        runner_args: dict[str, Any] | None = None,
+        key: str | None = None,
+        strict: bool = True,
+    ) -> Step:
+        """Injects an external directory into the workspace during the pipeline execution.
+
+        Returns a new ``Step``; the receiver is unchanged (steps are immutable).
+
+        The mount is a hint to the executor to bind-mount the file/directory at
+        ``from_`` onto the container's path ``to``.
+        Both paths must be relative to the workspace root and ``to``
+        should always point to a directory inside the workspace.
+
+        Args:
+            from_: Source directory relative to the workspace root.
+            to: Destination directory inside the step container, relative
+                to the workspace root. Must exist as a directory or not
+                exist yet; must be inside the workspace.
+            label: Human-facing label shown in the UI.
+            cache: Cache policy controlling result reuse across builds.
+            image: Local-mode Docker base image for this step.
+            runner: Executor plugin runner name. ``None`` selects the
+                default Docker runner.
+            runner_args: Plugin-specific arguments validated by the
+                runner's schema.
+            key: Manual key override for this step in the v0 IR.
+            strict: Aditional check which validates if the source file
+                exists during the function's call. Defaults to ``True``.
+                It's not included in the IR.
+
+        Returns:
+            A new ``Step`` with this mount appended to the chain.
+
+        Raises:
+            ValueError: If ``from_`` or ``to`` is an absolute path, if
+                ``to`` resolves to an existing file (non-directory), or
+                outside the workspace root.
+        """
+
+        effective_image = image or (self.image if self.action is None else None)
+        source_path = Path(from_)
+        dest_path = Path(to)
+        workspace = Path(".").resolve()
+
+        if strict and not source_path.exists():
+            msg = (
+                "Source path does not exists."
+                "If you are generating it dinamically"
+                "declare the ``strict`` argument as ``False``"
+            )
+            raise ValueError(msg)
+        if dest_path.is_absolute() or source_path.is_absolute():
+            msg = "Both paths should be relative to the workspace"
+            raise ValueError(msg)
+        if dest_path.exists() and not dest_path.is_dir():
+            msg = "Destination path of a mount should be a directory"
+            raise ValueError(msg)
+        if workspace == (r_dest := dest_path.resolve()) or workspace in r_dest.parents:
+            return Step(
+                action=Mount(from_=from_, to=to),
+                parent=self,
+                label=label,
+                cache=cache,
+                image=effective_image,
+                runner=runner,
+                runner_args=runner_args,
+                key_override=key,
+            )
+        msg = f"Destination path of a mount should be inside the workspace, but points to {to}"
+        raise ValueError(msg)
 
     def sh(
         self,
@@ -107,15 +204,12 @@ class Step:
         # passes it down to the first emitted command step. Once the
         # chain has a real cmd, inheritance stops — keeps wire format
         # identical for normal chains.
-        effective_image = (
-            image if image is not None else (self.image if self.cmd is None else None)
-        )
+        effective_image = image or (self.image if self.action is None else None)
         return Step(
-            cmd=effective_cmd,
+            action=Command(cmd=effective_cmd, env=env),
             parent=self,
             label=label,
             cache=cache,
-            env=env,
             image=effective_image,
             runner=runner,
             runner_args=runner_args,
@@ -135,7 +229,7 @@ class Step:
         Returns:
             A new ``Step`` branching from this one.
         """
-        return Step(cmd=None, parent=self, label=label)
+        return Step(parent=self, label=label)
 
 
 def scratch() -> Step:

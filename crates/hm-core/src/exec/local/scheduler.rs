@@ -40,7 +40,7 @@ use hm_plugin_protocol::{
 };
 use uuid::Uuid;
 
-use hm_pipeline_ir::{DurationMs, EdgeKind, PipelineGraph, Transition};
+use hm_pipeline_ir::{DurationMs, EdgeKind, PipelineGraph, StepAction, Transition};
 
 use crate::exec::local::runner::{RunnerRegistry, StepContext};
 use crate::exec::local::source::build_archive_bytes;
@@ -391,9 +391,11 @@ async fn execute_step(
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
-        step_wire
-            .cmd
-            .trim()
+        let feat = match &step_wire.action {
+            StepAction::Command { cmd, .. } => cmd.clone(),
+            StepAction::Mount { from, .. } => from.clone(),
+        };
+        feat.trim()
             .ellipsize(Measure::Columns(40), Pos::End, Indicator::UNICODE)
             .to_string()
     });

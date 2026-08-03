@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use hm_plugin_protocol::{
-    BuildEvent, CacheDecision, ExecutorInput, SnapshotRef, StdStream, StepResult,
+    BuildEvent, CacheDecision, ExecutorInput, SnapshotRef, StdStream, StepAction, StepResult,
 };
 use hm_vm::types::OutputSink;
 use hm_vm::{Action, CachingPolicy, HmVm, ImageSource, SnapshotId};
@@ -68,13 +68,6 @@ impl StepRunner for VmRunner {
 
 #[tracing::instrument(skip(vm, ctx), fields(step_key = %input.step.key))]
 async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Result<StepResult> {
-    let policy = match &input.cache_lookup {
-        CacheDecision::Hit { tag } | CacheDecision::MissBuildAs { tag } => {
-            CachingPolicy::Cache { key: tag.0.clone() }
-        }
-        CacheDecision::MissNoCommit => CachingPolicy::None,
-    };
-
     let source = if let Some(ref snap) = input.parent_snapshot {
         ImageSource::Snapshot(SnapshotId::new(snap.0.clone()))
     } else {
@@ -90,74 +83,84 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         )
     };
 
-    // Inject the current workspace on every executing step, overlaying it
-    // onto the system state inherited from the parent snapshot (apt packages,
-    // installed runtimes, `node_modules`, …). Injecting only at the chain root
-    // is wrong: root steps such as `apt_base` are `CacheForever`, so their
-    // snapshots freeze the source tree captured at first build and every COW
-    // descendant inherits that stale tree — source edits never reach leaf
-    // steps. A true cache hit short-circuits inside `HmVm::execute` before
-    // inject runs, so this overlay only happens when a step actually executes;
-    // the overlay (Docker PUT-archive) adds/overwrites files without deleting
-    // the inherited system state.
-    let (inject, _temp_guard) = {
-        let archive_bytes = ctx
-            .archives
-            .get_bytes(input.workspace_archive_id)
-            .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
-        let dir =
-            extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
-        let path = dir.path().to_path_buf();
-        (Some(path), Some(dir))
-    };
+    let result = match &input.step.action {
+        StepAction::Command { cmd, .. } => {
+            let policy = match &input.cache_lookup {
+                CacheDecision::Hit { tag } | CacheDecision::MissBuildAs { tag } => {
+                    CachingPolicy::Cache { key: tag.0.clone() }
+                }
+                CacheDecision::MissNoCommit => CachingPolicy::None,
+            };
 
-    // Baseline env for shell operation inside VMs.
-    let mut env: Vec<(String, String)> = vec![
-        ("HOME".into(), "/root".into()),
-        (
-            "PATH".into(),
-            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into(),
-        ),
-    ];
-    env.extend(input.env);
+            // Inject the current workspace on every executing step, overlaying it
+            // onto the system state inherited from the parent snapshot (apt packages,
+            // installed runtimes, `node_modules`, …). Injecting only at the chain root
+            // is wrong: root steps such as `apt_base` are `CacheForever`, so their
+            // snapshots freeze the source tree captured at first build and every COW
+            // descendant inherits that stale tree — source edits never reach leaf
+            // steps. A true cache hit short-circuits inside `HmVm::execute` before
+            // inject runs, so this overlay only happens when a step actually executes;
+            // the overlay (Docker PUT-archive) adds/overwrites files without deleting
+            // the inherited system state.
+            let (inject, _temp_guard) = {
+                let archive_bytes = ctx
+                    .archives
+                    .get_bytes(input.workspace_archive_id)
+                    .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
+                let dir = extract_archive_to_tempdir(&archive_bytes)
+                    .context("extracting workspace archive")?;
+                let path = dir.path().to_path_buf();
+                (Some(path), Some(dir))
+            };
 
-    let action = Action {
-        source,
-        cmd: input.step.cmd.clone(),
-        env,
-        working_dir: input.workdir.clone(),
-        timeout: None,
-        inject,
-    };
+            // Baseline env for shell operation inside VMs.
+            let mut env: Vec<(String, String)> = vec![
+                ("HOME".into(), "/root".into()),
+                (
+                    "PATH".into(),
+                    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into(),
+                ),
+            ];
+            env.extend(input.env);
 
-    let sink = EventBusSink {
-        step_id: input.step_id,
-        bus: Arc::clone(&ctx.event_bus),
-    };
+            let action = Action {
+                source,
+                cmd: cmd.clone(),
+                env,
+                working_dir: input.workdir.clone(),
+                timeout: None,
+                inject,
+            };
 
-    let result = tokio::select! {
-        r = vm.execute(action, policy, &sink) => r,
-        () = ctx.cancel.cancelled() => {
-            anyhow::bail!("step cancelled (build timeout or sibling failure)")
+            let sink = EventBusSink {
+                step_id: input.step_id,
+                bus: Arc::clone(&ctx.event_bus),
+            };
+
+            let result = tokio::select! {
+                r = vm.execute(action, policy, &sink) => r,
+                () = ctx.cancel.cancelled() => {
+                    anyhow::bail!("step cancelled (build timeout or sibling failure)")
+                }
+            }
+            .context("vm execute failed")?;
+
+            if result.cached {
+                ctx.event_bus.emit(BuildEvent::StepCacheHit {
+                    step_id: input.step_id,
+                    key: input.step.key.clone(),
+                    tag: result
+                        .snapshot
+                        .as_ref()
+                        .map_or_else(String::new, ToString::to_string),
+                });
+            }
+            result
         }
-    }
-    .context("vm execute failed")?;
-
-    if result.cached {
-        ctx.event_bus.emit(BuildEvent::StepCacheHit {
-            step_id: input.step_id,
-            key: input
-                .step
-                .cache
-                .as_ref()
-                .and_then(|c| c.key.clone())
-                .unwrap_or_default(),
-            tag: result
-                .snapshot
-                .as_ref()
-                .map_or_else(String::new, ToString::to_string),
-        });
-    }
+        StepAction::Mount { from, to } => {
+            vm.mount_into_vm(from, to, &input.workdir, &source).await?
+        }
+    };
 
     Ok(StepResult {
         exit_code: result.exit_code,

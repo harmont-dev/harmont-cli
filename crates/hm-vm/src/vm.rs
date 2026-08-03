@@ -1,5 +1,6 @@
 //! High-level VM orchestrator.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -146,6 +147,42 @@ impl HmVm {
         Ok(ExecutionResult {
             exit_code,
             snapshot,
+            cached: false,
+        })
+    }
+
+    /// Mounts a directory into the workspace
+    /// as an archive.
+    ///
+    /// # Errors
+    /// Fails if the destination directory is outside the
+    /// workspace, the source doesn't exist, the injection
+    /// into the vm fails of the mount couldn't ve registered
+    pub async fn mount_into_vm(
+        &self,
+        from: &str,
+        to: &str,
+        working_dir: &str,
+        source: &ImageSource,
+    ) -> Result<ExecutionResult> {
+        anyhow::ensure!(
+            Path::new(&from).is_relative() && Path::new(&to).is_relative(),
+            "Source and destination paths of a mount should be relative, but got {from} as a source and {to} as a destination",
+        );
+        let wd = working_dir.to_string();
+        let src_path = wd.clone() + from;
+        let dest_path = wd + to;
+
+        let mut vm = match source {
+            ImageSource::Image(image) => self.backend.create(image, &self.config).await?,
+            ImageSource::Snapshot(snap) => self.backend.restore(snap, &self.config).await?,
+        };
+        vm.inject(Path::new(&src_path), &dest_path).await?;
+        let snapshot = vm.snapshot(&SnapshotLabel::Ephemeral).await?;
+
+        Ok(ExecutionResult {
+            exit_code: 0,
+            snapshot: Some(snapshot),
             cached: false,
         })
     }
@@ -302,6 +339,100 @@ mod tests {
     // ------------------------------------------------------------------ //
     // Tests                                                                //
     // ------------------------------------------------------------------ //
+
+    #[tokio::test]
+    async fn mount_into_vm_rejects_absolute_source() {
+        let backend = MockBackend::new(0, false);
+        let (registry, _dir) = open_temp_registry(10);
+        let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
+
+        let err = hm
+            .mount_into_vm(
+                "/abs/path",
+                "./rel",
+                "/work",
+                &ImageSource::Image("ubuntu:24.04".into()),
+            )
+            .await
+            .unwrap_err();
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("relative"),
+            "expected relative-path error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn mount_into_vm_rejects_absolute_destination() {
+        let backend = MockBackend::new(0, false);
+        let (registry, _dir) = open_temp_registry(10);
+        let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
+
+        let err = hm
+            .mount_into_vm(
+                "./rel",
+                "/abs/path",
+                "/work",
+                &ImageSource::Image("ubuntu:24.04".into()),
+            )
+            .await
+            .unwrap_err();
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("relative"),
+            "expected relative-path error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn mount_into_vm_rejects_both_absolute() {
+        let backend = MockBackend::new(0, false);
+        let (registry, _dir) = open_temp_registry(10);
+        let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
+
+        let err = hm
+            .mount_into_vm(
+                "/src",
+                "/dst",
+                "/work",
+                &ImageSource::Image("ubuntu:24.04".into()),
+            )
+            .await
+            .unwrap_err();
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("relative"),
+            "expected relative-path error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn mount_into_vm_relative_paths_succeed() {
+        let backend = MockBackend::new(0, false);
+        let (registry, _dir) = open_temp_registry(10);
+        let hm = HmVm::new(Arc::new(backend.clone()), registry, VmConfig::default());
+
+        let result = hm
+            .mount_into_vm(
+                ".cache/data",
+                "./_hm_mount",
+                "/work",
+                &ImageSource::Image("ubuntu:24.04".into()),
+            )
+            .await
+            .expect("mount should succeed with relative paths");
+
+        assert_eq!(result.exit_code, 0);
+        assert!(result.snapshot.is_some());
+
+        let log = calls(&backend);
+        assert!(log.iter().any(|c| c.starts_with("create:")));
+        assert!(log.iter().any(|c| c.starts_with("inject:")));
+        assert!(log.iter().any(|c| c.starts_with("snapshot:")));
+    }
 
     #[tokio::test]
     async fn cache_miss_creates_executes_and_snapshots() {

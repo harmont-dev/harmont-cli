@@ -29,7 +29,7 @@ def _render_keys_and_edges(leaf: hm.Step) -> tuple[dict, list]:
     doc = json.loads(hm.pipeline_to_json(hm.pipeline([leaf])))
     graph = doc["graph"]
     keys = [n["step"]["key"] for n in graph["nodes"]]
-    cmds = [n["step"].get("cmd") for n in graph["nodes"]]
+    cmds = [n["step"].get("action", {}).get("cmd") for n in graph["nodes"]]
     return {"keys": keys, "cmds": cmds}, graph["edges"]
 
 
