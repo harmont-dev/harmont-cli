@@ -30,6 +30,7 @@ from dataclasses import replace as _replace
 from typing import TYPE_CHECKING, Any
 
 from . import _decorator, py
+from ._docker import DockerProject, docker
 from ._cmake import CMakeProject, CMakeToolchain, cmake
 from ._duration import parse_duration as _parse_duration
 from ._elixir import elixir
@@ -311,11 +312,13 @@ __all__ = [
     "Pipeline",
     "RustProject",
     "ScalaProject",
+    "DockerProject",
     "Step",
     "Target",
     "apt_base",
     "cmake",
     "compose",
+    "docker",
     "dump_registry_json",
     "elixir",
     "forever",
